@@ -162,7 +162,7 @@ impl PipelineBuilder {
             builder.create_complete_chain()?;
             let mut chains = builder.completed_chains;
 
-            // Add an additional operator chain for repartition -> build input.
+            // Add an additional operator chain for repartition -> build sink.
             chains.push(OperatorChain::try_new(
                 Box::new(repartition),
                 Box::new(build_sink),
@@ -186,7 +186,7 @@ impl PipelineBuilder {
             builder.create_complete_chain()?;
             let mut chains = builder.completed_chains;
 
-            // Add an additional operator chain for repartition -> build input.
+            // Add an additional operator chain for repartition -> probe sink.
             chains.push(OperatorChain::try_new(
                 Box::new(repartition),
                 Box::new(probe_sink),

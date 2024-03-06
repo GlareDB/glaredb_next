@@ -49,6 +49,12 @@ use super::{Sink, Source};
 // grouped by that column, we could just reuse the hashes and existing knowledge
 // of what batch is in a partition.
 //
+// TODO: If we keep the existing behavior of requiring both sides to be hash
+// partitioned, we can be a bit more efficient by not requiring that we collect
+// all the partition-local states into a global state. Instead we just need to
+// wait for the build for that partition to complete, then we can start the
+// probe on that partition without waiting for the other partitions to complete.
+//
 #[derive(Debug)]
 pub struct PhysicalPartitionedHashJoin {
     /// Columns on the left side to join on.
