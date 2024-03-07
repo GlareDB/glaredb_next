@@ -1,6 +1,9 @@
 use super::{
     chain::OperatorChain,
-    plans::{empty_source::EmptySource, projection::PhysicalProjection, PhysicalOperator},
+    plans::{
+        empty_source::EmptySource, projection::PhysicalProjection, set_var::PhysicalSetVar,
+        show_var::PhysicalShowVar, PhysicalOperator,
+    },
     Pipeline, Sink, Source,
 };
 use crate::{
@@ -117,8 +120,26 @@ impl PipelineBuilder {
             LogicalOperator::AnyJoin(join) => self.plan_any_join(join),
             LogicalOperator::EqualityJoin(join) => self.plan_equality_join(join),
             LogicalOperator::Empty => self.plan_empty(),
+            LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
+            LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
             other => unimplemented!("other: {other:?}"),
         }
+    }
+
+    fn plan_show_var(&mut self, show_var: operator::ShowVar) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+        self.source = Some(Box::new(PhysicalShowVar::new(show_var.var)));
+        Ok(())
+    }
+
+    fn plan_set_var(&mut self, set_var: operator::SetVar) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+        self.source = Some(Box::new(PhysicalSetVar::new(set_var.name, set_var.value)));
+        Ok(())
     }
 
     /// Plan a join that can handle arbitrary expressions.

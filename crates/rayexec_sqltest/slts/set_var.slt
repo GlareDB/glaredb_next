@@ -1,2 +1,7 @@
 statement ok
-set debug_test_var to true;
+set debug_string_var to 'test';
+
+query T
+show debug_string_var;
+----
+test

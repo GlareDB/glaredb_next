@@ -2,7 +2,6 @@ use crate::expr::scalar::ScalarValue;
 use once_cell::sync::Lazy;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
-use std::hash::Hash;
 
 static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(|| SessionVars::global_default());
 
@@ -12,8 +11,28 @@ pub struct SessionVar {
     pub value: ScalarValue,
 }
 
+impl SessionVar {
+    /// Validate that the type of the provided value is valid for this variable.
+    pub fn validate_type(&self, value: &ScalarValue) -> Result<()> {
+        if self.value.data_type() != value.data_type() {
+            return Err(RayexecError::new(format!(
+                "Invalid value for session variable {}, expected a value of type {}",
+                self.name,
+                self.value.data_type()
+            )));
+        }
+
+        Ok(())
+    }
+}
+
+/// Session local variables.
 #[derive(Debug, Clone)]
 pub struct SessionVars {
+    /// Explicitly set variables for the session.
+    ///
+    /// This is really an overlay on top of the global defaults and provides
+    /// COW-like semantics for variables.
     vars: HashMap<&'static str, SessionVar>,
 }
 
@@ -63,12 +82,7 @@ impl SessionVars {
 
     pub fn set_var(&mut self, name: &str, value: ScalarValue) -> Result<()> {
         if let Some(var) = self.vars.get_mut(name) {
-            if var.value.data_type() != value.data_type() {
-                return Err(RayexecError::new(format!(
-                    "Invalid value for session variable {name}, expected a value of type {}",
-                    var.value.data_type()
-                )));
-            }
+            var.validate_type(&value)?;
 
             var.value = value;
             return Ok(());
@@ -77,12 +91,7 @@ impl SessionVars {
         // Only allow setting variables that we've actually defined and make
         // sure they're the right type.
         if let Some(global) = DEFAULT_GLOBAL_SESSION_VARS.vars.get(name) {
-            if global.value.data_type() != value.data_type() {
-                return Err(RayexecError::new(format!(
-                    "Invalid value for session variable {name}, expected a value of type {}",
-                    global.value.data_type()
-                )));
-            }
+            global.validate_type(&value)?;
 
             let mut var = global.clone();
             var.value = value;

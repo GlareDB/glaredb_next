@@ -7,6 +7,8 @@ pub mod hash_repartition;
 pub mod nested_loop_join;
 pub mod order;
 pub mod projection;
+pub mod set_var;
+pub mod show_var;
 pub mod ungrouped_aggregate;
 pub mod values;
 

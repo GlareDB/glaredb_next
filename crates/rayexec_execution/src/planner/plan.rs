@@ -1,7 +1,7 @@
 use crate::{
     functions::table::TableFunctionArgs,
     planner::{
-        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar},
+        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
         scope::TableReference,
     },
     types::batch::DataBatchSchema,
@@ -59,6 +59,15 @@ impl<'a> PlanContext<'a> {
                         value: expr.try_into_scalar()?,
                     }),
                     scope: Scope::empty(),
+                })
+            }
+            Statement::ShowVariable { reference } => {
+                let name = reference.0[0].value.clone(); // TODO: Normalize, allow compound references?
+                let var = self.resolver.get_session_variable(&name)?;
+                let scope = Scope::with_columns(None, [name.clone()]);
+                Ok(LogicalQuery {
+                    root: LogicalOperator::ShowVar(ShowVar { var }),
+                    scope,
                 })
             }
             _ => unimplemented!(),

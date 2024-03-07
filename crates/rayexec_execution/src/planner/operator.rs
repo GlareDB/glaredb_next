@@ -1,5 +1,6 @@
 use super::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
+    engine::vars::SessionVar,
     expr::{
         scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator},
         Expression,
@@ -26,6 +27,7 @@ pub enum LogicalOperator {
     ExpressionList(ExpressionList),
     Empty,
     SetVar(SetVar),
+    ShowVar(ShowVar),
     CreateTableAs(CreateTableAs),
 }
 
@@ -69,6 +71,10 @@ impl LogicalOperator {
             }
             Self::Empty => DataBatchSchema::empty(),
             Self::SetVar(_) => DataBatchSchema::empty(),
+            // TODO: Double check with postgres if they convert everything to
+            // string in SHOW. I'm adding this in right now just to quickly
+            // check the vars for debugging.
+            Self::ShowVar(_show_var) => DataBatchSchema::new(vec![DataType::Utf8]),
             Self::CreateTableAs(_) => unimplemented!(),
         })
     }
@@ -211,6 +217,11 @@ pub struct CreateTableAs {
 pub struct SetVar {
     pub name: String,
     pub value: ScalarValue,
+}
+
+#[derive(Debug)]
+pub struct ShowVar {
+    pub var: SessionVar,
 }
 
 /// An expression that can exist in a logical plan.

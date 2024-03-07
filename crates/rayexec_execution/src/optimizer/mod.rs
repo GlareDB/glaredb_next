@@ -136,6 +136,7 @@ where
         plan @ LogicalOperator::ExpressionList(_)
         | plan @ LogicalOperator::Empty
         | plan @ LogicalOperator::SetVar(_)
+        | plan @ LogicalOperator::ShowVar(_)
         | plan @ LogicalOperator::Scan(_) => plan,
     };
     post(&mut plan)?;

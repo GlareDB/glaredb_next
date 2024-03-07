@@ -14,20 +14,16 @@ use crate::{
 use super::{
     materialize::MaterializedBatchStream,
     modify::{Modification, SessionModifier},
+    vars::SessionVar,
     vars::SessionVars,
 };
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct DebugResolver;
+#[derive(Debug, Clone, Copy)]
+pub struct DebugResolver<'a> {
+    vars: &'a SessionVars,
+}
 
-impl Resolver for DebugResolver {
-    // fn resolve_for_table_scan(
-    //     &self,
-    //     reference: &ast::ObjectReference,
-    // ) -> Result<Box<dyn TableFunction>> {
-    //     unimplemented!()
-    // }
-
+impl<'a> Resolver for DebugResolver<'a> {
     fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
@@ -42,6 +38,10 @@ impl Resolver for DebugResolver {
             "read_csv" => Box::new(table::read_csv::ReadCsv),
             other => return Err(RayexecError::new(format!("unknown function: {other}"))),
         })
+    }
+
+    fn get_session_variable(&self, name: &str) -> Result<SessionVar> {
+        self.vars.get_var(name).cloned()
     }
 }
 
@@ -78,7 +78,8 @@ impl Session {
         }
         let mut stmts = stmts.into_iter();
 
-        let plan_context = PlanContext::new(&DebugResolver);
+        let resolver = DebugResolver { vars: &self.vars };
+        let plan_context = PlanContext::new(&resolver);
         let logical = plan_context.plan_statement(stmts.next().unwrap())?;
         trace!(?logical, "logical plan created");
 
@@ -108,7 +109,9 @@ impl Session {
         loop {
             match recv.try_recv() {
                 Ok(modification) => match modification {
-                    Modification::UpdateVariable(var) => self.vars.set_var(var.name, var.value)?,
+                    Modification::UpdateVariable { name, value } => {
+                        self.vars.set_var(&name, value)?
+                    }
                     _ => unimplemented!(),
                 },
                 Err(TryRecvError::Empty) => return Ok(()),
