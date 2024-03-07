@@ -1,0 +1,2 @@
+statement ok
+set debug_test_var to true;
