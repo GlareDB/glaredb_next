@@ -1,6 +1,5 @@
 use arrow_array::{
-    Array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array,
-    StringArray,
+    Array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
 };
 use arrow_schema::DataType;
 use rayexec_error::{RayexecError, Result};
@@ -88,6 +87,13 @@ impl ScalarValue {
             )),
             _ => unimplemented!(),
         })
+    }
+
+    pub fn try_as_bool(&self) -> Result<bool> {
+        match self {
+            Self::Boolean(b) => Ok(*b),
+            other => Err(RayexecError::new(format!("Not a bool: {other:?}"))),
+        }
     }
 }
 

@@ -27,7 +27,7 @@ impl SessionVars {
             },
             SessionVar {
                 name: "debug_error_on_nested_loop_join",
-                value: ScalarValue::Utf8("debug".to_string()),
+                value: ScalarValue::Boolean(false),
             },
         ];
 

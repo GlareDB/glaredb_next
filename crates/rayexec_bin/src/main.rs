@@ -1,5 +1,5 @@
-use futures::{StreamExt};
-use rayexec_execution::engine::{Engine};
+use futures::StreamExt;
+use rayexec_execution::engine::Engine;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
 
     let engine = Engine::try_new()?;
-    let session = engine.new_session()?;
+    let mut session = engine.new_session()?;
 
     let query = args[1].clone();
 

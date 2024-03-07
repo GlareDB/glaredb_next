@@ -4,6 +4,7 @@ use super::{
     Pipeline, Sink, Source,
 };
 use crate::{
+    engine::vars::SessionVars,
     expr::PhysicalScalarExpression,
     functions::table::Pushdown,
     physical::plans::{
@@ -19,18 +20,20 @@ use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
 /// Produce phyisical plans from logical plans.
-#[derive(Debug)]
-pub struct PhysicalPlanner {}
-
-impl Default for PhysicalPlanner {
-    fn default() -> Self {
-        Self::new()
-    }
+#[derive(Debug, Default)]
+pub struct PhysicalPlanner {
+    error_on_nested_loop_join: bool,
 }
 
 impl PhysicalPlanner {
-    pub fn new() -> Self {
-        PhysicalPlanner {}
+    /// Create a new physical planner using the configured session vars.
+    pub fn try_new_from_vars(vars: &SessionVars) -> Result<Self> {
+        Ok(PhysicalPlanner {
+            error_on_nested_loop_join: vars
+                .get_var("debug_error_on_nested_loop_join")?
+                .value
+                .try_as_bool()?,
+        })
     }
 
     /// Create a physical plan from a logical plan.

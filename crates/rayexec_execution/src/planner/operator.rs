@@ -25,7 +25,7 @@ pub enum LogicalOperator {
     Scan(Scan),
     ExpressionList(ExpressionList),
     Empty,
-
+    SetVar(SetVar),
     CreateTableAs(CreateTableAs),
 }
 
@@ -68,6 +68,7 @@ impl LogicalOperator {
                 DataBatchSchema::new(types)
             }
             Self::Empty => DataBatchSchema::empty(),
+            Self::SetVar(_) => DataBatchSchema::empty(),
             Self::CreateTableAs(_) => unimplemented!(),
         })
     }
@@ -206,6 +207,12 @@ pub struct CreateTableAs {
     pub input: Box<LogicalOperator>,
 }
 
+#[derive(Debug)]
+pub struct SetVar {
+    pub name: String,
+    pub value: ScalarValue,
+}
+
 /// An expression that can exist in a logical plan.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalExpression {
@@ -287,5 +294,14 @@ impl LogicalExpression {
             }
             _ => unimplemented!(),
         })
+    }
+
+    /// Try to get a top-level literal from this expression, erroring if it's
+    /// not one.
+    pub fn try_into_scalar(self) -> Result<ScalarValue> {
+        match self {
+            Self::Literal(lit) => Ok(lit),
+            other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
+        }
     }
 }

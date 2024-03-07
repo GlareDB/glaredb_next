@@ -1,4 +1,4 @@
-use rayexec_error::{Result};
+use rayexec_error::Result;
 use rayon::ThreadPool;
 use std::{
     fmt,
@@ -7,7 +7,7 @@ use std::{
 };
 use tracing::trace;
 
-use super::{chain::OperatorChain, Pipeline};
+use super::{chain::OperatorChain, Pipeline, TaskContext};
 
 /// Scheduler for executing query pipelines on a rayon thread pool.
 pub struct Scheduler {
@@ -35,7 +35,7 @@ impl Scheduler {
     /// partition) pair which will all immediately start executing. However,
     /// only some will make progress while the others will be woken up once
     /// there's batches to begin executing on.
-    pub fn execute(&self, pipeline: Pipeline) -> Result<()> {
+    pub fn execute(&self, pipeline: Pipeline, task_context: TaskContext) -> Result<()> {
         trace!(?pipeline, "executing pipeline");
 
         let pipeline = Arc::new(pipeline);
@@ -44,6 +44,7 @@ impl Scheduler {
             for partition in 0..chain.partitions() {
                 let waker = Arc::new(OperatorPartitionWaker {
                     pipeline: pipeline.clone(),
+                    task_context: task_context.clone(),
                     operator: chain_idx,
                     partition,
                     sync_pool: self.sync_pool.clone(),
@@ -63,6 +64,9 @@ impl Scheduler {
 struct OperatorPartitionTask {
     /// Waker which happens to have all the info we need to execute an operator.
     waker: Arc<OperatorPartitionWaker>,
+
+    /// Task that gets passed to all operators during execution.
+    task_context: TaskContext,
 }
 
 impl OperatorPartitionTask {
@@ -74,7 +78,7 @@ impl OperatorPartitionTask {
         let mut cx = Context::from_waker(&waker);
 
         loop {
-            match chain.poll_execute(&mut cx, self.waker.partition) {
+            match chain.poll_execute(&mut self.waker.task_context, &mut cx, self.waker.partition) {
                 Poll::Ready(Some(Ok(()))) => {
                     // Pushing through the operator chain was successful.
                     // Continue the loop to try to get as much work done as

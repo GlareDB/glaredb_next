@@ -1,4 +1,4 @@
-
+use crossbeam::channel::TryRecvError;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser};
 
@@ -11,7 +11,11 @@ use crate::{
     types::batch::DataBatchSchema,
 };
 
-use super::materialize::MaterializedBatchStream;
+use super::{
+    materialize::MaterializedBatchStream,
+    modify::{Modification, SessionModifier},
+    vars::SessionVars,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DebugResolver;
@@ -49,15 +53,25 @@ pub struct ExecutionResult {
 
 #[derive(Debug)]
 pub struct Session {
-    scheduler: Scheduler,
+    pub(crate) modifications: SessionModifier,
+    pub(crate) vars: SessionVars,
+    pub(crate) scheduler: Scheduler,
 }
 
 impl Session {
     pub fn new(scheduler: Scheduler) -> Self {
-        Session { scheduler }
+        Session {
+            modifications: SessionModifier::new(),
+            scheduler,
+            vars: SessionVars::new_local(),
+        }
     }
 
-    pub fn execute(&self, sql: &str) -> Result<ExecutionResult> {
+    pub fn execute(&mut self, sql: &str) -> Result<ExecutionResult> {
+        // Only thing that requires mut.
+        self.apply_pending_modifications()
+            .expect("modications to be infallible");
+
         let stmts = parser::parse(sql)?;
         if stmts.len() != 1 {
             return Err(RayexecError::new("Expected one statement")); // TODO, allow any number
@@ -73,7 +87,7 @@ impl Session {
 
         let mut output_stream = MaterializedBatchStream::new();
 
-        let physical_planner = PhysicalPlanner::new();
+        let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
         let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
         trace!(?pipeline, "physical plan created");
 
@@ -83,5 +97,23 @@ impl Session {
             output_schema: DataBatchSchema::new(Vec::new()), // TODO
             stream: output_stream,
         })
+    }
+
+    fn apply_pending_modifications(&mut self) -> Result<()> {
+        let recv = self.modifications.get_recv();
+        loop {
+            match recv.try_recv() {
+                Ok(modification) => match modification {
+                    Modification::UpdateVariable(var) => self.vars.set_var(var.name, var.value)?,
+                    _ => unimplemented!(),
+                },
+                Err(TryRecvError::Empty) => return Ok(()),
+                Err(TryRecvError::Disconnected) => {
+                    return Err(RayexecError::new(
+                        "session modification channel disconnected",
+                    ))
+                }
+            }
+        }
     }
 }
