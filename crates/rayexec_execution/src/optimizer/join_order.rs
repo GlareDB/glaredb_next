@@ -3,15 +3,14 @@ use crate::{
     planner::operator::{AnyJoin, EqualityJoin, LogicalExpression, LogicalOperator},
 };
 use rayexec_error::Result;
-use smallvec::{smallvec, SmallVec};
 
-use super::{OptimizeRule, OptimizedPlan};
+use super::{walk_plan_post, OptimizeRule};
 
 #[derive(Debug, Clone)]
 pub struct JoinOrderRule {}
 
 impl OptimizeRule for JoinOrderRule {
-    fn optimize(&self, plan: LogicalOperator) -> Result<OptimizedPlan> {
+    fn optimize(&self, plan: LogicalOperator) -> Result<LogicalOperator> {
         self.optimize_any_join_to_equality_join(plan)
     }
 }
@@ -19,114 +18,100 @@ impl OptimizeRule for JoinOrderRule {
 impl JoinOrderRule {
     /// Try to swap out any joins (joins with arbitrary expressions) with
     /// equality joins.
-    fn optimize_any_join_to_equality_join(&self, plan: LogicalOperator) -> Result<OptimizedPlan> {
-        match plan {
-            LogicalOperator::AnyJoin(join) => {
-                let mut conjunctives = Vec::with_capacity(1);
-                split_conjuctive(join.on, &mut conjunctives);
-                let conjunctive_len = conjunctives.len();
+    fn optimize_any_join_to_equality_join(&self, plan: LogicalOperator) -> Result<LogicalOperator> {
+        let plan = walk_plan_post(plan, &mut |plan| {
+            match plan {
+                LogicalOperator::AnyJoin(join) => {
+                    let mut conjunctives = Vec::with_capacity(1);
+                    split_conjuctive(join.on.clone(), &mut conjunctives);
 
-                // Used to adjust the indexes used for the on keys.
-                let left_len = join.left.schema(&[])?.num_columns();
+                    // Used to adjust the indexes used for the on keys.
+                    let left_len = join.left.schema(&[])?.num_columns();
 
-                let mut left_on = Vec::new();
-                let mut right_on = Vec::new();
+                    let mut left_on = Vec::new();
+                    let mut right_on = Vec::new();
 
-                let mut remaining = Vec::new();
-                for expr in conjunctives {
-                    // Currently this just does a basic 'col1 = col2' check.
-                    // More sophisticated exprs can be represented to adding an
-                    // additional projection to the input.
-                    match &expr {
-                        LogicalExpression::Binary {
-                            op: BinaryOperator::Eq,
-                            left,
-                            right,
-                        } => match (left.as_ref(), right.as_ref()) {
-                            (
-                                LogicalExpression::ColumnRef(left),
-                                LogicalExpression::ColumnRef(right),
-                            ) => match (left.try_as_uncorrelated(), right.try_as_uncorrelated()) {
-                                (Ok(left), Ok(right)) => {
-                                    // If correlated, then this would be a
-                                    // lateral join. Unsure how we want to
-                                    // optimize that right now.
+                    let mut remaining = Vec::new();
+                    for expr in conjunctives {
+                        // Currently this just does a basic 'col1 = col2' check.
+                        // More sophisticated exprs can be represented to adding an
+                        // additional projection to the input.
+                        match &expr {
+                            LogicalExpression::Binary {
+                                op: BinaryOperator::Eq,
+                                left,
+                                right,
+                            } => match (left.as_ref(), right.as_ref()) {
+                                (
+                                    LogicalExpression::ColumnRef(left),
+                                    LogicalExpression::ColumnRef(right),
+                                ) => {
+                                    match (left.try_as_uncorrelated(), right.try_as_uncorrelated())
+                                    {
+                                        (Ok(left), Ok(right)) => {
+                                            // If correlated, then this would be a
+                                            // lateral join. Unsure how we want to
+                                            // optimize that right now.
 
-                                    // Normal 'left_table_col = right_table_col'
-                                    if left < left_len && right >= left_len {
-                                        left_on.push(left);
-                                        right_on.push(right - left_len);
-                                        // This expression was handled, avoid
-                                        // putting it in remaining.
-                                        continue;
-                                    }
+                                            // Normal 'left_table_col = right_table_col'
+                                            if left < left_len && right >= left_len {
+                                                left_on.push(left);
+                                                right_on.push(right - left_len);
+                                                // This expression was handled, avoid
+                                                // putting it in remaining.
+                                                continue;
+                                            }
 
-                                    // May be flipped like 'right_table_col = left_table_col'
-                                    if right < left_len && left >= left_len {
-                                        left_on.push(right);
-                                        right_on.push(left - left_len);
-                                        // This expression was handled, avoid
-                                        // putting it in remaining.
-                                        continue;
+                                            // May be flipped like 'right_table_col = left_table_col'
+                                            if right < left_len && left >= left_len {
+                                                left_on.push(right);
+                                                right_on.push(left - left_len);
+                                                // This expression was handled, avoid
+                                                // putting it in remaining.
+                                                continue;
+                                            }
+                                        }
+                                        _ => (),
                                     }
                                 }
                                 _ => (),
                             },
                             _ => (),
-                        },
-                        _ => (),
+                        }
+
+                        // Didn't handle this expression. Add it to remaining.
+                        remaining.push(expr);
                     }
 
-                    // Didn't handle this expression. Add it to remaining.
-                    remaining.push(expr);
-                }
-
-                // TODO: Don't panic.
-                //
-                // This indicates there were some column equality predicates in
-                // the expr, but not everything.
-                if remaining.len() != 0 && remaining.len() != conjunctive_len {
-                    panic!("Unhandled expressions: {remaining:?}");
-                }
-
-                if remaining.len() == 0 {
-                    Ok(OptimizedPlan::Optimized(LogicalOperator::EqualityJoin(
-                        EqualityJoin {
-                            left: Box::new(
-                                self.optimize_any_join_to_equality_join(*join.left)?
-                                    .into_plan(),
+                    // We were able to extract all equalities. Update the plan
+                    // to be an equality join.
+                    if remaining.is_empty() {
+                        *plan = LogicalOperator::EqualityJoin(EqualityJoin {
+                            left: std::mem::replace(
+                                &mut join.left,
+                                Box::new(LogicalOperator::Empty),
                             ),
-                            right: Box::new(
-                                self.optimize_any_join_to_equality_join(*join.right)?
-                                    .into_plan(),
+                            right: std::mem::replace(
+                                &mut join.right,
+                                Box::new(LogicalOperator::Empty),
                             ),
                             join_type: join.join_type,
                             left_on,
                             right_on,
-                        },
-                    )))
-                } else {
-                    Ok(OptimizedPlan::NotOptimized(LogicalOperator::AnyJoin(
-                        AnyJoin {
-                            left: Box::new(
-                                self.optimize_any_join_to_equality_join(*join.left)?
-                                    .into_plan(),
-                            ),
-                            right: Box::new(
-                                self.optimize_any_join_to_equality_join(*join.right)?
-                                    .into_plan(),
-                            ),
-                            join_type: join.join_type,
-                            on: join_conjunctive(remaining),
-                        },
-                    )))
+                        });
+                    }
+
+                    Ok(())
                 }
+                _ => Ok(()), // Not a plan we can optimize.
             }
-            other => self.optimize_any_join_to_equality_join(other),
-        }
+        })?;
+
+        Ok(plan)
     }
 }
 
+/// Joins expressions with an AND.
 fn join_conjunctive(exprs: impl IntoIterator<Item = LogicalExpression>) -> LogicalExpression {
     let mut iter = exprs.into_iter();
     let mut left = iter.next().expect("at least one expression");

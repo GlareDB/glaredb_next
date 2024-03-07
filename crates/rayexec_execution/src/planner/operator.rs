@@ -1,4 +1,5 @@
-use super::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
+use super::scope::ColumnRef;
 use crate::{
     engine::vars::SessionVar,
     expr::{
@@ -6,12 +7,12 @@ use crate::{
         Expression,
     },
     functions::table::BoundTableFunction,
+    optimizer::walk_plan,
     types::batch::DataBatchSchema,
 };
 use arrow_schema::DataType;
-use rayexec_error::{RayexecError, Result};
-
-use super::scope::ColumnRef;
+use rayexec_error::{RayexecError, Result, ResultExt};
+use std::fmt;
 
 #[derive(Debug)]
 pub enum LogicalOperator {
@@ -78,6 +79,78 @@ impl LogicalOperator {
             Self::CreateTableAs(_) => unimplemented!(),
         })
     }
+
+    pub fn as_explain_string(&self) -> Result<String> {
+        use std::fmt::Write as _;
+        fn write(p: &dyn Explainable, indent: usize, buf: &mut String) -> Result<()> {
+            write!(
+                buf,
+                "{}{}\n",
+                std::iter::repeat(" ").take(indent).collect::<String>(),
+                p.explain_entry(ExplainConfig { verbose: true })
+            )
+            .context("failed to write explain string to buffer")?;
+            Ok(())
+        }
+
+        fn inner(plan: &LogicalOperator, indent: usize, buf: &mut String) -> Result<()> {
+            write(plan, indent, buf)?;
+            match plan {
+                LogicalOperator::Projection(p) => inner(&p.input, indent + 2, buf),
+                LogicalOperator::Filter(p) => inner(&p.input, indent + 2, buf),
+                LogicalOperator::Aggregate(p) => inner(&p.input, indent + 2, buf),
+                LogicalOperator::Order(p) => inner(&p.input, indent + 2, buf),
+                LogicalOperator::AnyJoin(p) => {
+                    inner(&p.left, indent + 2, buf)?;
+                    inner(&p.right, indent + 2, buf)?;
+                    Ok(())
+                }
+                LogicalOperator::EqualityJoin(p) => {
+                    inner(&p.left, indent + 2, buf)?;
+                    inner(&p.right, indent + 2, buf)?;
+                    Ok(())
+                }
+                LogicalOperator::CrossJoin(p) => {
+                    inner(&p.left, indent + 2, buf)?;
+                    inner(&p.right, indent + 2, buf)?;
+                    Ok(())
+                }
+                LogicalOperator::Limit(p) => inner(&p.input, indent + 2, buf),
+                LogicalOperator::CreateTableAs(p) => inner(&p.input, indent + 2, buf),
+                LogicalOperator::Scan(p) => write(&p.source, indent + 2, buf),
+                LogicalOperator::Empty
+                | LogicalOperator::ExpressionList(_)
+                | LogicalOperator::SetVar(_)
+                | LogicalOperator::ShowVar(_) => Ok(()),
+            }
+        }
+
+        let mut buf = String::new();
+        inner(self, 0, &mut buf)?;
+
+        Ok(buf)
+    }
+}
+
+impl Explainable for LogicalOperator {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        match self {
+            Self::Projection(p) => p.explain_entry(conf),
+            Self::Filter(p) => p.explain_entry(conf),
+            Self::Aggregate(p) => p.explain_entry(conf),
+            Self::Order(p) => p.explain_entry(conf),
+            Self::AnyJoin(p) => p.explain_entry(conf),
+            Self::EqualityJoin(p) => p.explain_entry(conf),
+            Self::CrossJoin(p) => p.explain_entry(conf),
+            Self::Limit(p) => p.explain_entry(conf),
+            Self::Scan(p) => p.explain_entry(conf),
+            Self::ExpressionList(p) => p.explain_entry(conf),
+            Self::Empty => ExplainEntry::new("Empty"),
+            Self::SetVar(p) => p.explain_entry(conf),
+            Self::ShowVar(p) => p.explain_entry(conf),
+            Self::CreateTableAs(p) => p.explain_entry(conf),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -90,7 +163,7 @@ impl Explainable for Projection {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Projection").with_values(
             "expressions",
-            self.exprs.iter().map(|expr| format!("{expr:?}")),
+            self.exprs.iter().map(|expr| format!("{expr}")),
         )
     }
 }
@@ -103,7 +176,7 @@ pub struct Filter {
 
 impl Explainable for Filter {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Filter").with_value("predicate", format!("{:?}", self.predicate))
+        ExplainEntry::new("Filter").with_value("predicate", format!("{}", self.predicate))
     }
 }
 
@@ -137,6 +210,17 @@ pub enum JoinType {
     Full,
 }
 
+impl fmt::Display for JoinType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Inner => write!(f, "INNER"),
+            Self::Left => write!(f, "LEFT"),
+            Self::Right => write!(f, "RIGHT"),
+            Self::Full => write!(f, "FULL"),
+        }
+    }
+}
+
 /// A join on an arbitrary expression.
 #[derive(Debug)]
 pub struct AnyJoin {
@@ -144,6 +228,14 @@ pub struct AnyJoin {
     pub right: Box<LogicalOperator>,
     pub join_type: JoinType,
     pub on: LogicalExpression,
+}
+
+impl Explainable for AnyJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("AnyJoin")
+            .with_value("join", self.join_type)
+            .with_value("on", &self.on)
+    }
 }
 
 /// A join on left/right column equality.
@@ -157,10 +249,25 @@ pub struct EqualityJoin {
     // TODO: Filter
 }
 
+impl Explainable for EqualityJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("EqualityJoin")
+            .with_value("join", self.join_type)
+            .with_value("left_cols", ColumnIndexes(&self.left_on))
+            .with_value("right_cols", ColumnIndexes(&self.right_on))
+    }
+}
+
 #[derive(Debug)]
 pub struct CrossJoin {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
+}
+
+impl Explainable for CrossJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CrossJoin")
+    }
 }
 
 #[derive(Debug)]
@@ -170,9 +277,23 @@ pub struct Limit {
     pub input: Box<LogicalOperator>,
 }
 
+impl Explainable for Limit {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Limit")
+    }
+}
+
 #[derive(Debug)]
 pub enum ScanItem {
     TableFunction(Box<dyn BoundTableFunction>),
+}
+
+impl Explainable for ScanItem {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        match self {
+            Self::TableFunction(func) => func.explain_entry(conf),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -184,10 +305,22 @@ pub struct Scan {
     // TODO: Pushdowns
 }
 
+impl Explainable for Scan {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Scan")
+    }
+}
+
 #[derive(Debug)]
 pub struct ExpressionList {
     pub rows: Vec<Vec<LogicalExpression>>,
     // TODO: Table index.
+}
+
+impl Explainable for ExpressionList {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("ExpressionList")
+    }
 }
 
 #[derive(Debug)]
@@ -195,6 +328,12 @@ pub struct Aggregate {
     pub grouping_expr: GroupingExpr,
     pub agg_exprs: Vec<Expression>,
     pub input: Box<LogicalOperator>,
+}
+
+impl Explainable for Aggregate {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Aggregate")
+    }
 }
 
 #[derive(Debug)]
@@ -213,15 +352,33 @@ pub struct CreateTableAs {
     pub input: Box<LogicalOperator>,
 }
 
+impl Explainable for CreateTableAs {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateTableAs")
+    }
+}
+
 #[derive(Debug)]
 pub struct SetVar {
     pub name: String,
     pub value: ScalarValue,
 }
 
+impl Explainable for SetVar {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("SetVar")
+    }
+}
+
 #[derive(Debug)]
 pub struct ShowVar {
     pub var: SessionVar,
+}
+
+impl Explainable for ShowVar {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("ShowVar")
+    }
 }
 
 /// An expression that can exist in a logical plan.
@@ -256,6 +413,24 @@ pub enum LogicalExpression {
         /// When <left>, then <right>
         when_then: Vec<(LogicalExpression, LogicalExpression)>,
     },
+}
+
+impl fmt::Display for LogicalExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ColumnRef(col) => {
+                if col.scope_level == 0 {
+                    write!(f, "#{}", col.item_idx)
+                } else {
+                    write!(f, "{}#{}", col.scope_level, col.item_idx)
+                }
+            }
+            Self::Literal(val) => write!(f, "{val}"),
+            Self::Unary { op, expr } => write!(f, "{op}{expr}"),
+            Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
+            _ => unimplemented!(),
+        }
+    }
 }
 
 impl LogicalExpression {

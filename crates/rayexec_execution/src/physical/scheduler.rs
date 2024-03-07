@@ -36,7 +36,7 @@ impl Scheduler {
     /// only some will make progress while the others will be woken up once
     /// there's batches to begin executing on.
     pub fn execute(&self, pipeline: Pipeline, task_context: TaskContext) -> Result<()> {
-        trace!(?pipeline, "executing pipeline");
+        trace!("executing pipeline");
 
         let pipeline = Arc::new(pipeline);
 

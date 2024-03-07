@@ -243,6 +243,8 @@ impl HashState {
                     ));
                 }
 
+                // Index of the newly arrived batch. The batch gets pushed at
+                // the end of the block after we compute the row keys.
                 let batch_idx = state.batches.len();
 
                 for (row_idx, row_hash) in col_hash.hashes.iter().enumerate() {
@@ -259,6 +261,9 @@ impl HashState {
                         );
                     }
                 }
+
+                state.batches.push(batch);
+
                 Ok(())
             }
             _ => Err(RayexecError::new("Expected batch state to be local")),

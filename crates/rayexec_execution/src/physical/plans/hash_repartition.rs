@@ -126,6 +126,8 @@ impl Sink for PhysicalHashRepartitionSink {
     fn push(&self, _task_cx: &TaskContext, input: DataBatch, _partition: usize) -> Result<()> {
         // TODO: Maybe don't allocate this for every input partition.
         let mut hashes = Vec::with_capacity(input.num_rows());
+        hashes.resize(input.num_rows(), 0);
+
         let arrs: Vec<_> = self
             .columns
             .iter()

@@ -6,6 +6,7 @@ use tracing::trace;
 
 use crate::{
     functions::table::{self, TableFunction},
+    optimizer::Optimizer,
     physical::{planner::PhysicalPlanner, scheduler::Scheduler, TaskContext},
     planner::{plan::PlanContext, Resolver},
     types::batch::DataBatchSchema,
@@ -80,17 +81,19 @@ impl Session {
 
         let resolver = DebugResolver { vars: &self.vars };
         let plan_context = PlanContext::new(&resolver);
-        let logical = plan_context.plan_statement(stmts.next().unwrap())?;
+        let mut logical = plan_context.plan_statement(stmts.next().unwrap())?;
         trace!(?logical, "logical plan created");
 
-        // let optimizer = Optimizer::new();
-        // let logical = optimizer.optimize(&context, logical)?;
+        println!("BEFORE: \n{}", logical.root.as_explain_string()?);
+        let optimizer = Optimizer::new();
+        logical.root = optimizer.optimize(logical.root)?;
+        println!("AFTER: \n{}", logical.root.as_explain_string()?);
 
         let mut output_stream = MaterializedBatchStream::new();
 
         let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
         let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
-        trace!(?pipeline, "physical plan created");
+        trace!("physical plan created");
 
         let context = TaskContext {
             modifications: Some(self.modifications.clone_sender()),

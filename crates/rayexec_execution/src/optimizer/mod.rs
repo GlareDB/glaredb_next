@@ -22,31 +22,13 @@ impl Optimizer {
         let join_order = JoinOrderRule {};
         let optimized = join_order.optimize(plan)?;
 
-        Ok(optimized.into_plan())
-    }
-}
-
-#[derive(Debug)]
-pub enum OptimizedPlan {
-    /// An optimization rule was successfully applied.
-    Optimized(LogicalOperator),
-
-    /// An optimization rull was not applied.
-    NotOptimized(LogicalOperator),
-}
-
-impl OptimizedPlan {
-    pub fn into_plan(self) -> LogicalOperator {
-        match self {
-            Self::Optimized(plan) => plan,
-            Self::NotOptimized(plan) => plan,
-        }
+        Ok(optimized)
     }
 }
 
 pub trait OptimizeRule {
     /// Apply an optimization rule to the logical plan.
-    fn optimize(&self, plan: LogicalOperator) -> Result<OptimizedPlan>;
+    fn optimize(&self, plan: LogicalOperator) -> Result<LogicalOperator>;
 }
 
 /// Walk a plan depth first.
