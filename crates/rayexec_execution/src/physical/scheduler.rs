@@ -64,9 +64,6 @@ impl Scheduler {
 struct OperatorPartitionTask {
     /// Waker which happens to have all the info we need to execute an operator.
     waker: Arc<OperatorPartitionWaker>,
-
-    /// Task that gets passed to all operators during execution.
-    task_context: TaskContext,
 }
 
 impl OperatorPartitionTask {
@@ -78,7 +75,7 @@ impl OperatorPartitionTask {
         let mut cx = Context::from_waker(&waker);
 
         loop {
-            match chain.poll_execute(&mut self.waker.task_context, &mut cx, self.waker.partition) {
+            match chain.poll_execute(&self.waker.task_context, &mut cx, self.waker.partition) {
                 Poll::Ready(Some(Ok(()))) => {
                     // Pushing through the operator chain was successful.
                     // Continue the loop to try to get as much work done as
@@ -109,6 +106,9 @@ impl OperatorPartitionTask {
 struct OperatorPartitionWaker {
     /// The pipeline we're working on.
     pipeline: Arc<Pipeline>,
+
+    /// Task that gets passed to all operators during execution.
+    task_context: TaskContext,
 
     /// Index of the operator chain this worker is executing for.
     operator: usize,

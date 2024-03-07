@@ -6,7 +6,7 @@ use tracing::trace;
 
 use crate::{
     functions::table::{self, TableFunction},
-    physical::{planner::PhysicalPlanner, scheduler::Scheduler},
+    physical::{planner::PhysicalPlanner, scheduler::Scheduler, TaskContext},
     planner::{plan::PlanContext, Resolver},
     types::batch::DataBatchSchema,
 };
@@ -91,7 +91,11 @@ impl Session {
         let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
         trace!(?pipeline, "physical plan created");
 
-        self.scheduler.execute(pipeline)?;
+        let context = TaskContext {
+            modifications: Some(self.modifications.clone_sender()),
+        };
+
+        self.scheduler.execute(pipeline, context)?;
 
         Ok(ExecutionResult {
             output_schema: DataBatchSchema::new(Vec::new()), // TODO

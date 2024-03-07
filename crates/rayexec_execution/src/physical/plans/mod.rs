@@ -39,12 +39,12 @@ pub trait Source: Sync + Send + Explainable + Debug {
     fn poll_next(
         &self,
         task_cx: &TaskContext,
-        cx: &Context,
+        cx: &mut Context,
         partition: usize,
     ) -> Poll<Option<Result<DataBatch>>>;
 }
 
 pub trait PhysicalOperator: Sync + Send + Explainable + Debug {
     /// Execute this operator on an input batch.
-    fn execute(&self, task_cx: &mut TaskContext, input: DataBatch) -> Result<DataBatch>;
+    fn execute(&self, task_cx: &TaskContext, input: DataBatch) -> Result<DataBatch>;
 }

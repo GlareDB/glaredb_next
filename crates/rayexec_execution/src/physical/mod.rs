@@ -20,6 +20,10 @@ use self::chain::OperatorChain;
 // TODO: Store execution timings on this. Then the outermost EXPLAIN node will
 // be able to pull those timings off of this to expose them to the user.
 //
+// TODO: I don't think this is the cleanest solution right now as it's unclear
+// what this will be used for other than being able to apply modifications to a
+// session.
+//
 #[derive(Debug, Clone)]
 pub struct TaskContext {
     /// A channel for sending session modifications to the session.

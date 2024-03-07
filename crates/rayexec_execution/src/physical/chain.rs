@@ -84,7 +84,7 @@ impl OperatorChain {
     /// Execute the operator chain for a partition.
     pub fn poll_execute(
         &self,
-        task_cx: &mut TaskContext,
+        task_cx: &TaskContext,
         cx: &mut Context,
         partition: usize,
     ) -> Poll<Option<Result<()>>> {
@@ -153,11 +153,7 @@ impl OperatorChain {
         }
     }
 
-    fn execute_operators(
-        &self,
-        task_cx: &mut TaskContext,
-        mut batch: DataBatch,
-    ) -> Result<DataBatch> {
+    fn execute_operators(&self, task_cx: &TaskContext, mut batch: DataBatch) -> Result<DataBatch> {
         for operator in &self.operators {
             batch = operator.execute(task_cx, batch)?;
         }
