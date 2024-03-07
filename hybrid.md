@@ -85,7 +85,7 @@ The logical plan will then get serialized and sent to the remote node.
 
 The remote node will be responsible for optimization and physical planning.
 Physical planning will result in two pipelines, one that's expected to be
-execution on the remote side, and one that's expected to be executed locally.
+executed on the remote side, and one that's expected to be executed locally.
 The local pipeline is serialized and sent to the client. Both sides can begin
 executing immediately, with batches going to some buffer, and the buffer
 being the source backpressure.
@@ -106,7 +106,7 @@ scheduler implementation will be used for parallelism and yielding.
 
 Goals:
 
-- Partition logical planning
+- Partial logical planning
 
 The aim is to remove needing to call out to the remote instance at all during
 logical planning. The idea is that the client will build up as much of the
