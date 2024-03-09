@@ -272,8 +272,8 @@ impl Explainable for CrossJoin {
 
 #[derive(Debug)]
 pub struct Limit {
-    pub offset: usize,
-    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+    pub limit: usize,
     pub input: Box<LogicalOperator>,
 }
 

@@ -4,6 +4,7 @@ pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
 pub mod hash_repartition;
+pub mod limit;
 pub mod nested_loop_join;
 pub mod order;
 pub mod projection;
@@ -42,6 +43,12 @@ pub enum PollPush {
     /// A waker will be registered for a later wakeup. This same batch should be
     /// pushed at that time.
     Pending(DataBatch),
+
+    /// This sink requires no more input.
+    ///
+    /// Upon receiving this, the operator chain should immediately call this
+    /// sink's finish method.
+    Break,
 }
 
 /// Result of a pull from a Source.

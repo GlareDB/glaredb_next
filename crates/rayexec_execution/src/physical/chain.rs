@@ -135,6 +135,11 @@ impl OperatorChain {
                             *state = PartitionState::PushPending { batch: Some(batch) };
                             return Poll::Pending;
                         }
+                        Ok(PollPush::Break) => {
+                            // This sink requires no more input.
+                            *state = PartitionState::Finished;
+                            continue;
+                        }
                         Err(e) => return Poll::Ready(Some(Err(e))),
                     }
                 }

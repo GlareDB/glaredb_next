@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Waker};
 
 use super::{PollPull, PollPush, Sink, Source};
 
