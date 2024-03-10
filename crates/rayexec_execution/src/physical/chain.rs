@@ -31,6 +31,20 @@ pub struct OperatorChain {
     states: Vec<Mutex<PartitionState>>,
 }
 
+impl OperatorChain {
+    pub fn sink(&self) -> &dyn Sink {
+        self.sink.as_ref()
+    }
+
+    pub fn operators(&self) -> &[Box<dyn PhysicalOperator>] {
+        self.operators.as_slice()
+    }
+
+    pub fn source(&self) -> &dyn Source {
+        self.source.as_ref()
+    }
+}
+
 /// State local to each partition in the chain.
 #[derive(Debug)]
 enum PartitionState {

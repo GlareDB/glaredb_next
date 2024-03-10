@@ -171,6 +171,7 @@ impl Sink for PhysicalHashRepartitionSink {
             let mut output_state = self.output_states[partition_idx].lock();
             output_state.batches.push_back(output_batch);
 
+            // TODO: Do this outside the loop.
             if let Some(waker) = output_state.pending.take() {
                 waker.wake();
             }

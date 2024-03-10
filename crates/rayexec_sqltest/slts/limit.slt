@@ -8,6 +8,15 @@ select * from generate_series(1, 100) limit 5;
 5
 
 query I
+select * from generate_series(1, 5) limit 10;
+----
+1
+2
+3
+4
+5
+
+query I
 select * from generate_series(1, 100) limit 5 offset 2;
 ----
 3

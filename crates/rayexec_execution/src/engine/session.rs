@@ -93,7 +93,7 @@ impl Session {
 
         let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
         let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
-        trace!("physical plan created");
+        println!("PIPELINE: \n{}", pipeline.as_explain_string()?);
 
         let context = TaskContext {
             modifications: Some(self.modifications.clone_sender()),
