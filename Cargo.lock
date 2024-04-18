@@ -1462,6 +1462,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_bullet"
+version = "0.0.1"
+dependencies = [
+ "rayexec_error",
+]
+
+[[package]]
 name = "rayexec_error"
 version = "0.0.1"
 dependencies = [
