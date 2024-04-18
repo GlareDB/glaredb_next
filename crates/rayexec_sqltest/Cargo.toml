@@ -10,7 +10,7 @@ rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
 sqllogictest = "0.19.1"
 arrow = { workspace = true }
-env_logger = "0.11.2"
+env_logger = "0.11.3"
 futures = { workspace = true, features = ["executor"] }
 async-trait = "0.1.77"
 tokio = { version = "1", features = ["full"] }
