@@ -93,7 +93,7 @@ macro_rules! scalar_arith_dispatch {
             (ScalarValue::UInt32(left), ScalarValue::UInt32(right)) => $fn(left, right),
             (ScalarValue::UInt64(left), ScalarValue::UInt64(right)) => $fn(left, right),
             _ => Err(RayexecError::new(
-                "Unsupported arithmetic operation on array",
+                "Unsupported arithmetic operation on scalar",
             )),
         }
     }};
@@ -107,7 +107,7 @@ impl<'a> ArithAssign for ScalarValue<'a> {
         })
     }
 
-    fn checked_add(&mut self, right: &Self) -> Result<()> {
+    fn checked_add(&mut self, _right: &Self) -> Result<()> {
         unimplemented!()
     }
 
@@ -118,7 +118,7 @@ impl<'a> ArithAssign for ScalarValue<'a> {
         })
     }
 
-    fn checked_sub(&mut self, right: &Self) -> Result<()> {
+    fn checked_sub(&mut self, _right: &Self) -> Result<()> {
         unimplemented!()
     }
 
@@ -129,7 +129,7 @@ impl<'a> ArithAssign for ScalarValue<'a> {
         })
     }
 
-    fn checked_mul(&mut self, right: &Self) -> Result<()> {
+    fn checked_mul(&mut self, _right: &Self) -> Result<()> {
         unimplemented!()
     }
 
@@ -140,7 +140,7 @@ impl<'a> ArithAssign for ScalarValue<'a> {
         })
     }
 
-    fn checked_div(&mut self, right: &Self) -> Result<()> {
+    fn checked_div(&mut self, _right: &Self) -> Result<()> {
         unimplemented!()
     }
 
@@ -224,6 +224,8 @@ where
     for (left, right) in left.zip(right) {
         *left = f(*left, *right);
     }
+
+    // TODO: Nulls
 
     Ok(())
 }

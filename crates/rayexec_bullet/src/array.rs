@@ -89,6 +89,13 @@ pub struct BooleanArray {
 }
 
 impl BooleanArray {
+    pub fn new_with_values(values: Bitmap) -> Self {
+        BooleanArray {
+            validity: Validity::default(),
+            values,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.values.len()
     }
