@@ -158,34 +158,30 @@ impl<T> PrimitiveArray<T> {
 /// Trait for determining how to interpret binary data stored in a variable
 /// length array.
 pub trait VarlenType {
-    /// The user-facing type.
-    type Output: ?Sized;
-
     /// Interpret some binary input into an output type.
-    fn interpret(input: &[u8]) -> &Self::Output;
+    fn interpret(input: &[u8]) -> &Self;
+
+    /// Convert self into binary.
+    fn as_binary(input: &Self) -> &[u8];
 }
 
-/// Interpret binary as... binary.
-#[derive(Debug, Clone, Copy)]
-pub struct VarlenBinary;
+impl VarlenType for [u8] {
+    fn interpret(input: &[u8]) -> &Self {
+        input
+    }
 
-impl VarlenType for VarlenBinary {
-    type Output = [u8];
-
-    fn interpret(input: &[u8]) -> &Self::Output {
+    fn as_binary(input: &Self) -> &[u8] {
         input
     }
 }
 
-/// Interpret binary as a utf8 string.
-#[derive(Debug, Clone, Copy)]
-pub struct VarlenUtf8;
-
-impl VarlenType for VarlenUtf8 {
-    type Output = str;
-
-    fn interpret(input: &[u8]) -> &Self::Output {
+impl VarlenType for str {
+    fn interpret(input: &[u8]) -> &Self {
         std::str::from_utf8(input).expect("input should be valid utf8")
+    }
+
+    fn as_binary(input: &Self) -> &[u8] {
+        input.as_bytes()
     }
 }
 
@@ -206,7 +202,7 @@ impl OffsetIndex for i64 {
 }
 
 #[derive(Debug)]
-pub struct VarlenArray<T: VarlenType, O: OffsetIndex> {
+pub struct VarlenArray<T: VarlenType + ?Sized, O: OffsetIndex> {
     /// Value validities.
     validity: Bitmap,
 
@@ -223,21 +219,21 @@ pub struct VarlenArray<T: VarlenType, O: OffsetIndex> {
     varlen_type: PhantomData<T>,
 }
 
-pub type Utf8Array = VarlenArray<VarlenUtf8, i32>;
-pub type LargeUtf8Array = VarlenArray<VarlenUtf8, i64>;
-pub type BinaryArray = VarlenArray<VarlenBinary, i32>;
-pub type LargeBinaryArray = VarlenArray<VarlenBinary, i64>;
+pub type Utf8Array = VarlenArray<str, i32>;
+pub type LargeUtf8Array = VarlenArray<str, i64>;
+pub type BinaryArray = VarlenArray<[u8], i32>;
+pub type LargeBinaryArray = VarlenArray<[u8], i64>;
 
 impl<T, O> VarlenArray<T, O>
 where
-    T: VarlenType,
+    T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
     pub fn len(&self) -> usize {
         self.validity.len()
     }
 
-    pub fn value(&self, idx: usize) -> Option<&T::Output> {
+    pub fn value(&self, idx: usize) -> Option<&T> {
         if idx >= self.len() {
             return None;
         }
