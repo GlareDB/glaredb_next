@@ -9,6 +9,12 @@ pub enum PrimitiveStorage<T> {
 }
 
 impl<T> PrimitiveStorage<T> {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Vec(v) => v.len(),
+        }
+    }
+
     pub fn get(&self, idx: usize) -> Option<&T> {
         match self {
             Self::Vec(v) => v.get(idx),

@@ -1,6 +1,7 @@
 use crate::bitmap::Bitmap;
 use crate::scalar::ScalarValue;
 use crate::storage::PrimitiveStorage;
+use crate::validity::Validity;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -83,7 +84,7 @@ impl NullArray {
 /// A logical array for representing bools.
 #[derive(Debug, PartialEq)]
 pub struct BooleanArray {
-    validity: Bitmap,
+    validity: Validity,
     values: Bitmap,
 }
 
@@ -97,7 +98,7 @@ impl BooleanArray {
             return None;
         }
 
-        Some(self.validity.value(idx))
+        Some(self.validity.is_valid(idx))
     }
 
     pub fn value(&self, idx: usize) -> Option<bool> {
@@ -116,7 +117,7 @@ pub struct PrimitiveArray<T> {
     ///
     /// "True" values indicate the value at index is valid, "false" indicates
     /// null.
-    validity: Bitmap,
+    validity: Validity,
 
     /// Underlying primitive values.
     values: PrimitiveStorage<T>,
@@ -131,7 +132,7 @@ pub type Float64Array = PrimitiveArray<f64>;
 
 impl<T> PrimitiveArray<T> {
     pub fn len(&self) -> usize {
-        self.validity.len()
+        self.values.len()
     }
 
     /// Get the value at the given index.
@@ -151,7 +152,22 @@ impl<T> PrimitiveArray<T> {
             return None;
         }
 
-        Some(self.validity.value(idx))
+        Some(self.validity.is_valid(idx))
+    }
+
+    /// Get a reference to the underlying validity bitmap.
+    pub(crate) fn validity(&self) -> &Validity {
+        &self.validity
+    }
+
+    /// Get a reference to the underlying primitive values.
+    pub(crate) fn values(&self) -> &PrimitiveStorage<T> {
+        &self.values
+    }
+
+    /// Get a mutable reference to the underlying primitive values.
+    pub(crate) fn values_mut(&mut self) -> &mut PrimitiveStorage<T> {
+        &mut self.values
     }
 }
 
@@ -204,7 +220,7 @@ impl OffsetIndex for i64 {
 #[derive(Debug)]
 pub struct VarlenArray<T: VarlenType + ?Sized, O: OffsetIndex> {
     /// Value validities.
-    validity: Bitmap,
+    validity: Validity,
 
     /// Offsets into the data buffer.
     ///
@@ -230,7 +246,7 @@ where
     O: OffsetIndex,
 {
     pub fn len(&self) -> usize {
-        self.validity.len()
+        self.offsets.len() - 1
     }
 
     pub fn value(&self, idx: usize) -> Option<&T> {
@@ -263,6 +279,6 @@ where
             return None;
         }
 
-        Some(self.validity.value(idx))
+        Some(self.validity.is_valid(idx))
     }
 }

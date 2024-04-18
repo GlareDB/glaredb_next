@@ -1,4 +1,5 @@
 use std::borrow::BorrowMut;
+use rayexec_error::{ Result, RayexecError };
 
 /// An LSB ordered bitmap.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -38,8 +39,24 @@ impl Bitmap {
         Bitmap { len, data }
     }
 
+    /// Get the number of bits being tracked by this bitmap.
     pub const fn len(&self) -> usize {
         self.len
+    }
+
+    /// Get the total number of bytes of the underlying data.
+    pub fn num_bytes(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Push a value onto the end of the bitmap.
+    pub fn push(&mut self, val: bool) {
+        if self.len == self.data.len() * 8 {
+            self.data.push(0);
+        }
+        let idx = self.len;
+        self.len += 1;
+        self.set(idx, val);
     }
 
     /// Get the value at index.
@@ -68,6 +85,32 @@ impl Bitmap {
             idx: 0,
             bitmap: self,
         }
+    }
+
+    /// Bit OR this bitmap with some other bitmap.
+    pub fn bit_or_mut(&mut self, other: &Bitmap) -> Result<()> {
+        if self.len() != other.len() {
+            return Err(RayexecError::new("Bitmap lengths do not match"));
+        }
+
+        for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
+            *byte |= *other;
+        }
+
+        Ok(())
+    }
+
+    /// Bit AND this bitmap with some other bitmap.
+    pub fn bit_and_mut(&mut self, other: &Bitmap) -> Result<()> {
+        if self.len() != other.len() {
+            return Err(RayexecError::new("Bitmap lengths do not match"));
+        }
+
+        for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
+            *byte &= *other;
+        }
+
+        Ok(())
     }
 }
 
@@ -152,5 +195,78 @@ mod tests {
 
         bm.set(1, true);
         assert_eq!(true, bm.value(1));
+    }
+
+    #[test]
+    fn push() {
+        let mut bm = Bitmap::default();
+
+        bm.push(true);
+        assert_eq!([true].as_slice(), bm.iter().collect::<Vec<_>>());
+
+        bm.push(false);
+        assert_eq!([true, false].as_slice(), bm.iter().collect::<Vec<_>>());
+
+        bm.push(false);
+        assert_eq!(
+            [true, false, false].as_slice(),
+            bm.iter().collect::<Vec<_>>()
+        );
+
+        // Make sure we're not pushing additional bytes if it's not needed.
+        assert_eq!(1, bm.num_bytes());
+
+        // Continue to push to fill up the first byte.
+        for _ in 0..5 {
+            bm.push(true);
+        }
+
+        // Push one more, this should allocate an additional byte.
+        bm.push(true);
+        assert_eq!(
+            [true, false, false, true, true, true, true, true, true].as_slice(),
+            bm.iter().collect::<Vec<_>>()
+        );
+
+        assert_eq!(9, bm.len());
+        assert_eq!(2, bm.num_bytes());
+    }
+
+    #[test]
+    fn bit_or() {
+        let left = [false, true, true, true, true, false, false, false];
+        let right = [true, true, true, true, true, true, false, false];
+        let mut left_bm = Bitmap::from_bool_iter(left);
+        let right_bm = Bitmap::from_bool_iter(right);
+
+        left_bm.bit_or_mut(&right_bm).unwrap();
+
+        let expected = [true, true, true, true, true, true, false, false];
+        let got: Vec<_> = left_bm.iter().collect();
+        assert_eq!(expected.as_slice(), got);
+    }
+
+    #[test]
+    fn bit_and() {
+        let left = [false, true, true, true, true, false, false, false];
+        let right = [true, true, true, true, true, true, false, false];
+        let mut left_bm = Bitmap::from_bool_iter(left);
+        let right_bm = Bitmap::from_bool_iter(right);
+
+        left_bm.bit_and_mut(&right_bm).unwrap();
+
+        let expected = [false, true, true, true, true, false, false, false];
+        let got: Vec<_> = left_bm.iter().collect();
+        assert_eq!(expected.as_slice(), got);
+    }
+
+    #[test]
+    fn bit_or_length_mismatch() {
+        let left = [true, false];
+        let right = [false];
+        let mut left_bm = Bitmap::from_bool_iter(left);
+        let right_bm = Bitmap::from_bool_iter(right);
+
+        left_bm.bit_or_mut(&right_bm).unwrap_err();
     }
 }
