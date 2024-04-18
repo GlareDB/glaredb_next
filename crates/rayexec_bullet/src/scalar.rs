@@ -47,6 +47,9 @@ pub enum ScalarValue<'a> {
 
     /// Binary
     Binary(Cow<'a, [u8]>),
+
+    /// Large binary
+    LargeBinary(Cow<'a, [u8]>),
 }
 
 pub type OwnedScalarValue = ScalarValue<'static>;
@@ -69,6 +72,7 @@ impl<'a> ScalarValue<'a> {
             Self::Utf8(v) => OwnedScalarValue::Utf8(v.into_owned().into()),
             Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
             Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
+            Self::LargeBinary(v) => OwnedScalarValue::LargeBinary(v.into_owned().into()),
         }
     }
 }

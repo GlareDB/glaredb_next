@@ -14,4 +14,10 @@ impl<T> PrimitiveStorage<T> {
             Self::Vec(v) => v.get(idx),
         }
     }
+
+    pub fn get_slice(&self, offset: usize, len: usize) -> Option<&[T]> {
+        match self {
+            Self::Vec(v) => v.get(offset..len),
+        }
+    }
 }
