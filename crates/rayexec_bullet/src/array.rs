@@ -89,6 +89,10 @@ pub struct BooleanArray {
 }
 
 impl BooleanArray {
+    pub fn from_iter(iter: impl IntoIterator<Item = bool>) -> Self {
+        Self::new_with_values(Bitmap::from_bool_iter(iter))
+    }
+
     pub fn new_with_values(values: Bitmap) -> Self {
         BooleanArray {
             validity: Validity::default(),
@@ -114,6 +118,10 @@ impl BooleanArray {
         }
 
         Some(self.values.value(idx))
+    }
+
+    pub(crate) fn values(&self) -> &Bitmap {
+        &self.values
     }
 }
 

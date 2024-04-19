@@ -49,6 +49,13 @@ impl Bitmap {
         self.data.len()
     }
 
+    pub fn popcnt(&self) -> usize {
+        self.data
+            .iter()
+            .map(|&b| b.count_ones())
+            .fold(0, |acc, v| acc + (v as usize))
+    }
+
     /// Push a value onto the end of the bitmap.
     pub fn push(&mut self, val: bool) {
         if self.len == self.data.len() * 8 {
@@ -268,5 +275,11 @@ mod tests {
         let right_bm = Bitmap::from_bool_iter(right);
 
         left_bm.bit_or_mut(&right_bm).unwrap_err();
+    }
+
+    #[test]
+    fn popcnt_simple() {
+        let bm = Bitmap::from_bool_iter([true, false, false, true, false]);
+        assert_eq!(2, bm.popcnt());
     }
 }
