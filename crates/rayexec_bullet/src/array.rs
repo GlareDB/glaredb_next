@@ -138,6 +138,15 @@ pub type Float32Array = PrimitiveArray<f32>;
 pub type Float64Array = PrimitiveArray<f64>;
 
 impl<T> PrimitiveArray<T> {
+    /// Create a new primitive array from an iterator of values.
+    pub fn from_iter(iter: impl IntoIterator<Item = T>) -> Self {
+        let values = PrimitiveStorage::from(iter.into_iter().collect::<Vec<_>>());
+        PrimitiveArray {
+            validity: Validity::default(),
+            values,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.values.len()
     }

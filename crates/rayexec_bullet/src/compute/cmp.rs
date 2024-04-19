@@ -6,7 +6,7 @@ use crate::{
 };
 use rayexec_error::{RayexecError, Result};
 
-pub trait Cmp<Rhs = Self> {
+pub trait CmpKernel<Rhs = Self> {
     type Output;
 
     fn eq(&self, right: &Rhs) -> Result<Self::Output>;
@@ -34,35 +34,35 @@ macro_rules! array_cmp_dispatch {
     }};
 }
 
-impl Cmp for Array {
+impl CmpKernel for Array {
     type Output = BooleanArray;
 
     fn eq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, Cmp::eq)
+        array_cmp_dispatch!(self, right, CmpKernel::eq)
     }
 
     fn neq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, Cmp::neq)
+        array_cmp_dispatch!(self, right, CmpKernel::neq)
     }
 
     fn lt(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, Cmp::lt)
+        array_cmp_dispatch!(self, right, CmpKernel::lt)
     }
 
     fn lt_eq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, Cmp::lt_eq)
+        array_cmp_dispatch!(self, right, CmpKernel::lt_eq)
     }
 
     fn gt(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, Cmp::gt)
+        array_cmp_dispatch!(self, right, CmpKernel::gt)
     }
 
     fn gt_eq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, Cmp::gt_eq)
+        array_cmp_dispatch!(self, right, CmpKernel::gt_eq)
     }
 }
 
-impl<T: PartialEq + PartialOrd> Cmp for PrimitiveArray<T> {
+impl<T: PartialEq + PartialOrd> CmpKernel for PrimitiveArray<T> {
     type Output = BooleanArray;
 
     fn eq(&self, right: &Self) -> Result<Self::Output> {
@@ -111,7 +111,7 @@ macro_rules! scalar_cmp_dispatch {
     }};
 }
 
-impl<'a> Cmp for ScalarValue<'a> {
+impl<'a> CmpKernel for ScalarValue<'a> {
     type Output = bool;
 
     fn eq(&self, right: &Self) -> Result<Self::Output> {

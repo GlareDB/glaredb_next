@@ -27,3 +27,9 @@ impl<T> PrimitiveStorage<T> {
         }
     }
 }
+
+impl<T> From<Vec<T>> for PrimitiveStorage<T> {
+    fn from(value: Vec<T>) -> Self {
+        PrimitiveStorage::Vec(value)
+    }
+}

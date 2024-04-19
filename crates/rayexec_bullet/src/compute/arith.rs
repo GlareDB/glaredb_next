@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 
 /// Arithmetic operations that assign the result into the left-hand side.
-pub trait ArithAssign<Rhs = Self> {
+pub trait ArithKernel<Rhs = Self> {
     fn add(&mut self, right: &Rhs) -> Result<()>;
     fn checked_add(&mut self, right: &Rhs) -> Result<()>;
 
@@ -37,45 +37,45 @@ macro_rules! array_arith_dispatch {
     }};
 }
 
-impl ArithAssign for Array {
+impl ArithKernel for Array {
     fn add(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithAssign::add)
+        array_arith_dispatch!(self, right, ArithKernel::add)
     }
 
     fn checked_add(&mut self, right: &Self) -> Result<()> {
         // TODO
-        array_arith_dispatch!(self, right, ArithAssign::add)
+        array_arith_dispatch!(self, right, ArithKernel::add)
     }
 
     fn sub(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithAssign::sub)
+        array_arith_dispatch!(self, right, ArithKernel::sub)
     }
 
     fn checked_sub(&mut self, right: &Self) -> Result<()> {
         // TODO
-        array_arith_dispatch!(self, right, ArithAssign::sub)
+        array_arith_dispatch!(self, right, ArithKernel::sub)
     }
 
     fn mul(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithAssign::mul)
+        array_arith_dispatch!(self, right, ArithKernel::mul)
     }
 
     fn checked_mul(&mut self, right: &Self) -> Result<()> {
         // TODO
-        array_arith_dispatch!(self, right, ArithAssign::mul)
+        array_arith_dispatch!(self, right, ArithKernel::mul)
     }
 
     fn div(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithAssign::div)
+        array_arith_dispatch!(self, right, ArithKernel::div)
     }
 
     fn checked_div(&mut self, right: &Self) -> Result<()> {
         // TODO
-        array_arith_dispatch!(self, right, ArithAssign::div)
+        array_arith_dispatch!(self, right, ArithKernel::div)
     }
 
     fn rem(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithAssign::rem)
+        array_arith_dispatch!(self, right, ArithKernel::rem)
     }
 }
 
@@ -99,7 +99,7 @@ macro_rules! scalar_arith_dispatch {
     }};
 }
 
-impl<'a> ArithAssign for ScalarValue<'a> {
+impl<'a> ArithKernel for ScalarValue<'a> {
     fn add(&mut self, right: &Self) -> Result<()> {
         scalar_arith_dispatch!(self, right, |l, r| {
             AddAssign::add_assign(l, r);
@@ -159,7 +159,7 @@ impl<
             + Div<Output = T>
             + Rem<Output = T>
             + Copy,
-    > ArithAssign for PrimitiveArray<T>
+    > ArithKernel for PrimitiveArray<T>
 {
     fn add(&mut self, right: &Self) -> Result<()> {
         primitive_bin_op_assign(self, right, Add::add)
