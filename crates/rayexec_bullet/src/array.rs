@@ -189,12 +189,12 @@ impl<T> PrimitiveArray<T> {
 
 /// Trait for determining how to interpret binary data stored in a variable
 /// length array.
-pub trait VarlenType {
+pub trait VarlenType: PartialEq {
     /// Interpret some binary input into an output type.
     fn interpret(input: &[u8]) -> &Self;
 
     /// Convert self into binary.
-    fn as_binary(input: &Self) -> &[u8];
+    fn as_binary(&self) -> &[u8];
 }
 
 impl VarlenType for [u8] {
@@ -202,8 +202,8 @@ impl VarlenType for [u8] {
         input
     }
 
-    fn as_binary(input: &Self) -> &[u8] {
-        input
+    fn as_binary(&self) -> &[u8] {
+        self
     }
 }
 
@@ -212,24 +212,33 @@ impl VarlenType for str {
         std::str::from_utf8(input).expect("input should be valid utf8")
     }
 
-    fn as_binary(input: &Self) -> &[u8] {
-        input.as_bytes()
+    fn as_binary(&self) -> &[u8] {
+        self.as_bytes()
     }
 }
 
 pub trait OffsetIndex {
     fn as_usize(&self) -> usize;
+    fn from_usize(u: usize) -> Self;
 }
 
 impl OffsetIndex for i32 {
     fn as_usize(&self) -> usize {
         (*self).try_into().expect("index to be greater than zero")
     }
+
+    fn from_usize(u: usize) -> Self {
+        u as Self
+    }
 }
 
 impl OffsetIndex for i64 {
     fn as_usize(&self) -> usize {
         (*self).try_into().expect("index to be greater than zero")
+    }
+
+    fn from_usize(u: usize) -> Self {
+        u as Self
     }
 }
 
@@ -261,6 +270,33 @@ where
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
+    /// Create a new varlen array from an iterator of values.
+    // TODO: The lifetime bound works, but could probably be a bit confusing to
+    // read. See if there's a good way to remove it.
+    pub fn from_iter<'a>(iter: impl IntoIterator<Item = &'a T>) -> Self
+    where
+        T: 'a,
+    {
+        let mut offsets: Vec<O> = vec![O::from_usize(0)];
+        let mut data: Vec<u8> = Vec::new();
+
+        for item in iter.into_iter() {
+            data.extend(item.as_binary());
+            let offset = data.len();
+            offsets.push(O::from_usize(offset));
+        }
+
+        let offsets = PrimitiveStorage::from(offsets);
+        let data = PrimitiveStorage::from(data);
+
+        VarlenArray {
+            validity: Validity::default(),
+            offsets,
+            data,
+            varlen_type: PhantomData,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.offsets.len() - 1
     }
@@ -296,5 +332,48 @@ where
         }
 
         Some(self.validity.is_valid(idx))
+    }
+
+    pub fn values_iter(&self) -> VarlenArrayIter<'_, T, O> {
+        VarlenArrayIter { idx: 0, arr: self }
+    }
+}
+
+#[derive(Debug)]
+pub struct VarlenArrayIter<'a, T: VarlenType + ?Sized, O: OffsetIndex> {
+    idx: usize,
+    arr: &'a VarlenArray<T, O>,
+}
+
+impl<'a, T, O> Iterator for VarlenArrayIter<'a, T, O>
+where
+    T: VarlenType + ?Sized,
+    O: OffsetIndex,
+{
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let val = self.arr.value(self.idx);
+        self.idx += 1;
+        val
+    }
+}
+
+impl<T, O> PartialEq for VarlenArray<T, O>
+where
+    T: VarlenType + ?Sized,
+    O: OffsetIndex,
+{
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+
+        // TODO: Validity check
+
+        let left = self.values_iter();
+        let right = other.values_iter();
+
+        left.zip(right).all(|(left, right)| left == right)
     }
 }
