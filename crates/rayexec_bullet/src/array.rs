@@ -342,6 +342,11 @@ where
         Some(self.validity.is_valid(idx))
     }
 
+    /// Get a reference to the underlying validity bitmap.
+    pub(crate) fn validity(&self) -> &Validity {
+        &self.validity
+    }
+
     pub fn values_iter(&self) -> VarlenArrayIter<'_, T, O> {
         VarlenArrayIter { idx: 0, arr: self }
     }

@@ -94,6 +94,13 @@ impl Bitmap {
         }
     }
 
+    pub const fn index_iter(&self) -> BitmapIndexIter {
+        BitmapIndexIter {
+            idx: 0,
+            bitmap: self,
+        }
+    }
+
     /// Bit OR this bitmap with some other bitmap.
     pub fn bit_or_mut(&mut self, other: &Bitmap) -> Result<()> {
         if self.len() != other.len() {
@@ -121,6 +128,7 @@ impl Bitmap {
     }
 }
 
+/// Iterator over individual bits (bools) in the bitmap.
 #[derive(Debug)]
 pub struct BitmapIter<'a> {
     idx: usize,
@@ -145,6 +153,34 @@ impl<'a> Iterator for BitmapIter<'a> {
             self.bitmap.len() - self.idx,
             Some(self.bitmap.len() - self.idx),
         )
+    }
+}
+
+/// Iterator over all "valid" indexes in the bitmap.
+#[derive(Debug)]
+pub struct BitmapIndexIter<'a> {
+    idx: usize,
+    bitmap: &'a Bitmap,
+}
+
+impl<'a> Iterator for BitmapIndexIter<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.idx >= self.bitmap.len() {
+                return None;
+            }
+
+            if self.bitmap.value(self.idx) {
+                let idx = self.idx;
+                self.idx += 1;
+                return Some(idx);
+            }
+
+            self.idx += 1;
+            // Continue to next iteration.
+        }
     }
 }
 
@@ -281,5 +317,19 @@ mod tests {
     fn popcnt_simple() {
         let bm = Bitmap::from_bool_iter([true, false, false, true, false]);
         assert_eq!(2, bm.popcnt());
+    }
+
+    #[test]
+    fn index_iter_simple() {
+        let bm = Bitmap::from_bool_iter([true, false, false, true, false]);
+        let indexes: Vec<_> = bm.index_iter().collect();
+        assert_eq!(vec![0, 3], indexes);
+    }
+
+    #[test]
+    fn index_iter_no_valid_bits() {
+        let bm = Bitmap::from_bool_iter([false, false, false, false, false]);
+        let indexes: Vec<_> = bm.index_iter().collect();
+        assert!(indexes.is_empty());
     }
 }
