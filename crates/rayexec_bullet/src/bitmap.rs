@@ -94,6 +94,8 @@ impl Bitmap {
         }
     }
 
+    /// Get an iterator over the bitmap returning indexes of the bitmap where
+    /// the bit is set to '1'.
     pub const fn index_iter(&self) -> BitmapIndexIter {
         BitmapIndexIter {
             idx: 0,

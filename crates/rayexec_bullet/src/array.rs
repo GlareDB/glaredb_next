@@ -125,6 +125,72 @@ impl BooleanArray {
     }
 }
 
+pub trait PrimitiveNumeric {
+    const MIN_VALUE: Self;
+    const MAX_VALUE: Self;
+    const ZERO_VALUE: Self;
+}
+
+impl PrimitiveNumeric for i8 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for i16 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for i32 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for i64 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for u8 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for u16 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for u32 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for u64 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0;
+}
+
+impl PrimitiveNumeric for f32 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0.0;
+}
+
+impl PrimitiveNumeric for f64 {
+    const MIN_VALUE: Self = Self::MIN;
+    const MAX_VALUE: Self = Self::MAX;
+    const ZERO_VALUE: Self = 0.0;
+}
+
 /// Array for storing primitive values.
 #[derive(Debug, PartialEq)]
 pub struct PrimitiveArray<T> {
@@ -146,15 +212,6 @@ pub type Float32Array = PrimitiveArray<f32>;
 pub type Float64Array = PrimitiveArray<f64>;
 
 impl<T> PrimitiveArray<T> {
-    /// Create a new primitive array from an iterator of values.
-    pub fn from_iter(iter: impl IntoIterator<Item = T>) -> Self {
-        let values = PrimitiveStorage::from(iter.into_iter().collect::<Vec<_>>());
-        PrimitiveArray {
-            validity: Validity::default(),
-            values,
-        }
-    }
-
     pub fn len(&self) -> usize {
         self.values.len()
     }
@@ -192,6 +249,41 @@ impl<T> PrimitiveArray<T> {
     /// Get a mutable reference to the underlying primitive values.
     pub(crate) fn values_mut(&mut self) -> &mut PrimitiveStorage<T> {
         &mut self.values
+    }
+}
+
+impl<A> FromIterator<A> for PrimitiveArray<A> {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let values = PrimitiveStorage::from(iter.into_iter().collect::<Vec<_>>());
+        PrimitiveArray {
+            validity: Validity::default(),
+            values,
+        }
+    }
+}
+
+impl<A: Default> FromIterator<Option<A>> for PrimitiveArray<A> {
+    fn from_iter<T: IntoIterator<Item = Option<A>>>(iter: T) -> Self {
+        let mut validity = Bitmap::default();
+        let mut values = Vec::new();
+
+        for item in iter {
+            match item {
+                Some(value) => {
+                    validity.push(true);
+                    values.push(value);
+                }
+                None => {
+                    validity.push(false);
+                    values.push(A::default());
+                }
+            }
+        }
+
+        PrimitiveArray {
+            validity: Validity(Some(validity)),
+            values: values.into(),
+        }
     }
 }
 

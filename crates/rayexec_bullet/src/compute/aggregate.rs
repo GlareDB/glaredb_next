@@ -1,61 +1,105 @@
-use crate::array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
+use crate::array::{
+    Array, BooleanArray, OffsetIndex, PrimitiveArray, PrimitiveNumeric, VarlenArray, VarlenType,
+};
 use crate::scalar::ScalarValue;
 use crate::storage::PrimitiveStorage;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use std::ops::Add;
 
-pub trait MinMaxKernel {
-    type Output;
-
-    fn min(&self) -> Option<Self::Output>;
-    fn max(&self) -> Option<Self::Output>;
-}
-
-impl<T: Copy + Default + PartialOrd> MinMaxKernel for PrimitiveArray<T> {
-    type Output = T;
-
-    fn min(&self) -> Option<Self::Output> {
-        primitive_reduce(self, |acc, &val| if acc < val { acc } else { val })
-    }
-
-    fn max(&self) -> Option<Self::Output> {
-        primitive_reduce(self, |acc, &val| if acc > val { acc } else { val })
+pub fn min<'a>(arr: &'a Array) -> ScalarValue<'a> {
+    match arr {
+        Array::Null(_arr) => ScalarValue::Null,
+        Array::Boolean(arr) => min_boolean(arr).into(),
+        Array::Float32(arr) => min_primitive(arr).into(),
+        Array::Float64(arr) => min_primitive(arr).into(),
+        Array::Int32(arr) => min_primitive(arr).into(),
+        Array::Int64(arr) => min_primitive(arr).into(),
+        Array::UInt32(arr) => min_primitive(arr).into(),
+        Array::UInt64(arr) => min_primitive(arr).into(),
+        Array::Utf8(arr) => min_varlen(arr).into(),
+        Array::LargeUtf8(arr) => min_varlen(arr).into(),
+        Array::Binary(arr) => min_varlen(arr).into(),
+        Array::LargeBinary(arr) => min_varlen(arr).into(),
     }
 }
 
-// TODO: Traits probably not the way to go for this.
-// impl<'a, T: VarlenType + PartialOrd, O: OffsetIndex> MinMaxKernel for &'a VarlenArray<T, O> {
-//     type Output = &'a T;
-
-//     fn min(&self) -> Option<Self::Output> {
-//         varlen_reduce(self, |acc, val| if acc < val { acc } else { val })
-//     }
-
-//     fn max(&self) -> Option<Self::Output> {
-//         varlen_reduce(self, |acc, val| if acc > val { acc } else { val })
-//     }
-// }
-
-pub trait SumKernel {
-    type Output;
-
-    fn sum(&self) -> Option<Self::Output>;
-    fn sum_checked(&self) -> Result<Option<Self::Output>>;
-}
-
-impl<T: Copy + Default + Add<Output = T>> SumKernel for PrimitiveArray<T> {
-    type Output = T;
-
-    fn sum(&self) -> Option<Self::Output> {
-        primitive_reduce(self, |acc, &val| acc + val)
-    }
-
-    fn sum_checked(&self) -> Result<Option<Self::Output>> {
-        unimplemented!()
+pub fn max<'a>(arr: &'a Array) -> ScalarValue<'a> {
+    match arr {
+        Array::Null(_arr) => ScalarValue::Null,
+        Array::Boolean(arr) => max_boolean(arr).into(),
+        Array::Float32(arr) => max_primitive(arr).into(),
+        Array::Float64(arr) => max_primitive(arr).into(),
+        Array::Int32(arr) => max_primitive(arr).into(),
+        Array::Int64(arr) => max_primitive(arr).into(),
+        Array::UInt32(arr) => max_primitive(arr).into(),
+        Array::UInt64(arr) => max_primitive(arr).into(),
+        Array::Utf8(arr) => max_varlen(arr).into(),
+        Array::LargeUtf8(arr) => max_varlen(arr).into(),
+        Array::Binary(arr) => max_varlen(arr).into(),
+        Array::LargeBinary(arr) => max_varlen(arr).into(),
     }
 }
 
-fn primitive_reduce<T: Default>(
+pub fn sum<'a>(arr: &'a Array) -> Result<ScalarValue<'a>> {
+    Ok(match arr {
+        Array::Float32(arr) => sum_primitive(arr).into(),
+        Array::Float64(arr) => sum_primitive(arr).into(),
+        Array::Int32(arr) => sum_primitive(arr).into(),
+        Array::Int64(arr) => sum_primitive(arr).into(),
+        Array::UInt32(arr) => sum_primitive(arr).into(),
+        Array::UInt64(arr) => sum_primitive(arr).into(),
+        _ => return Err(RayexecError::new("Cannot sum a non-numeric array")),
+    })
+}
+
+pub fn min_primitive<T: Copy + Default + PartialOrd + PrimitiveNumeric>(
+    arr: &PrimitiveArray<T>,
+) -> Option<T> {
+    primitive_reduce(
+        T::MAX_VALUE,
+        arr,
+        |acc, &val| if acc < val { acc } else { val },
+    )
+}
+
+pub fn max_primitive<T: Copy + Default + PartialOrd + PrimitiveNumeric>(
+    arr: &PrimitiveArray<T>,
+) -> Option<T> {
+    primitive_reduce(
+        T::MIN_VALUE,
+        arr,
+        |acc, &val| if acc > val { acc } else { val },
+    )
+}
+
+pub fn sum_primitive<T: Copy + Default + Add<Output = T> + PrimitiveNumeric>(
+    arr: &PrimitiveArray<T>,
+) -> Option<T> {
+    primitive_reduce(T::ZERO_VALUE, arr, |acc, &val| acc + val)
+}
+
+pub fn min_boolean(arr: &BooleanArray) -> Option<bool> {
+    unimplemented!()
+}
+
+pub fn max_boolean(arr: &BooleanArray) -> Option<bool> {
+    unimplemented!()
+}
+
+pub fn min_varlen<T: VarlenType + PartialOrd + ?Sized, O: OffsetIndex>(
+    arr: &VarlenArray<T, O>,
+) -> Option<&T> {
+    varlen_reduce(arr, |acc, val| if acc < val { acc } else { val })
+}
+
+pub fn max_varlen<T: VarlenType + PartialOrd + ?Sized, O: OffsetIndex>(
+    arr: &VarlenArray<T, O>,
+) -> Option<&T> {
+    varlen_reduce(arr, |acc, val| if acc > val { acc } else { val })
+}
+
+fn primitive_reduce<T>(
+    start: T,
     arr: &PrimitiveArray<T>,
     reduce_fn: impl Fn(T, &T) -> T,
 ) -> Option<T> {
@@ -65,12 +109,12 @@ fn primitive_reduce<T: Default>(
 
     match &arr.validity().0 {
         Some(bitmap) => {
-            if bitmap.popcnt() - arr.len() == 0 {
-                // No "valid" values in array.
+            if bitmap.popcnt() == 0 {
+                // No "valid" values.
                 return None;
             }
 
-            let out = bitmap.index_iter().fold(T::default(), |acc, idx| {
+            let out = bitmap.index_iter().fold(start, |acc, idx| {
                 let value = values.get(idx).unwrap();
                 reduce_fn(acc, value)
             });
@@ -78,22 +122,20 @@ fn primitive_reduce<T: Default>(
             Some(out)
         }
         None => {
-            let out = values
-                .iter()
-                .fold(T::default(), |acc, val| reduce_fn(acc, val));
+            let out = values.iter().fold(start, |acc, val| reduce_fn(acc, val));
             Some(out)
         }
     }
 }
 
-fn varlen_reduce<'a, T: VarlenType, O: OffsetIndex>(
+fn varlen_reduce<'a, T: VarlenType + ?Sized, O: OffsetIndex>(
     arr: &'a VarlenArray<T, O>,
     reduce_fn: impl Fn(&'a T, &'a T) -> &'a T,
 ) -> Option<&T> {
     match &arr.validity().0 {
         Some(bitmap) => {
-            if bitmap.popcnt() - arr.len() == 0 {
-                // No "valid" values in array.
+            if bitmap.popcnt() == 0 {
+                // No "valid" values.
                 return None;
             }
 
@@ -105,5 +147,54 @@ fn varlen_reduce<'a, T: VarlenType, O: OffsetIndex>(
             out
         }
         None => arr.values_iter().reduce(reduce_fn),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::array::Int32Array;
+
+    use super::*;
+
+    #[test]
+    fn primitive_min() {
+        let arr = Int32Array::from_iter([7, 8, 2, 1, 3, 4, 5]);
+        let scalar = min_primitive(&arr);
+        assert_eq!(Some(1), scalar);
+    }
+
+    #[test]
+    fn primitive_min_nulls() {
+        let arr = Int32Array::from_iter([Some(3), None, Some(4)]);
+        let scalar = min_primitive(&arr);
+        assert_eq!(Some(3), scalar);
+    }
+
+    #[test]
+    fn primitive_min_all_nulls() {
+        let arr = Int32Array::from_iter([None, None, None]);
+        let scalar = min_primitive(&arr);
+        assert_eq!(None, scalar);
+    }
+
+    #[test]
+    fn primitive_max() {
+        let arr = Int32Array::from_iter([7, 8, 2, 1, 3, 4, 5]);
+        let scalar = max_primitive(&arr);
+        assert_eq!(Some(8), scalar);
+    }
+
+    #[test]
+    fn primitive_max_nulls() {
+        let arr = Int32Array::from_iter([Some(3), None, Some(4)]);
+        let scalar = max_primitive(&arr);
+        assert_eq!(Some(4), scalar);
+    }
+
+    #[test]
+    fn primitive_max_all_nulls() {
+        let arr = Int32Array::from_iter([None, None, None]);
+        let scalar = max_primitive(&arr);
+        assert_eq!(None, scalar);
     }
 }

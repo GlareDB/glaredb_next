@@ -76,3 +76,90 @@ impl<'a> ScalarValue<'a> {
         }
     }
 }
+
+impl<'a> From<bool> for ScalarValue<'a> {
+    fn from(value: bool) -> Self {
+        ScalarValue::Boolean(value)
+    }
+}
+
+impl<'a> From<f32> for ScalarValue<'a> {
+    fn from(value: f32) -> Self {
+        ScalarValue::Float32(value)
+    }
+}
+
+impl<'a> From<f64> for ScalarValue<'a> {
+    fn from(value: f64) -> Self {
+        ScalarValue::Float64(value)
+    }
+}
+
+impl<'a> From<i8> for ScalarValue<'a> {
+    fn from(value: i8) -> Self {
+        ScalarValue::Int8(value)
+    }
+}
+
+impl<'a> From<i16> for ScalarValue<'a> {
+    fn from(value: i16) -> Self {
+        ScalarValue::Int16(value)
+    }
+}
+
+impl<'a> From<i32> for ScalarValue<'a> {
+    fn from(value: i32) -> Self {
+        ScalarValue::Int32(value)
+    }
+}
+
+impl<'a> From<i64> for ScalarValue<'a> {
+    fn from(value: i64) -> Self {
+        ScalarValue::Int64(value)
+    }
+}
+
+impl<'a> From<u8> for ScalarValue<'a> {
+    fn from(value: u8) -> Self {
+        ScalarValue::UInt8(value)
+    }
+}
+
+impl<'a> From<u16> for ScalarValue<'a> {
+    fn from(value: u16) -> Self {
+        ScalarValue::UInt16(value)
+    }
+}
+
+impl<'a> From<u32> for ScalarValue<'a> {
+    fn from(value: u32) -> Self {
+        ScalarValue::UInt32(value)
+    }
+}
+
+impl<'a> From<u64> for ScalarValue<'a> {
+    fn from(value: u64) -> Self {
+        ScalarValue::UInt64(value)
+    }
+}
+
+impl<'a> From<&'a str> for ScalarValue<'a> {
+    fn from(value: &'a str) -> Self {
+        ScalarValue::Utf8(Cow::Borrowed(value))
+    }
+}
+
+impl<'a> From<&'a [u8]> for ScalarValue<'a> {
+    fn from(value: &'a [u8]) -> Self {
+        ScalarValue::Binary(Cow::Borrowed(value))
+    }
+}
+
+impl<'a, T: Into<ScalarValue<'a>>> From<Option<T>> for ScalarValue<'a> {
+    fn from(value: Option<T>) -> Self {
+        match value {
+            Some(value) => value.into(),
+            None => ScalarValue::Null,
+        }
+    }
+}
