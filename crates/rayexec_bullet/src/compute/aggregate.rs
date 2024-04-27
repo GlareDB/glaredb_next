@@ -139,7 +139,7 @@ fn primitive_reduce<T: Copy>(
         PrimitiveStorage::Vec(v) => v,
     };
 
-    match &arr.validity().0 {
+    match &arr.validity() {
         Some(bitmap) => {
             if bitmap.popcnt() == 0 {
                 // No "valid" values.
@@ -164,7 +164,7 @@ fn varlen_reduce<'a, T: VarlenType + ?Sized, O: OffsetIndex>(
     arr: &'a VarlenArray<T, O>,
     reduce_fn: impl Fn(&'a T, &'a T) -> &'a T,
 ) -> Option<&T> {
-    match &arr.validity().0 {
+    match &arr.validity() {
         Some(bitmap) => {
             if bitmap.popcnt() == 0 {
                 // No "valid" values.

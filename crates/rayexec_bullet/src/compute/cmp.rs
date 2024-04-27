@@ -251,7 +251,7 @@ where
     F: Fn(T, T) -> bool,
 {
     let iter = left.zip(right).map(|(left, right)| cmp_fn(left, right));
-    let bitmap = Bitmap::from_bool_iter(iter);
+    let bitmap = Bitmap::from_iter(iter);
     BooleanArray::new_with_values(bitmap)
 }
 

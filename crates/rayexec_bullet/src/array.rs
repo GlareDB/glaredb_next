@@ -2,7 +2,6 @@ use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::scalar::ScalarValue;
 use crate::storage::PrimitiveStorage;
-use crate::validity::Validity;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -151,7 +150,7 @@ impl BooleanArray {
 
 impl FromIterator<bool> for BooleanArray {
     fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
-        Self::new_with_values(Bitmap::from_bool_iter(iter))
+        Self::new_with_values(Bitmap::from_iter(iter))
     }
 }
 
@@ -253,7 +252,7 @@ pub struct PrimitiveArray<T> {
     ///
     /// "True" values indicate the value at index is valid, "false" indicates
     /// null.
-    validity: Validity,
+    validity: Option<Bitmap>,
 
     /// Underlying primitive values.
     values: PrimitiveStorage<T>,
@@ -288,12 +287,12 @@ impl<T> PrimitiveArray<T> {
             return None;
         }
 
-        Some(self.validity.is_valid(idx))
+        Some(is_valid(self.validity.as_ref(), idx))
     }
 
     /// Get a reference to the underlying validity bitmap.
-    pub(crate) fn validity(&self) -> &Validity {
-        &self.validity
+    pub(crate) fn validity(&self) -> Option<&Bitmap> {
+        self.validity.as_ref()
     }
 
     /// Get a reference to the underlying primitive values.
@@ -311,7 +310,7 @@ impl<A> FromIterator<A> for PrimitiveArray<A> {
     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
         let values = PrimitiveStorage::from(iter.into_iter().collect::<Vec<_>>());
         PrimitiveArray {
-            validity: Validity::default(),
+            validity: None,
             values,
         }
     }
@@ -336,7 +335,7 @@ impl<A: Default> FromIterator<Option<A>> for PrimitiveArray<A> {
         }
 
         PrimitiveArray {
-            validity: Validity(Some(validity)),
+            validity: Some(validity),
             values: values.into(),
         }
     }
@@ -379,7 +378,7 @@ pub trait OffsetIndex {
 
 impl OffsetIndex for i32 {
     fn as_usize(&self) -> usize {
-        (*self).try_into().expect("index to be greater than zero")
+        (*self).try_into().expect("index to be positive")
     }
 
     fn from_usize(u: usize) -> Self {
@@ -389,7 +388,7 @@ impl OffsetIndex for i32 {
 
 impl OffsetIndex for i64 {
     fn as_usize(&self) -> usize {
-        (*self).try_into().expect("index to be greater than zero")
+        (*self).try_into().expect("index to be positive")
     }
 
     fn from_usize(u: usize) -> Self {
@@ -400,7 +399,7 @@ impl OffsetIndex for i64 {
 #[derive(Debug)]
 pub struct VarlenArray<T: VarlenType + ?Sized, O: OffsetIndex> {
     /// Value validities.
-    validity: Validity,
+    validity: Option<Bitmap>,
 
     /// Offsets into the data buffer.
     ///
@@ -425,33 +424,6 @@ where
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
-    /// Create a new varlen array from an iterator of values.
-    // TODO: The lifetime bound works, but could probably be a bit confusing to
-    // read. See if there's a good way to remove it.
-    pub fn from_iter<'a>(iter: impl IntoIterator<Item = &'a T>) -> Self
-    where
-        T: 'a,
-    {
-        let mut offsets: Vec<O> = vec![O::from_usize(0)];
-        let mut data: Vec<u8> = Vec::new();
-
-        for item in iter.into_iter() {
-            data.extend(item.as_binary());
-            let offset = data.len();
-            offsets.push(O::from_usize(offset));
-        }
-
-        let offsets = PrimitiveStorage::from(offsets);
-        let data = PrimitiveStorage::from(data);
-
-        VarlenArray {
-            validity: Validity::default(),
-            offsets,
-            data,
-            varlen_type: PhantomData,
-        }
-    }
-
     pub fn len(&self) -> usize {
         self.offsets.len() - 1
     }
@@ -486,16 +458,39 @@ where
             return None;
         }
 
-        Some(self.validity.is_valid(idx))
+        Some(is_valid(self.validity.as_ref(), idx))
     }
 
     /// Get a reference to the underlying validity bitmap.
-    pub(crate) fn validity(&self) -> &Validity {
-        &self.validity
+    pub(crate) fn validity(&self) -> Option<&Bitmap> {
+        self.validity.as_ref()
     }
 
     pub fn values_iter(&self) -> VarlenArrayIter<'_, T, O> {
         VarlenArrayIter { idx: 0, arr: self }
+    }
+}
+
+impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenArray<A, O> {
+    fn from_iter<T: IntoIterator<Item = &'a A>>(iter: T) -> Self {
+        let mut offsets: Vec<O> = vec![O::from_usize(0)];
+        let mut data: Vec<u8> = Vec::new();
+
+        for item in iter.into_iter() {
+            data.extend(item.as_binary());
+            let offset = data.len();
+            offsets.push(O::from_usize(offset));
+        }
+
+        let offsets = PrimitiveStorage::from(offsets);
+        let data = PrimitiveStorage::from(data);
+
+        VarlenArray {
+            validity: None,
+            offsets,
+            data,
+            varlen_type: PhantomData,
+        }
     }
 }
 
@@ -536,4 +531,15 @@ where
 
         left.zip(right).all(|(left, right)| left == right)
     }
+}
+
+/// Helper for determining if a value at a given index should be considered
+/// valid.
+///
+/// If the bitmap is None, it's assumed that all values, regardless of the
+/// index, are valid.
+///
+/// Panics if index is out of bounds.
+fn is_valid(validity: Option<&Bitmap>, idx: usize) -> bool {
+    validity.map(|bm| bm.value(idx)).unwrap_or(true)
 }
