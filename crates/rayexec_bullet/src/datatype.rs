@@ -21,3 +21,21 @@ pub enum DataType {
     Binary,
     LargeBinary,
 }
+
+impl DataType {
+    pub const fn is_numeric(&self) -> bool {
+        matches!(
+            self,
+            Self::Float32
+                | Self::Float64
+                | Self::Int8
+                | Self::Int16
+                | Self::Int32
+                | Self::Int64
+                | Self::UInt8
+                | Self::UInt16
+                | Self::UInt32
+                | Self::UInt64
+        )
+    }
+}
