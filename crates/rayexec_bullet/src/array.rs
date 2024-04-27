@@ -1,4 +1,5 @@
 use crate::bitmap::Bitmap;
+use crate::datatype::DataType;
 use crate::scalar::ScalarValue;
 use crate::storage::PrimitiveStorage;
 use crate::validity::Validity;
@@ -22,6 +23,23 @@ pub enum Array {
 }
 
 impl Array {
+    pub fn datatype(&self) -> DataType {
+        match self {
+            Array::Null(_) => DataType::Null,
+            Array::Boolean(_) => DataType::Boolean,
+            Array::Float32(_) => DataType::Float32,
+            Array::Float64(_) => DataType::Float64,
+            Array::Int32(_) => DataType::Int32,
+            Array::Int64(_) => DataType::Int64,
+            Array::UInt32(_) => DataType::UInt32,
+            Array::UInt64(_) => DataType::UInt64,
+            Array::Utf8(_) => DataType::Utf8,
+            Array::LargeUtf8(_) => DataType::LargeUtf8,
+            Array::Binary(_) => DataType::Binary,
+            Array::LargeBinary(_) => DataType::LargeBinary,
+        }
+    }
+
     /// Get a scalar value at the given index.
     pub fn scalar(&self, idx: usize) -> Option<ScalarValue> {
         if !self.is_valid(idx)? {
@@ -84,18 +102,14 @@ impl NullArray {
 /// A logical array for representing bools.
 #[derive(Debug, PartialEq)]
 pub struct BooleanArray {
-    validity: Validity,
+    validity: Option<Bitmap>,
     values: Bitmap,
 }
 
 impl BooleanArray {
-    pub fn from_iter(iter: impl IntoIterator<Item = bool>) -> Self {
-        Self::new_with_values(Bitmap::from_bool_iter(iter))
-    }
-
     pub fn new_with_values(values: Bitmap) -> Self {
         BooleanArray {
-            validity: Validity::default(),
+            validity: None,
             values,
         }
     }
@@ -109,7 +123,13 @@ impl BooleanArray {
             return None;
         }
 
-        Some(self.validity.is_valid(idx))
+        let valid = self
+            .validity
+            .as_ref()
+            .map(|bm| bm.value(idx))
+            .unwrap_or(true);
+
+        Some(valid)
     }
 
     pub fn value(&self, idx: usize) -> Option<bool> {
@@ -120,8 +140,43 @@ impl BooleanArray {
         Some(self.values.value(idx))
     }
 
+    pub(crate) fn validity(&self) -> Option<&Bitmap> {
+        self.validity.as_ref()
+    }
+
     pub(crate) fn values(&self) -> &Bitmap {
         &self.values
+    }
+}
+
+impl FromIterator<bool> for BooleanArray {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        Self::new_with_values(Bitmap::from_bool_iter(iter))
+    }
+}
+
+impl FromIterator<Option<bool>> for BooleanArray {
+    fn from_iter<T: IntoIterator<Item = Option<bool>>>(iter: T) -> Self {
+        let mut validity = Bitmap::default();
+        let mut bools = Bitmap::default();
+
+        for item in iter {
+            match item {
+                Some(value) => {
+                    validity.push(true);
+                    bools.push(value);
+                }
+                None => {
+                    validity.push(false);
+                    bools.push(false);
+                }
+            }
+        }
+
+        BooleanArray {
+            validity: Some(validity),
+            values: bools,
+        }
     }
 }
 
@@ -289,7 +344,7 @@ impl<A: Default> FromIterator<Option<A>> for PrimitiveArray<A> {
 
 /// Trait for determining how to interpret binary data stored in a variable
 /// length array.
-pub trait VarlenType: PartialEq {
+pub trait VarlenType: PartialEq + PartialOrd {
     /// Interpret some binary input into an output type.
     fn interpret(input: &[u8]) -> &Self;
 

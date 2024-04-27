@@ -1,57 +1,51 @@
+use crate::array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
 use rayexec_error::{RayexecError, Result};
 
-use crate::array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
-
-pub trait TakeKernel: Sized {
-    /// Take values at the given indices to produce a new array.
-    fn take(&self, indices: &[usize]) -> Result<Self>;
+pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
+    Ok(match arr {
+        Array::Float32(arr) => Array::Float32(take_primitive(arr, indices)?),
+        Array::Float64(arr) => Array::Float64(take_primitive(arr, indices)?),
+        Array::Int32(arr) => Array::Int32(take_primitive(arr, indices)?),
+        Array::Int64(arr) => Array::Int64(take_primitive(arr, indices)?),
+        Array::UInt32(arr) => Array::UInt32(take_primitive(arr, indices)?),
+        Array::UInt64(arr) => Array::UInt64(take_primitive(arr, indices)?),
+        Array::Utf8(arr) => Array::Utf8(take_varlen(arr, indices)?),
+        Array::LargeUtf8(arr) => Array::LargeUtf8(take_varlen(arr, indices)?),
+        Array::Binary(arr) => Array::Binary(take_varlen(arr, indices)?),
+        Array::LargeBinary(arr) => Array::LargeBinary(take_varlen(arr, indices)?),
+        _ => unimplemented!(), // TODO
+    })
 }
 
-impl TakeKernel for Array {
-    fn take(&self, indices: &[usize]) -> Result<Self> {
-        Ok(match self {
-            Self::Float32(arr) => Array::Float32(arr.take(indices)?),
-            Self::Float64(arr) => Array::Float64(arr.take(indices)?),
-            Self::Int32(arr) => Array::Int32(arr.take(indices)?),
-            Self::Int64(arr) => Array::Int64(arr.take(indices)?),
-            Self::UInt32(arr) => Array::UInt32(arr.take(indices)?),
-            Self::UInt64(arr) => Array::UInt64(arr.take(indices)?),
-            Self::Utf8(arr) => Array::Utf8(arr.take(indices)?),
-            Self::LargeUtf8(arr) => Array::LargeUtf8(arr.take(indices)?),
-            Self::Binary(arr) => Array::Binary(arr.take(indices)?),
-            Self::LargeBinary(arr) => Array::LargeBinary(arr.take(indices)?),
-            _ => unimplemented!(), // TODO
-        })
+pub fn take_primitive<T: Copy>(
+    arr: &PrimitiveArray<T>,
+    indices: &[usize],
+) -> Result<PrimitiveArray<T>> {
+    if !indices.iter().all(|&idx| idx < arr.len()) {
+        return Err(RayexecError::new("Index out of bounds"));
     }
+
+    let values = arr.values();
+    // TODO: validity
+    let iter = indices.iter().map(|idx| *values.get(*idx).unwrap());
+    let taken = PrimitiveArray::from_iter(iter);
+
+    Ok(taken)
 }
 
-impl<T: Copy> TakeKernel for PrimitiveArray<T> {
-    fn take(&self, indices: &[usize]) -> Result<Self> {
-        if !indices.iter().all(|&idx| idx < self.len()) {
-            return Err(RayexecError::new("Index out of bounds"));
-        }
-
-        let values = self.values();
-        // TODO: validity
-        let iter = indices.iter().map(|idx| *values.get(*idx).unwrap());
-        let taken = Self::from_iter(iter);
-
-        Ok(taken)
+pub fn take_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    arr: &VarlenArray<T, O>,
+    indices: &[usize],
+) -> Result<VarlenArray<T, O>> {
+    if !indices.iter().all(|&idx| idx < arr.len()) {
+        return Err(RayexecError::new("Index out of bounds"));
     }
-}
 
-impl<T: VarlenType + ?Sized, O: OffsetIndex> TakeKernel for VarlenArray<T, O> {
-    fn take(&self, indices: &[usize]) -> Result<Self> {
-        if !indices.iter().all(|&idx| idx < self.len()) {
-            return Err(RayexecError::new("Index out of bounds"));
-        }
+    // TODO: Validity
+    let iter = indices.iter().map(|idx| arr.value(*idx).unwrap());
+    let taken = VarlenArray::from_iter(iter);
 
-        // TODO: Validity
-        let iter = indices.iter().map(|idx| self.value(*idx).unwrap());
-        let taken = Self::from_iter(iter);
-
-        Ok(taken)
-    }
+    Ok(taken)
 }
 
 #[cfg(test)]
@@ -64,7 +58,7 @@ mod tests {
     fn simple_take_primitive() {
         let arr = Int32Array::from_iter([6, 7, 8, 9]);
         let indices = [1, 1, 3, 0];
-        let out = arr.take(&indices).unwrap();
+        let out = take_primitive(&arr, &indices).unwrap();
 
         let expected = Int32Array::from_iter([7, 7, 9, 6]);
         assert_eq!(expected, out);
@@ -75,14 +69,14 @@ mod tests {
         let arr = Int32Array::from_iter([6, 7, 8, 9]);
         let indices = [1, 1, 3, 4];
 
-        let _ = arr.take(&indices).unwrap_err();
+        let _ = take_primitive(&arr, &indices).unwrap_err();
     }
 
     #[test]
     fn simple_take_varlen() {
         let arr = Utf8Array::from_iter(["aaa", "bbb", "ccc", "ddd"]);
         let indices = [1, 1, 3, 0];
-        let out = arr.take(&indices).unwrap();
+        let out = take_varlen(&arr, &indices).unwrap();
 
         let expected = Utf8Array::from_iter(["bbb", "bbb", "ddd", "aaa"]);
         assert_eq!(expected, out);
@@ -93,6 +87,6 @@ mod tests {
         let arr = Utf8Array::from_iter(["aaa", "bbb", "ccc", "ddd"]);
         let indices = [1, 1, 3, 4];
 
-        let _ = arr.take(&indices).unwrap_err();
+        let _ = take_varlen(&arr, &indices).unwrap_err();
     }
 }

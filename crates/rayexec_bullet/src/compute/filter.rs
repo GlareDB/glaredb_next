@@ -2,75 +2,70 @@ use crate::array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray
 use crate::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 
-pub trait FilterKernel: Sized {
-    /// Filter self using a selection array.
-    fn filter(&self, selection: &BooleanArray) -> Result<Self>;
+pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
+    Ok(match arr {
+        Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
+        Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),
+        Array::Int32(arr) => Array::Int32(filter_primitive(arr, selection)?),
+        Array::Int64(arr) => Array::Int64(filter_primitive(arr, selection)?),
+        Array::UInt32(arr) => Array::UInt32(filter_primitive(arr, selection)?),
+        Array::UInt64(arr) => Array::UInt64(filter_primitive(arr, selection)?),
+        Array::Utf8(arr) => Array::Utf8(filter_varlen(arr, selection)?),
+        Array::LargeUtf8(arr) => Array::LargeUtf8(filter_varlen(arr, selection)?),
+        Array::Binary(arr) => Array::Binary(filter_varlen(arr, selection)?),
+        Array::LargeBinary(arr) => Array::LargeBinary(filter_varlen(arr, selection)?),
+        _ => unimplemented!(), // TODO
+    })
 }
 
-impl FilterKernel for Array {
-    fn filter(&self, selection: &BooleanArray) -> Result<Self> {
-        Ok(match self {
-            Self::Float32(arr) => Array::Float32(arr.filter(selection)?),
-            Self::Float64(arr) => Array::Float64(arr.filter(selection)?),
-            Self::Int32(arr) => Array::Int32(arr.filter(selection)?),
-            Self::Int64(arr) => Array::Int64(arr.filter(selection)?),
-            Self::UInt32(arr) => Array::UInt32(arr.filter(selection)?),
-            Self::UInt64(arr) => Array::UInt64(arr.filter(selection)?),
-            Self::Utf8(arr) => Array::Utf8(arr.filter(selection)?),
-            Self::LargeUtf8(arr) => Array::LargeUtf8(arr.filter(selection)?),
-            Self::Binary(arr) => Array::Binary(arr.filter(selection)?),
-            Self::LargeBinary(arr) => Array::LargeBinary(arr.filter(selection)?),
-            _ => unimplemented!(), // TODO
-        })
+pub fn filter_primitive<T: Copy>(
+    arr: &PrimitiveArray<T>,
+    selection: &BooleanArray,
+) -> Result<PrimitiveArray<T>> {
+    if arr.len() != selection.len() {
+        return Err(RayexecError::new(
+            "Selection array length doesn't equal array length",
+        ));
     }
+
+    // TODO: validity
+
+    let values_iter = match arr.values() {
+        PrimitiveStorage::Vec(v) => v.iter(),
+    };
+    let select_iter = selection.values().iter();
+
+    let iter = values_iter
+        .zip(select_iter)
+        .filter_map(|(v, take)| if take { Some(*v) } else { None });
+
+    let arr = PrimitiveArray::from_iter(iter);
+
+    Ok(arr)
 }
 
-impl<T: Copy> FilterKernel for PrimitiveArray<T> {
-    fn filter(&self, selection: &BooleanArray) -> Result<Self> {
-        if self.len() != selection.len() {
-            return Err(RayexecError::new(
-                "Selection array length doesn't equal array length",
-            ));
-        }
-
-        // TODO: validity
-
-        let values_iter = match self.values() {
-            PrimitiveStorage::Vec(v) => v.iter(),
-        };
-        let select_iter = selection.values().iter();
-
-        let iter = values_iter
-            .zip(select_iter)
-            .filter_map(|(v, take)| if take { Some(*v) } else { None });
-
-        let arr = PrimitiveArray::from_iter(iter);
-
-        Ok(arr)
+pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    arr: &VarlenArray<T, O>,
+    selection: &BooleanArray,
+) -> Result<VarlenArray<T, O>> {
+    if arr.len() != selection.len() {
+        return Err(RayexecError::new(
+            "Selection array length doesn't equal array length",
+        ));
     }
-}
 
-impl<T: VarlenType + ?Sized, O: OffsetIndex> FilterKernel for VarlenArray<T, O> {
-    fn filter(&self, selection: &BooleanArray) -> Result<Self> {
-        if self.len() != selection.len() {
-            return Err(RayexecError::new(
-                "Selection array length doesn't equal array length",
-            ));
-        }
+    // TODO: Validity
 
-        // TODO: Validity
+    let values_iter = arr.values_iter();
+    let select_iter = selection.values().iter();
 
-        let values_iter = self.values_iter();
-        let select_iter = selection.values().iter();
+    let iter = values_iter
+        .zip(select_iter)
+        .filter_map(|(v, take)| if take { Some(v) } else { None });
 
-        let iter = values_iter
-            .zip(select_iter)
-            .filter_map(|(v, take)| if take { Some(v) } else { None });
+    let arr = VarlenArray::from_iter(iter);
 
-        let arr = VarlenArray::from_iter(iter);
-
-        Ok(arr)
-    }
+    Ok(arr)
 }
 
 #[cfg(test)]
@@ -84,7 +79,7 @@ mod tests {
         let arr = Int32Array::from_iter([6, 7, 8, 9]);
         let selection = BooleanArray::from_iter([true, false, true, false]);
 
-        let filtered = arr.filter(&selection).unwrap();
+        let filtered = filter_primitive(&arr, &selection).unwrap();
         let expected = Int32Array::from_iter([6, 8]);
         assert_eq!(expected, filtered);
     }
@@ -94,7 +89,7 @@ mod tests {
         let arr = Utf8Array::from_iter(["aaa", "bbb", "ccc", "ddd"]);
         let selection = BooleanArray::from_iter([true, false, true, false]);
 
-        let filtered = arr.filter(&selection).unwrap();
+        let filtered = filter_varlen(&arr, &selection).unwrap();
         let expected = Utf8Array::from_iter(["aaa", "ccc"]);
         assert_eq!(expected, filtered);
     }

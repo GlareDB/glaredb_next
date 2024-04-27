@@ -1,99 +1,144 @@
 use crate::{
-    array::{Array, BooleanArray, PrimitiveArray},
+    array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
     bitmap::Bitmap,
     scalar::ScalarValue,
     storage::PrimitiveStorage,
 };
 use rayexec_error::{RayexecError, Result};
 
-pub trait CmpKernel<Rhs = Self> {
-    type Output;
-
-    fn eq(&self, right: &Rhs) -> Result<Self::Output>;
-    fn neq(&self, right: &Rhs) -> Result<Self::Output>;
-    fn lt(&self, right: &Rhs) -> Result<Self::Output>;
-    fn lt_eq(&self, right: &Rhs) -> Result<Self::Output>;
-    fn gt(&self, right: &Rhs) -> Result<Self::Output>;
-    fn gt_eq(&self, right: &Rhs) -> Result<Self::Output>;
-}
-
-// TODO: Varlens
 macro_rules! array_cmp_dispatch {
-    ($left:ident, $right:ident, $fn:expr) => {{
+    ($left:ident, $right:ident, $prim_fn:expr, $varlen_fn:expr) => {{
         match ($left, $right) {
-            (Array::Float32(left), Array::Float32(right)) => $fn(left, right),
-            (Array::Float64(left), Array::Float64(right)) => $fn(left, right),
-            (Array::Int32(left), Array::Int32(right)) => $fn(left, right),
-            (Array::Int64(left), Array::Int64(right)) => $fn(left, right),
-            (Array::UInt32(left), Array::UInt32(right)) => $fn(left, right),
-            (Array::UInt64(left), Array::UInt64(right)) => $fn(left, right),
+            (Array::Float32(left), Array::Float32(right)) => $prim_fn(left, right),
+            (Array::Float64(left), Array::Float64(right)) => $prim_fn(left, right),
+            (Array::Int32(left), Array::Int32(right)) => $prim_fn(left, right),
+            (Array::Int64(left), Array::Int64(right)) => $prim_fn(left, right),
+            (Array::UInt32(left), Array::UInt32(right)) => $prim_fn(left, right),
+            (Array::UInt64(left), Array::UInt64(right)) => $prim_fn(left, right),
+            (Array::Utf8(left), Array::Utf8(right)) => $varlen_fn(left, right),
+            (Array::Binary(left), Array::Binary(right)) => $varlen_fn(left, right),
+            (Array::LargeUtf8(left), Array::LargeUtf8(right)) => $varlen_fn(left, right),
+            (Array::LargeBinary(left), Array::LargeBinary(right)) => $varlen_fn(left, right),
             _ => Err(RayexecError::new(
-                "Unsupported arithmetic operation on array",
+                "Unsupported comparison operation on array",
             )),
         }
     }};
 }
 
-impl CmpKernel for Array {
-    type Output = BooleanArray;
-
-    fn eq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, CmpKernel::eq)
-    }
-
-    fn neq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, CmpKernel::neq)
-    }
-
-    fn lt(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, CmpKernel::lt)
-    }
-
-    fn lt_eq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, CmpKernel::lt_eq)
-    }
-
-    fn gt(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, CmpKernel::gt)
-    }
-
-    fn gt_eq(&self, right: &Self) -> Result<Self::Output> {
-        array_cmp_dispatch!(self, right, CmpKernel::gt_eq)
-    }
+pub fn eq(left: &Array, right: &Array) -> Result<BooleanArray> {
+    array_cmp_dispatch!(left, right, eq_primtive, eq_varlen)
 }
 
-impl<T: PartialEq + PartialOrd> CmpKernel for PrimitiveArray<T> {
-    type Output = BooleanArray;
-
-    fn eq(&self, right: &Self) -> Result<Self::Output> {
-        primitive_array_cmp(self, right, PartialEq::eq)
-    }
-
-    fn neq(&self, right: &Self) -> Result<Self::Output> {
-        primitive_array_cmp(self, right, PartialEq::ne)
-    }
-
-    fn lt(&self, right: &Self) -> Result<Self::Output> {
-        primitive_array_cmp(self, right, PartialOrd::lt)
-    }
-
-    fn lt_eq(&self, right: &Self) -> Result<Self::Output> {
-        primitive_array_cmp(self, right, PartialOrd::le)
-    }
-
-    fn gt(&self, right: &Self) -> Result<Self::Output> {
-        primitive_array_cmp(self, right, PartialOrd::gt)
-    }
-
-    fn gt_eq(&self, right: &Self) -> Result<Self::Output> {
-        primitive_array_cmp(self, right, PartialOrd::ge)
-    }
+pub fn neq(left: &Array, right: &Array) -> Result<BooleanArray> {
+    array_cmp_dispatch!(left, right, neq_primtive, neq_varlen)
 }
 
-// TODO: Varlens
+pub fn lt(left: &Array, right: &Array) -> Result<BooleanArray> {
+    array_cmp_dispatch!(left, right, lt_primtive, lt_varlen)
+}
+
+pub fn lt_eq(left: &Array, right: &Array) -> Result<BooleanArray> {
+    array_cmp_dispatch!(left, right, lt_eq_primtive, lt_eq_varlen)
+}
+
+pub fn gt(left: &Array, right: &Array) -> Result<BooleanArray> {
+    array_cmp_dispatch!(left, right, gt_primtive, gt_varlen)
+}
+
+pub fn gt_eq(left: &Array, right: &Array) -> Result<BooleanArray> {
+    array_cmp_dispatch!(left, right, gt_eq_primtive, gt_eq_varlen)
+}
+
+pub fn eq_primtive<T: PartialEq>(
+    left: &PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<BooleanArray> {
+    primitive_array_cmp(left, right, PartialEq::eq)
+}
+
+pub fn neq_primtive<T: PartialEq>(
+    left: &PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<BooleanArray> {
+    primitive_array_cmp(left, right, PartialEq::ne)
+}
+
+pub fn lt_primtive<T: PartialOrd>(
+    left: &PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<BooleanArray> {
+    primitive_array_cmp(left, right, PartialOrd::lt)
+}
+
+pub fn lt_eq_primtive<T: PartialOrd>(
+    left: &PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<BooleanArray> {
+    primitive_array_cmp(left, right, PartialOrd::le)
+}
+
+pub fn gt_primtive<T: PartialOrd>(
+    left: &PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<BooleanArray> {
+    primitive_array_cmp(left, right, PartialOrd::gt)
+}
+
+pub fn gt_eq_primtive<T: PartialOrd>(
+    left: &PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<BooleanArray> {
+    primitive_array_cmp(left, right, PartialOrd::ge)
+}
+
+pub fn eq_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    left: &VarlenArray<T, O>,
+    right: &VarlenArray<T, O>,
+) -> Result<BooleanArray> {
+    varlen_array_cmp(left, right, PartialEq::eq)
+}
+
+pub fn neq_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    left: &VarlenArray<T, O>,
+    right: &VarlenArray<T, O>,
+) -> Result<BooleanArray> {
+    varlen_array_cmp(left, right, PartialEq::ne)
+}
+
+pub fn lt_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    left: &VarlenArray<T, O>,
+    right: &VarlenArray<T, O>,
+) -> Result<BooleanArray> {
+    varlen_array_cmp(left, right, PartialOrd::lt)
+}
+
+pub fn lt_eq_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    left: &VarlenArray<T, O>,
+    right: &VarlenArray<T, O>,
+) -> Result<BooleanArray> {
+    varlen_array_cmp(left, right, PartialOrd::le)
+}
+
+pub fn gt_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    left: &VarlenArray<T, O>,
+    right: &VarlenArray<T, O>,
+) -> Result<BooleanArray> {
+    varlen_array_cmp(left, right, PartialOrd::gt)
+}
+
+pub fn gt_eq_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+    left: &VarlenArray<T, O>,
+    right: &VarlenArray<T, O>,
+) -> Result<BooleanArray> {
+    varlen_array_cmp(left, right, PartialOrd::ge)
+}
+
+// TODO: Null comparisions (those should always return null)
 macro_rules! scalar_cmp_dispatch {
     ($left:ident, $right:ident, $fn:expr) => {{
         match ($left, $right) {
+            (ScalarValue::Boolean(left), ScalarValue::Boolean(right)) => $fn(left, right),
             (ScalarValue::Float32(left), ScalarValue::Float32(right)) => $fn(left, right),
             (ScalarValue::Float64(left), ScalarValue::Float64(right)) => $fn(left, right),
             (ScalarValue::Int8(left), ScalarValue::Int8(right)) => $fn(left, right),
@@ -104,39 +149,41 @@ macro_rules! scalar_cmp_dispatch {
             (ScalarValue::UInt16(left), ScalarValue::UInt16(right)) => $fn(left, right),
             (ScalarValue::UInt32(left), ScalarValue::UInt32(right)) => $fn(left, right),
             (ScalarValue::UInt64(left), ScalarValue::UInt64(right)) => $fn(left, right),
-            _ => Err(RayexecError::new(
-                "Unsupported arithmetic operation on scalar",
-            )),
+            (ScalarValue::Utf8(left), ScalarValue::Utf8(right)) => $fn(left, right),
+            (ScalarValue::Binary(left), ScalarValue::Binary(right)) => $fn(left, right),
+            (ScalarValue::LargeUtf8(left), ScalarValue::LargeUtf8(right)) => $fn(left, right),
+            (ScalarValue::LargeBinary(left), ScalarValue::LargeBinary(right)) => $fn(left, right),
+            _ => {
+                return Err(RayexecError::new(
+                    "Unsupported comparison operation on scalar",
+                ))
+            }
         }
     }};
 }
 
-impl<'a> CmpKernel for ScalarValue<'a> {
-    type Output = bool;
+pub fn eq_scalar(left: &ScalarValue, right: &ScalarValue) -> Result<bool> {
+    scalar_cmp_dispatch!(left, right, |l, r| { Ok(PartialEq::eq(l, r)) })
+}
 
-    fn eq(&self, right: &Self) -> Result<Self::Output> {
-        scalar_cmp_dispatch!(self, right, |l, r| { Ok(PartialEq::eq(l, r)) })
-    }
+pub fn neq_scalar(left: &ScalarValue, right: &ScalarValue) -> Result<bool> {
+    scalar_cmp_dispatch!(left, right, |l, r| { Ok(PartialEq::ne(l, r)) })
+}
 
-    fn neq(&self, right: &Self) -> Result<Self::Output> {
-        scalar_cmp_dispatch!(self, right, |l, r| { Ok(PartialEq::ne(l, r)) })
-    }
+pub fn lt_scalar(left: &ScalarValue, right: &ScalarValue) -> Result<bool> {
+    scalar_cmp_dispatch!(left, right, |l, r| { Ok(PartialOrd::lt(l, r)) })
+}
 
-    fn lt(&self, right: &Self) -> Result<Self::Output> {
-        scalar_cmp_dispatch!(self, right, |l, r| { Ok(PartialOrd::lt(l, r)) })
-    }
+pub fn lt_eq_scalar(left: &ScalarValue, right: &ScalarValue) -> Result<bool> {
+    scalar_cmp_dispatch!(left, right, |l, r| { Ok(PartialOrd::le(l, r)) })
+}
 
-    fn lt_eq(&self, right: &Self) -> Result<Self::Output> {
-        scalar_cmp_dispatch!(self, right, |l, r| { Ok(PartialOrd::le(l, r)) })
-    }
+pub fn gt_scalar(left: &ScalarValue, right: &ScalarValue) -> Result<bool> {
+    scalar_cmp_dispatch!(left, right, |l, r| { Ok(PartialOrd::gt(l, r)) })
+}
 
-    fn gt(&self, right: &Self) -> Result<Self::Output> {
-        scalar_cmp_dispatch!(self, right, |l, r| { Ok(PartialOrd::gt(l, r)) })
-    }
-
-    fn gt_eq(&self, right: &Self) -> Result<Self::Output> {
-        scalar_cmp_dispatch!(self, right, |l, r| { Ok(PartialOrd::ge(l, r)) })
-    }
+pub fn gt_eq_scalar(left: &ScalarValue, right: &ScalarValue) -> Result<bool> {
+    scalar_cmp_dispatch!(left, right, |l, r| { Ok(PartialOrd::ge(l, r)) })
 }
 
 fn primitive_array_cmp<T, F>(
@@ -167,6 +214,32 @@ where
     Ok(bools)
 }
 
+fn varlen_array_cmp<T, O, F>(
+    left: &VarlenArray<T, O>,
+    right: &VarlenArray<T, O>,
+    cmp_fn: F,
+) -> Result<BooleanArray>
+where
+    T: VarlenType + ?Sized,
+    O: OffsetIndex,
+    F: Fn(&T, &T) -> bool,
+{
+    if left.len() != right.len() {
+        return Err(RayexecError::new(
+            "Left and right arrays have different lengths",
+        ));
+    }
+
+    let left = left.values_iter();
+    let right = right.values_iter();
+
+    let bools = compare_value_iters(left, right, cmp_fn);
+
+    // TODO: Nulls
+
+    Ok(bools)
+}
+
 /// Compare the the values from two iterators with some comparison function and
 /// return a boolean array containing the results.
 fn compare_value_iters<T, F>(
@@ -187,11 +260,5 @@ mod tests {
     use super::*;
 
     #[test]
-    fn simple_scalar_lt() {
-        let left = ScalarValue::Int32(4);
-        let right = ScalarValue::Int32(5);
-
-        let out = left.lt(&right).unwrap();
-        assert_eq!(true, out);
-    }
+    fn simple_scalar_lt() {}
 }

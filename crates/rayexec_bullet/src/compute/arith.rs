@@ -4,23 +4,6 @@ use crate::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 
-/// Arithmetic operations that assign the result into the left-hand side.
-pub trait ArithKernel<Rhs = Self> {
-    fn add(&mut self, right: &Rhs) -> Result<()>;
-    fn checked_add(&mut self, right: &Rhs) -> Result<()>;
-
-    fn sub(&mut self, right: &Rhs) -> Result<()>;
-    fn checked_sub(&mut self, right: &Rhs) -> Result<()>;
-
-    fn mul(&mut self, right: &Rhs) -> Result<()>;
-    fn checked_mul(&mut self, right: &Rhs) -> Result<()>;
-
-    fn div(&mut self, right: &Rhs) -> Result<()>;
-    fn checked_div(&mut self, right: &Rhs) -> Result<()>;
-
-    fn rem(&mut self, right: &Rhs) -> Result<()>;
-}
-
 macro_rules! array_arith_dispatch {
     ($left:ident, $right:ident, $fn:expr) => {{
         match ($left, $right) {
@@ -37,46 +20,24 @@ macro_rules! array_arith_dispatch {
     }};
 }
 
-impl ArithKernel for Array {
-    fn add(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithKernel::add)
-    }
+pub fn add(left: &mut Array, right: &Array) -> Result<()> {
+    array_arith_dispatch!(left, right, add_primitive)
+}
 
-    fn checked_add(&mut self, right: &Self) -> Result<()> {
-        // TODO
-        array_arith_dispatch!(self, right, ArithKernel::add)
-    }
+pub fn sub(left: &mut Array, right: &Array) -> Result<()> {
+    array_arith_dispatch!(left, right, sub_primitive)
+}
 
-    fn sub(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithKernel::sub)
-    }
+pub fn mul(left: &mut Array, right: &Array) -> Result<()> {
+    array_arith_dispatch!(left, right, mul_primitive)
+}
 
-    fn checked_sub(&mut self, right: &Self) -> Result<()> {
-        // TODO
-        array_arith_dispatch!(self, right, ArithKernel::sub)
-    }
+pub fn div(left: &mut Array, right: &Array) -> Result<()> {
+    array_arith_dispatch!(left, right, div_primitive)
+}
 
-    fn mul(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithKernel::mul)
-    }
-
-    fn checked_mul(&mut self, right: &Self) -> Result<()> {
-        // TODO
-        array_arith_dispatch!(self, right, ArithKernel::mul)
-    }
-
-    fn div(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithKernel::div)
-    }
-
-    fn checked_div(&mut self, right: &Self) -> Result<()> {
-        // TODO
-        array_arith_dispatch!(self, right, ArithKernel::div)
-    }
-
-    fn rem(&mut self, right: &Self) -> Result<()> {
-        array_arith_dispatch!(self, right, ArithKernel::rem)
-    }
+pub fn rem(left: &mut Array, right: &Array) -> Result<()> {
+    array_arith_dispatch!(left, right, rem_primitive)
 }
 
 macro_rules! scalar_arith_dispatch {
@@ -99,103 +60,74 @@ macro_rules! scalar_arith_dispatch {
     }};
 }
 
-impl<'a> ArithKernel for ScalarValue<'a> {
-    fn add(&mut self, right: &Self) -> Result<()> {
-        scalar_arith_dispatch!(self, right, |l, r| {
-            AddAssign::add_assign(l, r);
-            Ok(())
-        })
-    }
-
-    fn checked_add(&mut self, _right: &Self) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn sub(&mut self, right: &Self) -> Result<()> {
-        scalar_arith_dispatch!(self, right, |l, r| {
-            SubAssign::sub_assign(l, r);
-            Ok(())
-        })
-    }
-
-    fn checked_sub(&mut self, _right: &Self) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn mul(&mut self, right: &Self) -> Result<()> {
-        scalar_arith_dispatch!(self, right, |l, r| {
-            MulAssign::mul_assign(l, r);
-            Ok(())
-        })
-    }
-
-    fn checked_mul(&mut self, _right: &Self) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn div(&mut self, right: &Self) -> Result<()> {
-        scalar_arith_dispatch!(self, right, |l, r| {
-            DivAssign::div_assign(l, r);
-            Ok(())
-        })
-    }
-
-    fn checked_div(&mut self, _right: &Self) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn rem(&mut self, right: &Self) -> Result<()> {
-        scalar_arith_dispatch!(self, right, |l, r| {
-            RemAssign::rem_assign(l, r);
-            Ok(())
-        })
-    }
+pub fn add_scalar(left: &mut ScalarValue, right: ScalarValue) -> Result<()> {
+    scalar_arith_dispatch!(left, right, |l, r| {
+        AddAssign::add_assign(l, r);
+        Ok(())
+    })
 }
 
-impl<
-        T: Add<Output = T>
-            + Sub<Output = T>
-            + Mul<Output = T>
-            + Div<Output = T>
-            + Rem<Output = T>
-            + Copy,
-    > ArithKernel for PrimitiveArray<T>
-{
-    fn add(&mut self, right: &Self) -> Result<()> {
-        primitive_bin_op_assign(self, right, Add::add)
-    }
+pub fn sub_scalar(left: &mut ScalarValue, right: ScalarValue) -> Result<()> {
+    scalar_arith_dispatch!(left, right, |l, r| {
+        SubAssign::sub_assign(l, r);
+        Ok(())
+    })
+}
 
-    fn checked_add(&mut self, right: &Self) -> Result<()> {
-        unimplemented!()
-    }
+pub fn mul_scalar(left: &mut ScalarValue, right: ScalarValue) -> Result<()> {
+    scalar_arith_dispatch!(left, right, |l, r| {
+        MulAssign::mul_assign(l, r);
+        Ok(())
+    })
+}
 
-    fn sub(&mut self, right: &Self) -> Result<()> {
-        primitive_bin_op_assign(self, right, Sub::sub)
-    }
+pub fn div_scalar(left: &mut ScalarValue, right: ScalarValue) -> Result<()> {
+    scalar_arith_dispatch!(left, right, |l, r| {
+        DivAssign::div_assign(l, r);
+        Ok(())
+    })
+}
 
-    fn checked_sub(&mut self, right: &Self) -> Result<()> {
-        unimplemented!()
-    }
+pub fn mod_scalar(left: &mut ScalarValue, right: ScalarValue) -> Result<()> {
+    scalar_arith_dispatch!(left, right, |l, r| {
+        RemAssign::rem_assign(l, r);
+        Ok(())
+    })
+}
 
-    fn mul(&mut self, right: &Self) -> Result<()> {
-        primitive_bin_op_assign(self, right, Mul::mul)
-    }
+pub fn add_primitive<T: Add<Output = T> + Copy>(
+    left: &mut PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<()> {
+    primitive_bin_op_assign(left, right, Add::add)
+}
 
-    fn checked_mul(&mut self, right: &Self) -> Result<()> {
-        unimplemented!()
-    }
+pub fn sub_primitive<T: Sub<Output = T> + Copy>(
+    left: &mut PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<()> {
+    primitive_bin_op_assign(left, right, Sub::sub)
+}
 
-    fn div(&mut self, right: &Self) -> Result<()> {
-        primitive_bin_op_assign(self, right, Div::div)
-    }
+pub fn mul_primitive<T: Mul<Output = T> + Copy>(
+    left: &mut PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<()> {
+    primitive_bin_op_assign(left, right, Mul::mul)
+}
 
-    fn checked_div(&mut self, right: &Self) -> Result<()> {
-        unimplemented!()
-    }
+pub fn div_primitive<T: Div<Output = T> + Copy>(
+    left: &mut PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<()> {
+    primitive_bin_op_assign(left, right, Div::div)
+}
 
-    fn rem(&mut self, right: &Self) -> Result<()> {
-        primitive_bin_op_assign(self, right, Rem::rem)
-    }
+pub fn rem_primitive<T: Rem<Output = T> + Copy>(
+    left: &mut PrimitiveArray<T>,
+    right: &PrimitiveArray<T>,
+) -> Result<()> {
+    primitive_bin_op_assign(left, right, Rem::rem)
 }
 
 /// Execute a binary function on left and right, assigning the result to left.
@@ -232,17 +164,52 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::array::{Float32Array, Int32Array};
+
     use super::*;
 
     #[test]
-    fn simple_scalar_add() {
-        // Sanity check
+    fn primitive_add() {
+        let mut left = Int32Array::from_iter([1, 2, 3]);
+        let right = Int32Array::from_iter([4, 5, 6]);
 
-        let mut left = ScalarValue::Int32(5);
-        let right = ScalarValue::Int32(8);
+        add_primitive(&mut left, &right).unwrap();
+        assert_eq!(Int32Array::from_iter([5, 7, 9]), left);
+    }
 
-        left.add(&right).unwrap();
+    #[test]
+    fn primitive_sub() {
+        let mut left = Int32Array::from_iter([1, 2, 3]);
+        let right = Int32Array::from_iter([4, 5, 6]);
 
-        assert_eq!(ScalarValue::Int32(13), left);
+        sub_primitive(&mut left, &right).unwrap();
+        assert_eq!(Int32Array::from_iter([-3, -3, -3]), left);
+    }
+
+    #[test]
+    fn primitive_mul() {
+        let mut left = Int32Array::from_iter([1, 2, 3]);
+        let right = Int32Array::from_iter([4, 5, 6]);
+
+        mul_primitive(&mut left, &right).unwrap();
+        assert_eq!(Int32Array::from_iter([4, 10, 18]), left);
+    }
+
+    #[test]
+    fn primitive_div_float() {
+        let mut left = Float32Array::from_iter([4.0, 5.0, 6.0]);
+        let right = Float32Array::from_iter([2.0, 2.0, 3.0]);
+
+        div_primitive(&mut left, &right).unwrap();
+        assert_eq!(Float32Array::from_iter([2.0, 2.5, 2.0]), left);
+    }
+
+    #[test]
+    fn primitive_rem() {
+        let mut left = Int32Array::from_iter([4, 5, 6]);
+        let right = Int32Array::from_iter([1, 2, 3]);
+
+        rem_primitive(&mut left, &right).unwrap();
+        assert_eq!(Int32Array::from_iter([0, 1, 0]), left);
     }
 }

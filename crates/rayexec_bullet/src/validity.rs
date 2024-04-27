@@ -9,6 +9,20 @@ use rayexec_error::Result;
 pub struct Validity(pub(crate) Option<Bitmap>);
 
 impl Validity {
+    pub fn invalid_count(&self) -> usize {
+        match &self.0 {
+            Some(bitmap) => bitmap.len() - bitmap.popcnt(),
+            None => todo!(),
+        }
+    }
+
+    pub fn valid_count(&self) -> usize {
+        match &self.0 {
+            Some(bitmap) => bitmap.popcnt(),
+            None => todo!(),
+        }
+    }
+
     pub fn is_valid(&self, idx: usize) -> bool {
         match &self.0 {
             Some(b) => b.value(idx),

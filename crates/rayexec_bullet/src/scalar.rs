@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use crate::datatype::DataType;
+
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScalarValue<'a> {
@@ -55,6 +57,27 @@ pub enum ScalarValue<'a> {
 pub type OwnedScalarValue = ScalarValue<'static>;
 
 impl<'a> ScalarValue<'a> {
+    pub fn datatype(&self) -> DataType {
+        match self {
+            ScalarValue::Null => DataType::Null,
+            ScalarValue::Boolean(_) => DataType::Boolean,
+            ScalarValue::Float32(_) => DataType::Float32,
+            ScalarValue::Float64(_) => DataType::Float64,
+            ScalarValue::Int8(_) => DataType::Int8,
+            ScalarValue::Int16(_) => DataType::Int16,
+            ScalarValue::Int32(_) => DataType::Int32,
+            ScalarValue::Int64(_) => DataType::Int64,
+            ScalarValue::UInt8(_) => DataType::UInt8,
+            ScalarValue::UInt16(_) => DataType::UInt16,
+            ScalarValue::UInt32(_) => DataType::UInt32,
+            ScalarValue::UInt64(_) => DataType::UInt64,
+            ScalarValue::Utf8(_) => DataType::Utf8,
+            ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
+            ScalarValue::Binary(_) => DataType::Binary,
+            ScalarValue::LargeBinary(_) => DataType::LargeBinary,
+        }
+    }
+
     pub fn into_owned(self) -> OwnedScalarValue {
         match self {
             Self::Null => OwnedScalarValue::Null,
