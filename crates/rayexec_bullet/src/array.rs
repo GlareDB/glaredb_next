@@ -102,6 +102,10 @@ pub struct NullArray {
 }
 
 impl NullArray {
+    pub fn new(len: usize) -> Self {
+        NullArray { len }
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }

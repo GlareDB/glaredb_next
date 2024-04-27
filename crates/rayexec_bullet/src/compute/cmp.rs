@@ -11,8 +11,12 @@ macro_rules! array_cmp_dispatch {
         match ($left, $right) {
             (Array::Float32(left), Array::Float32(right)) => $prim_fn(left, right),
             (Array::Float64(left), Array::Float64(right)) => $prim_fn(left, right),
+            (Array::Int8(left), Array::Int8(right)) => $prim_fn(left, right),
+            (Array::Int16(left), Array::Int16(right)) => $prim_fn(left, right),
             (Array::Int32(left), Array::Int32(right)) => $prim_fn(left, right),
             (Array::Int64(left), Array::Int64(right)) => $prim_fn(left, right),
+            (Array::UInt8(left), Array::UInt8(right)) => $prim_fn(left, right),
+            (Array::UInt16(left), Array::UInt16(right)) => $prim_fn(left, right),
             (Array::UInt32(left), Array::UInt32(right)) => $prim_fn(left, right),
             (Array::UInt64(left), Array::UInt64(right)) => $prim_fn(left, right),
             (Array::Utf8(left), Array::Utf8(right)) => $varlen_fn(left, right),

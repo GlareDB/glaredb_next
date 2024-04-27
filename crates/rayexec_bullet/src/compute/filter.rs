@@ -6,8 +6,12 @@ pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
     Ok(match arr {
         Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
         Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),
+        Array::Int8(arr) => Array::Int8(filter_primitive(arr, selection)?),
+        Array::Int16(arr) => Array::Int16(filter_primitive(arr, selection)?),
         Array::Int32(arr) => Array::Int32(filter_primitive(arr, selection)?),
         Array::Int64(arr) => Array::Int64(filter_primitive(arr, selection)?),
+        Array::UInt8(arr) => Array::UInt8(filter_primitive(arr, selection)?),
+        Array::UInt16(arr) => Array::UInt16(filter_primitive(arr, selection)?),
         Array::UInt32(arr) => Array::UInt32(filter_primitive(arr, selection)?),
         Array::UInt64(arr) => Array::UInt64(filter_primitive(arr, selection)?),
         Array::Utf8(arr) => Array::Utf8(filter_varlen(arr, selection)?),
