@@ -257,8 +257,25 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::array::{Int64Array, Utf8Array};
+
     use super::*;
 
     #[test]
-    fn simple_scalar_lt() {}
+    fn primitive_lt() {
+        let left = Int64Array::from_iter([4, 5, 6]);
+        let right = Int64Array::from_iter([6, 5, 4]);
+
+        let out = lt_primtive(&left, &right).unwrap();
+        assert_eq!(BooleanArray::from_iter([true, false, false]), out);
+    }
+
+    #[test]
+    fn varlen_lt() {
+        let left = Utf8Array::from_iter(["aaa", "bbb", "ccc"]);
+        let right = Utf8Array::from_iter(["ccc", "bbb", "aaa"]);
+
+        let out = lt_varlen(&left, &right).unwrap();
+        assert_eq!(BooleanArray::from_iter([true, false, false]), out);
+    }
 }
