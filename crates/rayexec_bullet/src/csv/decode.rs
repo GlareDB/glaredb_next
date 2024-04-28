@@ -9,7 +9,7 @@ const ENDS_CAP_INCREMENT: usize = 48;
 
 /// Result of a decode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DecodeResult {
+pub struct DecodeResult {
     /// Number of records completely decoded.
     ///
     /// This may contain a record that was partially decoded in a previous call
@@ -22,7 +22,7 @@ struct DecodeResult {
 
 /// State for decoding records from a csv input.
 #[derive(Debug)]
-struct DecoderState {
+pub struct Decoder {
     /// Configured csv reader.
     csv_reader: Reader,
 
@@ -32,7 +32,7 @@ struct DecoderState {
     /// Current offset into `buffer`.
     buffer_offset: usize,
 
-    /// End offsets into the buffer for individual record fields.
+    /// End offsets into the buffer for individual fields in a record.
     ends: Vec<usize>,
 
     /// Current offset into `ends`.
@@ -50,9 +50,9 @@ struct DecoderState {
     completed: usize,
 }
 
-impl DecoderState {
-    fn new(csv_reader: Reader, num_fields: usize) -> Self {
-        DecoderState {
+impl Decoder {
+    pub fn new(csv_reader: Reader, num_fields: usize) -> Self {
+        Decoder {
             csv_reader,
             buffer: vec![0; START_BUFFER_CAP],
             buffer_offset: 0,
@@ -65,7 +65,7 @@ impl DecoderState {
     }
 
     /// Decode some number of records from a byte slice.
-    fn decode(&mut self, input: &[u8]) -> Result<DecodeResult> {
+    pub fn decode(&mut self, input: &[u8]) -> Result<DecodeResult> {
         // Offset into input. A single call to `decode` may read multiple
         // records.
         let mut input_offset = 0;
@@ -89,11 +89,12 @@ impl DecoderState {
 
             match result {
                 ReadRecordResult::InputEmpty | ReadRecordResult::End => {
+                    // We're done.
                     return Ok(DecodeResult {
                         completed,
                         input_offset,
-                    })
-                } // We're done.
+                    });
+                }
                 ReadRecordResult::OutputFull => {
                     // Resize output buffer, and continue trying to read.
                     self.buffer
@@ -129,13 +130,8 @@ impl DecoderState {
         }
     }
 
-    /// Get the number of decoded records.
-    fn num_decoded(&self) -> usize {
-        self.completed
-    }
-
     /// Get a view into the decoded records.
-    fn decoded_records(&self) -> DecodedRecords {
+    pub fn decoded_records(&self) -> DecodedRecords {
         DecodedRecords {
             num_records: self.completed,
             num_fields: self.num_fields,
@@ -147,7 +143,7 @@ impl DecoderState {
     /// Clears the decoder state.
     ///
     /// Note that this will also clear a partially decoded record.
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.completed = 0;
         self.current_field = 0;
         self.buffer_offset = 0;
@@ -157,7 +153,7 @@ impl DecoderState {
 }
 
 #[derive(Debug)]
-struct DecodedRecords<'a> {
+pub struct DecodedRecords<'a> {
     num_records: usize,
     num_fields: usize,
     buffer: &'a [u8],
@@ -166,7 +162,8 @@ struct DecodedRecords<'a> {
 
 impl<'a> DecodedRecords<'a> {
     /// Get a single record from the decoded records.
-    fn get_record(&self, idx: usize) -> DecodedRecord {
+    pub fn get_record(&self, idx: usize) -> DecodedRecord {
+        assert!(idx < self.num_records);
         // Get the slice of the buffer such that index '0' is the start of this
         // record.
         let buffer = if idx == 0 {
@@ -185,20 +182,20 @@ impl<'a> DecodedRecords<'a> {
     }
 
     /// Get an iterator over the records.
-    fn iter(&self) -> impl Iterator<Item = DecodedRecord> {
+    pub fn iter(&self) -> impl Iterator<Item = DecodedRecord> {
         (0..self.num_records).map(|idx| self.get_record(idx))
     }
 }
 
 #[derive(Debug)]
-struct DecodedRecord<'a> {
+pub struct DecodedRecord<'a> {
     buffer: &'a [u8],
     ends: &'a [usize],
     num_fields: usize,
 }
 
 impl<'a> DecodedRecord<'a> {
-    fn get_field(&self, idx: usize) -> Result<&'a str> {
+    pub fn get_field(&self, idx: usize) -> Result<&'a str> {
         let start = if idx == 0 { 0 } else { self.ends[idx - 1] };
         let end = self.ends[idx];
         let bs = &self.buffer[start..end];
@@ -207,7 +204,7 @@ impl<'a> DecodedRecord<'a> {
     }
 
     /// Get an iterator over the fields in the record.
-    fn iter(&self) -> impl Iterator<Item = Result<&str>> {
+    pub fn iter(&self) -> impl Iterator<Item = Result<&str>> {
         (0..self.num_fields).map(|idx| self.get_field(idx))
     }
 }
@@ -221,12 +218,48 @@ mod tests {
     #[test]
     fn simple() {
         let reader = ReaderBuilder::new().build();
-        let mut decoder = DecoderState::new(reader, 3);
+        let mut decoder = Decoder::new(reader, 3);
 
-        let input = ["1,2,3", "\"aaa\",\"bbb\",\"ccc\"", ",,"].join("\n");
+        // TODO: Maybe don't require a final new line.
+        let input = ["1,2,3", "\"aaa\",\"bbb\",\"ccc\"", ",,", ""].join("\n");
 
         let res = decoder.decode(input.as_bytes()).unwrap();
-        assert_eq!(2, res.completed);
+        assert_eq!(3, res.completed);
+
+        let decoded = decoder.decoded_records();
+
+        let record1 = decoded.get_record(0);
+        let fields1 = record1.iter().collect::<Result<Vec<_>>>().unwrap();
+        assert_eq!(vec!["1", "2", "3"], fields1);
+
+        let record2 = decoded.get_record(1);
+        let fields2 = record2.iter().collect::<Result<Vec<_>>>().unwrap();
+        assert_eq!(vec!["aaa", "bbb", "ccc"], fields2);
+
+        let record3 = decoded.get_record(2);
+        let fields3 = record3.iter().collect::<Result<Vec<_>>>().unwrap();
+        assert_eq!(vec!["", "", ""], fields3);
+    }
+
+    #[test]
+    fn multiple_decode() {
+        let reader = ReaderBuilder::new().build();
+        let mut decoder = Decoder::new(reader, 3);
+
+        let input = ["1,2,3", "\"aaa\",\"bbb\",\"ccc\"", ",,"];
+
+        let mut read = 0;
+        for line in input {
+            let res = decoder.decode(line.as_bytes()).unwrap();
+            read += res.completed;
+            assert_eq!(line.as_bytes().len(), res.input_offset);
+
+            let res = decoder.decode(&[b'\n']).unwrap();
+            read += res.completed;
+            assert_eq!(1, res.input_offset);
+        }
+
+        assert_eq!(3, read);
 
         let decoded = decoder.decoded_records();
 
