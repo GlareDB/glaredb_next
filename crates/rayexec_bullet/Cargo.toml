@@ -9,4 +9,11 @@ edition.workspace = true
 rayexec_error = { path = "../rayexec_error" }
 num = "0.4.2"
 csv-core = { version = "0.1.11", default-features = false } # Default features has libc dependency.
+parquet = { version = "51.0.0", default-features = false } # Default features has libc dependency.
 
+# Downstream dependency for parquet. Make sure to compile with 'js' feature to
+# avoid depending on libc.
+#
+# Unfortunately I don't think this completely fixes the issue. I don't know why
+# parquet depends on ahash the way it does.
+getrandom = { version = "0.2", features = ["js"] }
