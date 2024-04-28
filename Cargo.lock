@@ -1482,6 +1482,7 @@ dependencies = [
 name = "rayexec_bullet"
 version = "0.0.1"
 dependencies = [
+ "csv-core",
  "num",
  "rayexec_error",
 ]

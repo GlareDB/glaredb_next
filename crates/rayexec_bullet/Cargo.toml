@@ -8,3 +8,5 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
 num = "0.4.2"
+csv-core = { version = "0.1.11", default-features = false }
+
