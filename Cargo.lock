@@ -1524,6 +1524,7 @@ dependencies = [
  "getrandom",
  "num",
  "parquet 51.0.0",
+ "rayexec_arrow_ipc",
  "rayexec_error",
 ]
 
