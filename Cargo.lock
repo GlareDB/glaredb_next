@@ -1352,25 +1352,6 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "50.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "547b92ebf0c1177e3892f44c8f79757ee62e678d564a9834189725f2c5b7a750"
-dependencies = [
- "ahash",
- "bytes",
- "chrono",
- "half",
- "hashbrown",
- "num",
- "num-bigint",
- "paste",
- "seq-macro",
- "thrift",
- "twox-hash",
-]
-
-[[package]]
-name = "parquet"
 version = "51.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "096795d4f47f65fd3ee1ec5a98b77ab26d602f2cc785b0e4be5443add17ecc32"
@@ -1523,7 +1504,7 @@ dependencies = [
  "csv-core",
  "getrandom",
  "num",
- "parquet 51.0.0",
+ "parquet",
  "rayexec_arrow_ipc",
  "rayexec_error",
 ]
@@ -1533,6 +1514,7 @@ name = "rayexec_error"
 version = "0.0.1"
 dependencies = [
  "arrow",
+ "parquet",
 ]
 
 [[package]]
@@ -1556,7 +1538,7 @@ dependencies = [
  "insta",
  "once_cell",
  "parking_lot",
- "parquet 50.0.0",
+ "parquet",
  "rayexec_error",
  "rayexec_parser",
  "rayon",

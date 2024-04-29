@@ -43,4 +43,5 @@ impl DataType {
 pub struct Field {
     pub name: String,
     pub datatype: DataType,
+    pub nullable: bool,
 }
