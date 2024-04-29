@@ -4,14 +4,13 @@
 //! ugly code.
 
 #![allow(non_snake_case)]
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(non_camel_case_types)]
+#![allow(clippy::all)]
 
-#[allow(clippy::all)]
 pub mod File;
-#[allow(clippy::all)]
 pub mod Message;
-#[allow(clippy::all)]
 pub mod Schema;
-#[allow(clippy::all)]
 pub mod SparseTensor;
-#[allow(clippy::all)]
 pub mod Tensor;

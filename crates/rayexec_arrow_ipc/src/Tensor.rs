@@ -1,7 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(non_camel_case_types)]
-
 use crate::Schema::*;
 use flatbuffers::EndianScalar;
 use std::{cmp::Ordering, mem};

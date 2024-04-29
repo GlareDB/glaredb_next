@@ -4,18 +4,16 @@
 #
 # Adapted from https://github.com/apache/arrow-rs/blob/master/arrow-ipc/regen.sh
 
-pushd "$(git rev-parse --show-toplevel)" || exit
+set -eux -o pipefail
+
+pushd "$(git rev-parse --show-toplevel)"
 
 flatc --filename-suffix "" --rust -o crates/rayexec_arrow_ipc/src/ submodules/arrow/format/*.fbs
 
-pushd crates/rayexec_arrow_ipc/src/ || exit
+pushd crates/rayexec_arrow_ipc/src/
 
 # Common prefix content for all generated files.
 PREFIX=$(cat <<'HEREDOC'
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(non_camel_case_types)]
-
 use std::{cmp::Ordering, mem};
 use flatbuffers::EndianScalar;
 
@@ -37,24 +35,28 @@ for file in *.rs; do
     echo "Modifying file: $file"
 
     # Remove unnecessary module nesting, and duplicated imports.
-    sed -i '/extern crate flatbuffers;/d' "$file"
-    sed -i '/use self::flatbuffers::EndianScalar;/d' "$file"
-    sed -i '/\#\[allow(unused_imports, dead_code)\]/d' "$file"
-    sed -i '/pub mod org {/d' "$file"
-    sed -i '/pub mod apache {/d' "$file"
-    sed -i '/pub mod arrow {/d' "$file"
-    sed -i '/pub mod flatbuf {/d' "$file"
-    sed -i '/}  \/\/ pub mod flatbuf/d' "$file"
-    sed -i '/}  \/\/ pub mod arrow/d' "$file"
-    sed -i '/}  \/\/ pub mod apache/d' "$file"
-    sed -i '/}  \/\/ pub mod org/d' "$file"
-    sed -i '/use core::mem;/d' "$file"
-    sed -i '/use core::cmp::Ordering;/d' "$file"
-    sed -i '/use self::flatbuffers::{EndianScalar, Follow};/d' "$file"
+    sed -i \
+        -e '/extern crate flatbuffers;/d' \
+        -e '/use self::flatbuffers::EndianScalar;/d' \
+        -e '/\#\[allow(unused_imports, dead_code)\]/d' \
+        -e '/pub mod org {/d' \
+        -e '/pub mod apache {/d' \
+        -e '/pub mod arrow {/d' \
+        -e '/pub mod flatbuf {/d' \
+        -e '/}  \/\/ pub mod flatbuf/d' \
+        -e '/}  \/\/ pub mod arrow/d' \
+        -e '/}  \/\/ pub mod apache/d' \
+        -e '/}  \/\/ pub mod org/d' \
+        -e '/use core::mem;/d' \
+        -e '/use core::cmp::Ordering;/d' \
+        -e '/use self::flatbuffers::{EndianScalar, Follow};/d' \
+        "$file"
 
     for name in "${names[@]}"; do
-        sed -i "/use crate::${name}::\*;/d" "$file"
-        sed -i "s/use self::flatbuffers::Verifiable;/use flatbuffers::Verifiable;/g" "$file"
+        sed -i \
+            -e "/use crate::${name}::\*;/d" \
+            -e"s/use self::flatbuffers::Verifiable;/use flatbuffers::Verifiable;/g" \
+            "$file"
     done
 
     if [ "$file" == "File.rs" ]; then
@@ -68,8 +70,7 @@ for file in *.rs; do
     else
         echo "$PREFIX" | cat - "$file" > temp && mv temp "$file"
     fi
-
 done
 
-popd || exit
+popd
 cargo fmt -- crates/rayexec_arrow_ipc/src/*
