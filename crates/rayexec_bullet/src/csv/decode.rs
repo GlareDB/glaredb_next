@@ -166,6 +166,9 @@ impl Decoder {
                 });
             });
 
+        let data = std::str::from_utf8(&self.buffer[0..self.buffer_len])
+            .map_err(|_| RayexecError::new("Invalid UTF-8 data in buffer"))?;
+
         let num_records = self.completed;
 
         // Reset
@@ -176,7 +179,7 @@ impl Decoder {
         Ok(DecodedRecords {
             num_records,
             num_fields: self.num_fields.unwrap(),
-            buffer: &self.buffer,
+            data,
             offsets: &self.offsets,
         })
     }
@@ -186,7 +189,7 @@ impl Decoder {
 pub struct DecodedRecords<'a> {
     num_records: usize,
     num_fields: usize,
-    buffer: &'a [u8],
+    data: &'a str,
     offsets: &'a [usize],
 }
 
@@ -198,10 +201,14 @@ impl<'a> DecodedRecords<'a> {
         let offsets = &self.offsets[offset_idx..offset_idx + self.num_fields + 1];
 
         DecodedRecord {
-            buffer: &self.buffer,
+            data: &self.data,
             offsets,
             num_fields: self.num_fields,
         }
+    }
+
+    pub fn num_fields(&self) -> usize {
+        self.num_fields
     }
 
     pub fn num_records(&self) -> usize {
@@ -216,22 +223,21 @@ impl<'a> DecodedRecords<'a> {
 
 #[derive(Debug)]
 pub struct DecodedRecord<'a> {
-    buffer: &'a [u8],
+    data: &'a str,
     offsets: &'a [usize],
     num_fields: usize,
 }
 
 impl<'a> DecodedRecord<'a> {
-    pub fn get_field(&self, idx: usize) -> Result<&'a str> {
+    pub fn get_field(&self, idx: usize) -> &'a str {
         let start = self.offsets[idx];
         let end = self.offsets[idx + 1];
-        let bs = &self.buffer[start..end];
 
-        std::str::from_utf8(bs).map_err(|_| RayexecError::new("Field is not valid UTF-8"))
+        self.data.get(start..end).unwrap()
     }
 
     /// Get an iterator over the fields in the record.
-    pub fn iter(&self) -> impl Iterator<Item = Result<&str>> {
+    pub fn iter(&self) -> impl Iterator<Item = &str> {
         (0..self.num_fields).map(|idx| self.get_field(idx))
     }
 }
@@ -256,15 +262,15 @@ mod tests {
         let decoded = decoder.flush().unwrap();
 
         let record1 = decoded.get_record(0);
-        let fields1 = record1.iter().collect::<Result<Vec<_>>>().unwrap();
+        let fields1: Vec<_> = record1.iter().collect();
         assert_eq!(vec!["1", "2", "3"], fields1);
 
         let record2 = decoded.get_record(1);
-        let fields2 = record2.iter().collect::<Result<Vec<_>>>().unwrap();
+        let fields2: Vec<_> = record2.iter().collect();
         assert_eq!(vec!["aaa", "bbb", "ccc"], fields2);
 
         let record3 = decoded.get_record(2);
-        let fields3 = record3.iter().collect::<Result<Vec<_>>>().unwrap();
+        let fields3: Vec<_> = record3.iter().collect();
         assert_eq!(vec!["", "", ""], fields3);
     }
 
@@ -291,15 +297,15 @@ mod tests {
         let decoded = decoder.flush().unwrap();
 
         let record1 = decoded.get_record(0);
-        let fields1 = record1.iter().collect::<Result<Vec<_>>>().unwrap();
+        let fields1: Vec<_> = record1.iter().collect();
         assert_eq!(vec!["1", "2", "3"], fields1);
 
         let record2 = decoded.get_record(1);
-        let fields2 = record2.iter().collect::<Result<Vec<_>>>().unwrap();
+        let fields2: Vec<_> = record2.iter().collect();
         assert_eq!(vec!["aaa", "bbb", "ccc"], fields2);
 
         let record3 = decoded.get_record(2);
-        let fields3 = record3.iter().collect::<Result<Vec<_>>>().unwrap();
+        let fields3: Vec<_> = record3.iter().collect();
         assert_eq!(vec!["", "", ""], fields3);
     }
 }

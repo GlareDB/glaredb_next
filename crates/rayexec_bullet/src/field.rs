@@ -45,3 +45,13 @@ pub struct Field {
     pub datatype: DataType,
     pub nullable: bool,
 }
+
+impl Field {
+    pub fn new(name: impl Into<String>, datatype: DataType, nullable: bool) -> Self {
+        Field {
+            name: name.into(),
+            datatype,
+            nullable,
+        }
+    }
+}

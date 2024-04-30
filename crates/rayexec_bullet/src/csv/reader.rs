@@ -50,7 +50,7 @@ impl DialectOptions {
     /// Try to infer which csv options to use based on some number of records
     /// from a csv source.
     pub fn infer_from_sample(sample_bytes: &[u8]) -> Result<Self> {
-        // Dialect alongside number of fields decoded.
+        // Best dialect chosen so far alongside number of fields decoded.
         let mut best: (Option<Self>, usize) = (None, 0);
 
         for dialect in Self::dialects() {
@@ -95,6 +95,15 @@ impl DialectOptions {
         }
     }
 
+    /// Create a csv core reader from these options.
+    fn csv_core_reader(&self) -> csv_core::Reader {
+        csv_core::ReaderBuilder::new()
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .build()
+    }
+
+    /// Dialects used when attempting to infer options for a csv file.
     const fn dialects() -> &'static [Self] {
         &[
             DialectOptions {
@@ -133,6 +142,168 @@ impl DialectOptions {
     }
 }
 
+/// Candidate types used when trying to infer the types for a file.
+///
+/// Variants are ordered from the narrowest to the widest type allowing for
+/// comparisons.
+// TODO: Date/time when we have them. Thos would fall between float and utf8.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CandidateType {
+    /// Boolean type, strictest.
+    Boolean,
+    /// Int64 candidate type.
+    Int64,
+    /// Float64 candidate type.
+    Float64,
+    /// Utf8 type, this should be able to encompass any field.
+    Utf8,
+}
+
+impl CandidateType {
+    /// Whether or not self is stricter than some other candidate type.
+    fn is_stricter(&self, other: &CandidateType) -> bool {
+        self < other
+    }
+
+    const fn as_datatype(&self) -> DataType {
+        match self {
+            Self::Boolean => DataType::Boolean,
+            Self::Int64 => DataType::Int64,
+            Self::Float64 => DataType::Float64,
+            Self::Utf8 => DataType::Utf8,
+        }
+    }
+
+    /// Check if this candidate type is valid for some input.
+    fn is_valid(&self, input: &str) -> bool {
+        match self {
+            Self::Boolean => input.parse::<bool>().is_ok(),
+            Self::Int64 => input.parse::<i64>().is_ok(),
+            Self::Float64 => input.parse::<f64>().is_ok(),
+            Self::Utf8 => true,
+        }
+    }
+
+    /// Update this candidate type based on some string input.
+    fn update_from_input(&mut self, input: &str) {
+        // TODO: What's the performance of parse vs regex?
+        match self {
+            Self::Boolean => {
+                if input.parse::<bool>().is_err() {
+                    if input.parse::<i64>().is_ok() {
+                        *self = Self::Int64;
+                        return;
+                    }
+                    if input.parse::<f64>().is_ok() {
+                        *self = Self::Float64;
+                        return;
+                    }
+                    *self = Self::Utf8;
+                }
+            }
+            Self::Int64 => {
+                if input.parse::<i64>().is_err() {
+                    if input.parse::<f64>().is_ok() {
+                        *self = Self::Float64;
+                        return;
+                    }
+                    *self = Self::Utf8;
+                }
+            }
+            Self::Float64 => {
+                if input.parse::<f64>().is_err() {
+                    *self = Self::Utf8;
+                }
+            }
+            Self::Utf8 => (), // Nothing to do, already the widest.
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvSchema {
+    /// All fields in the the csv input.
+    pub fields: Vec<Field>,
+
+    /// Whether or not the input has a header line.
+    pub has_header: bool,
+}
+
+impl CsvSchema {
+    /// Create a new schema using gnerated names.
+    pub fn new_with_generated_names(types: Vec<DataType>) -> Self {
+        let fields = types
+            .into_iter()
+            .enumerate()
+            .map(|(idx, typ)| Field {
+                name: format!("column{idx}"),
+                datatype: typ,
+                nullable: true,
+            })
+            .collect();
+
+        CsvSchema {
+            fields,
+            has_header: false,
+        }
+    }
+
+    /// Try to infer the schema for a csv input based on some number of input
+    /// records.
+    pub fn infer_from_records(records: DecodedRecords) -> Result<Self> {
+        if records.num_records() == 0 {
+            return Err(RayexecError::new(
+                "Unable to infer CSV schema with no records",
+            ));
+        }
+
+        // Start with most restrictive.
+        let mut candidates = vec![CandidateType::Boolean; records.num_fields()];
+
+        // Skip first record since it may be a header.
+        for record in records.iter().skip(1) {
+            for (candidate, field) in candidates.iter_mut().zip(record.iter()) {
+                candidate.update_from_input(field);
+            }
+        }
+
+        // Now test the candidates against the possible header. If any of the
+        // candidates fails, we assume the record is a header.
+        let has_header = records
+            .get_record(0)
+            .iter()
+            .zip(candidates.iter())
+            .any(|(field, candidate)| !candidate.is_valid(field));
+
+        let fields: Vec<_> = if has_header {
+            // Use the names from the header.
+            records
+                .get_record(0)
+                .iter()
+                .zip(candidates.into_iter())
+                .map(|(name, candidate)| Field {
+                    name: name.to_string(),
+                    datatype: candidate.as_datatype(),
+                    nullable: true,
+                })
+                .collect()
+        } else {
+            // Generate field names.
+            candidates
+                .into_iter()
+                .enumerate()
+                .map(|(idx, candidate)| Field {
+                    name: format!("column{idx}"),
+                    datatype: candidate.as_datatype(),
+                    nullable: true,
+                })
+                .collect()
+        };
+
+        Ok(CsvSchema { fields, has_header })
+    }
+}
+
 #[derive(Debug)]
 pub struct TypedDecoder {
     projection: Vec<usize>,
@@ -142,14 +313,23 @@ pub struct TypedDecoder {
 
     /// Underlying decoder.
     decoder: Decoder,
+
+    /// Whether or not we need to skip the header.
+    skip_header: bool,
 }
 
 impl TypedDecoder {
-    pub fn new(types: Vec<DataType>, decoder: Decoder) -> Self {
+    pub fn new(dialect: DialectOptions, schema: &CsvSchema) -> Self {
+        let types: Vec<_> = schema.fields.iter().map(|f| f.datatype.clone()).collect();
+        // TODO: Creating a decoder here potentially throws away some work we've
+        // already done.
+        let decoder = Decoder::new(dialect.csv_core_reader(), Some(types.len()));
+
         TypedDecoder {
             projection: (0..types.len()).collect(),
             types,
             decoder,
+            skip_header: schema.has_header,
         }
     }
 
@@ -158,6 +338,20 @@ impl TypedDecoder {
         // TODO: Double check me.
         assert_eq!(result.input_offset, input.len());
         Ok(result.completed)
+    }
+
+    /// Flush out records into arrays.
+    ///
+    /// This will skip the header if required.
+    pub fn flush(&mut self) -> Result<Vec<Array>> {
+        let skip = if self.skip_header {
+            self.skip_header = false;
+            1
+        } else {
+            0
+        };
+
+        self.flush_skip(skip)
     }
 
     /// Flush out all records into arrays.
@@ -177,7 +371,7 @@ impl TypedDecoder {
                         let mut bits = Bitmap::default();
                         for record in records.iter().skip(skip_records) {
                             // TODO: Nulls
-                            let field = record.get_field(*idx)?;
+                            let field = record.get_field(*idx);
                             let b: bool = field.parse().map_err(|_e| {
                                 RayexecError::new(format!("Failed to parse '{field}' into a bool"))
                             })?;
@@ -218,16 +412,18 @@ impl TypedDecoder {
                     }
                     DataType::Utf8 => {
                         // TODO: Nulls
-                        let iter = records.iter().skip(skip_records).map(|record| {
-                            record.get_field(*idx).unwrap() // TODO: Handle error
-                        });
+                        let iter = records
+                            .iter()
+                            .skip(skip_records)
+                            .map(|record| record.get_field(*idx));
                         Array::Utf8(Utf8Array::from_iter(iter))
                     }
                     DataType::LargeUtf8 => {
                         // TODO: Nulls
-                        let iter = records.iter().skip(skip_records).map(|record| {
-                            record.get_field(*idx).unwrap() // TODO: Handle error
-                        });
+                        let iter = records
+                            .iter()
+                            .skip(skip_records)
+                            .map(|record| record.get_field(*idx));
                         Array::Utf8(Utf8Array::from_iter(iter))
                     }
                     other => {
@@ -249,7 +445,7 @@ impl TypedDecoder {
 
         for record in records.iter().skip(skip) {
             // TODO: Nulls
-            let field = record.get_field(field)?;
+            let field = record.get_field(field);
             let val: T = field
                 .parse()
                 .map_err(|_e| RayexecError::new(format!("failed to parse '{field}'")))?;
@@ -360,7 +556,8 @@ mod tests {
     fn typed_decode_ok() {
         struct TestCase {
             csv: String,
-            types: Vec<DataType>,
+            dialect: DialectOptions,
+            schema: CsvSchema,
             expected: Vec<Array>,
         }
 
@@ -373,7 +570,12 @@ mod tests {
                     "c,3,6.0\n",
                 ]
                 .join(""),
-                types: vec![DataType::Utf8, DataType::Int64, DataType::Float64],
+                dialect: DialectOptions::default(),
+                schema: CsvSchema::new_with_generated_names(vec![
+                    DataType::Utf8,
+                    DataType::Int64,
+                    DataType::Float64,
+                ]),
                 expected: vec![
                     Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
                     Array::Int64(Int64Array::from_iter([1, 2, 3])),
@@ -388,7 +590,8 @@ mod tests {
                     "c,3333\n",
                 ]
                 .join(""),
-                types: vec![DataType::Utf8, DataType::Utf8],
+                dialect: DialectOptions::default(),
+                schema: CsvSchema::new_with_generated_names(vec![DataType::Utf8, DataType::Utf8]),
                 expected: vec![
                     Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
                     Array::Utf8(Utf8Array::from_iter(["11", "222", "3333"])),
@@ -399,7 +602,7 @@ mod tests {
         for tc in test_cases {
             let bs = tc.csv.as_bytes();
             let decoder = Decoder::new(csv_core::Reader::new(), None);
-            let mut typed = TypedDecoder::new(tc.types, decoder);
+            let mut typed = TypedDecoder::new(tc.dialect, &tc.schema);
 
             typed.decode(bs).unwrap();
             let got = typed.flush_skip(0).unwrap();
@@ -413,7 +616,8 @@ mod tests {
         struct TestCase {
             csv: String,
             skip: usize,
-            types: Vec<DataType>,
+            dialect: DialectOptions,
+            schema: CsvSchema,
             expected: Vec<Array>,
         }
 
@@ -427,7 +631,12 @@ mod tests {
                 ]
                 .join(""),
                 skip: 1,
-                types: vec![DataType::Utf8, DataType::Int64, DataType::Float64],
+                dialect: DialectOptions::default(),
+                schema: CsvSchema::new_with_generated_names(vec![
+                    DataType::Utf8,
+                    DataType::Int64,
+                    DataType::Float64,
+                ]),
                 expected: vec![
                     Array::Utf8(Utf8Array::from_iter(["b", "c"])),
                     Array::Int64(Int64Array::from_iter([2, 3])),
@@ -444,7 +653,8 @@ mod tests {
                 ]
                 .join(""),
                 skip: 1,
-                types: vec![DataType::Utf8, DataType::Utf8],
+                dialect: DialectOptions::default(),
+                schema: CsvSchema::new_with_generated_names(vec![DataType::Utf8, DataType::Utf8]),
                 expected: vec![
                     Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
                     Array::Utf8(Utf8Array::from_iter(["11", "222", "3333"])),
@@ -455,11 +665,140 @@ mod tests {
         for tc in test_cases {
             let bs = tc.csv.as_bytes();
             let decoder = Decoder::new(csv_core::Reader::new(), None);
-            let mut typed = TypedDecoder::new(tc.types, decoder);
+            let mut typed = TypedDecoder::new(tc.dialect, &tc.schema);
 
             typed.decode(bs).unwrap();
             let got = typed.flush_skip(tc.skip).unwrap();
 
+            assert_eq!(tc.expected, got);
+        }
+    }
+
+    #[test]
+    fn typed_decoder_skip_header() {
+        // First set of lines, first line being the header.
+        let csv_lines1 = [
+            "col1,col2,col3\n", //
+            "a,b,true\n",       //
+            "d,e,false\n",
+        ];
+
+        let schema = CsvSchema {
+            fields: vec![
+                Field::new("col1", DataType::Utf8, true),
+                Field::new("col2", DataType::Utf8, true),
+                Field::new("col3", DataType::Boolean, true),
+            ],
+            has_header: true,
+        };
+
+        let mut typed = TypedDecoder::new(DialectOptions::default(), &schema);
+
+        for line in csv_lines1 {
+            let decoded = typed.decode(line.as_bytes()).unwrap();
+            assert_eq!(1, decoded);
+        }
+
+        let expected1 = vec![
+            Array::Utf8(Utf8Array::from_iter(["a", "d"])),
+            Array::Utf8(Utf8Array::from_iter(["b", "e"])),
+            Array::Boolean(BooleanArray::from_iter([true, false])),
+        ];
+
+        let got1 = typed.flush().unwrap();
+        assert_eq!(expected1, got1);
+
+        // Try decoding more lines.
+        let csv_lines2 = [
+            "f,g,false\n", //
+            "h,i,true\n",
+        ];
+
+        for line in csv_lines2 {
+            let decoded = typed.decode(line.as_bytes()).unwrap();
+            assert_eq!(1, decoded);
+        }
+
+        let expected2 = vec![
+            Array::Utf8(Utf8Array::from_iter(["f", "h"])),
+            Array::Utf8(Utf8Array::from_iter(["g", "i"])),
+            Array::Boolean(BooleanArray::from_iter([false, true])),
+        ];
+
+        let got2 = typed.flush().unwrap();
+        assert_eq!(expected2, got2);
+    }
+
+    #[test]
+    fn csv_schema_infer_ok() {
+        struct TestCase {
+            csv: String,
+            dialect: DialectOptions,
+            expected: CsvSchema,
+        }
+
+        let test_cases = [
+            // No header, all strings,
+            TestCase {
+                csv: [
+                    "a,b,c\n", //
+                    "d,e,f\n",
+                ]
+                .join(""),
+                dialect: DialectOptions::default(),
+                expected: CsvSchema {
+                    fields: vec![
+                        Field::new("column0", DataType::Utf8, true),
+                        Field::new("column1", DataType::Utf8, true),
+                        Field::new("column2", DataType::Utf8, true),
+                    ],
+                    has_header: false,
+                },
+            },
+            // No header, mixed types
+            TestCase {
+                csv: [
+                    "true,1.1,c\n", //
+                    "false,8.0,f\n",
+                ]
+                .join(""),
+                dialect: DialectOptions::default(),
+                expected: CsvSchema {
+                    fields: vec![
+                        Field::new("column0", DataType::Boolean, true),
+                        Field::new("column1", DataType::Float64, true),
+                        Field::new("column2", DataType::Utf8, true),
+                    ],
+                    has_header: false,
+                },
+            },
+            // Header, mixed types
+            TestCase {
+                csv: [
+                    "my_col_1,my_col_2,my_col_3\n",
+                    "true,1.1,c\n", //
+                    "false,8.0,f\n",
+                ]
+                .join(""),
+                dialect: DialectOptions::default(),
+                expected: CsvSchema {
+                    fields: vec![
+                        Field::new("my_col_1", DataType::Boolean, true),
+                        Field::new("my_col_2", DataType::Float64, true),
+                        Field::new("my_col_3", DataType::Utf8, true),
+                    ],
+                    has_header: true,
+                },
+            },
+        ];
+
+        for tc in test_cases {
+            let reader = tc.dialect.csv_core_reader();
+            let mut decoder = Decoder::new(reader, None);
+            decoder.decode(tc.csv.as_bytes()).unwrap();
+            let records = decoder.flush().unwrap();
+
+            let got = CsvSchema::infer_from_records(records).unwrap();
             assert_eq!(tc.expected, got);
         }
     }
