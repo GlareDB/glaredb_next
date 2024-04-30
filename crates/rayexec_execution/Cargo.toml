@@ -6,6 +6,7 @@ edition = { workspace = true }
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
 rayexec_parser = { path = "../rayexec_parser" }
+rayexec_bullet = { path = "../rayexec_bullet" }
 
 ahash = { workspace = true }
 arrow = { workspace = true }

@@ -24,7 +24,7 @@ use super::decode::{DecodedRecords, Decoder};
 use crate::{
     array::{Array, BooleanArray, PrimitiveArray, Utf8Array},
     bitmap::Bitmap,
-    field::{DataType, Field},
+    field::{DataType, Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -90,6 +90,11 @@ impl DialectOptions {
                 "Unable to infer csv dialect from provided sample",
             )),
         }
+    }
+
+    /// Create a decoder for the dialect.
+    pub fn decoder(&self) -> Decoder {
+        Decoder::new(self.csv_core_reader(), None)
     }
 
     /// Create a csv core reader from these options.
@@ -242,6 +247,12 @@ impl CsvSchema {
         CsvSchema {
             fields,
             has_header: false,
+        }
+    }
+
+    pub fn into_schema(self) -> Schema {
+        Schema {
+            fields: self.fields,
         }
     }
 

@@ -4,6 +4,7 @@ pub mod generate_series;
 pub mod read_csv;
 pub mod read_parquet;
 
+use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -11,7 +12,6 @@ use std::fmt::Debug;
 use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::Source;
 use crate::planner::explainable::Explainable;
-use crate::types::batch::NamedDataBatchSchema;
 
 /// Statistics for a table function.
 #[derive(Debug, Clone, Copy)]
@@ -53,7 +53,7 @@ pub trait BoundTableFunction: Send + Debug + Explainable {
     ///
     /// This should the full output schema without any sort of projections
     /// applied.
-    fn schema(&self) -> NamedDataBatchSchema;
+    fn schema(&self) -> &Schema;
 
     /// Returns statistics for the bound function.
     fn statistics(&self) -> Statistics;

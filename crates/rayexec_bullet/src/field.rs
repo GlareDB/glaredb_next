@@ -55,3 +55,31 @@ impl Field {
         }
     }
 }
+
+/// Represents the full schema of an output batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Schema {
+    pub fields: Vec<Field>,
+}
+
+impl Schema {
+    pub fn new(fields: impl IntoIterator<Item = Field>) -> Self {
+        Schema {
+            fields: fields.into_iter().collect(),
+        }
+    }
+}
+
+/// Represents the output types of a batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeSchema {
+    pub types: Vec<DataType>,
+}
+
+impl TypeSchema {
+    pub fn new(types: impl IntoIterator<Item = DataType>) -> Self {
+        TypeSchema {
+            types: types.into_iter().collect(),
+        }
+    }
+}

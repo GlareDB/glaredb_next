@@ -8,8 +8,8 @@ use crate::{
     types::batch::{DataBatch, NamedDataBatchSchema},
 };
 use arrow_array::StringArray;
-use arrow_schema::DataType;
 use parking_lot::Mutex;
+use rayexec_bullet::field::{DataType, Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -28,16 +28,20 @@ impl TableFunction for DummyTableFunction {
                 "Dummy table functions accepts no arguments",
             ));
         }
-        Ok(Box::new(BoundDummyTableFunction))
+        Ok(Box::new(BoundDummyTableFunction {
+            schema: Schema::new([Field::new("dummy", DataType::Utf8, true)]),
+        }))
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BoundDummyTableFunction;
+pub struct BoundDummyTableFunction {
+    schema: Schema,
+}
 
 impl BoundTableFunction for BoundDummyTableFunction {
-    fn schema(&self) -> NamedDataBatchSchema {
-        NamedDataBatchSchema::try_new(vec!["dummy".to_string()], vec![DataType::Utf8]).unwrap()
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     fn statistics(&self) -> Statistics {

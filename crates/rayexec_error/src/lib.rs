@@ -60,6 +60,12 @@ impl From<fmt::Error> for RayexecError {
     }
 }
 
+impl From<std::io::Error> for RayexecError {
+    fn from(value: std::io::Error) -> Self {
+        Self::with_source("IO error", Box::new(value))
+    }
+}
+
 impl fmt::Display for RayexecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg)?;

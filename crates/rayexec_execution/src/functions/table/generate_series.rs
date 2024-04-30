@@ -5,7 +5,7 @@ use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use arrow_array::Int32Array;
-use arrow_schema::DataType;
+use rayexec_bullet::field::{DataType, Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
@@ -56,20 +56,26 @@ impl TableFunction for GenerateSeries {
             }
         };
 
-        Ok(Box::new(GenerateSeriesInteger { start, stop, step }))
+        Ok(Box::new(GenerateSeriesInteger {
+            start,
+            stop,
+            step,
+            schema: Schema::new([Field::new("generate_series", DataType::Int32, false)]),
+        }))
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct GenerateSeriesInteger {
     start: i32,
     stop: i32,
     step: i32,
+    schema: Schema,
 }
 
 impl BoundTableFunction for GenerateSeriesInteger {
-    fn schema(&self) -> NamedDataBatchSchema {
-        NamedDataBatchSchema::try_new(vec!["generate_series"], vec![DataType::Int32]).unwrap()
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     fn statistics(&self) -> Statistics {
