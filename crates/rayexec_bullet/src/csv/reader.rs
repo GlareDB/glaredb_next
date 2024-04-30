@@ -54,10 +54,7 @@ impl DialectOptions {
         let mut best: (Option<Self>, usize) = (None, 0);
 
         for dialect in Self::dialects() {
-            let reader = csv_core::ReaderBuilder::new()
-                .delimiter(dialect.delimiter)
-                .quote(dialect.quote)
-                .build();
+            let reader = dialect.csv_core_reader();
             let mut decoder = Decoder::new(reader, None);
 
             match decoder.decode(sample_bytes) {
@@ -359,6 +356,8 @@ impl TypedDecoder {
     /// `skip_records` indicates how many records to skip at the beginning. The
     /// skipped records will not be parsed.
     pub fn flush_skip(&mut self, skip_records: usize) -> Result<Vec<Array>> {
+        // TODO: This will error on partial records. We'll need to handle that
+        // _somewhere_ but I'm not exactly sure where yet.
         let records = self.decoder.flush()?;
 
         let array = self
@@ -473,11 +472,11 @@ mod tests {
             // Simple
             TestCase {
                 csv: [
-                    "a,b,c", //
-                    "d,f,g", //
-                    "h,i,j",
+                    "a,b,c\n", //
+                    "d,f,g\n", //
+                    "h,i,j\n",
                 ]
-                .join("\n"),
+                .join(""),
                 expected: DialectOptions {
                     delimiter: b',',
                     quote: b'"',
@@ -486,11 +485,11 @@ mod tests {
             // Quotes (")
             TestCase {
                 csv: [
-                    "a,b,c",                //
-                    "d,\"hello, world\",g", //
-                    "h,i,j",
+                    "a,b,c\n",                //
+                    "d,\"hello, world\",g\n", //
+                    "h,i,j\n",
                 ]
-                .join("\n"),
+                .join(""),
                 expected: DialectOptions {
                     delimiter: b',',
                     quote: b'"',
@@ -499,11 +498,11 @@ mod tests {
             // Alt delimiter
             TestCase {
                 csv: [
-                    "a|b|c", //
-                    "d|f|g", //
-                    "h|i|j",
+                    "a|b|c\n", //
+                    "d|f|g\n", //
+                    "h|i|j\n",
                 ]
-                .join("\n"),
+                .join(""),
                 expected: DialectOptions {
                     delimiter: b'|',
                     quote: b'"',
@@ -512,11 +511,11 @@ mod tests {
             // Quotes (') (note ambiguous)
             TestCase {
                 csv: [
-                    "a,b,c",             //
-                    "d,'hello world',g", //
-                    "h,i,j",
+                    "a,b,c\n",             //
+                    "d,'hello world',g\n", //
+                    "h,i,j\n",
                 ]
-                .join("\n"),
+                .join(""),
                 expected: DialectOptions {
                     delimiter: b',',
                     quote: b'"',
@@ -525,11 +524,11 @@ mod tests {
             // Quotes (')
             TestCase {
                 csv: [
-                    "a,b,c",              //
-                    "d,'hello, world',g", //
-                    "h,i,j",
+                    "a,b,c\n",              //
+                    "d,'hello, world',g\n", //
+                    "h,i,j\n",
                 ]
-                .join("\n"),
+                .join(""),
                 expected: DialectOptions {
                     delimiter: b',',
                     quote: b'\'',
