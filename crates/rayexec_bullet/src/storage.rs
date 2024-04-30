@@ -1,4 +1,5 @@
-use std::ops::{Deref, DerefMut};
+use rayexec_error::{RayexecError, Result};
+use std::ops::Deref;
 
 /// Backing storage for primitive values.
 ///
@@ -7,15 +8,26 @@ use std::ops::{Deref, DerefMut};
 /// memory regions, CUDA, etc).
 #[derive(Debug, PartialEq)]
 pub enum PrimitiveStorage<T> {
+    /// A basic vector of data.
     Vec(Vec<T>),
 
-    // UNUSED DO NOT USE.
-    //
-    // Added this variant just to make sure derefs work as expected.
-    SlicedVec { offset: usize, data: Vec<T> },
+    /// Pointer to a raw slice of data that's potentially been externally
+    /// allocated.
+    // TODO: Don't use, just thinking about ffi.
+    Raw { ptr: *const T, len: usize },
 }
 
-impl<T> PrimitiveStorage<T> {}
+impl<T> PrimitiveStorage<T> {
+    /// A potentially failable conversion to a mutable slice reference.
+    pub fn try_as_mut(&mut self) -> Result<&mut [T]> {
+        match self {
+            Self::Vec(v) => Ok(v),
+            PrimitiveStorage::Raw { .. } => Err(RayexecError::new(
+                "Cannot get a mutable reference to raw value storage",
+            )),
+        }
+    }
+}
 
 impl<T> From<Vec<T>> for PrimitiveStorage<T> {
     fn from(value: Vec<T>) -> Self {
@@ -29,28 +41,13 @@ impl<T> AsRef<[T]> for PrimitiveStorage<T> {
     }
 }
 
-impl<T> AsMut<[T]> for PrimitiveStorage<T> {
-    fn as_mut(&mut self) -> &mut [T] {
-        self
-    }
-}
-
 impl<T> Deref for PrimitiveStorage<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Vec(v) => v,
-            Self::SlicedVec { offset, data } => &data[*offset..],
-        }
-    }
-}
-
-impl<T> DerefMut for PrimitiveStorage<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            Self::Vec(v) => v,
-            Self::SlicedVec { offset, data } => &mut data[*offset..],
+            Self::Raw { ptr, len } => unsafe { std::slice::from_raw_parts(*ptr, *len) },
         }
     }
 }

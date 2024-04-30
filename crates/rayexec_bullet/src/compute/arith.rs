@@ -149,7 +149,7 @@ where
         ));
     }
 
-    let left = left.values_mut().iter_mut();
+    let left = left.values_mut().try_as_mut()?.iter_mut();
     let right = right.values().iter();
 
     for (left, right) in left.zip(right) {
