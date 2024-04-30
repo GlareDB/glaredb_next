@@ -600,7 +600,6 @@ mod tests {
 
         for tc in test_cases {
             let bs = tc.csv.as_bytes();
-            let decoder = Decoder::new(csv_core::Reader::new(), None);
             let mut typed = TypedDecoder::new(tc.dialect, &tc.schema);
 
             typed.decode(bs).unwrap();
@@ -663,7 +662,6 @@ mod tests {
 
         for tc in test_cases {
             let bs = tc.csv.as_bytes();
-            let decoder = Decoder::new(csv_core::Reader::new(), None);
             let mut typed = TypedDecoder::new(tc.dialect, &tc.schema);
 
             typed.decode(bs).unwrap();
