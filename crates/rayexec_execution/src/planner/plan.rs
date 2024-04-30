@@ -106,12 +106,12 @@ impl<'a> PlanContext<'a> {
         let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
         if let Some(limit_expr) = query.limit.limit {
             let expr = expr_ctx.plan_expression(limit_expr)?;
-            let limit = expr.try_into_scalar()?.try_as_int()? as usize;
+            let limit = expr.try_into_scalar()?.try_as_i64()? as usize;
 
             let offset = match query.limit.offset {
                 Some(offset_expr) => {
                     let expr = expr_ctx.plan_expression(offset_expr)?;
-                    let offset = expr.try_into_scalar()?.try_as_int()?;
+                    let offset = expr.try_into_scalar()?.try_as_i64()?;
                     Some(offset as usize)
                 }
                 None => None,

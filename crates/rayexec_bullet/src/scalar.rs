@@ -1,3 +1,8 @@
+use crate::array::{
+    Array, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array,
+    Int64Array, Int8Array, LargeBinaryArray, LargeUtf8Array, NullArray, UInt16Array, UInt32Array,
+    UInt64Array, UInt8Array, Utf8Array,
+};
 use crate::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
@@ -100,6 +105,42 @@ impl<'a> ScalarValue<'a> {
         }
     }
 
+    /// Create an array of size `n` using the scalar value.
+    pub fn as_array(&self, n: usize) -> Array {
+        match self {
+            Self::Null => Array::Null(NullArray::new(n)),
+            Self::Boolean(v) => {
+                Array::Boolean(BooleanArray::from_iter(std::iter::repeat(*v).take(n)))
+            }
+            Self::Float32(v) => {
+                Array::Float32(Float32Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
+            Self::Float64(v) => {
+                Array::Float64(Float64Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
+            Self::Int8(v) => Array::Int8(Int8Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int16(v) => Array::Int16(Int16Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int32(v) => Array::Int32(Int32Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int64(v) => Array::Int64(Int64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::UInt8(v) => Array::UInt8(UInt8Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::UInt16(v) => Array::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::UInt32(v) => Array::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::UInt64(v) => Array::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Utf8(v) => {
+                Array::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
+            }
+            Self::LargeUtf8(v) => Array::LargeUtf8(LargeUtf8Array::from_iter(
+                std::iter::repeat(v.as_ref()).take(n),
+            )),
+            Self::Binary(v) => Array::Binary(BinaryArray::from_iter(
+                std::iter::repeat(v.as_ref()).take(n),
+            )),
+            Self::LargeBinary(v) => Array::LargeBinary(LargeBinaryArray::from_iter(
+                std::iter::repeat(v.as_ref()).take(n),
+            )),
+        }
+    }
+
     pub fn try_as_bool(&self) -> Result<bool> {
         match self {
             Self::Boolean(b) => Ok(*b),
@@ -107,7 +148,7 @@ impl<'a> ScalarValue<'a> {
         }
     }
 
-    pub fn try_as_int(&self) -> Result<i64> {
+    pub fn try_as_i64(&self) -> Result<i64> {
         match self {
             Self::Int8(i) => Ok(*i as i64),
             Self::Int16(i) => Ok(*i as i64),
@@ -126,6 +167,51 @@ impl<'a> ScalarValue<'a> {
                 }
             }
             other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+        }
+    }
+
+    pub fn try_as_i32(&self) -> Result<i32> {
+        match self {
+            Self::Int8(i) => Ok(*i as i32),
+            Self::Int16(i) => Ok(*i as i32),
+            Self::Int32(i) => Ok(*i),
+            Self::Int64(i) => {
+                if *i < i32::MAX as i64 {
+                    Ok(*i as i32)
+                } else {
+                    Err(RayexecError::new(format!(
+                        "i64 too large to fit into an i32"
+                    )))
+                }
+            }
+            Self::UInt8(i) => Ok(*i as i32),
+            Self::UInt16(i) => Ok(*i as i32),
+            Self::UInt32(i) => {
+                if *i < i32::MAX as u32 {
+                    Ok(*i as i32)
+                } else {
+                    Err(RayexecError::new(format!(
+                        "u32 too large to fit into an i32"
+                    )))
+                }
+            }
+            Self::UInt64(i) => {
+                if *i < i32::MAX as u64 {
+                    Ok(*i as i32)
+                } else {
+                    Err(RayexecError::new(format!(
+                        "u64 too large to fit into an i32"
+                    )))
+                }
+            }
+            other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+        }
+    }
+
+    pub fn try_as_str(&self) -> Result<&str> {
+        match self {
+            Self::Utf8(v) | Self::LargeUtf8(v) => Ok(v.as_ref()),
+            other => Err(RayexecError::new(format!("Not a string: {other:?}"))),
         }
     }
 }

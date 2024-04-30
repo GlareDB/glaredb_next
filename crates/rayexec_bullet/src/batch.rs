@@ -28,7 +28,8 @@ impl Batch {
         }
     }
 
-    pub fn try_new(cols: Vec<Array>) -> Result<Self> {
+    pub fn try_new(cols: impl IntoIterator<Item = Array>) -> Result<Self> {
+        let cols: Vec<_> = cols.into_iter().collect();
         let len = match cols.first() {
             Some(arr) => arr.len(),
             None => return Ok(Self::empty()),

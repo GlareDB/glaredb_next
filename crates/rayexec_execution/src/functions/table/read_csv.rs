@@ -30,14 +30,7 @@ impl TableFunction for ReadCsv {
             return Err(RayexecError::new("Invalid number of arguments"));
         }
 
-        let path = match args.unnamed.first().unwrap() {
-            ScalarValue::Utf8(path) => path,
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Expected string argument, got {other:?}"
-                )))
-            }
-        };
+        let path = args.unnamed.first().unwrap().try_as_str()?;
         let path = Path::new(path);
 
         // TODO: Pass me in

@@ -1,5 +1,4 @@
 use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
-use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -20,18 +19,6 @@ impl TableFunction for GenerateSeries {
     }
 
     fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunction>> {
-        fn get_i32(scalar: &ScalarValue) -> Result<i32> {
-            Ok(match scalar {
-                ScalarValue::Int32(i) => *i,
-                ScalarValue::Int64(i) => *i as i32, // TODO
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected integer argument, got {other:?}"
-                    )))
-                }
-            })
-        }
-
         if !args.named.is_empty() {
             return Err(RayexecError::new(
                 "This function doesn't accept named arguments".to_string(),
@@ -40,14 +27,14 @@ impl TableFunction for GenerateSeries {
 
         let (start, stop, step) = match args.unnamed.len() {
             2 => (
-                get_i32(args.unnamed.first().unwrap())?,
-                get_i32(args.unnamed.get(1).unwrap())?,
+                args.unnamed.first().unwrap().try_as_i32()?,
+                args.unnamed.get(1).unwrap().try_as_i32()?,
                 1,
             ),
             3 => (
-                get_i32(args.unnamed.first().unwrap())?,
-                get_i32(args.unnamed.get(1).unwrap())?,
-                get_i32(args.unnamed.get(2).unwrap())?,
+                args.unnamed.first().unwrap().try_as_i32()?,
+                args.unnamed.get(1).unwrap().try_as_i32()?,
+                args.unnamed.get(2).unwrap().try_as_i32()?,
             ),
             other => {
                 return Err(RayexecError::new(format!(

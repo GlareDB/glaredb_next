@@ -16,6 +16,7 @@ pub mod values;
 
 mod util;
 
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::task::{Context, Poll};
@@ -42,7 +43,7 @@ pub enum PollPush {
     ///
     /// A waker will be registered for a later wakeup. This same batch should be
     /// pushed at that time.
-    Pending(DataBatch),
+    Pending(Batch),
 
     /// This sink requires no more input.
     ///
@@ -58,7 +59,7 @@ pub enum PollPush {
 #[derive(Debug)]
 pub enum PollPull {
     /// Successfully received a data batch.
-    Batch(DataBatch),
+    Batch(Batch),
 
     /// A batch could not be be retrieved right now.
     ///
@@ -99,5 +100,5 @@ pub trait Source: Sync + Send + Explainable + Debug {
 
 pub trait PhysicalOperator: Sync + Send + Explainable + Debug {
     /// Execute this operator on an input batch.
-    fn execute(&self, task_cx: &TaskContext, input: DataBatch) -> Result<DataBatch>;
+    fn execute(&self, task_cx: &TaskContext, input: DataBatch) -> Result<Batch>;
 }
