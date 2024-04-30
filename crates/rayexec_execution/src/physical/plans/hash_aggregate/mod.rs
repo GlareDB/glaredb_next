@@ -10,6 +10,7 @@ use crate::{
 };
 use hashbrown::raw::RawTable;
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use smallvec::{smallvec, SmallVec};
 use std::fmt;
@@ -135,7 +136,7 @@ impl Sink for PhysicalHashAggregateSink {
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         let mut state = self.input_states[partition].lock();

@@ -2,7 +2,6 @@ use crate::array::{
     Array, BooleanArray, OffsetIndex, PrimitiveArray, PrimitiveNumeric, VarlenArray, VarlenType,
 };
 use crate::scalar::ScalarValue;
-use crate::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 use std::ops::Add;
 
@@ -147,9 +146,7 @@ fn primitive_reduce<T: Copy>(
     arr: &PrimitiveArray<T>,
     reduce_fn: impl Fn(T, T) -> T,
 ) -> Option<T> {
-    let values = match arr.values() {
-        PrimitiveStorage::Vec(v) => v,
-    };
+    let values = arr.values();
 
     match &arr.validity() {
         Some(bitmap) => {

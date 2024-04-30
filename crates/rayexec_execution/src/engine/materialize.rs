@@ -1,5 +1,6 @@
 use futures::Stream;
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -8,9 +9,9 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use crate::physical::plans::PollPush;
+use crate::physical::plans::Sink;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{physical::plans::Sink, types::batch::DataBatch};
 
 /// Stream for materialized batches for a query.
 #[derive(Debug)]
@@ -32,7 +33,7 @@ impl MaterializedBatchStream {
 #[derive(Debug)]
 struct MaterializedBatchesState {
     /// The materialized batches.
-    batches: VecDeque<DataBatch>,
+    batches: VecDeque<Batch>,
     /// Pending waker for the async stream implementation.
     waker: Option<Waker>,
     /// Whether or not the sink is finished.
@@ -78,7 +79,7 @@ impl Sink for MaterializedBatchSink {
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         if partition != 0 {
@@ -114,7 +115,7 @@ impl Explainable for MaterializedBatchSink {
 }
 
 impl Stream for MaterializedBatchStream {
-    type Item = DataBatch;
+    type Item = Batch;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut inner = self.state.lock();

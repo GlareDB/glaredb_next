@@ -162,11 +162,6 @@ enum CandidateType {
 }
 
 impl CandidateType {
-    /// Whether or not self is stricter than some other candidate type.
-    fn is_stricter(&self, other: &CandidateType) -> bool {
-        self < other
-    }
-
     const fn as_datatype(&self) -> DataType {
         match self {
             Self::Boolean => DataType::Boolean,

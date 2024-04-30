@@ -5,10 +5,10 @@ pub mod scalar;
 use self::scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator};
 use crate::{planner::operator::LogicalExpression, types::batch::DataBatch};
 use arrow_array::{ArrayRef, BooleanArray};
-
-use rayexec_bullet::scalar::OwnedScalarValue;
+use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Expression {
@@ -73,7 +73,7 @@ impl PhysicalScalarExpression {
     ///
     /// The number of elements in the resulting array will equal the number of
     /// rows in the input batch.
-    pub fn eval(&self, batch: &DataBatch) -> Result<ArrayRef> {
+    pub fn eval(&self, batch: &Batch) -> Result<Arc<Array>> {
         Ok(match self {
             Self::Column(idx) => batch
                 .column(*idx)
@@ -92,7 +92,7 @@ impl PhysicalScalarExpression {
             Self::Binary { op, left, right } => {
                 let left = left.eval(batch)?;
                 let right = right.eval(batch)?;
-                op.eval(&left, &right)?
+                Arc::new(op.eval(&left, &right)?)
             }
             _ => unimplemented!(),
         })

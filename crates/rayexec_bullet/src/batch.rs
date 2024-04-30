@@ -28,8 +28,14 @@ impl Batch {
         }
     }
 
-    pub fn try_new(cols: impl IntoIterator<Item = Array>) -> Result<Self> {
-        let cols: Vec<_> = cols.into_iter().collect();
+    /// Create a new batch from some number of arrays.
+    ///
+    /// All arrays should be of the same length.
+    pub fn try_new<A>(cols: impl IntoIterator<Item = A>) -> Result<Self>
+    where
+        A: Into<Arc<Array>>,
+    {
+        let cols: Vec<_> = cols.into_iter().map(|arr| arr.into()).collect();
         let len = match cols.first() {
             Some(arr) => arr.len(),
             None => return Ok(Self::empty()),
@@ -43,8 +49,6 @@ impl Batch {
                 )));
             }
         }
-
-        let cols = cols.into_iter().map(|col| Arc::new(col)).collect();
 
         Ok(Batch {
             cols,

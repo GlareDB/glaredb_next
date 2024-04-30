@@ -1,8 +1,7 @@
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
-
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::task::{Context, Poll};
 
@@ -10,11 +9,11 @@ use super::{PollPull, Source};
 
 #[derive(Debug)]
 pub struct PhysicalValues {
-    batch: Mutex<Option<DataBatch>>,
+    batch: Mutex<Option<Batch>>,
 }
 
 impl PhysicalValues {
-    pub fn new(batch: DataBatch) -> Self {
+    pub fn new(batch: Batch) -> Self {
         PhysicalValues {
             batch: Mutex::new(Some(batch)),
         }

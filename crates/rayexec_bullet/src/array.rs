@@ -180,6 +180,24 @@ impl BooleanArray {
         Some(self.values.value(idx))
     }
 
+    /// Get the number of non-null true values in the array.
+    pub fn true_count(&self) -> usize {
+        match &self.validity {
+            Some(validity) => {
+                assert_eq!(validity.len(), self.values.len());
+                // TODO: Could probably go byte by byte instead bit by bit.
+                self.values
+                    .iter()
+                    .zip(validity.iter())
+                    .fold(
+                        0,
+                        |acc, (valid, is_true)| if valid && is_true { acc + 1 } else { acc },
+                    )
+            }
+            None => self.values.popcnt(),
+        }
+    }
+
     pub(crate) fn validity(&self) -> Option<&Bitmap> {
         self.validity.as_ref()
     }
@@ -542,7 +560,7 @@ where
 
         let val = self
             .data
-            .get_slice(offset, len)
+            .get(offset..len)
             .expect("value to exist in data array");
         let val = T::interpret(val);
 

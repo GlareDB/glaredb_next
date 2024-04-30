@@ -1,6 +1,5 @@
 use crate::engine::modify::Modification;
 use crate::engine::vars::SessionVar;
-use crate::expr::scalar::ScalarValue;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;

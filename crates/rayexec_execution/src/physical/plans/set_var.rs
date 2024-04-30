@@ -1,8 +1,8 @@
 use crate::engine::modify::Modification;
-use crate::expr::scalar::ScalarValue;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
+use rayexec_bullet::batch::Batch;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -61,7 +61,7 @@ impl Source for PhysicalSetVar {
         }
 
         self.set_inner(task_cx)?;
-        Ok(PollPull::Batch(DataBatch::empty()))
+        Ok(PollPull::Batch(Batch::empty()))
     }
 }
 

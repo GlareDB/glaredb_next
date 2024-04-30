@@ -1,5 +1,4 @@
 use super::{session::Session, vars::SessionVar};
-use crate::expr::scalar::ScalarValue;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};

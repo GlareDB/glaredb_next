@@ -1,10 +1,10 @@
 use super::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::task::{Context, Poll};
+use std::task::Context;
 
 /// Produces an empty batch with one logical row.
 ///
@@ -45,7 +45,7 @@ impl Source for EmptySource {
             .finished
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         {
-            Ok(_) => Ok(PollPull::Batch(DataBatch::empty_with_num_rows(1))),
+            Ok(_) => Ok(PollPull::Batch(Batch::empty_with_num_rows(1))),
             Err(_) => Ok(PollPull::Exhausted),
         }
     }

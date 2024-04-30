@@ -79,7 +79,7 @@ pub trait Sink: Sync + Send + Explainable + Debug {
         &self,
         task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush>;
 
@@ -100,5 +100,5 @@ pub trait Source: Sync + Send + Explainable + Debug {
 
 pub trait PhysicalOperator: Sync + Send + Explainable + Debug {
     /// Execute this operator on an input batch.
-    fn execute(&self, task_cx: &TaskContext, input: DataBatch) -> Result<Batch>;
+    fn execute(&self, task_cx: &TaskContext, input: Batch) -> Result<Batch>;
 }
