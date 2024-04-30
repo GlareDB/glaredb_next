@@ -372,7 +372,7 @@ pub type Float64Array = PrimitiveArray<f64>;
 
 impl<T> PrimitiveArray<T> {
     pub fn len(&self) -> usize {
-        self.values.len()
+        self.values.as_ref().len()
     }
 
     /// Get the value at the given index.
@@ -383,7 +383,7 @@ impl<T> PrimitiveArray<T> {
             return None;
         }
 
-        self.values.get(idx)
+        self.values.as_ref().get(idx)
     }
 
     /// Get the validity at the given index.
@@ -539,7 +539,7 @@ where
     O: OffsetIndex,
 {
     pub fn len(&self) -> usize {
-        self.offsets.len() - 1
+        self.offsets.as_ref().len() - 1
     }
 
     pub fn value(&self, idx: usize) -> Option<&T> {
@@ -549,17 +549,20 @@ where
 
         let offset = self
             .offsets
+            .as_ref()
             .get(idx)
             .expect("offset for idx to exist")
             .as_usize();
         let len: usize = self
             .offsets
+            .as_ref()
             .get(idx + 1)
             .expect("offset for idx+1 to exist")
             .as_usize();
 
         let val = self
             .data
+            .as_ref()
             .get(offset..len)
             .expect("value to exist in data array");
         let val = T::interpret(val);

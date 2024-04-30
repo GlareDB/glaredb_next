@@ -32,7 +32,9 @@ pub fn take_primitive<T: Copy>(
 
     let values = arr.values();
     // TODO: validity
-    let iter = indices.iter().map(|idx| *values.get(*idx).unwrap());
+    let iter = indices
+        .iter()
+        .map(|idx| *values.as_ref().get(*idx).unwrap());
     let taken = PrimitiveArray::from_iter(iter);
 
     Ok(taken)

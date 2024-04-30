@@ -203,8 +203,8 @@ where
         ));
     }
 
-    let left = left.values().iter();
-    let right = right.values().iter();
+    let left = left.values().as_ref().iter();
+    let right = right.values().as_ref().iter();
 
     let bools = compare_value_iters(left, right, cmp_fn);
 

@@ -150,7 +150,7 @@ where
     }
 
     let left = left.values_mut().try_as_mut()?.iter_mut();
-    let right = right.values().iter();
+    let right = right.values().as_ref().iter();
 
     for (left, right) in left.zip(right) {
         *left = f(*left, *right);

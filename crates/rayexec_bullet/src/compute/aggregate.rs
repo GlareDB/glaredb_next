@@ -156,14 +156,17 @@ fn primitive_reduce<T: Copy>(
             }
 
             let out = bitmap.index_iter().fold(start, |acc, idx| {
-                let value = values.get(idx).unwrap();
+                let value = values.as_ref().get(idx).unwrap();
                 reduce_fn(acc, *value)
             });
 
             Some(out)
         }
         None => {
-            let out = values.iter().fold(start, |acc, val| reduce_fn(acc, *val));
+            let out = values
+                .as_ref()
+                .iter()
+                .fold(start, |acc, val| reduce_fn(acc, *val));
             Some(out)
         }
     }

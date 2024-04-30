@@ -16,9 +16,8 @@ use crate::{
         nested_loop_join::PhysicalNestedLoopJoin, values::PhysicalValues,
     },
     planner::operator::{self, LogicalOperator},
-    types::batch::DataBatch,
 };
-use arrow_array::{Array, ArrayRef};
+use rayexec_bullet::{array::Array, batch::Batch};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -380,9 +379,9 @@ impl PipelineBuilder {
             return Err(RayexecError::new("Expected source to be None"));
         }
 
-        let mut row_arrs: Vec<Vec<ArrayRef>> = Vec::new(); // Row oriented.
+        let mut row_arrs: Vec<Vec<Arc<Array>>> = Vec::new(); // Row oriented.
 
-        let dummy_batch = DataBatch::empty_with_num_rows(1);
+        let dummy_batch = Batch::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
         for row_exprs in values.rows {
@@ -413,12 +412,13 @@ impl PipelineBuilder {
         // Concat column values into a single array.
         let mut cols = Vec::with_capacity(col_arrs.len());
         for arrs in col_arrs {
-            let refs: Vec<&dyn Array> = arrs.iter().map(|a| a.as_ref()).collect();
+            let refs: Vec<&Array> = arrs.iter().map(|a| a.as_ref()).collect();
+            unimplemented!()
             let col = arrow::compute::concat(&refs)?;
-            cols.push(col);
+            // cols.push(col);
         }
 
-        let batch = DataBatch::try_new(cols)?;
+        let batch = Batch::try_new(cols)?;
         let source = PhysicalValues::new(batch);
 
         self.source = Some(Box::new(source));

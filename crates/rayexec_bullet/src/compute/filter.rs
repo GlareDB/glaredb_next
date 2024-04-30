@@ -33,7 +33,7 @@ pub fn filter_primitive<T: Copy>(
 
     // TODO: validity
 
-    let values_iter = arr.values().iter();
+    let values_iter = arr.values().as_ref().iter();
     let select_iter = selection.values().iter();
 
     let iter = values_iter
