@@ -17,7 +17,7 @@ use crate::{
     },
     planner::operator::{self, LogicalOperator},
 };
-use rayexec_bullet::{array::Array, batch::Batch};
+use rayexec_bullet::{array::Array, batch::Batch, compute::concat::concat};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -413,9 +413,8 @@ impl PipelineBuilder {
         let mut cols = Vec::with_capacity(col_arrs.len());
         for arrs in col_arrs {
             let refs: Vec<&Array> = arrs.iter().map(|a| a.as_ref()).collect();
-            unimplemented!()
-            let col = arrow::compute::concat(&refs)?;
-            // cols.push(col);
+            let col = concat(&refs)?;
+            cols.push(col);
         }
 
         let batch = Batch::try_new(cols)?;

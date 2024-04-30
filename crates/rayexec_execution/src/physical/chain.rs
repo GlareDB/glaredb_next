@@ -1,5 +1,5 @@
-use crate::types::batch::DataBatch;
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::{
     fmt::Debug,
@@ -53,7 +53,7 @@ enum PartitionState {
 
     /// Sink not yet ready. Store the intermediate batch.
     // TODO: Remove Option. Added in to make borrow checker happy below.
-    PushPending { batch: Option<DataBatch> },
+    PushPending { batch: Option<Batch> },
 
     /// All batches successfully pushed, we're done.
     Finished,
@@ -165,7 +165,7 @@ impl OperatorChain {
         }
     }
 
-    fn execute_operators(&self, task_cx: &TaskContext, mut batch: DataBatch) -> Result<DataBatch> {
+    fn execute_operators(&self, task_cx: &TaskContext, mut batch: Batch) -> Result<Batch> {
         for operator in &self.operators {
             batch = operator.execute(task_cx, batch)?;
         }

@@ -25,7 +25,7 @@ macro_rules! collect_arrays_of_type {
 /// Concat multiple arrays into a single array.
 ///
 /// All arrays must be of the same type.
-pub fn concat(arrays: &[Array]) -> Result<Array> {
+pub fn concat(arrays: &[&Array]) -> Result<Array> {
     if arrays.is_empty() {
         return Err(RayexecError::new("Cannot concat zero arrays"));
     }
@@ -130,9 +130,9 @@ mod tests {
     #[test]
     fn concat_primitive() {
         let arrs = [
-            Array::Int64(Int64Array::from_iter([1])),
-            Array::Int64(Int64Array::from_iter([2, 3])),
-            Array::Int64(Int64Array::from_iter([4, 5, 6])),
+            &Array::Int64(Int64Array::from_iter([1])),
+            &Array::Int64(Int64Array::from_iter([2, 3])),
+            &Array::Int64(Int64Array::from_iter([4, 5, 6])),
         ];
 
         let got = concat(&arrs).unwrap();
@@ -144,9 +144,9 @@ mod tests {
     #[test]
     fn concat_varlen() {
         let arrs = [
-            Array::Utf8(Utf8Array::from_iter(["a"])),
-            Array::Utf8(Utf8Array::from_iter(["bb", "ccc"])),
-            Array::Utf8(Utf8Array::from_iter(["dddd", "eeeee", "ffffff"])),
+            &Array::Utf8(Utf8Array::from_iter(["a"])),
+            &Array::Utf8(Utf8Array::from_iter(["bb", "ccc"])),
+            &Array::Utf8(Utf8Array::from_iter(["dddd", "eeeee", "ffffff"])),
         ];
 
         let got = concat(&arrs).unwrap();
