@@ -93,6 +93,27 @@ impl Array {
             Self::LargeBinary(arr) => arr.is_valid(idx),
         }
     }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Null(arr) => arr.len(),
+            Self::Boolean(arr) => arr.len(),
+            Self::Float32(arr) => arr.len(),
+            Self::Float64(arr) => arr.len(),
+            Self::Int8(arr) => arr.len(),
+            Self::Int16(arr) => arr.len(),
+            Self::Int32(arr) => arr.len(),
+            Self::Int64(arr) => arr.len(),
+            Self::UInt8(arr) => arr.len(),
+            Self::UInt16(arr) => arr.len(),
+            Self::UInt32(arr) => arr.len(),
+            Self::UInt64(arr) => arr.len(),
+            Self::Utf8(arr) => arr.len(),
+            Self::LargeUtf8(arr) => arr.len(),
+            Self::Binary(arr) => arr.len(),
+            Self::LargeBinary(arr) => arr.len(),
+        }
+    }
 }
 
 /// A logical array for representing some number of Nulls.

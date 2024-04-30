@@ -144,16 +144,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{expr::scalar::ScalarValue, planner::operator::LogicalExpression};
-
     use super::*;
+
+    use crate::planner::operator::LogicalExpression;
+    use rayexec_bullet::scalar::OwnedScalarValue;
 
     #[test]
     fn walk_plan_pre_post() {
         let plan = LogicalOperator::Projection(Projection {
             exprs: Vec::new(),
             input: Box::new(LogicalOperator::Filter(Filter {
-                predicate: LogicalExpression::Literal(ScalarValue::Null),
+                predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
                 input: Box::new(LogicalOperator::Empty),
             })),
         });
@@ -164,7 +165,7 @@ mod tests {
                 match child {
                     LogicalOperator::Projection(proj) => proj
                         .exprs
-                        .push(LogicalExpression::Literal(ScalarValue::Int8(1))),
+                        .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
                     LogicalOperator::Filter(_) => {}
                     LogicalOperator::Empty => {}
                     other => panic!("unexpected child {other:?}"),
@@ -175,11 +176,11 @@ mod tests {
                 match child {
                     LogicalOperator::Projection(proj) => {
                         assert_eq!(
-                            vec![LogicalExpression::Literal(ScalarValue::Int8(1))],
+                            vec![LogicalExpression::Literal(OwnedScalarValue::Int8(1))],
                             proj.exprs
                         );
                         proj.exprs
-                            .push(LogicalExpression::Literal(ScalarValue::Int8(2)))
+                            .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
                     }
                     LogicalOperator::Filter(_) => {}
                     LogicalOperator::Empty => {}
@@ -194,8 +195,8 @@ mod tests {
             LogicalOperator::Projection(proj) => {
                 assert_eq!(
                     vec![
-                        LogicalExpression::Literal(ScalarValue::Int8(1)),
-                        LogicalExpression::Literal(ScalarValue::Int8(2)),
+                        LogicalExpression::Literal(OwnedScalarValue::Int8(1)),
+                        LogicalExpression::Literal(OwnedScalarValue::Int8(2)),
                     ],
                     proj.exprs
                 );

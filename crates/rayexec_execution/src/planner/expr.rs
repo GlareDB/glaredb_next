@@ -1,7 +1,10 @@
+use crate::expr::scalar::ScalarValue;
+use rayexec_bullet::{
+    field::{Schema, TypeSchema},
+    scalar::OwnedScalarValue,
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
-
-use crate::{expr::scalar::ScalarValue, types::batch::DataBatchSchema};
 
 use super::{
     operator::LogicalExpression,
@@ -51,15 +54,11 @@ pub struct ExpressionContext<'a> {
     /// Scope for this expression.
     pub scope: &'a Scope,
     /// Schema of input that this expression will be executed on.
-    pub input: &'a DataBatchSchema,
+    pub input: &'a TypeSchema,
 }
 
 impl<'a> ExpressionContext<'a> {
-    pub fn new(
-        plan_context: &'a PlanContext,
-        scope: &'a Scope,
-        input: &'a DataBatchSchema,
-    ) -> Self {
+    pub fn new(plan_context: &'a PlanContext, scope: &'a Scope, input: &'a TypeSchema) -> Self {
         ExpressionContext {
             plan_context,
             scope,
@@ -173,21 +172,21 @@ impl<'a> ExpressionContext<'a> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i64>() {
-                    LogicalExpression::Literal(ScalarValue::Int64(n))
+                    LogicalExpression::Literal(OwnedScalarValue::Int64(n))
                 } else if let Ok(n) = n.parse::<u64>() {
-                    LogicalExpression::Literal(ScalarValue::UInt64(n))
+                    LogicalExpression::Literal(OwnedScalarValue::UInt64(n))
                 } else if let Ok(n) = n.parse::<f64>() {
-                    LogicalExpression::Literal(ScalarValue::Float64(n))
+                    LogicalExpression::Literal(OwnedScalarValue::Float64(n))
                 } else {
                     return Err(RayexecError::new(format!(
                         "Unable to parse {n} as a number"
                     )));
                 }
             }
-            ast::Literal::Boolean(b) => LogicalExpression::Literal(ScalarValue::Boolean(b)),
-            ast::Literal::Null => LogicalExpression::Literal(ScalarValue::Null),
+            ast::Literal::Boolean(b) => LogicalExpression::Literal(OwnedScalarValue::Boolean(b)),
+            ast::Literal::Null => LogicalExpression::Literal(OwnedScalarValue::Null),
             ast::Literal::SingleQuotedString(s) => {
-                LogicalExpression::Literal(ScalarValue::Utf8(s.to_string()))
+                LogicalExpression::Literal(OwnedScalarValue::Utf8(s.to_string().into()))
             }
             other => {
                 return Err(RayexecError::new(format!(

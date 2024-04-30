@@ -5,6 +5,7 @@ pub mod read_csv;
 pub mod read_parquet;
 
 use rayexec_bullet::field::Schema;
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -26,10 +27,10 @@ pub struct TableFunctionArgs {
     /// Unnamed arguments to the function.
     ///
     /// Order typically matters.
-    pub unnamed: Vec<ScalarValue>,
+    pub unnamed: Vec<OwnedScalarValue>,
 
     /// Named arguments to the function.
-    pub named: HashMap<String, ScalarValue>,
+    pub named: HashMap<String, OwnedScalarValue>,
 }
 
 #[derive(Debug, Default)]

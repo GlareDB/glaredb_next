@@ -1,5 +1,7 @@
 use crate::field::DataType;
+use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
+use std::fmt;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq)]
@@ -95,6 +97,58 @@ impl<'a> ScalarValue<'a> {
             Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
             Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
             Self::LargeBinary(v) => OwnedScalarValue::LargeBinary(v.into_owned().into()),
+        }
+    }
+
+    pub fn try_as_bool(&self) -> Result<bool> {
+        match self {
+            Self::Boolean(b) => Ok(*b),
+            other => Err(RayexecError::new(format!("Not a bool: {other:?}"))),
+        }
+    }
+
+    pub fn try_as_int(&self) -> Result<i64> {
+        match self {
+            Self::Int8(i) => Ok(*i as i64),
+            Self::Int16(i) => Ok(*i as i64),
+            Self::Int32(i) => Ok(*i as i64),
+            Self::Int64(i) => Ok(*i),
+            Self::UInt8(i) => Ok(*i as i64),
+            Self::UInt16(i) => Ok(*i as i64),
+            Self::UInt32(i) => Ok(*i as i64),
+            Self::UInt64(i) => {
+                if *i < i64::MAX as u64 {
+                    Ok(*i as i64)
+                } else {
+                    Err(RayexecError::new(format!(
+                        "u64 too large to fit into an i64"
+                    )))
+                }
+            }
+            other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+        }
+    }
+}
+
+impl fmt::Display for ScalarValue<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Null => write!(f, "NULL"),
+            Self::Boolean(v) => write!(f, "{}", v),
+            Self::Float32(v) => write!(f, "{}", v),
+            Self::Float64(v) => write!(f, "{}", v),
+            Self::Int8(v) => write!(f, "{}", v),
+            Self::Int16(v) => write!(f, "{}", v),
+            Self::Int32(v) => write!(f, "{}", v),
+            Self::Int64(v) => write!(f, "{}", v),
+            Self::UInt8(v) => write!(f, "{}", v),
+            Self::UInt16(v) => write!(f, "{}", v),
+            Self::UInt32(v) => write!(f, "{}", v),
+            Self::UInt64(v) => write!(f, "{}", v),
+            Self::Utf8(v) => write!(f, "{}", v),
+            Self::LargeUtf8(v) => write!(f, "{}", v),
+            Self::Binary(v) => write!(f, "{:X?}", v),
+            Self::LargeBinary(v) => write!(f, "{:X?}", v),
         }
     }
 }

@@ -3,6 +3,7 @@ use crate::expr::scalar::ScalarValue;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
@@ -12,12 +13,12 @@ use super::{PollPull, Source};
 #[derive(Debug)]
 pub struct PhysicalSetVar {
     var: String,
-    value: ScalarValue,
+    value: OwnedScalarValue,
     sent: AtomicBool,
 }
 
 impl PhysicalSetVar {
-    pub fn new(var: String, value: ScalarValue) -> Self {
+    pub fn new(var: String, value: OwnedScalarValue) -> Self {
         PhysicalSetVar {
             var,
             value,

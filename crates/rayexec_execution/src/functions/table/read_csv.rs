@@ -2,9 +2,7 @@ use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use parking_lot::Mutex;
-use rayexec_bullet::csv::decode::Decoder;
 use rayexec_bullet::csv::reader::{CsvSchema, DialectOptions, TypedDecoder};
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
@@ -12,7 +10,6 @@ use std::fmt;
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use super::{BoundTableFunction, Statistics, TableFunction, TableFunctionArgs};
@@ -43,8 +40,9 @@ impl TableFunction for ReadCsv {
         };
         let path = Path::new(path);
 
+        // TODO: Pass me in
         const INFER_COUNT: usize = 2048;
-        let bound = ReadCsvLocal::new_from_path(path, INFER_COUNT)?;
+        let bound = ReadCsvLocal::new_from_path(path, INFER_COUNT, 8192)?;
 
         Ok(Box::new(bound))
     }

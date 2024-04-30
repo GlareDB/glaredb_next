@@ -4,14 +4,15 @@ use crate::functions::aggregate::AggregateFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::{
-        scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator},
+        scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
         Expression,
     },
     functions::table::BoundTableFunction,
     optimizer::walk_plan,
     types::batch::DataBatchSchema,
 };
-use arrow_schema::DataType;
+use rayexec_bullet::field::{DataType, TypeSchema};
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use std::fmt;
 
@@ -34,20 +35,20 @@ pub enum LogicalOperator {
 }
 
 impl LogicalOperator {
-    /// Get the output schema of the operator.
+    /// Get the output type schema of the operator.
     ///
     /// Since we're working with possibly correlated columns, this also accepts
     /// the schema of the outer scopes.
-    pub fn schema(&self, outer: &[DataBatchSchema]) -> Result<DataBatchSchema> {
+    pub fn schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(match self {
             Self::Projection(proj) => {
                 let current = proj.input.schema(outer)?;
                 let types = proj
                     .exprs
                     .iter()
-                    .map(|expr| expr.data_type(&current, outer))
+                    .map(|expr| expr.datatype(&current, outer))
                     .collect::<Result<Vec<_>>>()?;
-                DataBatchSchema::new(types)
+                TypeSchema::new(types)
             }
             Self::Filter(filter) => filter.input.schema(outer)?,
             Self::Aggregate(_agg) => unimplemented!(),
@@ -64,19 +65,19 @@ impl LogicalOperator {
                     .ok_or_else(|| RayexecError::new("Expression list contains no rows"))?;
                 // No inputs to expression list. Attempting to reference a
                 // column should error.
-                let current = DataBatchSchema::empty();
+                let current = TypeSchema::empty();
                 let types = first
                     .iter()
-                    .map(|expr| expr.data_type(&current, outer))
+                    .map(|expr| expr.datatype(&current, outer))
                     .collect::<Result<Vec<_>>>()?;
-                DataBatchSchema::new(types)
+                TypeSchema::new(types)
             }
-            Self::Empty => DataBatchSchema::empty(),
-            Self::SetVar(_) => DataBatchSchema::empty(),
+            Self::Empty => TypeSchema::empty(),
+            Self::SetVar(_) => TypeSchema::empty(),
             // TODO: Double check with postgres if they convert everything to
             // string in SHOW. I'm adding this in right now just to quickly
             // check the vars for debugging.
-            Self::ShowVar(_show_var) => DataBatchSchema::new(vec![DataType::Utf8]),
+            Self::ShowVar(_show_var) => TypeSchema::new(vec![DataType::Utf8]),
             Self::CreateTableAs(_) => unimplemented!(),
         })
     }
@@ -300,7 +301,7 @@ impl Explainable for ScanItem {
 #[derive(Debug)]
 pub struct Scan {
     pub source: ScanItem,
-    pub schema: DataBatchSchema,
+    pub schema: TypeSchema,
     // pub projection: Option<Vec<usize>>,
     // pub input: BindIdx,
     // TODO: Pushdowns
@@ -362,7 +363,7 @@ impl Explainable for CreateTableAs {
 #[derive(Debug)]
 pub struct SetVar {
     pub name: String,
-    pub value: ScalarValue,
+    pub value: OwnedScalarValue,
 }
 
 impl Explainable for SetVar {
@@ -391,7 +392,7 @@ pub enum LogicalExpression {
     /// part of a correlated subquery.
     ColumnRef(ColumnRef),
     /// Literal value.
-    Literal(ScalarValue),
+    Literal(OwnedScalarValue),
     /// Unary operator.
     Unary {
         op: UnaryOperator,
@@ -452,24 +453,14 @@ impl LogicalExpression {
     ///
     /// Since we're working with possibly correlated columns, both the schema of
     /// the scope and the schema of the outer scopes are provided.
-    pub fn data_type(
-        &self,
-        current: &DataBatchSchema,
-        outer: &[DataBatchSchema],
-    ) -> Result<DataType> {
+    pub fn datatype(&self, current: &TypeSchema, outer: &[TypeSchema]) -> Result<DataType> {
         Ok(match self {
             LogicalExpression::ColumnRef(col) => {
                 if col.scope_level == 0 {
                     // Get data type from current schema.
-                    current
-                        .get_types()
-                        .get(col.item_idx)
-                        .cloned()
-                        .ok_or_else(|| {
-                            RayexecError::new(
-                                "Column reference points to outside of current schema",
-                            )
-                        })?
+                    current.types.get(col.item_idx).cloned().ok_or_else(|| {
+                        RayexecError::new("Column reference points to outside of current schema")
+                    })?
                 } else {
                     // Get data type from one of the outer schemas.
                     outer
@@ -477,7 +468,7 @@ impl LogicalExpression {
                         .ok_or_else(|| {
                             RayexecError::new("Column reference points to non-existent schema")
                         })?
-                        .get_types()
+                        .types
                         .get(col.item_idx)
                         .cloned()
                         .ok_or_else(|| {
@@ -485,12 +476,13 @@ impl LogicalExpression {
                         })?
                 }
             }
-            LogicalExpression::Literal(lit) => lit.data_type(),
+            LogicalExpression::Literal(lit) => lit.datatype(),
             LogicalExpression::Unary { op: _, expr: _ } => unimplemented!(),
             LogicalExpression::Binary { op, left, right } => {
-                let left = left.data_type(current, outer)?;
-                let right = right.data_type(current, outer)?;
-                op.data_type(&left, &right)?
+                let left = left.datatype(current, outer)?;
+                let right = right.datatype(current, outer)?;
+                unimplemented!()
+                // op.data_type(&left, &right)?
             }
             _ => unimplemented!(),
         })
@@ -498,7 +490,7 @@ impl LogicalExpression {
 
     /// Try to get a top-level literal from this expression, erroring if it's
     /// not one.
-    pub fn try_into_scalar(self) -> Result<ScalarValue> {
+    pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
         match self {
             Self::Literal(lit) => Ok(lit),
             other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),

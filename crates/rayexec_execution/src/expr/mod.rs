@@ -6,6 +6,7 @@ use self::scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator}
 use crate::{planner::operator::LogicalExpression, types::batch::DataBatch};
 use arrow_array::{ArrayRef, BooleanArray};
 
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
@@ -19,7 +20,7 @@ pub enum PhysicalScalarExpression {
     /// Reference to a column in the input batch.
     Column(usize),
     /// A scalar literal.
-    Literal(ScalarValue),
+    Literal(OwnedScalarValue),
     /// Unary function.
     Unary {
         op: UnaryOperator,
@@ -84,7 +85,10 @@ impl PhysicalScalarExpression {
                     ))
                 })?
                 .clone(),
-            Self::Literal(lit) => lit.as_array(batch.num_rows())?,
+            Self::Literal(lit) => {
+                // lit.as_array(batch.num_rows())?
+                unimplemented!()
+            }
             Self::Binary { op, left, right } => {
                 let left = left.eval(batch)?;
                 let right = right.eval(batch)?;
