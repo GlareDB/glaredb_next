@@ -1,7 +1,7 @@
 pub mod dummy;
+pub mod csv;
 pub mod empty;
 pub mod generate_series;
-pub mod read_csv;
 pub mod read_parquet;
 
 use rayexec_bullet::field::Schema;

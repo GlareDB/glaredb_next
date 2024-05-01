@@ -1,4 +1,5 @@
 use futures::StreamExt;
+use rayexec_bullet::format::ugly::ugly_print;
 use rayexec_error::Result;
 use rayexec_execution::engine::Engine;
 use tracing_subscriber::filter::EnvFilter;
@@ -47,7 +48,8 @@ async fn inner() -> Result<()> {
     println!("OUTPUT SCHEMA: {:?}", output.output_schema);
 
     for (idx, batch) in batches.into_iter().enumerate() {
-        println!("{idx}: BATCH\n{batch:?}");
+        let out = ugly_print(&output.output_schema, &[batch])?;
+        println!("{out}");
     }
 
     Ok(())

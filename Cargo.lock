@@ -1519,8 +1519,8 @@ dependencies = [
 name = "rayexec_bin"
 version = "0.0.1"
 dependencies = [
- "arrow",
  "futures",
+ "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
  "tokio",

@@ -1,3 +1,5 @@
+pub mod ugly;
+
 use crate::{array::Array, scalar::ScalarValue};
 use std::fmt;
 

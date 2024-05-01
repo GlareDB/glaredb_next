@@ -1,3 +1,6 @@
+use crate::functions::table::{
+    BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs,
+};
 use crate::physical::plans::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -10,8 +13,6 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::task::{Context, Poll};
-
-use super::{BoundTableFunction, Statistics, TableFunction, TableFunctionArgs};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadCsv;
@@ -88,7 +89,7 @@ impl ReadCsvLocal {
         loop {
             let buf = buf_reader.fill_buf()?;
             let result = decoder.decode(&buf)?;
-            buf_reader.consume(result.completed);
+            buf_reader.consume(result.input_offset);
             count += result.completed;
 
             if result.completed == 0 || count >= infer_count {
@@ -140,7 +141,7 @@ impl BoundTableFunction for ReadCsvLocal {
     fn into_source(
         self: Box<Self>,
         _projection: Vec<usize>,
-        _pushdown: super::Pushdown,
+        _pushdown: Pushdown,
     ) -> Result<Box<dyn Source>> {
         unimplemented!()
         // Ok(Box::new(ReadCsvLocalOperator {
