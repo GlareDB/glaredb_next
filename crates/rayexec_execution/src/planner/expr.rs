@@ -1,4 +1,3 @@
-use crate::expr::scalar::ScalarValue;
 use rayexec_bullet::{
     field::{Schema, TypeSchema},
     scalar::OwnedScalarValue,

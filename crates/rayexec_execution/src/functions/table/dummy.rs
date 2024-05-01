@@ -9,7 +9,11 @@ use crate::{
 };
 use arrow_array::StringArray;
 use parking_lot::Mutex;
-use rayexec_bullet::field::{DataType, Field, Schema};
+use rayexec_bullet::{
+    array::{Array, Utf8Array},
+    batch::Batch,
+    field::{DataType, Field, Schema},
+};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -69,12 +73,13 @@ impl Explainable for BoundDummyTableFunction {
 #[derive(Debug)]
 pub struct DummyTableFunctionSource {
     projection: Vec<usize>,
-    batch: Mutex<Option<DataBatch>>,
+    batch: Mutex<Option<Batch>>,
 }
 
 impl DummyTableFunctionSource {
     fn new(projection: Vec<usize>) -> Self {
-        let batch = DataBatch::try_new(vec![Arc::new(StringArray::from(vec!["dummy"]))]).unwrap();
+        let batch = Batch::try_new([Array::Utf8(Utf8Array::from_iter(["dummy"]))])
+            .expect("dummy batch to be valid");
         DummyTableFunctionSource {
             projection,
             batch: Mutex::new(Some(batch)),

@@ -6,6 +6,7 @@ use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{ColumnHash, DataBatch};
 use arrow_array::UInt64Array;
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -31,7 +32,7 @@ struct OutputPartitionState {
     pending: Option<Waker>,
 
     /// Batches with their hashes computed.
-    batches: VecDeque<DataBatch>,
+    batches: VecDeque<Batch>,
 }
 
 impl PhysicalHashRepartition {
@@ -122,7 +123,7 @@ impl Sink for PhysicalHashRepartitionSink {
         &self,
         _task_cx: &TaskContext,
         _cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         _partition: usize,
     ) -> Result<PollPush> {
         // TODO: Probably needs backpressure.
@@ -134,7 +135,7 @@ impl Sink for PhysicalHashRepartitionSink {
         let arrs: Vec<_> = self
             .columns
             .iter()
-            .map(|idx| input.column(*idx).unwrap())
+            .map(|idx| input.column(*idx).unwrap().as_ref())
             .collect();
         build_hashes(&arrs, &mut hashes)?;
 
@@ -150,31 +151,32 @@ impl Sink for PhysicalHashRepartitionSink {
         }
 
         for (partition_idx, partition_rows) in row_indexes.into_iter().enumerate() {
-            // Get the hashes corresponding to the rows for this output
-            // partition.
-            let batch_hashes = take_indexes(&hashes, &partition_rows);
-            let column_hash = ColumnHash::new(&self.columns, batch_hashes);
+            unimplemented!()
+            // // Get the hashes corresponding to the rows for this output
+            // // partition.
+            // let batch_hashes = take_indexes(&hashes, &partition_rows);
+            // let column_hash = ColumnHash::new(&self.columns, batch_hashes);
 
-            // Because arrow
-            let partition_rows =
-                UInt64Array::from_iter(partition_rows.into_iter().map(|idx| idx as u64));
+            // // Because arrow
+            // let partition_rows =
+            //     UInt64Array::from_iter(partition_rows.into_iter().map(|idx| idx as u64));
 
-            // Get the rows for this batch.
-            let cols = input
-                .columns()
-                .iter()
-                .map(|col| arrow::compute::take(col.as_ref(), &partition_rows, None))
-                .collect::<Result<Vec<_>, _>>()?;
+            // // Get the rows for this batch.
+            // let cols = input
+            //     .columns()
+            //     .iter()
+            //     .map(|col| arrow::compute::take(col.as_ref(), &partition_rows, None))
+            //     .collect::<Result<Vec<_>, _>>()?;
 
-            let output_batch = DataBatch::try_new_with_column_hash(cols, column_hash)?;
+            // let output_batch = DataBatch::try_new_with_column_hash(cols, column_hash)?;
 
-            let mut output_state = self.output_states[partition_idx].lock();
-            output_state.batches.push_back(output_batch);
+            // let mut output_state = self.output_states[partition_idx].lock();
+            // output_state.batches.push_back(output_batch);
 
-            // TODO: Do this outside the loop.
-            if let Some(waker) = output_state.pending.take() {
-                waker.wake();
-            }
+            // // TODO: Do this outside the loop.
+            // if let Some(waker) = output_state.pending.take() {
+            //     waker.wake();
+            // }
         }
 
         Ok(PollPush::Pushed)

@@ -80,7 +80,7 @@ impl SessionVars {
         self.get_var(name).is_ok()
     }
 
-    pub fn set_var(&mut self, name: &str, value: ScalarValue) -> Result<()> {
+    pub fn set_var(&mut self, name: &str, value: OwnedScalarValue) -> Result<()> {
         if let Some(var) = self.vars.get_mut(name) {
             var.validate_type(&value)?;
 

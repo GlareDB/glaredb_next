@@ -6,6 +6,7 @@ use crate::types::batch::DataBatch;
 use arrow_array::{BooleanArray, UInt32Array};
 use hashbrown::raw::RawTable;
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use smallvec::{smallvec, SmallVec};
 use std::collections::BTreeMap;
@@ -229,43 +230,44 @@ impl HashState {
     ///
     /// It's expected that the batches have already been hashed on provided hash
     /// columns.
-    fn push_for_build(&mut self, batch: DataBatch, hash_columns: &[usize]) -> Result<()> {
+    fn push_for_build(&mut self, batch: Batch, hash_columns: &[usize]) -> Result<()> {
         match self {
             Self::Local { state } => {
-                // TODO: These assume that this hash join has a hash repartition
-                // operator immediately prior to it.
-                let col_hash = batch.get_column_hash().ok_or_else(|| {
-                    RayexecError::new("Expected columns to already have been hashed")
-                })?;
+                unimplemented!()
+                // // TODO: These assume that this hash join has a hash repartition
+                // // operator immediately prior to it.
+                // let col_hash = batch.get_column_hash().ok_or_else(|| {
+                //     RayexecError::new("Expected columns to already have been hashed")
+                // })?;
 
-                if !col_hash.is_for_columns(hash_columns) {
-                    return Err(RayexecError::new(
-                        "Expected columns to already have been hashed",
-                    ));
-                }
+                // if !col_hash.is_for_columns(hash_columns) {
+                //     return Err(RayexecError::new(
+                //         "Expected columns to already have been hashed",
+                //     ));
+                // }
 
-                // Index of the newly arrived batch. The batch gets pushed at
-                // the end of the block after we compute the row keys.
-                let batch_idx = state.batches.len();
+                // // Index of the newly arrived batch. The batch gets pushed at
+                // // the end of the block after we compute the row keys.
+                // let batch_idx = state.batches.len();
 
-                for (row_idx, row_hash) in col_hash.hashes.iter().enumerate() {
-                    let row_key = RowKey { batch_idx, row_idx };
-                    if let Some((_, indexes)) =
-                        state.table.get_mut(*row_hash, |(hash, _)| row_hash == hash)
-                    {
-                        indexes.push(row_key);
-                    } else {
-                        state.table.insert(
-                            *row_hash,
-                            (*row_hash, smallvec![row_key]),
-                            |(hash, _)| *hash,
-                        );
-                    }
-                }
+                // for (row_idx, row_hash) in col_hash.hashes.iter().enumerate() {
+                //     let row_key = RowKey { batch_idx, row_idx };
+                //     if let Some((_, indexes)) =
+                //         state.table.get_mut(*row_hash, |(hash, _)| row_hash == hash)
+                //     {
+                //         indexes.push(row_key);
+                //     } else {
+                //         state.table.insert(
+                //             *row_hash,
+                //             (*row_hash, smallvec![row_key]),
+                //             |(hash, _)| *hash,
+                //         );
+                //     }
+                // }
 
-                state.batches.push(batch);
+                // state.batches.push(batch);
 
-                Ok(())
+                // Ok(())
             }
             _ => Err(RayexecError::new("Expected batch state to be local")),
         }
@@ -316,7 +318,7 @@ struct LocalState {
     pending_pull: Option<Waker>,
 
     /// Computed batches.
-    computed: VecDeque<DataBatch>,
+    computed: VecDeque<Batch>,
 }
 
 /// Batch sink for the left side of the join.
@@ -341,7 +343,7 @@ impl Sink for PhysicalPartitionedHashJoinBuildSink {
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         // TODO: Probably want to assert that this partition is correct for the
@@ -419,7 +421,7 @@ impl Sink for PhysicalPartitionedHashJoinProbeSink {
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         let local_states = {
@@ -477,164 +479,165 @@ impl Explainable for PhysicalPartitionedHashJoinProbeSink {
 fn probe(
     left: &[LocalHashState],
     partition: usize,
-    right: &DataBatch,
+    right: &Batch,
     join_cols: &[usize],
     join_type: JoinType,
-) -> Result<Vec<DataBatch>> {
-    // Assumes the right side has already been hashed.
-    let right_hash = right.get_column_hash().ok_or_else(|| {
-        RayexecError::new("Expected columns in right side of join to already have been hashed")
-    })?;
-    if !right_hash.is_for_columns(join_cols) {
-        return Err(RayexecError::new(
-            "Expected columns in right side of join to already have been hashed",
-        ));
-    }
+) -> Result<Vec<Batch>> {
+    unimplemented!()
+    // // Assumes the right side has already been hashed.
+    // let right_hash = right.get_column_hash().ok_or_else(|| {
+    //     RayexecError::new("Expected columns in right side of join to already have been hashed")
+    // })?;
+    // if !right_hash.is_for_columns(join_cols) {
+    //     return Err(RayexecError::new(
+    //         "Expected columns in right side of join to already have been hashed",
+    //     ));
+    // }
 
-    let mut outputs = Vec::new();
+    // let mut outputs = Vec::new();
 
-    // Get the partition state that corresponds to these hashes.
-    let state = left.get(partition).expect("left partition to exist");
+    // // Get the partition state that corresponds to these hashes.
+    // let state = left.get(partition).expect("left partition to exist");
 
-    // Indexes into the left and right batches. Note that this stored in a map
-    // since one hash value may correspond to rows in different batches on the
-    // left side. The key just indicates which of those batches contains the
-    // match, and the value is the indexes of rows in that batch.
-    //
-    // TODO: It might make sense to just concat the batches on the left side
-    // into a single large batch. _Or_ adjust row key to be a single usize and
-    // account for preceding batch lengths.
-    let mut partition_build_indexes: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    let mut partition_probe_indexes: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    // // Indexes into the left and right batches. Note that this stored in a map
+    // // since one hash value may correspond to rows in different batches on the
+    // // left side. The key just indicates which of those batches contains the
+    // // match, and the value is the indexes of rows in that batch.
+    // //
+    // // TODO: It might make sense to just concat the batches on the left side
+    // // into a single large batch. _Or_ adjust row key to be a single usize and
+    // // account for preceding batch lengths.
+    // let mut partition_build_indexes: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    // let mut partition_probe_indexes: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
 
-    for (probe_row_idx, probe_row_hash) in right_hash.hashes.iter().enumerate() {
-        let entry = state
-            .table
-            .get(*probe_row_hash, |(hash, _)| probe_row_hash == hash);
-        if let Some((_, indexes)) = entry {
-            for row_key in indexes {
-                use std::collections::btree_map::Entry;
+    // for (probe_row_idx, probe_row_hash) in right_hash.hashes.iter().enumerate() {
+    //     let entry = state
+    //         .table
+    //         .get(*probe_row_hash, |(hash, _)| probe_row_hash == hash);
+    //     if let Some((_, indexes)) = entry {
+    //         for row_key in indexes {
+    //             use std::collections::btree_map::Entry;
 
-                match partition_build_indexes.entry(row_key.batch_idx) {
-                    Entry::Vacant(ent) => {
-                        ent.insert(vec![row_key.row_idx]);
+    //             match partition_build_indexes.entry(row_key.batch_idx) {
+    //                 Entry::Vacant(ent) => {
+    //                     ent.insert(vec![row_key.row_idx]);
 
-                        let existing =
-                            partition_probe_indexes.insert(row_key.batch_idx, vec![probe_row_idx]);
-                        assert!(
-                            existing.is_none(),
-                            "build indexes out of sync, previous value exists"
-                        );
-                    }
-                    Entry::Occupied(mut ent) => {
-                        let build_rows = ent.get_mut();
-                        build_rows.push(row_key.row_idx);
+    //                     let existing =
+    //                         partition_probe_indexes.insert(row_key.batch_idx, vec![probe_row_idx]);
+    //                     assert!(
+    //                         existing.is_none(),
+    //                         "build indexes out of sync, previous value exists"
+    //                     );
+    //                 }
+    //                 Entry::Occupied(mut ent) => {
+    //                     let build_rows = ent.get_mut();
+    //                     build_rows.push(row_key.row_idx);
 
-                        let probe_rows = partition_probe_indexes
-                            .get_mut(&row_key.batch_idx)
-                            .expect("probe row indexes should already exist for this batch");
-                        probe_rows.push(probe_row_idx);
-                    }
-                }
-            }
-        }
-    }
+    //                     let probe_rows = partition_probe_indexes
+    //                         .get_mut(&row_key.batch_idx)
+    //                         .expect("probe row indexes should already exist for this batch");
+    //                     probe_rows.push(probe_row_idx);
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
-    for ((build_idx1, build), (build_idx2, probe)) in partition_build_indexes
-        .into_iter()
-        .zip(partition_probe_indexes.into_iter())
-    {
-        assert_eq!(build_idx1, build_idx2);
-        let build_batch = state.batches.get(build_idx1).expect("build batch to exist");
+    // for ((build_idx1, build), (build_idx2, probe)) in partition_build_indexes
+    //     .into_iter()
+    //     .zip(partition_probe_indexes.into_iter())
+    // {
+    //     assert_eq!(build_idx1, build_idx2);
+    //     let build_batch = state.batches.get(build_idx1).expect("build batch to exist");
 
-        let mut partition_build_indexes =
-            UInt32Array::from_iter(build.into_iter().map(|idx| idx as u32));
-        let mut partition_probe_indexes =
-            UInt32Array::from_iter(probe.into_iter().map(|idx| idx as u32));
+    //     let mut partition_build_indexes =
+    //         UInt32Array::from_iter(build.into_iter().map(|idx| idx as u32));
+    //     let mut partition_probe_indexes =
+    //         UInt32Array::from_iter(probe.into_iter().map(|idx| idx as u32));
 
-        // Check equality based on key values.
-        let build_arrs: Vec<_> = join_cols
-            .iter()
-            .map(|idx| {
-                build_batch
-                    .column(*idx)
-                    .expect("column in build batch to exist")
-            })
-            .collect();
-        let probe_arrs: Vec<_> = join_cols
-            .iter()
-            .map(|idx| right.column(*idx).expect("column in probe batch to exist"))
-            .collect();
+    //     // Check equality based on key values.
+    //     let build_arrs: Vec<_> = join_cols
+    //         .iter()
+    //         .map(|idx| {
+    //             build_batch
+    //                 .column(*idx)
+    //                 .expect("column in build batch to exist")
+    //         })
+    //         .collect();
+    //     let probe_arrs: Vec<_> = join_cols
+    //         .iter()
+    //         .map(|idx| right.column(*idx).expect("column in probe batch to exist"))
+    //         .collect();
 
-        let mut equal = BooleanArray::from(vec![true; partition_probe_indexes.len()]);
-        let iter = build_arrs.iter().zip(probe_arrs.iter());
-        equal = iter
-            .map(|(build, probe)| {
-                let build_take = arrow::compute::take(&build, &partition_build_indexes, None)?;
-                let probe_take = arrow::compute::take(&probe, &partition_probe_indexes, None)?;
-                // TODO: null == null
-                arrow_ord::cmp::eq(&build_take, &probe_take)
-            })
-            .try_fold(equal, |acc, result| arrow::compute::and(&acc, &result?))?;
+    //     let mut equal = BooleanArray::from(vec![true; partition_probe_indexes.len()]);
+    //     let iter = build_arrs.iter().zip(probe_arrs.iter());
+    //     equal = iter
+    //         .map(|(build, probe)| {
+    //             let build_take = arrow::compute::take(&build, &partition_build_indexes, None)?;
+    //             let probe_take = arrow::compute::take(&probe, &partition_probe_indexes, None)?;
+    //             // TODO: null == null
+    //             arrow_ord::cmp::eq(&build_take, &probe_take)
+    //         })
+    //         .try_fold(equal, |acc, result| arrow::compute::and(&acc, &result?))?;
 
-        partition_build_indexes = arrow_array::cast::downcast_array(&arrow::compute::filter(
-            &partition_build_indexes,
-            &equal,
-        )?);
-        partition_probe_indexes = arrow_array::cast::downcast_array(&arrow::compute::filter(
-            &partition_probe_indexes,
-            &equal,
-        )?);
+    //     partition_build_indexes = arrow_array::cast::downcast_array(&arrow::compute::filter(
+    //         &partition_build_indexes,
+    //         &equal,
+    //     )?);
+    //     partition_probe_indexes = arrow_array::cast::downcast_array(&arrow::compute::filter(
+    //         &partition_probe_indexes,
+    //         &equal,
+    //     )?);
 
-        // Adjust indexes as needed depending on the join type.
-        // TODO: Handle everything else.
-        //
-        // Left:
-        // - Include every unvisited row in left batch, join with right nulls.
-        // - Partition local bitmap to track unvisited left batchs.
-        // - Flush out unvisited batches on finish.
-        //
-        // Right:
-        // - Include every unvisited row in right batch, join with left nulls.
-        // - Nothing else.
-        //
-        // Outer:
-        // - Include every unvisited row in right batch, join with left nulls.
-        // - Include every unvisited row in left batch, join with right nulls,
-        // - Partition local bitmap to track unvisited left batchs.
-        // - Flush out unvisited batches on finish.
-        //
-        // Left/right semi:
-        // - Just include left/right columns.
-        //
-        // Left/right anti:
-        // - Inverse of left/right
-        match join_type {
-            JoinType::Inner => {
-                // No adjustments needed.
-            }
-            _ => unimplemented!(),
-        }
+    //     // Adjust indexes as needed depending on the join type.
+    //     // TODO: Handle everything else.
+    //     //
+    //     // Left:
+    //     // - Include every unvisited row in left batch, join with right nulls.
+    //     // - Partition local bitmap to track unvisited left batchs.
+    //     // - Flush out unvisited batches on finish.
+    //     //
+    //     // Right:
+    //     // - Include every unvisited row in right batch, join with left nulls.
+    //     // - Nothing else.
+    //     //
+    //     // Outer:
+    //     // - Include every unvisited row in right batch, join with left nulls.
+    //     // - Include every unvisited row in left batch, join with right nulls,
+    //     // - Partition local bitmap to track unvisited left batchs.
+    //     // - Flush out unvisited batches on finish.
+    //     //
+    //     // Left/right semi:
+    //     // - Just include left/right columns.
+    //     //
+    //     // Left/right anti:
+    //     // - Inverse of left/right
+    //     match join_type {
+    //         JoinType::Inner => {
+    //             // No adjustments needed.
+    //         }
+    //         _ => unimplemented!(),
+    //     }
 
-        let mut cols = Vec::new();
-        for build_col in build_batch.columns() {
-            cols.push(arrow::compute::take(
-                build_col,
-                &partition_build_indexes,
-                None,
-            )?);
-        }
-        for probe_col in right.columns() {
-            cols.push(arrow::compute::take(
-                probe_col,
-                &partition_probe_indexes,
-                None,
-            )?)
-        }
+    //     let mut cols = Vec::new();
+    //     for build_col in build_batch.columns() {
+    //         cols.push(arrow::compute::take(
+    //             build_col,
+    //             &partition_build_indexes,
+    //             None,
+    //         )?);
+    //     }
+    //     for probe_col in right.columns() {
+    //         cols.push(arrow::compute::take(
+    //             probe_col,
+    //             &partition_probe_indexes,
+    //             None,
+    //         )?)
+    //     }
 
-        let batch = DataBatch::try_new(cols)?;
-        outputs.push(batch);
-    }
+    //     let batch = DataBatch::try_new(cols)?;
+    //     outputs.push(batch);
+    // }
 
-    Ok(outputs)
+    // Ok(outputs)
 }

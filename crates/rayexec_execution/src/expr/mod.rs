@@ -1,8 +1,7 @@
 pub mod binary;
-pub mod literal;
 pub mod scalar;
 
-use self::scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator};
+use self::scalar::{BinaryOperator, UnaryOperator, VariadicOperator};
 use crate::{planner::operator::LogicalExpression, types::batch::DataBatch};
 use arrow_array::{ArrayRef, BooleanArray};
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
@@ -12,7 +11,7 @@ use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Expression {
-    Literal(ScalarValue),
+    Literal(OwnedScalarValue),
 }
 
 #[derive(Debug, Clone, PartialEq)]

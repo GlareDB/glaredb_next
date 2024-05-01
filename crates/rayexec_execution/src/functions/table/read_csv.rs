@@ -1,4 +1,3 @@
-use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};

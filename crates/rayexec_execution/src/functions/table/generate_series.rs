@@ -3,7 +3,8 @@ use crate::physical::plans::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
-use arrow_array::Int32Array;
+use rayexec_bullet::array::{Array, Int32Array};
+use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::{DataType, Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -78,7 +79,9 @@ impl BoundTableFunction for GenerateSeriesInteger {
         _pushdown: Pushdown,
     ) -> Result<Box<dyn Source>> {
         Ok(Box::new(GenerateSeriesIntegerOperator {
-            s: *self,
+            start: self.start,
+            stop: self.stop,
+            step: self.step,
             curr: AtomicI32::new(self.start),
         }))
     }
@@ -99,7 +102,9 @@ impl Explainable for GenerateSeriesInteger {
 
 #[derive(Debug)]
 struct GenerateSeriesIntegerOperator {
-    s: GenerateSeriesInteger,
+    start: i32,
+    stop: i32,
+    step: i32,
     curr: AtomicI32,
 }
 
@@ -117,12 +122,12 @@ impl Source for GenerateSeriesIntegerOperator {
         const BATCH_SIZE: usize = 1000;
         let curr = self.curr.load(Ordering::Relaxed);
 
-        if curr > self.s.stop {
+        if curr > self.stop {
             return Ok(PollPull::Exhausted);
         }
 
-        let vals: Vec<_> = (curr..=self.s.stop)
-            .step_by(self.s.step as usize)
+        let vals: Vec<_> = (curr..=self.stop)
+            .step_by(self.step as usize)
             .take(BATCH_SIZE)
             .collect();
 
@@ -131,15 +136,22 @@ impl Source for GenerateSeriesIntegerOperator {
             None => return Ok(PollPull::Exhausted),
         };
 
-        self.curr.store(last + self.s.step, Ordering::Relaxed);
-        let arr = Arc::new(Int32Array::from(vals));
+        self.curr.store(last + self.step, Ordering::Relaxed);
+        let arr = Array::Int32(Int32Array::from(vals));
 
-        Ok(PollPull::Batch(DataBatch::try_new(vec![arr]).unwrap()))
+        Ok(PollPull::Batch(Batch::try_new([arr]).unwrap()))
     }
 }
 
 impl Explainable for GenerateSeriesIntegerOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.s.explain_entry(conf)
+        let ent = ExplainEntry::new("generate_series (int)");
+        if conf.verbose {
+            ent.with_value("start", self.start)
+                .with_value("stop", self.stop)
+                .with_value("step", self.step)
+        } else {
+            ent
+        }
     }
 }

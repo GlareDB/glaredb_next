@@ -10,7 +10,6 @@ use rayexec_error::Result;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::Source;
 use crate::planner::explainable::Explainable;
 

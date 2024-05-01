@@ -1,7 +1,7 @@
 mod hashtable;
 
 use crate::physical::plans::hash_aggregate::hashtable::GroupingSetColumns;
-use crate::physical::plans::util::hash::{build_hashes, hash_partition_batch};
+use crate::physical::plans::util::hash::build_hashes;
 use crate::physical::TaskContext;
 use crate::types::batch::DataBatch;
 use crate::{
@@ -142,7 +142,7 @@ impl Sink for PhysicalHashAggregateSink {
         let mut state = self.input_states[partition].lock();
 
         let mut hashes = vec![0; input.num_rows()];
-        let mut groups = Vec::new();
+        // let mut groups = Vec::new();
 
         // Update all grouping set states from the input. Each input batch will
         // be hash partitioned such that they can be placed in their expected
@@ -151,35 +151,41 @@ impl Sink for PhysicalHashAggregateSink {
             let arrs: Vec<_> = grouping_set
                 .columns
                 .iter()
-                .map(|idx| input.column(*idx).expect("column to exist on input"))
+                .map(|idx| {
+                    input
+                        .column(*idx)
+                        .expect("column to exist on input")
+                        .as_ref()
+                })
                 .collect();
             let hashes = build_hashes(&arrs, &mut hashes)?;
 
-            let partition_batches = hash_partition_batch(&input, hashes, self.partitions)?;
-            for (partition_idx, batch) in partition_batches.into_iter().enumerate() {
-                // Update hash table for this grouping set. This will write the
-                // computed groups based on the hash and actual row equality
-                // into `groups.
-                let group_by_cols: Vec<_> = grouping_set
-                    .columns
-                    .iter()
-                    .map(|idx| {
-                        batch
-                            .batch
-                            .column(*idx)
-                            .expect("column to exist on hash partitioned batch")
-                            .clone()
-                    })
-                    .collect();
-                let cols = GroupingSetColumns {
-                    columns: &group_by_cols,
-                    hashes: &batch.hashes,
-                };
-                grouping_set.hash_tables[partition_idx].insert_groups(cols, &mut groups)?;
+            unimplemented!()
+            // let partition_batches = hash_partition_batch(&input, hashes, self.partitions)?;
+            // for (partition_idx, batch) in partition_batches.into_iter().enumerate() {
+            //     // Update hash table for this grouping set. This will write the
+            //     // computed groups based on the hash and actual row equality
+            //     // into `groups.
+            //     let group_by_cols: Vec<_> = grouping_set
+            //         .columns
+            //         .iter()
+            //         .map(|idx| {
+            //             batch
+            //                 .batch
+            //                 .column(*idx)
+            //                 .expect("column to exist on hash partitioned batch")
+            //                 .clone()
+            //         })
+            //         .collect();
+            //     let cols = GroupingSetColumns {
+            //         columns: &group_by_cols,
+            //         hashes: &batch.hashes,
+            //     };
+            //     grouping_set.hash_tables[partition_idx].insert_groups(cols, &mut groups)?;
 
-                // Now update into the accumulators.
-                grouping_set.accumulators[partition_idx].update_groups(&batch.batch, &groups)?;
-            }
+            //     // Now update into the accumulators.
+            //     grouping_set.accumulators[partition_idx].update_groups(&batch.batch, &groups)?;
+            // }
         }
 
         Ok(PollPush::Pushed)

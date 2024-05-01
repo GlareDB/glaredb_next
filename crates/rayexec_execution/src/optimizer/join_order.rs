@@ -1,5 +1,5 @@
 use crate::{
-    expr::scalar::{BinaryOperator, ScalarValue},
+    expr::scalar::BinaryOperator,
     planner::operator::{AnyJoin, EqualityJoin, LogicalExpression, LogicalOperator},
 };
 use rayexec_error::Result;

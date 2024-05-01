@@ -5,13 +5,11 @@ use super::{
     Resolver,
 };
 use crate::{
-    expr::scalar::ScalarValue,
     functions::table::TableFunctionArgs,
     planner::{
         operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
         scope::TableReference,
     },
-    types::batch::DataBatchSchema,
 };
 use rayexec_bullet::field::{Schema, TypeSchema};
 use rayexec_error::{RayexecError, Result};
@@ -241,7 +239,7 @@ impl<'a> PlanContext<'a> {
 
                 let name = func.name();
                 let bound = func.bind(func_args)?; // The only thing that would benefit from async.
-                let schema = bound.schema();
+                let schema = bound.schema().clone();
 
                 // Create a new scope with just this table function.
                 // TODO: Reference should probably be qualified.
