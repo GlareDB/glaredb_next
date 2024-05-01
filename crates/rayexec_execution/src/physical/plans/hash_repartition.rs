@@ -1,5 +1,5 @@
 use super::{PollPull, PollPush, Sink, Source};
-use crate::physical::plans::util::hash::{build_hashes, partition_for_hash};
+use crate::physical::plans::util::hash::{hash_arrays, partition_for_hash};
 use crate::physical::plans::util::take::take_indexes;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -137,7 +137,7 @@ impl Sink for PhysicalHashRepartitionSink {
             .iter()
             .map(|idx| input.column(*idx).unwrap().as_ref())
             .collect();
-        build_hashes(&arrs, &mut hashes)?;
+        hash_arrays(&arrs, &mut hashes)?;
 
         let partitions = self.output_states.len();
 

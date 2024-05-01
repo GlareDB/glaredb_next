@@ -1,6 +1,8 @@
 use ahash::RandomState;
-use rayexec_bullet::array::{
-    Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
+use rayexec_bullet::{
+    array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
+    row::Row,
+    scalar::ScalarValue,
 };
 use rayexec_error::Result;
 
@@ -19,7 +21,7 @@ pub const fn partition_for_hash(hash: u64, partitions: usize) -> usize {
 ///
 /// All arrays provided must be of the same length, and the provided hash buffer
 /// must equal that length.
-pub fn build_hashes<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a mut [u64]> {
+pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a mut [u64]> {
     for (idx, array) in arrays.iter().enumerate() {
         let combine_hash = idx > 0;
 
@@ -44,6 +46,41 @@ pub fn build_hashes<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a 
     }
 
     Ok(hashes)
+}
+
+/// Hash a row.
+pub fn hash_row(row: &Row) -> u64 {
+    let mut result = 0;
+    for (idx, scalar) in row.iter().enumerate() {
+        let combine_hash = idx > 0;
+
+        let scalar_hash = match scalar {
+            ScalarValue::Null => null_hash_value(),
+            ScalarValue::Boolean(v) => v.hash_one(),
+            ScalarValue::Float32(v) => v.hash_one(),
+            ScalarValue::Float64(v) => v.hash_one(),
+            ScalarValue::Int8(v) => v.hash_one(),
+            ScalarValue::Int16(v) => v.hash_one(),
+            ScalarValue::Int32(v) => v.hash_one(),
+            ScalarValue::Int64(v) => v.hash_one(),
+            ScalarValue::UInt8(v) => v.hash_one(),
+            ScalarValue::UInt16(v) => v.hash_one(),
+            ScalarValue::UInt32(v) => v.hash_one(),
+            ScalarValue::UInt64(v) => v.hash_one(),
+            ScalarValue::Utf8(v) => v.hash_one(),
+            ScalarValue::LargeUtf8(v) => v.hash_one(),
+            ScalarValue::Binary(v) => v.hash_one(),
+            ScalarValue::LargeBinary(v) => v.hash_one(),
+        };
+
+        if combine_hash {
+            result = combine_hashes(scalar_hash, result);
+        } else {
+            result = scalar_hash;
+        }
+    }
+
+    result
 }
 
 /// Helper trait for hashing values.
@@ -125,7 +162,7 @@ fn hash_bool(array: &BooleanArray, hashes: &mut [u64], combine: bool) {
 
     let values = array.values();
     match array.validity() {
-        Some(bitmap) => {
+        Some(_bitmap) => {
             // TODO: Nulls
             unimplemented!()
         }
@@ -153,7 +190,7 @@ fn hash_primitive<T: HashValue>(array: &PrimitiveArray<T>, hashes: &mut [u64], c
 
     let values = array.values();
     match array.validity() {
-        Some(bitmap) => {
+        Some(_bitmap) => {
             // TODO: Nulls
             unimplemented!()
         }
@@ -185,7 +222,7 @@ where
 
     let values_iter = array.values_iter();
     match array.validity() {
-        Some(bitmap) => {
+        Some(_bitmap) => {
             // TODO: Nulls
             unimplemented!()
         }
@@ -200,5 +237,39 @@ where
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::array::{Int32Array, Utf8Array};
+
+    use super::*;
+
+    #[test]
+    fn array_hash_row_hash_equivalent() {
+        // Hashing a slice of a arrays should produce the same hashes as the row
+        // representation of those same values.
+
+        let arrays = [
+            &Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
+            &Array::Int32(Int32Array::from_iter([1, 2, 3])),
+        ];
+        let mut hashes = vec![0; 3];
+
+        // Hash the arrays.
+        hash_arrays(&arrays, &mut hashes).unwrap();
+
+        // Sanity check just to make sure we're hashing.
+        assert_ne!(vec![0; 3], hashes);
+
+        // Now hash the row representations.
+        let mut row_hashes = vec![0; 3];
+        for idx in 0..3 {
+            let row = Row::try_new_from_arrays(&arrays, idx).unwrap();
+            row_hashes[idx] = hash_row(&row);
+        }
+
+        assert_eq!(hashes, row_hashes);
     }
 }

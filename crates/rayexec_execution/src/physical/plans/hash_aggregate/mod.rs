@@ -1,7 +1,7 @@
 mod hashtable;
 
 use crate::physical::plans::hash_aggregate::hashtable::GroupingSetColumns;
-use crate::physical::plans::util::hash::build_hashes;
+use crate::physical::plans::util::hash::hash_arrays;
 use crate::physical::TaskContext;
 use crate::types::batch::DataBatch;
 use crate::{
@@ -158,7 +158,7 @@ impl Sink for PhysicalHashAggregateSink {
                         .as_ref()
                 })
                 .collect();
-            let hashes = build_hashes(&arrs, &mut hashes)?;
+            let hashes = hash_arrays(&arrs, &mut hashes)?;
 
             unimplemented!()
             // let partition_batches = hash_partition_batch(&input, hashes, self.partitions)?;
