@@ -1,4 +1,4 @@
-use crate::array::Array;
+use crate::{array::Array, row::Row};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -68,6 +68,23 @@ impl Batch {
         }
     }
 
+    /// Get the row at some index.
+    pub fn row(&self, idx: usize) -> Option<Row> {
+        if idx >= self.num_rows {
+            return None;
+        }
+
+        // Non-zero number of rows, but no actual columns. Just return an empty
+        // row.
+        if self.cols.len() == 0 {
+            return Some(Row::empty());
+        }
+
+        let row = self.cols.iter().map(|col| col.scalar(idx).unwrap());
+
+        Some(Row::from_iter(row))
+    }
+
     pub fn column(&self, idx: usize) -> Option<&Arc<Array>> {
         self.cols.get(idx)
     }
@@ -82,5 +99,58 @@ impl Batch {
 
     pub fn num_rows(&self) -> usize {
         self.num_rows
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        array::{Int32Array, Utf8Array},
+        scalar::ScalarValue,
+    };
+
+    use super::*;
+
+    #[test]
+    fn get_row_simple() {
+        let batch = Batch::try_new([
+            Array::Int32(Int32Array::from_iter([1, 2, 3])),
+            Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
+        ])
+        .unwrap();
+
+        // Expected rows at index 0, 1, and 2
+        let expected = [
+            Row::from_iter([ScalarValue::Int32(1), ScalarValue::Utf8("a".into())]),
+            Row::from_iter([ScalarValue::Int32(2), ScalarValue::Utf8("b".into())]),
+            Row::from_iter([ScalarValue::Int32(3), ScalarValue::Utf8("c".into())]),
+        ];
+
+        for idx in 0..3 {
+            let got = batch.row(idx).unwrap();
+            assert_eq!(expected[idx], got);
+        }
+    }
+
+    #[test]
+    fn get_row_out_of_bounds() {
+        let batch = Batch::try_new([
+            Array::Int32(Int32Array::from_iter([1, 2, 3])),
+            Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
+        ])
+        .unwrap();
+
+        let got = batch.row(3);
+        assert_eq!(None, got);
+    }
+
+    #[test]
+    fn get_row_no_columns_non_zero_rows() {
+        let batch = Batch::empty_with_num_rows(3);
+
+        for idx in 0..3 {
+            let got = batch.row(idx).unwrap();
+            assert_eq!(Row::empty(), got);
+        }
     }
 }
