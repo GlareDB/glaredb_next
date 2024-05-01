@@ -198,11 +198,11 @@ impl BooleanArray {
         }
     }
 
-    pub(crate) fn validity(&self) -> Option<&Bitmap> {
+    pub fn validity(&self) -> Option<&Bitmap> {
         self.validity.as_ref()
     }
 
-    pub(crate) fn values(&self) -> &Bitmap {
+    pub fn values(&self) -> &Bitmap {
         &self.values
     }
 }
@@ -396,12 +396,12 @@ impl<T> PrimitiveArray<T> {
     }
 
     /// Get a reference to the underlying validity bitmap.
-    pub(crate) fn validity(&self) -> Option<&Bitmap> {
+    pub fn validity(&self) -> Option<&Bitmap> {
         self.validity.as_ref()
     }
 
     /// Get a reference to the underlying primitive values.
-    pub(crate) fn values(&self) -> &PrimitiveStorage<T> {
+    pub fn values(&self) -> &PrimitiveStorage<T> {
         &self.values
     }
 
@@ -579,7 +579,7 @@ where
     }
 
     /// Get a reference to the underlying validity bitmap.
-    pub(crate) fn validity(&self) -> Option<&Bitmap> {
+    pub fn validity(&self) -> Option<&Bitmap> {
         self.validity.as_ref()
     }
 
