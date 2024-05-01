@@ -1,4 +1,5 @@
 use crossbeam::channel::TryRecvError;
+use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser};
 
@@ -63,7 +64,7 @@ impl<'a> Resolver for DebugResolver<'a> {
 
 #[derive(Debug)]
 pub struct ExecutionResult {
-    pub output_schema: DataBatchSchema,
+    pub output_schema: Schema,
     pub stream: MaterializedBatchStream,
 }
 
@@ -114,7 +115,7 @@ impl Session {
         self.scheduler.execute(pipeline, context)?;
 
         Ok(ExecutionResult {
-            output_schema: DataBatchSchema::new(Vec::new()), // TODO
+            output_schema: Schema::empty(), // TODO
             stream: output_stream,
         })
     }

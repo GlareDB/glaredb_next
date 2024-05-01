@@ -1592,10 +1592,10 @@ dependencies = [
 name = "rayexec_sqltest"
 version = "0.0.1"
 dependencies = [
- "arrow",
  "async-trait",
  "env_logger",
  "futures",
+ "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
  "sqllogictest",
