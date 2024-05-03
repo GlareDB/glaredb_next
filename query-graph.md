@@ -230,28 +230,16 @@ Since we will only support a fixed number of operators, each operator will have
 a variant in each of the global and local state enums:
 
 ```rust
-pub enum GlobalSinkState {
-    PhysicalHashJoin(PhysicalHashJoinGlobalSinkState),
+pub enum GlobalState {
+    PhysicalHashJoin(PhysicalHashJoinGlobalState),
     ...
 }
 
-pub enum LocalSinkState {
-    PhysicalHashJoin(PhysicalHashJoinLocalSinkState),
-    ...
-}
-
-pub enum GlobalSourceState {
-    PhysicalHashJoin(PhysicalHashJoinGlobalSourceState),
-    ...
-}
-
-pub enum LocalSourceState {
-    PhysicalHashJoin(PhysicalHashJoinLocalSourceState),
+pub enum LocalState {
+    PhysicalHashJoin(PhysicalHashJoinLocalState),
     ...
 }
 ```
-
-TODO: Determine if we want/need separate states for sources and sinks.
 
 ### Operator interfaces
 
@@ -259,26 +247,29 @@ Slightly modified from our current trait definitions. `PollPush` and `PollPull`
 will remain the same.
 
 ```rust
-pub trait SinkOperator: Sync + Send + Explainable + Debug {
+pub trait PhysicalOperator: Sync + Send + Explainable + Debug {
+    fn num_inputs(&self) -> usize;
     fn input_partition(&self) -> usize;
+    fn output_partitions(&self) -> usize;
 
     /// Initialize the local state for a partition.
     ///
     /// This should be called once per partition.
-    fn init_local_state(&self, partition: usize) -> Result<LocalSinkState>;
+    fn init_local_state(&self, input: usize, partition: usize) -> Result<LocalState>;
 
     /// Initialize the global state.
     ///
     /// This should be called once in total.
-    fn init_global_state(&self) -> Result<GlobalSinkState>;
+    fn init_global_state(&self) -> Result<GlobalState>;
 
     /// Try to push a batch for this partition.
     fn poll_push(
         &self,
         cx: &mut Context,
-        local: &mut LocalSinkState,
-        global: &GlobalSinkState,
-        input: Batch,
+        local: &mut LocalState,
+        global: &GlobalState,
+        batch: Batch,
+        input: usize,
         partition: usize,
     ) -> Result<PollPush>;
 
@@ -287,36 +278,18 @@ pub trait SinkOperator: Sync + Send + Explainable + Debug {
         &self,
         local: &mut LocalSinkState,
         global: &GlobalSinkState,
+        input: usize,
         partition: usize
     ) -> Result<()>;
-}
-
-pub trait SourceOperator: Sync + Send + Explainable + Debug {
-    fn output_partitions(&self) -> usize;
-
-    /// Initialize the local state for a partition.
-    ///
-    /// This should be called once per partition.
-    fn init_local_state(&self, partition: usize) -> Result<LocalSourceState>;
-
-    /// Initialize the global state.
-    ///
-    /// This should be called once in total.
-    fn init_global_state(&self) -> Result<GlobalSourceState>;
 
     /// Try to pull a batch for this partition.
     fn poll_pull(
         &self,
         cx: &mut Context,
-        local: &mut LocalSourceState,
-        global: &GlobalSourceState,
+        local: &mut LocalState,
+        global: &GlobalState,
         partition: usize,
     ) -> Result<PollPull>;
-}
-
-/// Operator that requires no state (filter, projection)
-pub trait StatelessOperator: Sync + Send + Explainable + Debug {
-    fn execute(&self, input: Batch) -> Result<Batch>;
 }
 ```
 
@@ -327,49 +300,61 @@ from operators.
 A simplified example implementation of a nested loop join:
 
 ```rust
-pub enum GlobalSinkState {
+// Defined in another file.
+pub enum GlobalState {
     ...
-    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSinkState),
-    PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildGlobalSinkState),
-    ...
-}
-
-pub enum LocalSinkState {
-    ...
-    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSinkState),
-    PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildLocalSinkState),
+    PhysicalNestedLoopJoin(GlobalState),
     ...
 }
 
-pub enum GlobalSourceState {
+// Defined in another file.
+pub enum LocalState {
     ...
-    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSourceState),
-    ...
-}
-
-pub enum LocalSourceState {
-    ...
-    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSourceState),
+    PhysicalNestedLoopJoinBuild(BuildSideLocalState),
+    PhysicalNestedLoopJoinProbe(ProbeSideLocalState),
     ...
 }
 
-pub struct PhysicalNestedLoopJoinLocalSinkState {
-}
-
-pub struct PhysicalNestedLoopJoinGlobalSinkState {
-
-}
-
-pub struct PhysicalNestedLoopJoinLocalSourceState {
-    /// All batches from all partitions.
+pub struct BuildSideLocalState {
+    /// All batches on the build side for a single partition.
     ///
-    /// If this is empty, the thread should look at the global state to see if
-    /// the build side has completed. If it has, those batches should be cloned
-    /// here (A Batch uses Arcs behind the scenes.).
-    partition_batches: Vec<Batch>,
+    /// For hash joins, this would be a partition-local hash map.
+    batches: Vec<Batch>
 }
 
-pub struct PhysicalNestedLoopJoinGlobalSourceState {
+pub struct ProbeSideLocalState {
+    /// All batches from all partitions received on the build side.
+    ///
+    /// Store in the probe side local state to avoid needing to lock.
+    ///
+    /// For hash joins, this would be a hash map containing all batches from the
+    /// build side.
+    ///
+    /// If this is empty, the global state should be consulted to check if
+    /// probing is ready to begin.
+    all_batches: Vec<Batch>,
+
+    /// Buffered batches that need to be sent out.
+    buffered: VecDeque<Batch>,
+
+    /// Waker for thread wanting to pull.
+    pull_waker: Option<Waker>,
+
+    /// If the input to this partition is finished.
+    input_finished: bool,
+
+    // TODO: Determine if we want/need this. This is probably dependent on the
+    // design of `PartitionPipeline`.
+    //
+    // /// Waker for thread waiting to push.
+    // ///
+    // /// This is set if we attempt push on the probe side but the buffer isn't
+    // /// empty yet.
+    // push_waker: Option<Waker>
+}
+
+pub struct GlobalState {
+    shared: Arc<Mutex<SharedBuildProbeState>>,
 }
 
 /// State shared between the probe side and the build side.
@@ -379,15 +364,15 @@ struct SharedBuildProbeState {
     /// Populated by the build side upon completion of a partition.
     ///
     /// For hash joins, this would be a global hash table.
-    partition_batches: Vec<Batch>,
+    all_batches: Vec<Batch>,
 
     /// Number of partitions we're still waiting for on the build side.
     num_remaining: usize,
 
-    /// Waker for if a thread tried to pull a result from the join prior to us
-    /// completing the build side.
+    /// Wakers for the probe side.
+    ///
+    /// Only one waker per output partitions should be stored.
     probe_side_wakers: Vec<Option<Waker>>,
-
 }
 
 /// Implements the logic for a nested loop join.
@@ -412,168 +397,180 @@ impl PhysicalNestedLoopJoin {
             partitions
         }
     }
-
-    /// Return the build side of the join.
-    pub fn build_sink(&self) -> PhysicalNestedLoopJoinBuild {
-        PhysicalNestedLoopJoinBuild {
-            shared: self.shared.clone(),
-            partitions: self.partitions,
-        }
-    }
 }
 
-impl SinkOperator for PhysicalNestedLoopJoin {
+impl PhysicalOperator for PhysicalNestedLoopJoin {
+    fn num_inputs(&self) -> usize {
+        2
+    }
+
+    fn output_partitions(&self) -> usize {
+        self.partitions
+    }
+
     fn input_partitions(&self) -> usize {
         self.partitions
     }
 
-    fn init_local_state(&self, partition: usize) -> Result<LocalSinkState> {
-        Ok(LocalSinkState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSinkState{
-        }))
+    fn init_local_state(&self, input: usize, partition: usize) -> Result<LocalState> {
+        // (omitted)
     }
 
-    fn init_global_state(&self) -> Result<GlobalSinkState> {
-        Ok(GlobalSinkState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSinkState{
-        }))
+    fn init_global_state(&self) -> Result<GlobalState> {
+        // (omitted)
     }
 
     fn poll_push(
         &self,
         cx: &mut Context,
-        local: &mut LocalSinkState,
-        _global: &GlobalSinkState,
-        input: Batch,
-        _partition: usize,
+        local: &mut LocalState,
+        global: &GlobalState,
+        batch: Batch,
+        input: usize,
+        partition: usize,
     ) -> Result<PollPush> {
-        let local = match local {
-            LocalSinkState(PhysicalNestedLoopJoin(local)) => local,
-            other => panic!("unexpected local state: {other:?}"),
-        };
+        if input == 0 {
+            // Build side
+            let local = match local {
+                LocalState::PhysicalNestedLoopJoinBuild(local) => local,
+                other => panic!("invalid local state: {other:?}"),
+            };
 
+            local.batches.push(batch);
+            return Ok(PollPush::Pushed)
+        }
+
+        if input == 1 {
+            // Probe side
+            let local = match local {
+                LocalState::PhysicalNestedLoopJoinProbe(local) => local,
+                other => panic!("invalid local state: {other:?}"),
+            };
+
+            if !local.buffered.is_empty() {
+                // TODO: Do something here to provide a bit of back pressure.
+                // What we do here is probably dependent on the logic we do at
+                // the `PartitionPipeline` level.
+
+                // local.push_waker = Some(cx.waker().clone())
+            }
+
+            if local.all_batches.is_empty() {
+                // Need to see if we're actually ready to to probe.
+                let shared = match global {
+                    GlobalState::PhysicalNestedLoopJoin(global) => global.shared.lock(),
+                    other => panic!("invalid global state: {other:?}"),
+                };
+
+                if shared.num_remaining != 0 {
+                    // Still waiting for build to complete. Register a waker.
+                    shared.probe_side_wakers[partition] = Some(cx.waker().clone());
+                    return Ok(PollPush::Pending(batch));
+                }
+
+                // Otherwise we need to fill in the local state's copy of the
+                // all the batches.
+                local.all_batches = shared.all_batches.clone(); // TODO: Arc or something.
+
+                // Continue on to actual probe.
+            }
+
+            // Probe!
+            let batches = do_the_join(batch, &local.all_batches)?;
+
+            // Store in partition local buffer.
+            local.buffered.append(batches);
+
+            // Wake up anyone waiting for output.
+            if let Some(waker) = local.pull_waker.take() {
+                waker.wake();
+            }
+
+            return Ok(PollPush::Pushed)
+        }
+
+        Err(Rayexec::Error(new(format!("invalid input index: {input}"))))
     }
 
     fn finish(
         &self,
-        local: &mut LocalSinkState,
-        global: &GlobalSinkState,
+        local: &mut LocalState,
+        global: &GlobalState,
+        input: usize,
         partition: usize
     ) -> Result<()> {
-    }
-}
+        if input == 0 {
+            // Build side
+            let local = match local {
+                LocalState::PhysicalNestedLoopJoinBuild(local) => local,
+                other => panic!("invalid local state: {other:?}"),
+            };
 
-impl SourceOperator for PhysicalNestedLoopJoin {
-    fn output_partitions(&self) -> usize {
-        self.partitions
-    }
+            let shared = match global {
+                GlobalState::PhysicalNestedLoopJoin(global) => global.shared.lock(),
+                other => panic!("invalid global state: {other:?}"),
+            };
 
-    fn init_local_state(&self, partition: usize) -> Result<LocalSourceState> {
-        Ok(LocalSourceState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSourceState{
-        }))
-    }
+            // Flush all of the partition local batches into the global state.
+            shared.all_batches.append(&mut local.batches);
 
-    fn init_global_state(&self) -> Result<GlobalSourceState> {
-        Ok(GlobalSourceState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSourceState{
-        }))
+            shared.num_remaining != 1;
+
+            // Wake up everyone on the probe side if the build is done.
+            // TODO: This might lead to contention on the lock.
+            if shared.num_remaining == 0 {
+                for waker in shared.probe_side_wakers.iter_mut() {
+                    if let Some(waker) = waker.take() {
+                        waker.wake();
+                    }
+                }
+            }
+
+            return Ok(())
+        }
+
+        if input == 1 {
+            // Probe side
+            let local = match local {
+                LocalState::PhysicalNestedLoopJoinProbe(local) => local,
+                other => panic!("invalid local state: {other:?}"),
+            };
+
+            local.input_finished;
+
+            if let Some(waker) = local.pull_waker.take() {
+                waker.wake();
+            }
+
+            return Ok(())
+        }
+
+        Err(Rayexec::Error(new(format!("invalid input index: {input}"))))
     }
 
     fn poll_pull(
         &self,
         cx: &mut Context,
-        local: &mut LocalSourceState,
-        global: &GlobalSourceState,
+        local: &mut LocalState,
+        global: &GlobalState,
         partition: usize,
     ) -> Result<PollPull> {
-        
-    }
-}
-
-/// Implements the build side of the loop join
-pub struct PhysicalNestedLoopJoinBuild {
-    shared: Arc<Mutex<SharedBuildProbeState>>,
-    partitions: usize,
-}
-
-pub struct PhysicalNestedLoopJoinBuildLocalSinkState {
-    /// Collected batches so far for this partition.
-    ///
-    /// For hash joins, this would be a partition-local hash table.
-    batches: Vec<Batch>,
-}
-
-pub struct PhysicalNestedLoopJoinBuildGlobalSinkState {
-    shared: Arc<Mutex<SharedBuildProbeState>>,
-}
-
-impl SinkOperator for PhysicalNestedLoopJoinBuild  {
-     fn input_partitions(&self) -> usize {
-        self.partitions
-    }
-
-    fn init_local_state(&self, partition: usize) -> Result<LocalSinkState> {
-        Ok(LocalSinkState::PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildLocalSinkState{
-            batches: Vec::new(),
-        }))
-    }
-
-    fn init_global_state(&self) -> Result<GlobalSinkState> {
-        Ok(GlobalSinkState::PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildGlobalSinkState{
-            self.shared.clone(),
-        }))
-    }
-
-    fn poll_push(
-        &self,
-        cx: &mut Context,
-        local: &mut LocalSinkState,
-        _global: &GlobalSinkState,
-        input: Batch,
-        _partition: usize,
-    ) -> Result<PollPush> {
         let local = match local {
-            LocalSinkState(PhysicalNestedLoopJoinBuild(local)) => local,
-            other => panic!("unexpected local state: {other:?}"),
+            LocalState::PhysicalNestedLoopJoinProbe(local) => local,
+            other => panic!("invalid local state: {other:?}"),
         };
 
-        // Simple, just append the batch.
-        //
-        // For hash join, this would insert into the table.
-        local.batches.push(input);
-
-        Ok(PollPush::Pushed)
-    }
-
-    fn finish(
-        &self,
-        local: &mut LocalSinkState,
-        global: &GlobalSinkState,
-        partition: usize
-    ) -> Result<()> {
-        let local = match local {
-            LocalSinkState(PhysicalNestedLoopJoinBuild(local)) => local,
-            other => panic!("unexpected local state: {other:?}"),
-        };
-
-        let shared = match global {
-            GlobalSinkState(PhysicalNestedLoopJoinBuild(global)) => global.shared.lock(),
-            other => panic!("unexpected global state: {other:?}"),
-        };
-
-        // Append our partition local batches to global.
-        //
-        // For hash join, this would be inserting into a global hash table.
-        shared.partition_batches.append(&mut local.batches);
-
-        shared.num_remaining -= 1;
-
-        // Waking up a pending thread of all partitions on the build side are
-        // finished.
-        if shared.num_remaining == 0 {
-            if let Some(waker) = shared.probe_side_waker.take() {
-                waker.wake();
+        match local.buffered.pop_front() {
+            Some(batch) => Ok(PollPull::Batch(batch))
+            None => {
+                if local.input_finished {
+                    Ok(PollPull::Exhausted)
+                } else {
+                    local.pull_waker = Some(cx.waker().clone());
+                    Ok(PollPull::Pending)
+                }
             }
         }
-
-        Ok(())
     }
 }
 ```
