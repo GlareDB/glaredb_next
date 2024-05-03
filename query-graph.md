@@ -413,11 +413,25 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
     }
 
     fn init_local_state(&self, input: usize, partition: usize) -> Result<LocalState> {
-        // (omitted)
+        if input == 0 {
+            // Build side
+            return Ok(LocalState::PhysicalNestedLoopJoinBuild{
+                ...
+            })
+        }
+        if input == 1 {
+             return Ok(LocalState::PhysicalNestedLoopJoinProbe{
+                ...
+            })
+        }
+
+        Err(Rayexec::Error(new(format!("invalid input index: {input}"))))
     }
 
     fn init_global_state(&self) -> Result<GlobalState> {
-        // (omitted)
+        Ok(GlobalState::PhysicalNestedLoopJoin(GlobalState {
+            shared: self.shared.clone(),
+        }))
     }
 
     fn poll_push(
@@ -514,7 +528,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
             // Flush all of the partition local batches into the global state.
             shared.all_batches.append(&mut local.batches);
 
-            shared.num_remaining != 1;
+            shared.num_remaining -= 1;
 
             // Wake up everyone on the probe side if the build is done.
             // TODO: This might lead to contention on the lock.
@@ -536,7 +550,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
                 other => panic!("invalid local state: {other:?}"),
             };
 
-            local.input_finished;
+            local.input_finished = true;
 
             if let Some(waker) = local.pull_waker.take() {
                 waker.wake();
