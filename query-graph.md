@@ -320,3 +320,144 @@ pub trait StatelessOperator: Sync + Send + Explainable + Debug {
 }
 ```
 
+The primary difference with this trait is the inclusion of initialize
+local/global states and providing those states when pushing and pulling batches
+from operators.
+
+A simplified example implementation of a nested loop join:
+
+```rust
+pub enum GlobalSinkState {
+    ...
+    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSinkState),
+    PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildGlobalSinkState),
+    ...
+}
+
+pub enum LocalSinkState {
+    ...
+    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSinkState),
+    PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildLocalSinkState),
+    ...
+}
+
+pub enum GlobalSourceState {
+    ..
+    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSourceState),
+    ...
+}
+
+pub enum LocalSourceState {
+    ..
+    PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSourceState),
+    ...
+}
+
+pub struct PhysicalNestedLoopJoinLocalSinkState {
+}
+
+pub struct PhysicalNestedLoopJoinGlobalSinkState {
+
+}
+
+pub struct PhysicalNestedLoopJoinLocalSourceState {
+    
+}
+
+pub struct PhysicalNestedLoopJoinGlobalSourceState {
+
+}
+
+/// Implements the logic for a nested loop join.
+///
+/// The `Sink` implemenation for this implements the logic for the probe side of
+/// the join.
+pub struct PhysicalNestedLoopJoin {
+    partitions: usize,
+}
+
+impl PhysicalNestedLoopJoin {
+    pub fn new(partitions: usize) -> Self {
+        PhysicalNestedLoopJoin {
+            partitions
+        }
+    }
+}
+
+impl SinkOperator for PhysicalNestedLoopJoin {
+    fn input_partitions(&self) -> usize {
+        self.partitions
+    }
+
+    fn init_local_state(&self, partition: usize) -> Result<LocalSinkState> {
+        Ok(LocalSinkState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSinkState{
+        }))
+    }
+
+    fn init_global_state(&self) -> Result<GlobalSinkState> {
+        Ok(GlobalSinkState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSinkState{
+        }))
+    }
+
+    fn poll_push(
+        &self,
+        cx: &mut Context,
+        local: &mut LocalSinkState,
+        _global: &GlobalSinkState,
+        input: Batch,
+        _partition: usize,
+    ) -> Result<PollPush> {
+        let local = match local {
+            LocalSinkState(PhysicalNestedLoopJoin(local)) => local,
+            other => panic!("unexpected local state: {other:?}"),
+        };
+
+    }
+
+    fn finish(
+        &self,
+        local: &mut LocalSinkState,
+        global: &GlobalSinkState,
+        partition: usize
+    ) -> Result<()> {
+    }
+}
+
+impl SourceOperator for PhysicalNestedLoopJoin {
+    fn output_partitions(&self) -> usize {
+        self.partitions
+    }
+
+    fn init_local_state(&self, partition: usize) -> Result<LocalSourceState> {
+        Ok(LocalSourceState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSourceState{
+        }))
+    }
+
+    fn init_global_state(&self) -> Result<GlobalSourceState> {
+        Ok(GlobalSourceState::PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSourceState{
+        }))
+    }
+
+    fn poll_pull(
+        &self,
+        cx: &mut Context,
+        local: &mut LocalSourceState,
+        global: &GlobalSourceState,
+        partition: usize,
+    ) -> Result<PollPull> {
+        
+    }
+}
+
+/// Implements the build side of the loop join
+pub struct PhysicalNestedLoopJoinBuild {
+    partitions: usize,
+}
+
+pub struct PhysicalNestedLoopJoinBuildLocalSinkState {
+}
+
+pub struct PhysicalNestedLoopJoinBuildGlobalSinkState {
+}
+```
+
