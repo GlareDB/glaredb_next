@@ -1,9 +1,7 @@
-use super::{PollPull, PollPush, Sink, Source};
+use super::{PollPull, PollPush, SinkOperator2, SourceOperator2};
 use crate::physical::plans::util::hash::{hash_arrays, partition_for_hash};
-use crate::physical::plans::util::take::take_indexes;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{ColumnHash, DataBatch};
 use arrow_array::UInt64Array;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -66,7 +64,7 @@ impl PhysicalHashRepartition {
     }
 }
 
-impl Source for PhysicalHashRepartition {
+impl SourceOperator2 for PhysicalHashRepartition {
     fn output_partitions(&self) -> usize {
         self.output_states.len()
     }
@@ -114,7 +112,7 @@ pub struct PhysicalHashRepartitionSink {
     columns: Vec<usize>,
 }
 
-impl Sink for PhysicalHashRepartitionSink {
+impl SinkOperator2 for PhysicalHashRepartitionSink {
     fn input_partitions(&self) -> usize {
         self.input_partitions
     }

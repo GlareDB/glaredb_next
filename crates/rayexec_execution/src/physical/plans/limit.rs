@@ -1,7 +1,6 @@
 use crate::expr::PhysicalScalarExpression;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
@@ -9,7 +8,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use super::{PollPull, PollPush, Sink, Source};
+use super::{PollPull, PollPush, SinkOperator2, SourceOperator2};
 
 const LIMIT_BUFFER_CAP: usize = 4;
 
@@ -77,7 +76,7 @@ impl PhysicalLimit {
     }
 }
 
-impl Source for PhysicalLimit {
+impl SourceOperator2 for PhysicalLimit {
     fn output_partitions(&self) -> usize {
         self.states.len()
     }
@@ -117,7 +116,7 @@ pub struct PhysicalLimitSink {
     states: Arc<Vec<Mutex<LocalState>>>,
 }
 
-impl Sink for PhysicalLimitSink {
+impl SinkOperator2 for PhysicalLimitSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }

@@ -1,11 +1,12 @@
 use arrow::row::{RowConverter, Rows};
 use arrow_array::{cast::AsArray, ArrayRef, UInt64Array};
 use hashbrown::{raw::RawTable, HashSet};
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use smallvec::{smallvec, SmallVec};
 use std::fmt;
 
-use crate::{functions::aggregate::Accumulator, types::batch::DataBatch};
+use crate::functions::aggregate::Accumulator;
 
 #[derive(Debug)]
 pub struct GroupingSetColumns<'a> {
@@ -94,7 +95,7 @@ pub struct GroupingSetAccumulators {
 
 impl GroupingSetAccumulators {
     /// Update accumulator states for this grouping set from the provide input.
-    pub fn update_groups(&mut self, batch: &DataBatch, group_indexes: &[usize]) -> Result<()> {
+    pub fn update_groups(&mut self, batch: &Batch, group_indexes: &[usize]) -> Result<()> {
         let unique: HashSet<_> = group_indexes.iter().collect();
 
         let indexes = UInt64Array::from_iter_values(group_indexes.iter().map(|i| *i as u64));
@@ -103,20 +104,20 @@ impl GroupingSetAccumulators {
             let group = UInt64Array::from_value(group_idx as u64, indexes.len());
             let selection = arrow_ord::cmp::eq(&indexes, &group)?;
 
-            let filtered = batch
-                .columns()
-                .iter()
-                .map(|a| arrow::compute::filter(a, &selection))
-                .collect::<Result<Vec<_>, _>>()?;
+            // let filtered = batch
+            //     .columns()
+            //     .iter()
+            //     .map(|a| arrow::compute::filter(a, &selection))
+            //     .collect::<Result<Vec<_>, _>>()?;
 
-            for (accumulator, input_cols) in self.accumulators.iter_mut().zip(self.inputs.iter()) {
-                let arrs: Vec<_> = input_cols
-                    .iter()
-                    .map(|idx| filtered.get(*idx).expect("column to exist"))
-                    .collect();
+            // for (accumulator, input_cols) in self.accumulators.iter_mut().zip(self.inputs.iter()) {
+            //     let arrs: Vec<_> = input_cols
+            //         .iter()
+            //         .map(|idx| filtered.get(*idx).expect("column to exist"))
+            //         .collect();
 
-                accumulator.accumulate(group_idx, &arrs)?;
-            }
+            //     accumulator.accumulate(group_idx, &arrs)?;
+            // }
         }
 
         Ok(())

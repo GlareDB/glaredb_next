@@ -2,7 +2,7 @@ pub mod binary;
 pub mod scalar;
 
 use self::scalar::{BinaryOperator, UnaryOperator, VariadicOperator};
-use crate::{planner::operator::LogicalExpression, types::batch::DataBatch};
+use crate::planner::operator::LogicalExpression;
 use arrow_array::{ArrayRef, BooleanArray};
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
@@ -98,11 +98,7 @@ impl PhysicalScalarExpression {
     }
 
     /// Evaluate this expression on a batch where selection is true.
-    pub fn eval_selection(
-        &self,
-        _batch: &DataBatch,
-        _selection: &BooleanArray,
-    ) -> Result<ArrayRef> {
+    pub fn eval_selection(&self, _batch: &Batch, _selection: &BooleanArray) -> Result<ArrayRef> {
         unimplemented!()
     }
 }

@@ -1,4 +1,4 @@
-use super::{PollPull, Source};
+use super::{PollPull, SourceOperator2};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
@@ -29,7 +29,7 @@ impl EmptySource {
     }
 }
 
-impl Source for EmptySource {
+impl SourceOperator2 for EmptySource {
     fn output_partitions(&self) -> usize {
         1
     }

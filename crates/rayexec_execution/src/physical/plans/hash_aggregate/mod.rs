@@ -3,7 +3,6 @@ mod hashtable;
 use crate::physical::plans::hash_aggregate::hashtable::GroupingSetColumns;
 use crate::physical::plans::util::hash::hash_arrays;
 use crate::physical::TaskContext;
-use crate::types::batch::DataBatch;
 use crate::{
     functions::aggregate::Accumulator,
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
@@ -18,7 +17,7 @@ use std::task::{Context, Waker};
 
 use self::hashtable::{GroupingSetAccumulators, GroupingSetHashTable};
 
-use super::{PollPush, Sink};
+use super::{PollPush, SinkOperator2};
 
 #[derive(Debug)]
 pub struct GroupingSets {
@@ -127,7 +126,7 @@ pub struct PhysicalHashAggregateSink {
     partitions: usize,
 }
 
-impl Sink for PhysicalHashAggregateSink {
+impl SinkOperator2 for PhysicalHashAggregateSink {
     fn input_partitions(&self) -> usize {
         self.partitions
     }

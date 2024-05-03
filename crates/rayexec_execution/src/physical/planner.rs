@@ -2,9 +2,9 @@ use super::{
     chain::OperatorChain,
     plans::{
         empty_source::EmptySource, projection::PhysicalProjection, set_var::PhysicalSetVar,
-        show_var::PhysicalShowVar, PhysicalOperator,
+        show_var::PhysicalShowVar, StatelessOperator,
     },
-    Pipeline, Sink, Source,
+    Pipeline, SinkOperator2, SourceOperator2,
 };
 use crate::{
     engine::vars::SessionVars,
@@ -48,7 +48,11 @@ impl PhysicalPlanner {
     }
 
     /// Create a physical plan from a logical plan.
-    pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink>) -> Result<Pipeline> {
+    pub fn create_plan(
+        &self,
+        plan: LogicalOperator,
+        dest: Box<dyn SinkOperator2>,
+    ) -> Result<Pipeline> {
         let builder = PipelineBuilder::new(dest, self.debug);
         let pipeline = builder.build_pipeline(plan)?;
 
@@ -60,13 +64,13 @@ impl PhysicalPlanner {
 #[derive(Debug)]
 struct PipelineBuilder {
     /// Intermediate sink we're working with.
-    sink: Option<Box<dyn Sink>>,
+    sink: Option<Box<dyn SinkOperator2>>,
 
     /// Intermediate operators.
-    operators: Vec<Box<dyn PhysicalOperator>>,
+    operators: Vec<Box<dyn StatelessOperator>>,
 
     /// Intermediate source we're working with.
-    source: Option<Box<dyn Source>>,
+    source: Option<Box<dyn SourceOperator2>>,
 
     /// Built operator chains.
     completed_chains: Vec<OperatorChain>,
@@ -77,7 +81,7 @@ struct PipelineBuilder {
 impl PipelineBuilder {
     /// Create a new builder for a pipeline that outputs the final result to
     /// `dest`.
-    fn new(dest: Box<dyn Sink>, debug: DebugConfig) -> Self {
+    fn new(dest: Box<dyn SinkOperator2>, debug: DebugConfig) -> Self {
         PipelineBuilder {
             sink: Some(dest),
             operators: Vec::new(),

@@ -6,7 +6,7 @@ pub mod scope;
 
 use crate::{
     engine::vars::SessionVar,
-    functions::{aggregate::AggregateFunction, table::TableFunction},
+    functions::{aggregate::AggregateFunction, table::TableFunctionOld},
 };
 use rayexec_error::Result;
 use rayexec_parser::ast;
@@ -20,7 +20,7 @@ pub trait Resolver: std::fmt::Debug {
     fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunction>>;
+    ) -> Result<Box<dyn TableFunctionOld>>;
 
     fn get_session_variable(&self, name: &str) -> Result<SessionVar>;
 }

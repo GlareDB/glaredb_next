@@ -5,7 +5,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::task::{Context, Poll};
 
-use super::{PollPull, Source};
+use super::{PollPull, SourceOperator2};
 
 #[derive(Debug)]
 pub struct PhysicalValues {
@@ -20,7 +20,7 @@ impl PhysicalValues {
     }
 }
 
-impl Source for PhysicalValues {
+impl SourceOperator2 for PhysicalValues {
     fn output_partitions(&self) -> usize {
         1
     }

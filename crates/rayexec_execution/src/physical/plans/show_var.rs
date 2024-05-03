@@ -2,13 +2,12 @@ use crate::engine::modify::Modification;
 use crate::engine::vars::SessionVar;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 
-use super::{PollPull, Source};
+use super::{PollPull, SourceOperator2};
 
 #[derive(Debug)]
 pub struct PhysicalShowVar {
@@ -25,7 +24,7 @@ impl PhysicalShowVar {
     }
 }
 
-impl Source for PhysicalShowVar {
+impl SourceOperator2 for PhysicalShowVar {
     fn output_partitions(&self) -> usize {
         1
     }

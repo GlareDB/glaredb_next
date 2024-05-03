@@ -1,4 +1,4 @@
-use super::PhysicalOperator;
+use super::StatelessOperator;
 use crate::expr::PhysicalScalarExpression;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -22,7 +22,7 @@ impl PhysicalFilter {
     }
 }
 
-impl PhysicalOperator for PhysicalFilter {
+impl StatelessOperator for PhysicalFilter {
     fn execute(&self, _task_cx: &TaskContext, input: Batch) -> Result<Batch> {
         let selection = self.predicate.eval(&input)?;
         let selection = match selection.as_ref() {

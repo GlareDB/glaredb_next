@@ -7,11 +7,10 @@ use tracing::trace;
 
 use crate::{
     functions::aggregate::{self, AggregateFunction},
-    functions::table::{self, TableFunction},
+    functions::table::{self, TableFunctionOld},
     optimizer::Optimizer,
     physical::{planner::PhysicalPlanner, scheduler::Scheduler, TaskContext},
     planner::{plan::PlanContext, Resolver},
-    types::batch::DataBatchSchema,
 };
 
 use super::{
@@ -44,7 +43,7 @@ impl<'a> Resolver for DebugResolver<'a> {
     fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunction>> {
+    ) -> Result<Box<dyn TableFunctionOld>> {
         if reference.0.len() != 1 {
             return Err(RayexecError::new("Expected a single ident"));
         }

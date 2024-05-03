@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use super::{PollPull, PollPush, Sink, Source};
+use super::{PollPull, PollPush, SinkOperator2, SourceOperator2};
 
 /// Nested loop join for joining tables on arbitrary expressions.
 #[derive(Debug)]
@@ -70,7 +70,7 @@ impl PhysicalNestedLoopJoin {
     }
 }
 
-impl Source for PhysicalNestedLoopJoin {
+impl SourceOperator2 for PhysicalNestedLoopJoin {
     fn output_partitions(&self) -> usize {
         self.states.len()
     }
@@ -183,7 +183,7 @@ pub struct PhysicalNestedLoopJoinBuildSink {
     remaining: AtomicUsize,
 }
 
-impl Sink for PhysicalNestedLoopJoinBuildSink {
+impl SinkOperator2 for PhysicalNestedLoopJoinBuildSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }
@@ -257,7 +257,7 @@ pub struct PhysicalNestedLoopJoinProbeSink {
     filter: Option<PhysicalScalarExpression>,
 }
 
-impl Sink for PhysicalNestedLoopJoinProbeSink {
+impl SinkOperator2 for PhysicalNestedLoopJoinProbeSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }

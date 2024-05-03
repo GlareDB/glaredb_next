@@ -7,9 +7,8 @@ use crate::{
         scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
         Expression,
     },
-    functions::table::BoundTableFunction,
+    functions::table::BoundTableFunctionOld,
     optimizer::walk_plan,
-    types::batch::DataBatchSchema,
 };
 use rayexec_bullet::field::{DataType, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -287,7 +286,7 @@ impl Explainable for Limit {
 
 #[derive(Debug)]
 pub enum ScanItem {
-    TableFunction(Box<dyn BoundTableFunction>),
+    TableFunction(Box<dyn BoundTableFunctionOld>),
 }
 
 impl Explainable for ScanItem {

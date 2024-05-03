@@ -1,8 +1,7 @@
-use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
-use crate::physical::plans::{PollPull, Source};
+use super::{BoundTableFunctionOld, Pushdown, Statistics, TableFunctionArgs, TableFunctionOld};
+use crate::physical::plans::{PollPull, SourceOperator2};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use rayexec_bullet::array::{Array, Int32Array};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::{DataType, Field, Schema};
@@ -14,12 +13,12 @@ use std::task::{Context, Poll};
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;
 
-impl TableFunction for GenerateSeries {
+impl TableFunctionOld for GenerateSeries {
     fn name(&self) -> &str {
         "generate_series"
     }
 
-    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunction>> {
+    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunctionOld>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
                 "This function doesn't accept named arguments".to_string(),
@@ -61,7 +60,7 @@ struct GenerateSeriesInteger {
     schema: Schema,
 }
 
-impl BoundTableFunction for GenerateSeriesInteger {
+impl BoundTableFunctionOld for GenerateSeriesInteger {
     fn schema(&self) -> &Schema {
         &self.schema
     }
@@ -77,7 +76,7 @@ impl BoundTableFunction for GenerateSeriesInteger {
         self: Box<Self>,
         _projection: Vec<usize>,
         _pushdown: Pushdown,
-    ) -> Result<Box<dyn Source>> {
+    ) -> Result<Box<dyn SourceOperator2>> {
         Ok(Box::new(GenerateSeriesIntegerOperator {
             start: self.start,
             stop: self.stop,
@@ -108,7 +107,7 @@ struct GenerateSeriesIntegerOperator {
     curr: AtomicI32,
 }
 
-impl Source for GenerateSeriesIntegerOperator {
+impl SourceOperator2 for GenerateSeriesIntegerOperator {
     fn output_partitions(&self) -> usize {
         1
     }

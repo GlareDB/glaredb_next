@@ -1,7 +1,7 @@
 use crate::functions::table::{
-    BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs,
+    BoundTableFunctionOld, Pushdown, Statistics, TableFunctionArgs, TableFunctionOld,
 };
-use crate::physical::plans::{PollPull, Source};
+use crate::physical::plans::{PollPull, SourceOperator2};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use parking_lot::Mutex;
@@ -17,12 +17,12 @@ use std::task::{Context, Poll};
 #[derive(Debug, Clone, Copy)]
 pub struct ReadCsv;
 
-impl TableFunction for ReadCsv {
+impl TableFunctionOld for ReadCsv {
     fn name(&self) -> &str {
         "read_csv"
     }
 
-    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunction>> {
+    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunctionOld>> {
         // TODO: Named arg stuff
         // TODO: Dispatch on object store functions if not a local path.
         // TODO: Globs
@@ -126,7 +126,7 @@ impl fmt::Debug for ReadCsvLocal {
     }
 }
 
-impl BoundTableFunction for ReadCsvLocal {
+impl BoundTableFunctionOld for ReadCsvLocal {
     fn schema(&self) -> &Schema {
         &self.schema
     }
@@ -142,7 +142,7 @@ impl BoundTableFunction for ReadCsvLocal {
         self: Box<Self>,
         _projection: Vec<usize>,
         _pushdown: Pushdown,
-    ) -> Result<Box<dyn Source>> {
+    ) -> Result<Box<dyn SourceOperator2>> {
         unimplemented!()
         // Ok(Box::new(ReadCsvLocalOperator {
         //     path: self.path,
@@ -175,7 +175,7 @@ struct ReadCsvLocalOperator {
     reader: Mutex<ReaderState>,
 }
 
-impl Source for ReadCsvLocalOperator {
+impl SourceOperator2 for ReadCsvLocalOperator {
     fn output_partitions(&self) -> usize {
         1
     }

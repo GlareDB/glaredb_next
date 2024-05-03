@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use crate::physical::plans::PollPush;
-use crate::physical::plans::Sink;
+use crate::physical::plans::SinkOperator2;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -22,7 +22,7 @@ pub struct MaterializedBatchStream {
 
 impl MaterializedBatchStream {
     /// Take the configured sink for the stream. Cannot be taken more than once.
-    pub(crate) fn take_sink(&mut self) -> Result<Box<dyn Sink>> {
+    pub(crate) fn take_sink(&mut self) -> Result<Box<dyn SinkOperator2>> {
         match self.sink.take() {
             Some(sink) => Ok(Box::new(sink)),
             None => Err(RayexecError::new("Attempted to take sink more than once")),
@@ -70,7 +70,7 @@ struct MaterializedBatchSink {
     state: Arc<Mutex<MaterializedBatchesState>>,
 }
 
-impl Sink for MaterializedBatchSink {
+impl SinkOperator2 for MaterializedBatchSink {
     fn input_partitions(&self) -> usize {
         1
     }

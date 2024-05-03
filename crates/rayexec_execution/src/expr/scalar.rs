@@ -6,8 +6,6 @@ use rayexec_parser::ast;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::types::batch::maybe_widen;
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnaryOperator {
     IsTrue,
@@ -74,7 +72,7 @@ impl BinaryOperator {
 
         Ok(match self {
             Eq | NotEq | Lt | LtEq | Gt | GtEq | And | Or => DataType::Boolean,
-            Plus | Minus | Multiply | Divide | Modulo => maybe_widen(left, right).ok_or_else(|| RayexecError::new(format!("Unable to determine output data type for {:?} using arguments {:?} and {:?}", self, left, right)))?
+            _ => unimplemented!(), // Plus | Minus | Multiply | Divide | Modulo => maybe_widen(left, right).ok_or_else(|| RayexecError::new(format!("Unable to determine output data type for {:?} using arguments {:?} and {:?}", self, left, right)))?
         })
     }
 

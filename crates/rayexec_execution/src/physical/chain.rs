@@ -7,7 +7,7 @@ use std::{
 };
 
 use super::{
-    plans::{PhysicalOperator, PollPull, PollPush, Sink, Source},
+    plans::{PollPull, PollPush, SinkOperator2, SourceOperator2, StatelessOperator},
     TaskContext,
 };
 
@@ -19,28 +19,28 @@ use super::{
 #[derive(Debug)]
 pub struct OperatorChain {
     /// Sink where all output batches are pushed to.
-    sink: Box<dyn Sink>,
+    sink: Box<dyn SinkOperator2>,
 
     /// Sequence of operators to run batches through. Executed left to right.
-    operators: Vec<Box<dyn PhysicalOperator>>,
+    operators: Vec<Box<dyn StatelessOperator>>,
 
     /// Where to pull originating batches.
-    source: Box<dyn Source>,
+    source: Box<dyn SourceOperator2>,
 
     /// Partition-local states.
     states: Vec<Mutex<PartitionState>>,
 }
 
 impl OperatorChain {
-    pub fn sink(&self) -> &dyn Sink {
+    pub fn sink(&self) -> &dyn SinkOperator2 {
         self.sink.as_ref()
     }
 
-    pub fn operators(&self) -> &[Box<dyn PhysicalOperator>] {
+    pub fn operators(&self) -> &[Box<dyn StatelessOperator>] {
         self.operators.as_slice()
     }
 
-    pub fn source(&self) -> &dyn Source {
+    pub fn source(&self) -> &dyn SourceOperator2 {
         self.source.as_ref()
     }
 }
@@ -65,9 +65,9 @@ impl OperatorChain {
     /// Errors if the the number of output partitions from the source differs
     /// from the number of input partitions for the sink.
     pub fn try_new(
-        source: Box<dyn Source>,
-        sink: Box<dyn Sink>,
-        operators: Vec<Box<dyn PhysicalOperator>>,
+        source: Box<dyn SourceOperator2>,
+        sink: Box<dyn SinkOperator2>,
+        operators: Vec<Box<dyn StatelessOperator>>,
     ) -> Result<Self> {
         if source.output_partitions() != sink.input_partitions() {
             return Err(RayexecError::new(format!(

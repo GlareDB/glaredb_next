@@ -2,7 +2,6 @@ use crate::physical::plans::PollPush;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::planner::operator::JoinType;
-use crate::types::batch::DataBatch;
 use arrow_array::{BooleanArray, UInt32Array};
 use hashbrown::raw::RawTable;
 use parking_lot::Mutex;
@@ -16,7 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
-use super::{PollPull, Sink, Source};
+use super::{PollPull, SinkOperator2, SourceOperator2};
 
 /// Hash join for for joining two tables on column equalities with pre-hashed
 /// batches partitioned on the hash.
@@ -142,7 +141,7 @@ impl PhysicalPartitionedHashJoin {
     }
 }
 
-impl Source for PhysicalPartitionedHashJoin {
+impl SourceOperator2 for PhysicalPartitionedHashJoin {
     fn output_partitions(&self) -> usize {
         self.states.len()
     }
@@ -196,7 +195,7 @@ struct LocalHashState {
     table: RawTable<(u64, SmallVec<[RowKey; 2]>)>,
 
     /// Collected batches for this partition.
-    batches: Vec<DataBatch>,
+    batches: Vec<Batch>,
 }
 
 impl fmt::Debug for LocalHashState {
@@ -334,7 +333,7 @@ pub struct PhysicalPartitionedHashJoinBuildSink {
     hash_cols: Vec<usize>,
 }
 
-impl Sink for PhysicalPartitionedHashJoinBuildSink {
+impl SinkOperator2 for PhysicalPartitionedHashJoinBuildSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }
@@ -412,7 +411,7 @@ pub struct PhysicalPartitionedHashJoinProbeSink {
     join_type: JoinType,
 }
 
-impl Sink for PhysicalPartitionedHashJoinProbeSink {
+impl SinkOperator2 for PhysicalPartitionedHashJoinProbeSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }

@@ -21,15 +21,19 @@ where
     write!(buf, "\n")?;
 
     for batch in batches.into_iter() {
+        write!(buf, "| ")?;
         for idx in 0..batch.num_rows() {
-            for col in batch.columns() {
+            for (col_idx, col) in batch.columns().iter().enumerate() {
                 write!(
                     buf,
-                    "{}\t",
+                    "{}\t ",
                     formatter
                         .format_array_value(col, idx)
                         .expect("value to exist")
                 )?;
+                if col_idx < batch.columns().len() - 1 {
+                    write!(buf, "| ")?;
+                }
             }
             write!(buf, "\n")?;
         }

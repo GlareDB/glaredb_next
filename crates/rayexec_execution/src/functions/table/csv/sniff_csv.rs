@@ -1,7 +1,7 @@
 use crate::functions::table::{
-    BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs,
+    BoundTableFunctionOld, Pushdown, Statistics, TableFunctionArgs, TableFunctionOld,
 };
-use crate::physical::plans::{PollPull, Source};
+use crate::physical::plans::{PollPull, SourceOperator2};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use parking_lot::Mutex;
@@ -25,12 +25,12 @@ const DEFAULT_RECORD_INFER_SIZE: usize = 2048;
 #[derive(Debug, Clone, Copy)]
 pub struct SniffCsv;
 
-impl TableFunction for SniffCsv {
+impl TableFunctionOld for SniffCsv {
     fn name(&self) -> &str {
         "sniff_csv"
     }
 
-    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunction>> {
+    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunctionOld>> {
         if args.unnamed.len() != 1 {
             return Err(RayexecError::new("Invalid number of arguments"));
         }
@@ -82,7 +82,7 @@ impl SniffCsvLocal {
     }
 }
 
-impl BoundTableFunction for SniffCsvLocal {
+impl BoundTableFunctionOld for SniffCsvLocal {
     fn schema(&self) -> &Schema {
         &self.schema
     }
@@ -98,7 +98,7 @@ impl BoundTableFunction for SniffCsvLocal {
         self: Box<Self>,
         _projection: Vec<usize>,
         _pushdown: Pushdown,
-    ) -> Result<Box<dyn Source>> {
+    ) -> Result<Box<dyn SourceOperator2>> {
         Ok(Box::new(SniffCsvLocalSource {
             inner: Mutex::new(*self),
         }))
@@ -116,7 +116,7 @@ struct SniffCsvLocalSource {
     inner: Mutex<SniffCsvLocal>,
 }
 
-impl Source for SniffCsvLocalSource {
+impl SourceOperator2 for SniffCsvLocalSource {
     fn output_partitions(&self) -> usize {
         1
     }
