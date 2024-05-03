@@ -342,13 +342,13 @@ pub enum LocalSinkState {
 }
 
 pub enum GlobalSourceState {
-    ..
+    ...
     PhysicalNestedLoopJoin(PhysicalNestedLoopJoinGlobalSourceState),
     ...
 }
 
 pub enum LocalSourceState {
-    ..
+    ...
     PhysicalNestedLoopJoin(PhysicalNestedLoopJoinLocalSourceState),
     ...
 }
@@ -361,10 +361,32 @@ pub struct PhysicalNestedLoopJoinGlobalSinkState {
 }
 
 pub struct PhysicalNestedLoopJoinLocalSourceState {
-    
+    /// All batches from all partitions.
+    ///
+    /// If this is empty, the thread should look at the global state to see if
+    /// the build side has completed. If it has, those batches should be cloned
+    /// here (A Batch uses Arcs behind the scenes.).
+    partition_batches: Vec<Batch>,
 }
 
 pub struct PhysicalNestedLoopJoinGlobalSourceState {
+}
+
+/// State shared between the probe side and the build side.
+struct SharedBuildProbeState {
+    /// All batches from all partitions.
+    ///
+    /// Populated by the build side upon completion of a partition.
+    ///
+    /// For hash joins, this would be a global hash table.
+    partition_batches: Vec<Batch>,
+
+    /// Number of partitions we're still waiting for on the build side.
+    num_remaining: usize,
+
+    /// Waker for if a thread tried to pull a result from the join prior to us
+    /// completing the build side.
+    probe_side_wakers: Vec<Option<Waker>>,
 
 }
 
@@ -373,13 +395,29 @@ pub struct PhysicalNestedLoopJoinGlobalSourceState {
 /// The `Sink` implemenation for this implements the logic for the probe side of
 /// the join.
 pub struct PhysicalNestedLoopJoin {
+    shared: Arc<Mutex<SharedBuildProbeState>>,
     partitions: usize,
 }
 
 impl PhysicalNestedLoopJoin {
     pub fn new(partitions: usize) -> Self {
+        let shared = SharedBuildProbeState {
+            partitions_batches: Vec::new(),
+            num_remaining: partitions,
+            probe_side_waker: vec![None; partitions],
+        }
+
         PhysicalNestedLoopJoin {
+            shared: Arc::new(Mutex::new(shared))
             partitions
+        }
+    }
+
+    /// Return the build side of the join.
+    pub fn build_sink(&self) -> PhysicalNestedLoopJoinBuild {
+        PhysicalNestedLoopJoinBuild {
+            shared: self.shared.clone(),
+            partitions: self.partitions,
         }
     }
 }
@@ -451,13 +489,92 @@ impl SourceOperator for PhysicalNestedLoopJoin {
 
 /// Implements the build side of the loop join
 pub struct PhysicalNestedLoopJoinBuild {
+    shared: Arc<Mutex<SharedBuildProbeState>>,
     partitions: usize,
 }
 
 pub struct PhysicalNestedLoopJoinBuildLocalSinkState {
+    /// Collected batches so far for this partition.
+    ///
+    /// For hash joins, this would be a partition-local hash table.
+    batches: Vec<Batch>,
 }
 
 pub struct PhysicalNestedLoopJoinBuildGlobalSinkState {
+    shared: Arc<Mutex<SharedBuildProbeState>>,
+}
+
+impl SinkOperator for PhysicalNestedLoopJoinBuild  {
+     fn input_partitions(&self) -> usize {
+        self.partitions
+    }
+
+    fn init_local_state(&self, partition: usize) -> Result<LocalSinkState> {
+        Ok(LocalSinkState::PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildLocalSinkState{
+            batches: Vec::new(),
+        }))
+    }
+
+    fn init_global_state(&self) -> Result<GlobalSinkState> {
+        Ok(GlobalSinkState::PhysicalNestedLoopJoinBuild(PhysicalNestedLoopJoinBuildGlobalSinkState{
+            self.shared.clone(),
+        }))
+    }
+
+    fn poll_push(
+        &self,
+        cx: &mut Context,
+        local: &mut LocalSinkState,
+        _global: &GlobalSinkState,
+        input: Batch,
+        _partition: usize,
+    ) -> Result<PollPush> {
+        let local = match local {
+            LocalSinkState(PhysicalNestedLoopJoinBuild(local)) => local,
+            other => panic!("unexpected local state: {other:?}"),
+        };
+
+        // Simple, just append the batch.
+        //
+        // For hash join, this would insert into the table.
+        local.batches.push(input);
+
+        Ok(PollPush::Pushed)
+    }
+
+    fn finish(
+        &self,
+        local: &mut LocalSinkState,
+        global: &GlobalSinkState,
+        partition: usize
+    ) -> Result<()> {
+        let local = match local {
+            LocalSinkState(PhysicalNestedLoopJoinBuild(local)) => local,
+            other => panic!("unexpected local state: {other:?}"),
+        };
+
+        let shared = match global {
+            GlobalSinkState(PhysicalNestedLoopJoinBuild(global)) => global.shared.lock(),
+            other => panic!("unexpected global state: {other:?}"),
+        };
+
+        // Append our partition local batches to global.
+        //
+        // For hash join, this would be inserting into a global hash table.
+        shared.partition_batches.append(&mut local.batches);
+
+        shared.num_remaining -= 1;
+
+        // Waking up a pending thread of all partitions on the build side are
+        // finished.
+        if shared.num_remaining == 0 {
+            if let Some(waker) = shared.probe_side_waker.take() {
+                waker.wake();
+            }
+        }
+
+        Ok(())
+    }
 }
 ```
 
