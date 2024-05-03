@@ -137,7 +137,7 @@ Unknown:
   synchronization). I plan to address the performance metrics later in this
   document.
   
-## Operator chain
+### Operator chain
 
 An operator chain is essentially a subset of the query.
 
@@ -177,7 +177,7 @@ Bad:
 
 Unknown:
 
-## Pipeline
+### Pipeline
 
 Essentially the full query represented in multiple operator chains. This is what
 the scheduler currently accepts.
@@ -196,11 +196,127 @@ Good:
   called arbitrarily thanks to the `Poll...` stuff. If there's nothing to do,
   that chain will be called agains once it is ready to be executed.
   
-  This simplicity actually ends up making the scheduler pretty simpl too
+  This simplicity actually ends up making the scheduler pretty simple too
   (currently `scheduler.rs` is 141 lines long).
 
 Bad:
 
 Unknown:
 
+## Proposal
+
+Operator logic and operator states should be separate. By having the state
+separate from the logic (the actual operator itself), we can reduce
+synchronization across partitions, and provide better DX.
+
+### Global/local states
+
+Each (stateful) operator will define two states that will be used during
+execution; the "local" state and the "global" state.
+
+The "local" state will be for state that's local to the partition. For example,
+the build-side hash join operator would have a partition-local hash table in its
+local state. During execution, the operator will receive a mutable reference to
+its local state, allowing direct modification with no synchronization.
+
+The "global" state is for state that needs to be shared across all partitions.
+For example, the build-side hash join operator would have a global hash table
+that's written to from each partition with each partition's local hash table.
+During execution, the operator will receive a shared reference to the global
+state. Modifying the global state will require internal mutation through
+mutexes/atomics/etc.
+
+Since we will only support a fixed number of operators, each operator will have
+a variant in each of the global and local state enums:
+
+```rust
+pub enum GlobalSinkState {
+    PhysicalHashJoin(PhysicalHashJoinGlobalSinkState),
+    ...
+}
+
+pub enum LocalSinkState {
+    PhysicalHashJoin(PhysicalHashJoinLocalSinkState),
+    ...
+}
+
+pub enum GlobalSourceState {
+    PhysicalHashJoin(PhysicalHashJoinGlobalSourceState),
+    ...
+}
+
+pub enum LocalSourceState {
+    PhysicalHashJoin(PhysicalHashJoinLocalSourceState),
+    ...
+}
+```
+
+TODO: Determine if we want/need separate states for sources and sinks.
+
+### Operator interfaces
+
+Slightly modified from our current trait definitions. `PollPush` and `PollPull`
+will remain the same.
+
+```rust
+pub trait SinkOperator: Sync + Send + Explainable + Debug {
+    fn input_partition(&self) -> usize;
+
+    /// Initialize the local state for a partition.
+    ///
+    /// This should be called once per partition.
+    fn init_local_state(&self, partition: usize) -> Result<LocalSinkState>;
+
+    /// Initialize the global state.
+    ///
+    /// This should be called once in total.
+    fn init_global_state(&self) -> Result<GlobalSinkState>;
+
+    /// Try to push a batch for this partition.
+    fn poll_push(
+        &self,
+        cx: &mut Context,
+        local: &mut LocalSinkState,
+        global: &GlobalSinkState,
+        input: Batch,
+        partition: usize,
+    ) -> Result<PollPush>;
+
+    /// Indicate that we're done pushing to this partition.
+    fn finish(
+        &self,
+        local: &mut LocalSinkState,
+        global: &GlobalSinkState,
+        partition: usize
+    ) -> Result<()>;
+}
+
+pub trait SourceOperator: Sync + Send + Explainable + Debug {
+    fn output_partitions(&self) -> usize;
+
+    /// Initialize the local state for a partition.
+    ///
+    /// This should be called once per partition.
+    fn init_local_state(&self, partition: usize) -> Result<LocalSourceState>;
+
+    /// Initialize the global state.
+    ///
+    /// This should be called once in total.
+    fn init_global_state(&self) -> Result<GlobalSourceState>;
+
+    /// Try to pull a batch for this partition.
+    fn poll_pull(
+        &self,
+        cx: &mut Context,
+        local: &mut LocalSourceState,
+        global: &GlobalSourceState,
+        partition: usize,
+    ) -> Result<PollPull>;
+}
+
+/// Operator that requires no state (filter, projection)
+pub trait StatelessOperator: Sync + Send + Explainable + Debug {
+    fn execute(&self, input: Batch) -> Result<Batch>;
+}
+```
 
