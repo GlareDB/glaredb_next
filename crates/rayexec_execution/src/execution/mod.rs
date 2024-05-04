@@ -1,3 +1,3 @@
 //! Implementation of the "query graph" design.
-pub mod operator;
+pub mod operators;
 pub mod pipeline;

@@ -1,15 +1,27 @@
+pub mod filter;
+pub mod project;
+pub mod simple;
+
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::Context;
 
+use self::simple::SimplePartitionState;
+
 /// States local to a partition within a single operator.
 #[derive(Debug)]
-pub enum PartitionState {}
+pub enum PartitionState {
+    Simple(SimplePartitionState),
+    None,
+}
 
 /// A global state across all partitions in an operator.
 #[derive(Debug)]
-pub enum OperatorState {}
+pub enum OperatorState {
+    Simple(()),
+    None,
+}
 
 /// Result of a push to an operator.
 ///

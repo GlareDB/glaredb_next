@@ -1,6 +1,4 @@
-use crate::execution::operator::PollPush;
-
-use super::operator::{OperatorState, PartitionState, PhysicalOperator, PollPull};
+use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::{
