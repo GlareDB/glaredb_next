@@ -5,3 +5,4 @@ pub mod functions;
 pub mod optimizer;
 pub mod physical;
 pub mod planner;
+pub mod scheduler;
