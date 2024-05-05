@@ -32,7 +32,7 @@ pub struct PartitionPipeline {
     state: PipelinePartitionState,
 
     /// The partition index this partition pipeline is for.
-    partition: usize,
+    _partition: usize,
 
     /// All operators part of this pipeline.
     ///
@@ -60,9 +60,6 @@ struct OperatorWithState {
 
     /// The state for this operator that's exclusive to this partition.
     partition_state: PartitionState,
-
-    /// Input index to use when pushing to the physical operator.
-    input: usize,
 }
 
 #[derive(Debug)]
@@ -114,7 +111,6 @@ impl PartitionPipeline {
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
-                        self.partition,
                     );
                     match poll_pull {
                         Ok(PollPull::Batch(batch)) => {
@@ -141,8 +137,6 @@ impl PartitionPipeline {
                             let result = next_operator.physical.finalize_push(
                                 &mut next_operator.partition_state,
                                 &next_operator.operator_state,
-                                next_operator.input,
-                                self.partition,
                             );
                             if result.is_err() {
                                 // Erroring on finalize is not recoverable.
@@ -188,8 +182,6 @@ impl PartitionPipeline {
                         &mut operator.partition_state,
                         &operator.operator_state,
                         batch,
-                        operator.input,
-                        self.partition,
                     );
 
                     match poll_push {

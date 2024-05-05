@@ -21,11 +21,7 @@ impl PhysicalOperator for PhysicalQuerySink {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: Batch,
-        input: usize,
-        _partition: usize,
     ) -> Result<PollPush> {
-        assert_eq!(0, input);
-
         let state = match partition_state {
             PartitionState::QuerySink(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -38,11 +34,7 @@ impl PhysicalOperator for PhysicalQuerySink {
         &self,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        input: usize,
-        _partition: usize,
     ) -> Result<()> {
-        assert_eq!(0, input);
-
         let state = match partition_state {
             PartitionState::QuerySink(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -56,7 +48,6 @@ impl PhysicalOperator for PhysicalQuerySink {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _partition: usize,
     ) -> Result<PollPull> {
         Err(RayexecError::new("Query sink cannot be pulled from"))
     }

@@ -1,4 +1,5 @@
 pub mod filter;
+pub mod nl_join;
 pub mod project;
 pub mod query_sink;
 pub mod simple;
@@ -8,12 +9,15 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::Context;
 
+use self::nl_join::{NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState};
 use self::query_sink::QuerySinkPartitionState;
 use self::simple::SimplePartitionState;
 
 /// States local to a partition within a single operator.
 #[derive(Debug)]
 pub enum PartitionState {
+    NlJoinBuild(NlJoinBuildPartitionState),
+    NlJoinProbe(NlJoinProbePartitionState),
     QuerySink(QuerySinkPartitionState),
     Simple(SimplePartitionState),
     None,
@@ -22,7 +26,7 @@ pub enum PartitionState {
 /// A global state across all partitions in an operator.
 #[derive(Debug)]
 pub enum OperatorState {
-    Simple(()),
+    NlJoin(NlJoinOperatorState),
     None,
 }
 
@@ -72,8 +76,6 @@ pub trait PhysicalOperator: Sync + Send + Debug {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: Batch,
-        input: usize,
-        partition: usize,
     ) -> Result<PollPush>;
 
     /// Finalize pushing to partition.
@@ -84,8 +86,6 @@ pub trait PhysicalOperator: Sync + Send + Debug {
         &self,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        input: usize,
-        partition: usize,
     ) -> Result<()>;
 
     /// Try to pull a batch for this partition.
@@ -94,6 +94,5 @@ pub trait PhysicalOperator: Sync + Send + Debug {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        partition: usize,
     ) -> Result<PollPull>;
 }

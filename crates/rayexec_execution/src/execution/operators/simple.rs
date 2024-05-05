@@ -50,8 +50,6 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: Batch,
-        _input: usize,
-        _partition: usize,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
@@ -82,8 +80,6 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
         &self,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _input: usize,
-        _partition: usize,
     ) -> Result<()> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
@@ -104,7 +100,6 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _partition: usize,
     ) -> Result<PollPull> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
