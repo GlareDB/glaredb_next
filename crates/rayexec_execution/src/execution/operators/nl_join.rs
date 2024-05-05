@@ -275,6 +275,9 @@ impl PhysicalOperator for PhysicalNlJoin {
                             Ok(PollPull::Exhausted)
                         } else {
                             // We just gotta wait for more input.
+                            if let Some(waker) = state.push_waker.take() {
+                                waker.wake();
+                            }
                             state.pull_waker = Some(cx.waker().clone());
                             Ok(PollPull::Pending)
                         }
