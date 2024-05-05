@@ -1,5 +1,6 @@
 pub mod filter;
 pub mod project;
+pub mod query_sink;
 pub mod simple;
 
 use rayexec_bullet::batch::Batch;
@@ -7,11 +8,13 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::Context;
 
+use self::query_sink::QuerySinkPartitionState;
 use self::simple::SimplePartitionState;
 
 /// States local to a partition within a single operator.
 #[derive(Debug)]
 pub enum PartitionState {
+    QuerySink(QuerySinkPartitionState),
     Simple(SimplePartitionState),
     None,
 }

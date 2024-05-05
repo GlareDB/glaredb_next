@@ -6,6 +6,26 @@ use std::{
     task::{Context, Poll},
 };
 
+/// A pipeline represents execution across a sequence of operators.
+///
+/// Pipelines are made of multiple partition pipelines, where all partition
+/// pipelines are doing the same work across the same operators, just in a
+/// different partition.
+#[derive(Debug)]
+pub struct Pipeline {
+    partitions: Vec<PartitionPipeline>,
+}
+
+impl Pipeline {
+    pub fn num_partitions(&self) -> usize {
+        self.partitions.len()
+    }
+}
+
+/// A partition pipeline holds a sequence of operators along with the state for
+/// a single partition.
+///
+/// This is the smallest unit of work as it relates to the scheduler.
 #[derive(Debug)]
 pub struct PartitionPipeline {
     /// State of this pipeline.
