@@ -16,7 +16,7 @@ pub struct QuerySink {
     /// However there might be cases where we could handle the partitions
     /// independently, like writing the output to disk where each partition is
     /// able to write to its own file.
-    sinks: Vec<Box<dyn PartitionSink>>,
+    pub(crate) partition_sinks: Vec<Box<dyn PartitionSink>>,
 }
 
 impl QuerySink {
@@ -26,7 +26,7 @@ impl QuerySink {
     /// the query result, the planner will repartition as appropriate to match
     /// this number.
     pub fn num_partitions(&self) -> usize {
-        self.sinks.len()
+        self.partition_sinks.len()
     }
 }
 

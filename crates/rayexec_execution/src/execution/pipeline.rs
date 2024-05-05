@@ -1,6 +1,6 @@
 use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use std::{
     sync::Arc,
     task::{Context, Poll},
@@ -13,12 +13,65 @@ use std::{
 /// different partition.
 #[derive(Debug)]
 pub struct Pipeline {
-    partitions: Vec<PartitionPipeline>,
+    pub(crate) partitions: Vec<PartitionPipeline>,
 }
 
 impl Pipeline {
+    pub(crate) fn new(num_partitions: usize) -> Self {
+        assert_ne!(0, num_partitions);
+        let partitions = (0..num_partitions)
+            .map(|_| PartitionPipeline::new())
+            .collect();
+        Pipeline { partitions }
+    }
+
+    /// Return number of partitions in this pipeline.
     pub fn num_partitions(&self) -> usize {
         self.partitions.len()
+    }
+
+    pub fn num_operators(&self) -> usize {
+        self.partitions
+            .first()
+            .expect("at least one partition")
+            .operators
+            .len()
+    }
+
+    /// Push an operator onto the pipeline.
+    ///
+    /// This will push the operator along with its state onto each of the inner
+    /// partition pipelines.
+    ///
+    /// `partition_states` are the unique states per partition and must equal
+    /// the number of partitions in this pipeline.
+    pub(crate) fn push_operator(
+        &mut self,
+        physical: Arc<dyn PhysicalOperator>,
+        operator_state: Arc<OperatorState>,
+        partition_states: Vec<PartitionState>,
+    ) -> Result<()> {
+        if partition_states.len() != self.num_partitions() {
+            return Err(RayexecError::new(format!(
+                "Invalid number of partition states, got: {}, expected: {}",
+                partition_states.len(),
+                self.num_partitions()
+            )));
+        }
+
+        let operators = partition_states
+            .into_iter()
+            .map(|partition_state| OperatorWithState {
+                physical: physical.clone(),
+                operator_state: operator_state.clone(),
+                partition_state,
+            });
+
+        for (operator, partition_pipeline) in operators.zip(self.partitions.iter_mut()) {
+            partition_pipeline.operators.push(operator)
+        }
+
+        Ok(())
     }
 }
 
@@ -30,9 +83,6 @@ impl Pipeline {
 pub struct PartitionPipeline {
     /// State of this pipeline.
     state: PipelinePartitionState,
-
-    /// The partition index this partition pipeline is for.
-    _partition: usize,
 
     /// All operators part of this pipeline.
     ///
@@ -50,8 +100,18 @@ pub struct PartitionPipeline {
     pull_start_idx: usize,
 }
 
+impl PartitionPipeline {
+    fn new() -> Self {
+        PartitionPipeline {
+            state: PipelinePartitionState::PullFrom { operator_idx: 0 },
+            operators: Vec::new(),
+            pull_start_idx: 0,
+        }
+    }
+}
+
 #[derive(Debug)]
-struct OperatorWithState {
+pub(crate) struct OperatorWithState {
     /// The underlying physical operator.
     physical: Arc<dyn PhysicalOperator>,
 
@@ -63,7 +123,7 @@ struct OperatorWithState {
 }
 
 #[derive(Debug)]
-enum PipelinePartitionState {
+pub(crate) enum PipelinePartitionState {
     /// Need to pull from an operator.
     PullFrom { operator_idx: usize },
 

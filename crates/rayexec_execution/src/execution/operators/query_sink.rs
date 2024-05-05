@@ -10,9 +10,15 @@ pub struct QuerySinkPartitionState {
     sink: Box<dyn PartitionSink>,
 }
 
+impl QuerySinkPartitionState {
+    pub fn new(sink: Box<dyn PartitionSink>) -> Self {
+        QuerySinkPartitionState { sink }
+    }
+}
+
 /// Wrapper around a query sink to implement the physical operator trait.
 #[derive(Debug)]
-pub struct PhysicalQuerySink {}
+pub struct PhysicalQuerySink;
 
 impl PhysicalOperator for PhysicalQuerySink {
     fn poll_push(

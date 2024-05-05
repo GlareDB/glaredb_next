@@ -1,29 +1,37 @@
+pub mod empty;
 pub mod filter;
 pub mod nl_join;
 pub mod project;
 pub mod query_sink;
 pub mod simple;
+pub mod values;
 
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::Context;
 
+use self::empty::EmptyPartitionState;
 use self::nl_join::{NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState};
 use self::query_sink::QuerySinkPartitionState;
 use self::simple::SimplePartitionState;
+use self::values::ValuesPartitionState;
 
 /// States local to a partition within a single operator.
+// Current size: 88 bytes
 #[derive(Debug)]
 pub enum PartitionState {
     NlJoinBuild(NlJoinBuildPartitionState),
     NlJoinProbe(NlJoinProbePartitionState),
+    Values(ValuesPartitionState),
     QuerySink(QuerySinkPartitionState),
     Simple(SimplePartitionState),
+    Empty(EmptyPartitionState),
     None,
 }
 
 /// A global state across all partitions in an operator.
+// Current size: 72 bytes
 #[derive(Debug)]
 pub enum OperatorState {
     NlJoin(NlJoinOperatorState),

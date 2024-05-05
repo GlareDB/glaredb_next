@@ -13,7 +13,7 @@ use crate::expr::PhysicalScalarExpression;
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 
 /// Partition-local state on the build side.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NlJoinBuildPartitionState {
     /// All batches on the build side for a single partition.
     ///
@@ -67,10 +67,39 @@ pub struct NlJoinProbePartitionState {
     input_finished: bool,
 }
 
+impl NlJoinProbePartitionState {
+    pub fn new_for_partition(partition: usize) -> Self {
+        NlJoinProbePartitionState {
+            partition_idx: partition,
+            all_batches: Arc::new(Vec::new()),
+            is_populated: false,
+            buffered: VecDeque::new(),
+            push_waker: None,
+            pull_waker: None,
+            input_finished: false,
+        }
+    }
+}
+
 /// State shared across all partitions on both the build and probe side.
 #[derive(Debug)]
 pub struct NlJoinOperatorState {
     inner: Mutex<NlJoinOperatorStateInner>,
+}
+
+impl NlJoinOperatorState {
+    /// Create a new operator state using the configured number of partitions.
+    ///
+    /// Build and probe side partition numbers may be different.
+    pub fn new(num_partitions_build_side: usize, num_partitions_probe_side: usize) -> Self {
+        NlJoinOperatorState {
+            inner: Mutex::new(NlJoinOperatorStateInner::Building {
+                batches: Vec::new(),
+                build_partitions_remaining: num_partitions_build_side,
+                probe_side_wakers: vec![None; num_partitions_probe_side],
+            }),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -138,6 +167,12 @@ impl NlJoinOperatorStateInner {
 pub struct PhysicalNlJoin {
     /// Filter to apply after cross joining batches.
     filter: Option<PhysicalScalarExpression>,
+}
+
+impl PhysicalNlJoin {
+    pub fn new(filter: Option<PhysicalScalarExpression>) -> Self {
+        PhysicalNlJoin { filter }
+    }
 }
 
 impl PhysicalOperator for PhysicalNlJoin {
