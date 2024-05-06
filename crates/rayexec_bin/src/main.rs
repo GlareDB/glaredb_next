@@ -47,7 +47,7 @@ async fn inner() -> Result<()> {
     println!("INPUT: {query}");
     println!("OUTPUT SCHEMA: {:?}", output.output_schema);
 
-    for (idx, batch) in batches.into_iter().enumerate() {
+    for batch in batches.into_iter() {
         let out = ugly_print(&output.output_schema, &[batch])?;
         println!("{out}");
     }

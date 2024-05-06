@@ -17,7 +17,6 @@ use rayexec_parser::{ast, statement::Statement};
 use tracing::trace;
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();
-const EMPTY_SCHEMA: &Schema = &Schema::empty();
 const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 
 #[derive(Debug)]
@@ -47,7 +46,7 @@ impl<'a> PlanContext<'a> {
     }
 
     pub fn plan_statement(mut self, stmt: Statement) -> Result<LogicalQuery> {
-        trace!(?stmt, "planning statement");
+        trace!("planning statement");
         match stmt {
             Statement::Query(query) => self.plan_query(query),
             Statement::SetVariable { reference, value } => {

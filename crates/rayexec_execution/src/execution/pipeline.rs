@@ -5,6 +5,10 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
+use tracing::trace;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct PipelineId(pub usize);
 
 /// A pipeline represents execution across a sequence of operators.
 ///
@@ -13,16 +17,25 @@ use std::{
 /// different partition.
 #[derive(Debug)]
 pub struct Pipeline {
+    /// ID of this pipeline. Unique to the query graph.
+    ///
+    /// Informational only.
+    pub(crate) pipeline_id: PipelineId,
+
+    /// Parition pipelines that make up this pipeline.
     pub(crate) partitions: Vec<PartitionPipeline>,
 }
 
 impl Pipeline {
-    pub(crate) fn new(num_partitions: usize) -> Self {
+    pub(crate) fn new(pipeline_id: PipelineId, num_partitions: usize) -> Self {
         assert_ne!(0, num_partitions);
         let partitions = (0..num_partitions)
-            .map(|_| PartitionPipeline::new())
+            .map(|partition| PartitionPipeline::new(pipeline_id, partition))
             .collect();
-        Pipeline { partitions }
+        Pipeline {
+            pipeline_id,
+            partitions,
+        }
     }
 
     /// Return number of partitions in this pipeline.
@@ -86,6 +99,11 @@ impl Pipeline {
 /// This is the smallest unit of work as it relates to the scheduler.
 #[derive(Debug)]
 pub struct PartitionPipeline {
+    /// Information about the pipeline.
+    ///
+    /// Should only be used for debugging/logging.
+    info: PartitionPipelineInfo,
+
     /// State of this pipeline.
     state: PipelinePartitionState,
 
@@ -106,13 +124,24 @@ pub struct PartitionPipeline {
 }
 
 impl PartitionPipeline {
-    fn new() -> Self {
+    fn new(pipeline: PipelineId, partition: usize) -> Self {
         PartitionPipeline {
+            info: PartitionPipelineInfo {
+                pipeline,
+                partition,
+            },
             state: PipelinePartitionState::PullFrom { operator_idx: 0 },
             operators: Vec::new(),
             pull_start_idx: 0,
         }
     }
+}
+
+/// Information about a partition pipeline.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PartitionPipelineInfo {
+    pipeline: PipelineId,
+    partition: usize,
 }
 
 #[derive(Debug)]
@@ -163,9 +192,13 @@ impl PartitionPipeline {
     /// they've not been exhausted. An example operator that would emit a Break
     /// is LIMIT.
     pub fn poll_execute(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>> {
+        // TODO: Why does the tracing library not work here?
+        trace!(info = ?self.info, "polling execute for partition pipeline");
+
         let state = &mut self.state;
 
         loop {
+            trace!(info = ?self.info, ?state, "looping execute for partition pipeline");
             match state {
                 PipelinePartitionState::PullFrom { operator_idx } => {
                     let operator = self

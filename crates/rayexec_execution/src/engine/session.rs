@@ -105,7 +105,6 @@ impl Session {
         let resolver = DebugResolver { vars: &self.vars };
         let plan_context = PlanContext::new(&resolver);
         let mut logical = plan_context.plan_statement(stmts.next().unwrap())?;
-        trace!(?logical, "logical plan created");
 
         let (result_stream, result_sink) = unpartitioned_result_stream();
         let planner = QueryGraphPlanner::new(8, QueryGraphDebugConfig::default());

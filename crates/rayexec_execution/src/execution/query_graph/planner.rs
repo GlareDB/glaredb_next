@@ -14,7 +14,7 @@ use crate::{
             values::{PhysicalValues, ValuesPartitionState},
             OperatorState, PartitionState,
         },
-        pipeline::Pipeline,
+        pipeline::{Pipeline, PipelineId},
     },
     expr::PhysicalScalarExpression,
     planner::operator::{self, LogicalOperator},
@@ -81,6 +81,9 @@ struct BuildState {
 
     /// Completed pipelines.
     completed: Vec<Pipeline>,
+
+    /// Next id to use for new pipelines in the graph.
+    next_pipeline_id: PipelineId,
 }
 
 impl BuildState {
@@ -88,6 +91,7 @@ impl BuildState {
         BuildState {
             in_progress: None,
             completed: Vec::new(),
+            next_pipeline_id: PipelineId(0),
         }
     }
 
@@ -109,6 +113,12 @@ impl BuildState {
             // LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
             other => unimplemented!("other: {other:?}"),
         }
+    }
+
+    fn next_pipeline_id(&mut self) -> PipelineId {
+        let id = self.next_pipeline_id;
+        self.next_pipeline_id = PipelineId(id.0 + 1);
+        id
     }
 
     /// Get the current in-progress pipeline.
@@ -184,7 +194,7 @@ impl BuildState {
 
         // We have a new pipeline with its inputs being the output of the
         // repartition.
-        let mut pipeline = Pipeline::new(target_partitions);
+        let mut pipeline = Pipeline::new(self.next_pipeline_id, target_partitions);
         pipeline.push_operator(physical, operator_state, pull_states)?;
 
         self.in_progress = Some(pipeline);
@@ -327,7 +337,11 @@ impl BuildState {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        self.in_progress = Some(Self::new_pipeline_for_values(conf, values)?);
+        self.in_progress = Some(Self::new_pipeline_for_values(
+            self.next_pipeline_id(),
+            conf,
+            values,
+        )?);
 
         Ok(())
     }
@@ -352,7 +366,7 @@ impl BuildState {
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = vec![PartitionState::Empty(EmptyPartitionState::default())];
 
-        let mut pipeline = Pipeline::new(1);
+        let mut pipeline = Pipeline::new(self.next_pipeline_id, 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -361,6 +375,7 @@ impl BuildState {
     }
 
     fn new_pipeline_for_values(
+        pipeline_id: PipelineId,
         conf: &BuildConfig,
         values: operator::ExpressionList,
     ) -> Result<Pipeline> {
@@ -416,7 +431,7 @@ impl BuildState {
         // 2. Add in a partitioning operator above this operator such that
         //    partition happens during execution.
 
-        let mut pipeline = Pipeline::new(conf.target_partitions);
+        let mut pipeline = Pipeline::new(pipeline_id, conf.target_partitions);
 
         let physical = Arc::new(PhysicalValues);
         let operator_state = Arc::new(OperatorState::None);
