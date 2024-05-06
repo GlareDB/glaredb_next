@@ -17,6 +17,11 @@ use crate::execution::operators::{
 pub struct HashRepartitionPartitionState {
     /// Partition index corresponding to this state.
     own_idx: usize,
+
+    /// Buffered output batches for this partition.
+    ///
+    /// Populated from the the global state to try to minimize locking.
+    batches: VecDeque<Batch>,
 }
 
 #[derive(Debug)]
@@ -71,10 +76,15 @@ impl PhysicalOperator for PhysicalHashRepartition {
     fn poll_push(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
+        partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         mut batch: Batch,
     ) -> Result<PollPush> {
+        let state = match partition_state {
+            PartitionState::HashRepartition(state) => state,
+            other => panic!("invalid partition state: {other:?}"),
+        };
+
         let operator_state = match operator_state {
             OperatorState::HashRepartition(state) => state,
             other => panic!("invalid operator state: {other:?}"),
@@ -130,6 +140,14 @@ impl PhysicalOperator for PhysicalHashRepartition {
             if let Some(waker) = shared.pull_waker.take() {
                 waker.wake();
             }
+
+            // If this is our partition, move the batches into our local state.
+            //
+            // This let's us skip locking on a subsequent `poll_pull` since the
+            // batch(es) will already be in the partition-local state.
+            if partition_idx == state.own_idx {
+                state.batches.append(&mut shared.batches);
+            }
         }
 
         Ok(PollPush::Pushed)
@@ -173,6 +191,11 @@ impl PhysicalOperator for PhysicalHashRepartition {
             other => panic!("invalid partition state: {other:?}"),
         };
 
+        // Try getting from our local state first.
+        if let Some(batch) = state.batches.pop_front() {
+            return Ok(PollPull::Batch(batch));
+        }
+
         let operator_state = match operator_state {
             OperatorState::HashRepartition(state) => state,
             other => panic!("invalid operator state: {other:?}"),
@@ -180,7 +203,13 @@ impl PhysicalOperator for PhysicalHashRepartition {
 
         let shared = &mut operator_state.shared_states[state.own_idx].lock();
         match shared.batches.pop_front() {
-            Some(batch) => Ok(PollPull::Batch(batch)),
+            Some(batch) => {
+                // Drain from global state into our local state to try to reduce
+                // locking on a subsequent pull.
+                state.batches.append(&mut shared.batches);
+
+                Ok(PollPull::Batch(batch))
+            }
             None => {
                 if shared.input_finished {
                     return Ok(PollPull::Exhausted);
