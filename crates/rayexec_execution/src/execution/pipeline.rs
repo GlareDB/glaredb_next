@@ -2,6 +2,7 @@ use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::{
+    fmt,
     sync::Arc,
     task::{Context, Poll},
 };
@@ -156,7 +157,6 @@ pub(crate) struct OperatorWithState {
     partition_state: PartitionState,
 }
 
-#[derive(Debug)]
 pub(crate) enum PipelinePartitionState {
     /// Need to pull from an operator.
     PullFrom { operator_idx: usize },
@@ -166,6 +166,22 @@ pub(crate) enum PipelinePartitionState {
 
     /// Pipeline is completed.
     Completed,
+}
+
+impl fmt::Debug for PipelinePartitionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PullFrom { operator_idx } => f
+                .debug_struct("PullFrom")
+                .field("operator_idx", operator_idx)
+                .finish(),
+            Self::PushTo { operator_idx, .. } => f
+                .debug_struct("PushTo")
+                .field("operator_idx", operator_idx)
+                .finish(),
+            Self::Completed => f.debug_struct("Completed").finish(),
+        }
+    }
 }
 
 impl PartitionPipeline {
@@ -192,13 +208,11 @@ impl PartitionPipeline {
     /// they've not been exhausted. An example operator that would emit a Break
     /// is LIMIT.
     pub fn poll_execute(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>> {
-        // TODO: Why does the tracing library not work here?
         trace!(info = ?self.info, "polling execute for partition pipeline");
 
         let state = &mut self.state;
 
         loop {
-            trace!(info = ?self.info, ?state, "looping execute for partition pipeline");
             match state {
                 PipelinePartitionState::PullFrom { operator_idx } => {
                     let operator = self

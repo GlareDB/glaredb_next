@@ -22,7 +22,7 @@ async fn main() {
         .with_file(true)
         .with_line_number(true)
         .finish();
-    let _g = tracing::subscriber::set_default(subscriber);
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     if let Err(e) = inner().await {
         println!("----");
