@@ -1,10 +1,9 @@
 use rayexec_bullet::batch::Batch;
-use super::{ PartitionState, OperatorState , PollPull, PollPush};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Waker};
 
-use super::PhysicalOperator;
+use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct SimplePartitionState {

@@ -18,10 +18,8 @@ where
         .map(|f| f.name.clone())
         .collect::<Vec<_>>()
         .join("\t");
-    write!(buf, "\n")?;
 
     for batch in batches.into_iter() {
-        write!(buf, "| ")?;
         for idx in 0..batch.num_rows() {
             for (col_idx, col) in batch.columns().iter().enumerate() {
                 write!(
@@ -35,7 +33,9 @@ where
                     write!(buf, "| ")?;
                 }
             }
-            write!(buf, "\n")?;
+            if idx < batch.num_rows() - 1 {
+                write!(buf, "\n")?;
+            }
         }
     }
 

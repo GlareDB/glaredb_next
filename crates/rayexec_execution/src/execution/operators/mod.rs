@@ -15,6 +15,9 @@ use std::task::Context;
 use self::empty::EmptyPartitionState;
 use self::nl_join::{NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState};
 use self::query_sink::QuerySinkPartitionState;
+use self::repartition::{
+    RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
+};
 use self::simple::SimplePartitionState;
 use self::values::ValuesPartitionState;
 
@@ -26,6 +29,8 @@ pub enum PartitionState {
     NlJoinProbe(NlJoinProbePartitionState),
     Values(ValuesPartitionState),
     QuerySink(QuerySinkPartitionState),
+    RoundRobinPush(RoundRobinPushPartitionState),
+    RoundRobinPull(RoundRobinPullPartitionState),
     Simple(SimplePartitionState),
     Empty(EmptyPartitionState),
     None,
@@ -36,6 +41,7 @@ pub enum PartitionState {
 #[derive(Debug)]
 pub enum OperatorState {
     NlJoin(NlJoinOperatorState),
+    RoundRobin(RoundRobinOperatorState),
     None,
 }
 

@@ -9,6 +9,7 @@ use crate::{
             },
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
+            repartition::{round_robin_states, PhysicalRoundRobinRepartition},
             simple::{SimpleOperator, SimplePartitionState},
             values::{PhysicalValues, ValuesPartitionState},
             OperatorState, PartitionState,
@@ -124,15 +125,19 @@ impl BuildState {
     /// pipeline as completed.
     ///
     /// This is the last step when building up pipelines for a query graph.
-    fn push_query_sink(&mut self, _conf: &BuildConfig, sink: QuerySink) -> Result<()> {
+    fn push_query_sink(&mut self, conf: &BuildConfig, sink: QuerySink) -> Result<()> {
+        let current_partitions = self.in_progress_pipeline_mut()?.num_partitions();
+
+        // Push a repartition if the current pipeline has a different number of
+        // partitions than the sink we'll be sending results to.
+        if sink.num_partitions() != current_partitions {
+            self.push_round_robin(conf, sink.num_partitions())?;
+        }
+
         let mut current = self
             .in_progress
             .take()
             .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
-
-        if sink.num_partitions() != current.num_partitions() {
-            // TODO: Push repartition onto the pipeline to get these to match.
-        }
 
         let physical = Arc::new(PhysicalQuerySink);
         let operator_state = Arc::new(OperatorState::None);
@@ -144,6 +149,45 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    /// Pushes a round robin repartition onto the pipeline.
+    ///
+    /// This will mark the current pipeline completed, and start a new pipeline
+    /// using the repartition as its source.
+    fn push_round_robin(&mut self, _conf: &BuildConfig, target_partitions: usize) -> Result<()> {
+        let mut current = self
+            .in_progress
+            .take()
+            .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
+
+        let (operator_state, push_states, pull_states) =
+            round_robin_states(current.num_partitions(), target_partitions);
+
+        let operator_state = Arc::new(OperatorState::RoundRobin(operator_state));
+        let push_states = push_states
+            .into_iter()
+            .map(|state| PartitionState::RoundRobinPush(state))
+            .collect();
+        let pull_states = pull_states
+            .into_iter()
+            .map(|state| PartitionState::RoundRobinPull(state))
+            .collect();
+
+        let physical = Arc::new(PhysicalRoundRobinRepartition);
+
+        // Current pipeline is now completed.
+        current.push_operator(physical.clone(), operator_state.clone(), push_states)?;
+        self.completed.push(current);
+
+        // We have a new pipeline with its inputs being the output of the
+        // repartition.
+        let mut pipeline = Pipeline::new(target_partitions);
+        pipeline.push_operator(physical, operator_state, pull_states)?;
+
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }
