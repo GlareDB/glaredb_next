@@ -7,6 +7,8 @@ pub mod repartition;
 pub mod simple;
 pub mod values;
 
+mod util;
+
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -15,7 +17,8 @@ use std::task::Context;
 use self::empty::EmptyPartitionState;
 use self::nl_join::{NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState};
 use self::query_sink::QuerySinkPartitionState;
-use self::repartition::{
+use self::repartition::hash::{HashRepartitionOperatorState, HashRepartitionPartitionState};
+use self::repartition::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
@@ -31,6 +34,7 @@ pub enum PartitionState {
     QuerySink(QuerySinkPartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
+    HashRepartition(HashRepartitionPartitionState),
     Simple(SimplePartitionState),
     Empty(EmptyPartitionState),
     None,
@@ -42,6 +46,7 @@ pub enum PartitionState {
 pub enum OperatorState {
     NlJoin(NlJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
+    HashRepartition(HashRepartitionOperatorState),
     None,
 }
 

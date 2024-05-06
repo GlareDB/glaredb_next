@@ -68,6 +68,25 @@ impl Batch {
         }
     }
 
+    /// Try to push a column to the end of the column list.
+    ///
+    /// Errors if the column does not have the same number of rows as in the
+    /// batch.
+    pub fn try_push_column(&mut self, col: impl Into<Arc<Array>>) -> Result<()> {
+        let col = col.into();
+        if col.len() != self.num_rows {
+            return Err(RayexecError::new(format!(
+                "Attempt to push a column with invalid number of rows, expected: {}, got: {}",
+                self.num_rows,
+                col.len()
+            )));
+        }
+
+        self.cols.push(col);
+
+        Ok(())
+    }
+
     /// Get the row at some index.
     pub fn row(&self, idx: usize) -> Option<Row> {
         if idx >= self.num_rows {

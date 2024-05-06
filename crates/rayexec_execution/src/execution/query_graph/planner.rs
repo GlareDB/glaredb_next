@@ -9,7 +9,7 @@ use crate::{
             },
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
-            repartition::{round_robin_states, PhysicalRoundRobinRepartition},
+            repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             simple::{SimpleOperator, SimplePartitionState},
             values::{PhysicalValues, ValuesPartitionState},
             OperatorState, PartitionState,

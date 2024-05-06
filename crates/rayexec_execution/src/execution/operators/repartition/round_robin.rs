@@ -7,7 +7,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use crate::execution::operators::{
+    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+};
 
 /// Create the appropriate states for the round robin repartition operator.
 pub fn round_robin_states(
@@ -96,6 +98,7 @@ pub struct RoundRobinOperatorState {
     num_inputs_remaining: AtomicUsize,
 }
 
+/// Repartition 'n' input partitions into 'm' output partitions.
 #[derive(Debug)]
 pub struct PhysicalRoundRobinRepartition;
 
