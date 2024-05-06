@@ -20,6 +20,13 @@ pub struct QuerySink {
 }
 
 impl QuerySink {
+    /// Create a new query sink with the given partition sinks.
+    pub fn new(sinks: impl IntoIterator<Item = Box<dyn PartitionSink>>) -> Self {
+        QuerySink {
+            partition_sinks: sinks.into_iter().collect(),
+        }
+    }
+
     /// Number of partitions that this sink is expected inputs to.
     ///
     /// Used during planning. If this differs from the number of partitions in

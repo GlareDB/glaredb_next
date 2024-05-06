@@ -3,6 +3,7 @@ pub mod filter;
 pub mod nl_join;
 pub mod project;
 pub mod query_sink;
+pub mod repartition;
 pub mod simple;
 pub mod values;
 
@@ -43,6 +44,7 @@ pub enum OperatorState {
 /// An operator may not be ready to accept input either because it's waiting on
 /// something else to complete (e.g. the right side of a join needs to the left
 /// side to complete first) or some internal buffer is full.
+// TODO: Needs more
 #[derive(Debug)]
 pub enum PollPush {
     /// Batch was successfully pushed.

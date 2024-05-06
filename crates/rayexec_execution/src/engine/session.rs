@@ -6,18 +6,25 @@ use rayexec_parser::{ast, parser};
 use tracing::trace;
 
 use crate::{
-    functions::aggregate::{self, AggregateFunction},
-    functions::table::{self, TableFunctionOld},
+    engine::result_stream::unpartitioned_result_stream,
+    execution::query_graph::{
+        planner::{QueryGraphDebugConfig, QueryGraphPlanner},
+        sink::QuerySink,
+    },
+    functions::{
+        aggregate::{self, AggregateFunction},
+        table::{self, TableFunctionOld},
+    },
     optimizer::Optimizer,
-    physical::{planner::PhysicalPlanner, scheduler::Scheduler, TaskContext},
     planner::{plan::PlanContext, Resolver},
+    scheduler::Scheduler,
 };
 
 use super::{
     materialize::MaterializedBatchStream,
     modify::{Modification, SessionModifier},
-    vars::SessionVar,
-    vars::SessionVars,
+    result_stream::ResultStream,
+    vars::{SessionVar, SessionVars},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -65,7 +72,7 @@ impl<'a> Resolver for DebugResolver<'a> {
 #[derive(Debug)]
 pub struct ExecutionResult {
     pub output_schema: Schema,
-    pub stream: MaterializedBatchStream,
+    pub stream: ResultStream,
 }
 
 #[derive(Debug)]
@@ -100,24 +107,35 @@ impl Session {
         let mut logical = plan_context.plan_statement(stmts.next().unwrap())?;
         trace!(?logical, "logical plan created");
 
-        let optimizer = Optimizer::new();
-        logical.root = optimizer.optimize(logical.root)?;
+        let (result_stream, result_sink) = unpartitioned_result_stream();
+        let planner = QueryGraphPlanner::new(1, QueryGraphDebugConfig::default());
+        let query_graph = planner.create_graph(logical.root, QuerySink::new([result_sink]))?;
 
-        let mut output_stream = MaterializedBatchStream::new();
-
-        let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
-        let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
-
-        let context = TaskContext {
-            modifications: Some(self.modifications.clone_sender()),
-        };
-
-        self.scheduler.execute(pipeline, context)?;
+        self.scheduler.spawn_query_graph(query_graph);
 
         Ok(ExecutionResult {
             output_schema: Schema::empty(), // TODO
-            stream: output_stream,
+            stream: result_stream,
         })
+
+        // let optimizer = Optimizer::new();
+        // logical.root = optimizer.optimize(logical.root)?;
+
+        // let mut output_stream = MaterializedBatchStream::new();
+
+        // let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
+        // let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
+
+        // let context = TaskContext {
+        //     modifications: Some(self.modifications.clone_sender()),
+        // };
+
+        // self.scheduler.execute(pipeline, context)?;
+
+        // Ok(ExecutionResult {
+        //     output_schema: Schema::empty(), // TODO
+        //     stream: output_stream,
+        // })
     }
 
     fn apply_pending_modifications(&mut self) -> Result<()> {

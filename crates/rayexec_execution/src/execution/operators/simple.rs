@@ -27,6 +27,17 @@ pub struct SimplePartitionState {
     exhausted: bool,
 }
 
+impl SimplePartitionState {
+    pub fn new() -> Self {
+        SimplePartitionState {
+            buffered: None,
+            pull_waker: None,
+            push_waker: None,
+            exhausted: false,
+        }
+    }
+}
+
 /// A stateless operation on a batch.
 pub trait StatelessOperation: Sync + Send + Debug {
     fn execute(&self, batch: Batch) -> Result<Batch>;

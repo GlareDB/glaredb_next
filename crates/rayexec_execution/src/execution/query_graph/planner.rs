@@ -9,7 +9,7 @@ use crate::{
             },
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
-            simple::SimpleOperator,
+            simple::{SimpleOperator, SimplePartitionState},
             values::{PhysicalValues, ValuesPartitionState},
             OperatorState, PartitionState,
         },
@@ -161,7 +161,7 @@ impl BuildState {
         let physical = Arc::new(SimpleOperator::new(ProjectOperation::new(projections)));
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = (0..pipeline.num_partitions())
-            .map(|_| PartitionState::None)
+            .map(|_| PartitionState::Simple(SimplePartitionState::new()))
             .collect();
 
         pipeline.push_operator(physical, operator_state, partition_states)?;
@@ -178,7 +178,7 @@ impl BuildState {
         let physical = Arc::new(SimpleOperator::new(FilterOperation::new(predicate)));
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = (0..pipeline.num_partitions())
-            .map(|_| PartitionState::None)
+            .map(|_| PartitionState::Simple(SimplePartitionState::new()))
             .collect();
 
         pipeline.push_operator(physical, operator_state, partition_states)?;

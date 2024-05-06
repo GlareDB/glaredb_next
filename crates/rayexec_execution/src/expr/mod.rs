@@ -84,10 +84,7 @@ impl PhysicalScalarExpression {
                     ))
                 })?
                 .clone(),
-            Self::Literal(lit) => {
-                // lit.as_array(batch.num_rows())?
-                unimplemented!()
-            }
+            Self::Literal(lit) => Arc::new(lit.as_array(batch.num_rows())),
             Self::Binary { op, left, right } => {
                 let left = left.eval(batch)?;
                 let right = right.eval(batch)?;

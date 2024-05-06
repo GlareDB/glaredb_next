@@ -30,12 +30,17 @@ impl Pipeline {
         self.partitions.len()
     }
 
+    /// Return the number of operators in this pipeline.
     pub fn num_operators(&self) -> usize {
         self.partitions
             .first()
             .expect("at least one partition")
             .operators
             .len()
+    }
+
+    pub fn into_partition_pipeline_iter(self) -> impl Iterator<Item = PartitionPipeline> {
+        self.partitions.into_iter()
     }
 
     /// Push an operator onto the pipeline.
