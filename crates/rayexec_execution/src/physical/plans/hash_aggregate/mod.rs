@@ -3,10 +3,7 @@ mod hashtable;
 use crate::physical::plans::hash_aggregate::hashtable::GroupingSetColumns;
 use crate::physical::plans::util::hash::hash_arrays;
 use crate::physical::TaskContext;
-use crate::{
-    functions::aggregate::Accumulator,
-    planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
-};
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use hashbrown::raw::RawTable;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;

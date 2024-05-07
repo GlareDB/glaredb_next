@@ -87,6 +87,13 @@ impl Batch {
         Ok(())
     }
 
+    /// Try to pop the right-most column off the batch.
+    pub fn try_pop_column(&mut self) -> Result<Arc<Array>> {
+        self.cols.pop().ok_or_else(|| {
+            RayexecError::new("Attempted to pop a column from a batch with no columns")
+        })
+    }
+
     /// Get the row at some index.
     pub fn row(&self, idx: usize) -> Option<Row> {
         if idx >= self.num_rows {

@@ -123,37 +123,37 @@ impl<'a> ExpressionContext<'a> {
             }),
             ast::Expr::Function(func) => {
                 // Check if there exists an aggregate function with this name.
-                if let Some(agg) = self
-                    .plan_context
-                    .resolver
-                    .resolve_aggregate_function(&func.name)?
-                {
-                    // TODO: We'll actually want to pass down additional plans
-                    // to ensure we're not planning nested
-                    // aggregates/subqueries.
-                    //
-                    // Same thing with the filter.
-                    let args = func
-                        .args
-                        .into_iter()
-                        .map(|arg| match arg {
-                            ast::FunctionArg::Unnamed { arg } => {
-                                Ok(Box::new(self.plan_expression(arg)?))
-                            }
-                            ast::FunctionArg::Named { .. } => Err(RayexecError::new(
-                                "Named arguments to aggregate functions not supported",
-                            )),
-                        })
-                        .collect::<Result<Vec<_>>>()?;
+                // if let Some(agg) = self
+                //     .plan_context
+                //     .resolver
+                //     .resolve_aggregate_function(&func.name)?
+                // {
+                //     // TODO: We'll actually want to pass down additional plans
+                //     // to ensure we're not planning nested
+                //     // aggregates/subqueries.
+                //     //
+                //     // Same thing with the filter.
+                //     let args = func
+                //         .args
+                //         .into_iter()
+                //         .map(|arg| match arg {
+                //             ast::FunctionArg::Unnamed { arg } => {
+                //                 Ok(Box::new(self.plan_expression(arg)?))
+                //             }
+                //             ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                //                 "Named arguments to aggregate functions not supported",
+                //             )),
+                //         })
+                //         .collect::<Result<Vec<_>>>()?;
 
-                    let filter = match func.filter {
-                        Some(filter) => Some(Box::new(self.plan_expression(*filter)?)),
-                        None => None,
-                    };
+                //     let filter = match func.filter {
+                //         Some(filter) => Some(Box::new(self.plan_expression(*filter)?)),
+                //         None => None,
+                //     };
 
-                    // TODO: agg
-                    return Ok(LogicalExpression::Aggregate { args, filter });
-                }
+                //     // TODO: agg
+                //     return Ok(LogicalExpression::Aggregate { args, filter });
+                // }
 
                 // TODO: Check normal scalars.
 

@@ -6,8 +6,6 @@ use rayexec_error::Result;
 use smallvec::{smallvec, SmallVec};
 use std::fmt;
 
-use crate::functions::aggregate::Accumulator;
-
 #[derive(Debug)]
 pub struct GroupingSetColumns<'a> {
     /// Columns making up the grouping set keys.
@@ -87,7 +85,7 @@ impl fmt::Debug for GroupingSetHashTable {
 #[derive(Debug)]
 pub struct GroupingSetAccumulators {
     /// All accumulators for the query.
-    accumulators: Vec<Box<dyn Accumulator>>,
+    // accumulators: Vec<Box<dyn Accumulator>>,
 
     /// Columns inputs for each of the accumulators.
     inputs: Vec<Vec<usize>>,

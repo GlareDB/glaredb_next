@@ -20,6 +20,7 @@ arrow-select = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true }
+num-traits = "0.2.19"
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
 parquet = { workspace = true }

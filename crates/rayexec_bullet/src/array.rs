@@ -238,6 +238,29 @@ impl FromIterator<Option<bool>> for BooleanArray {
     }
 }
 
+#[derive(Debug)]
+pub struct BooleanArrayIter<'a> {
+    idx: usize,
+    values: &'a Bitmap,
+    validity: Option<&'a Bitmap>,
+}
+
+impl Iterator for BooleanArrayIter<'_> {
+    type Item = Option<bool>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx == self.values.len() {
+            None
+        } else if self.validity.map(|v| v.value(self.idx)).unwrap_or(true) {
+            let val = self.values.value(self.idx);
+            self.idx += 1;
+            Some(Some(val))
+        } else {
+            Some(None)
+        }
+    }
+}
+
 pub trait PrimitiveNumeric: Sized {
     const MIN_VALUE: Self;
     const MAX_VALUE: Self;
@@ -409,6 +432,14 @@ impl<T> PrimitiveArray<T> {
     pub(crate) fn values_mut(&mut self) -> &mut PrimitiveStorage<T> {
         &mut self.values
     }
+
+    pub fn iter(&self) -> PrimitiveArrayIter<T> {
+        PrimitiveArrayIter {
+            idx: 0,
+            values: self.values.as_ref(),
+            validity: self.validity.as_ref(),
+        }
+    }
 }
 
 impl<A> FromIterator<A> for PrimitiveArray<A> {
@@ -452,6 +483,42 @@ impl<T> From<Vec<T>> for PrimitiveArray<T> {
             values: PrimitiveStorage::Vec(value),
             validity: None,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct PrimitiveArrayIter<'a, T> {
+    idx: usize,
+    values: &'a [T],
+    validity: Option<&'a Bitmap>,
+}
+
+impl<T> PrimitiveArrayIter<'_, T> {
+    fn is_valid(&self, idx: usize) -> bool {
+        self.validity.map(|v| v.value(idx)).unwrap_or(true)
+    }
+}
+
+impl<T: Copy> Iterator for PrimitiveArrayIter<'_, T> {
+    type Item = Option<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx == self.values.len() {
+            None
+        } else if self.is_valid(self.idx) {
+            let val = self.values[self.idx];
+            self.idx += 1;
+            Some(Some(val))
+        } else {
+            Some(None)
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (
+            self.values.len() - self.idx,
+            Some(self.values.len() - self.idx),
+        )
     }
 }
 

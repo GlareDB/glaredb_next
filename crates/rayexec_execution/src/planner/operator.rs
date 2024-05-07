@@ -1,6 +1,5 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
-use crate::functions::aggregate::AggregateFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::{

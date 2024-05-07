@@ -12,7 +12,7 @@ use crate::{
         sink::QuerySink,
     },
     functions::{
-        aggregate::{self, AggregateFunction},
+        aggregate::{self},
         table::{self, TableFunctionOld},
     },
     optimizer::Optimizer,
@@ -33,19 +33,19 @@ pub struct DebugResolver<'a> {
 }
 
 impl<'a> Resolver for DebugResolver<'a> {
-    fn resolve_aggregate_function(
-        &self,
-        reference: &ast::ObjectReference,
-    ) -> Result<Option<Box<dyn AggregateFunction>>> {
-        if reference.0.len() != 1 {
-            return Err(RayexecError::new("Expected a single ident"));
-        }
+    // fn resolve_aggregate_function(
+    //     &self,
+    //     reference: &ast::ObjectReference,
+    // ) -> Result<Option<Box<dyn AggregateFunction>>> {
+    //     if reference.0.len() != 1 {
+    //         return Err(RayexecError::new("Expected a single ident"));
+    //     }
 
-        Ok(match reference.0[0].value.as_ref() {
-            "sum" => Some(Box::new(aggregate::sum::Sum)),
-            other => return Err(RayexecError::new(format!("unknown function: {other}"))),
-        })
-    }
+    //     Ok(match reference.0[0].value.as_ref() {
+    //         "sum" => Some(Box::new(aggregate::sum::Sum)),
+    //         other => return Err(RayexecError::new(format!("unknown function: {other}"))),
+    //     })
+    // }
 
     fn resolve_table_function(
         &self,
