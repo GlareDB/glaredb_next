@@ -1,7 +1,9 @@
-pub mod numeric;
 pub mod arith;
+pub mod comparison;
+pub mod numeric;
 pub mod string;
 
+use dyn_clone::DynClone;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -24,7 +26,7 @@ pub struct Signature {
     pub return_type: DataType,
 }
 
-pub trait GenericScalarFunction: Debug + Sync + Send {
+pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
     /// Name of the function.
     fn name(&self) -> &str;
 
@@ -40,14 +42,26 @@ pub trait GenericScalarFunction: Debug + Sync + Send {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>>;
 }
 
+impl Clone for Box<dyn GenericScalarFunction> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
 /// A specialized scalar function.
 ///
 /// We're using a trait instead of returning the function pointer directly from
 /// `GenericScalarFunction` because this will be what's serialized when
 /// serializing pipelines for distributed execution.
-pub trait SpecializedScalarFunction: Debug + Sync + Send {
+pub trait SpecializedScalarFunction: Debug + Sync + Send + DynClone {
     /// Return the function pointer that implements this scalar function.
     fn function_impl(&self) -> ScalarFn;
+}
+
+impl Clone for Box<dyn SpecializedScalarFunction> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
 }
 
 pub(crate) fn specialize_check_num_args(

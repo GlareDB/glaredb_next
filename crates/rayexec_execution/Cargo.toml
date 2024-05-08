@@ -17,6 +17,7 @@ arrow-ipc = { workspace = true }
 arrow-ord = { workspace = true }
 arrow-schema = { workspace = true }
 arrow-select = { workspace = true }
+dyn-clone = "1.0.17"
 chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true }

@@ -8,6 +8,50 @@ use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 
+/// Signatures for primitive arith operations (+, -, /, *, %)
+const PRIMITIVE_ARITH_SIGNATURES: &'static [Signature] = &[
+    Signature {
+        input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
+        return_type: DataType::Float32,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
+        return_type: DataType::Float64,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
+        return_type: DataType::Int8,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
+        return_type: DataType::Int16,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
+        return_type: DataType::Int32,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
+        return_type: DataType::Int64,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
+        return_type: DataType::UInt8,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
+        return_type: DataType::UInt16,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
+        return_type: DataType::UInt32,
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
+        return_type: DataType::UInt64,
+    },
+];
+
 /// Macro for generating a specialized binary function that accepts two
 /// primitive arrays, and produces a single primitive array.
 ///
@@ -52,48 +96,7 @@ impl GenericScalarFunction for Add {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
-                return_type: DataType::Float32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
-                return_type: DataType::Float64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
-                return_type: DataType::Int8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
-                return_type: DataType::Int16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
-                return_type: DataType::Int32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
-                return_type: DataType::Int64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
-                return_type: DataType::UInt8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
-                return_type: DataType::UInt16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
-                return_type: DataType::UInt32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
-                return_type: DataType::UInt64,
-            },
-        ]
+        PRIMITIVE_ARITH_SIGNATURES
     }
 
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
@@ -224,48 +227,7 @@ impl GenericScalarFunction for Div {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
-                return_type: DataType::Float32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
-                return_type: DataType::Float64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
-                return_type: DataType::Int8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
-                return_type: DataType::Int16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
-                return_type: DataType::Int32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
-                return_type: DataType::Int64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
-                return_type: DataType::UInt8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
-                return_type: DataType::UInt16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
-                return_type: DataType::UInt32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
-                return_type: DataType::UInt64,
-            },
-        ]
+        PRIMITIVE_ARITH_SIGNATURES
     }
 
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
@@ -310,48 +272,7 @@ impl GenericScalarFunction for Mul {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
-                return_type: DataType::Float32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
-                return_type: DataType::Float64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
-                return_type: DataType::Int8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
-                return_type: DataType::Int16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
-                return_type: DataType::Int32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
-                return_type: DataType::Int64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
-                return_type: DataType::UInt8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
-                return_type: DataType::UInt16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
-                return_type: DataType::UInt32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
-                return_type: DataType::UInt64,
-            },
-        ]
+        PRIMITIVE_ARITH_SIGNATURES
     }
 
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
@@ -396,48 +317,7 @@ impl GenericScalarFunction for Rem {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
-                return_type: DataType::Float32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
-                return_type: DataType::Float64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
-                return_type: DataType::Int8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
-                return_type: DataType::Int16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
-                return_type: DataType::Int32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
-                return_type: DataType::Int64,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
-                return_type: DataType::UInt8,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
-                return_type: DataType::UInt16,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
-                return_type: DataType::UInt32,
-            },
-            Signature {
-                input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
-                return_type: DataType::UInt64,
-            },
-        ]
+        PRIMITIVE_ARITH_SIGNATURES
     }
 
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
