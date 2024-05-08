@@ -1,6 +1,8 @@
 use crate::bitmap::Bitmap;
 use std::fmt::Debug;
 
+use super::ArrayBuilder;
+
 /// A logical array for representing bools.
 #[derive(Debug, PartialEq)]
 pub struct BooleanArray {
@@ -120,5 +122,37 @@ impl Iterator for BooleanArrayIter<'_> {
         } else {
             Some(None)
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct BooleanArrayBuilder {
+    values: Bitmap,
+    validity: Option<Bitmap>,
+}
+
+impl BooleanArrayBuilder {
+    pub fn new() -> Self {
+        BooleanArrayBuilder {
+            values: Bitmap::default(),
+            validity: None,
+        }
+    }
+
+    pub fn into_boolean_array(self) -> BooleanArray {
+        BooleanArray {
+            validity: self.validity,
+            values: self.values,
+        }
+    }
+}
+
+impl ArrayBuilder<bool> for BooleanArrayBuilder {
+    fn push_value(&mut self, value: bool) {
+        self.values.push(value)
+    }
+
+    fn put_validity(&mut self, validity: Bitmap) {
+        self.validity = Some(validity)
     }
 }

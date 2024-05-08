@@ -1,16 +1,16 @@
 pub mod numeric;
 
 use rayexec_bullet::{array::Array, field::DataType};
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
 /// A function pointer with the concrete implementation of a scalar function.
-pub type ScalarFn = fn(&[&Array]) -> Array;
+pub type ScalarFn = fn(&[&Array]) -> Result<Array>;
 
 #[derive(Debug, Clone)]
 pub enum InputTypes {
-    /// Fixed number of inputs with the given types.
-    Fixed(&'static [DataType]),
+    /// Exact number of inputs with the given types.
+    Exact(&'static [DataType]),
 
     /// Variadic number of inputs with the same type.
     Variadic(DataType),
@@ -46,4 +46,31 @@ pub trait GenericScalarFunction: Debug + Sync + Send {
 pub trait SpecializedScalarFunction: Debug + Sync + Send {
     /// Return the function pointer that implements this scalar function.
     fn function_impl(&self) -> ScalarFn;
+}
+
+pub(crate) fn specialize_check_num_args(
+    scalar: &impl GenericScalarFunction,
+    inputs: &[DataType],
+    expected: usize,
+) -> Result<()> {
+    if inputs.len() != 1 {
+        return Err(RayexecError::new(format!(
+            "Expected {} input for '{}', received {}",
+            expected,
+            scalar.name(),
+            inputs.len(),
+        )));
+    }
+    Ok(())
+}
+
+pub(crate) fn specialize_invalid_input_type(
+    scalar: &impl GenericScalarFunction,
+    got: &DataType,
+) -> RayexecError {
+    RayexecError::new(format!(
+        "Got invalid type '{}' for '{}'",
+        got,
+        scalar.name()
+    ))
 }
