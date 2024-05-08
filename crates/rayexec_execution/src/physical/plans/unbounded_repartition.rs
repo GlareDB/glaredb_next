@@ -1,7 +1,6 @@
 use super::{SinkOperator2, SourceOperator2};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use arrow_array::UInt64Array;
 use crossbeam::channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;

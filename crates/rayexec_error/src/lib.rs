@@ -1,4 +1,3 @@
-use arrow::error::ArrowError;
 use parquet::errors::ParquetError;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::error::Error;
@@ -39,12 +38,6 @@ impl RayexecError {
 
     pub fn get_backtrace(&self) -> &Backtrace {
         &self.backtrace
-    }
-}
-
-impl From<ArrowError> for RayexecError {
-    fn from(value: ArrowError) -> Self {
-        Self::with_source("Arrow error", Box::new(value))
     }
 }
 

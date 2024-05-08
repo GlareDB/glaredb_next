@@ -6,7 +6,6 @@ use crate::{
     },
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
-use arrow_array::StringArray;
 use parking_lot::Mutex;
 use rayexec_bullet::{
     array::{Array, Utf8Array},
@@ -14,7 +13,6 @@ use rayexec_bullet::{
     field::{DataType, Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

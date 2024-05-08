@@ -1,8 +1,6 @@
 pub mod create_table_as;
 pub mod empty_source;
 pub mod filter;
-pub mod hash_aggregate;
-pub mod hash_join;
 pub mod hash_repartition;
 pub mod limit;
 pub mod nested_loop_join;

@@ -11,8 +11,7 @@ use crate::{
     expr::PhysicalScalarExpression,
     functions::table::Pushdown,
     physical::plans::{
-        filter::PhysicalFilter, hash_join::PhysicalPartitionedHashJoin,
-        hash_repartition::PhysicalHashRepartition, limit::PhysicalLimit,
+        filter::PhysicalFilter, hash_repartition::PhysicalHashRepartition, limit::PhysicalLimit,
         nested_loop_join::PhysicalNestedLoopJoin, values::PhysicalValues,
     },
     planner::operator::{self, LogicalOperator},
@@ -201,70 +200,71 @@ impl PipelineBuilder {
             return Err(RayexecError::new("Expected source to be None"));
         }
 
-        // TODO: Partitions.
-        let mut hash_join = PhysicalPartitionedHashJoin::try_new(
-            join.left_on.clone(),
-            join.right_on.clone(),
-            1,
-            join.join_type,
-        )?;
-        let build_sink = hash_join.take_build_sink().expect("build sink to exist");
-        let probe_sink = hash_join.take_probe_sink().expect("probe sink to exist");
+        unimplemented!()
+        // // TODO: Partitions.
+        // let mut hash_join = PhysicalPartitionedHashJoin::try_new(
+        //     join.left_on.clone(),
+        //     join.right_on.clone(),
+        //     1,
+        //     join.join_type,
+        // )?;
+        // let build_sink = hash_join.take_build_sink().expect("build sink to exist");
+        // let probe_sink = hash_join.take_probe_sink().expect("probe sink to exist");
 
-        // Build left side of join with the build sink as the destination.
-        let mut left_completed = {
-            // Left side goes into hash repartition.
-            let mut repartition = PhysicalHashRepartition::new(1, 1, join.left_on);
-            let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
+        // // Build left side of join with the build sink as the destination.
+        // let mut left_completed = {
+        //     // Left side goes into hash repartition.
+        //     let mut repartition = PhysicalHashRepartition::new(1, 1, join.left_on);
+        //     let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
 
-            let mut builder = PipelineBuilder::new(Box::new(repartition_sink), self.debug);
-            builder.walk_plan(*join.left)?;
-            builder.create_complete_chain()?;
-            let mut chains = builder.completed_chains;
+        //     let mut builder = PipelineBuilder::new(Box::new(repartition_sink), self.debug);
+        //     builder.walk_plan(*join.left)?;
+        //     builder.create_complete_chain()?;
+        //     let mut chains = builder.completed_chains;
 
-            // Add an additional operator chain for repartition -> build sink.
-            chains.push(OperatorChain::try_new(
-                Box::new(repartition),
-                Box::new(build_sink),
-                Vec::new(),
-            )?);
+        //     // Add an additional operator chain for repartition -> build sink.
+        //     chains.push(OperatorChain::try_new(
+        //         Box::new(repartition),
+        //         Box::new(build_sink),
+        //         Vec::new(),
+        //     )?);
 
-            chains
-        };
+        //     chains
+        // };
 
-        // Build right side of join with the probe sink as the destination.
-        let mut right_completed = {
-            // Right side goes into hash repartition.
-            //
-            // TODO: Measure performance of this. We might not want to
-            // repartition based on hash (but will still need to hash).
-            let mut repartition = PhysicalHashRepartition::new(1, 1, join.right_on);
-            let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
+        // // Build right side of join with the probe sink as the destination.
+        // let mut right_completed = {
+        //     // Right side goes into hash repartition.
+        //     //
+        //     // TODO: Measure performance of this. We might not want to
+        //     // repartition based on hash (but will still need to hash).
+        //     let mut repartition = PhysicalHashRepartition::new(1, 1, join.right_on);
+        //     let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
 
-            let mut builder = PipelineBuilder::new(Box::new(repartition_sink), self.debug);
-            builder.walk_plan(*join.right)?;
-            builder.create_complete_chain()?;
-            let mut chains = builder.completed_chains;
+        //     let mut builder = PipelineBuilder::new(Box::new(repartition_sink), self.debug);
+        //     builder.walk_plan(*join.right)?;
+        //     builder.create_complete_chain()?;
+        //     let mut chains = builder.completed_chains;
 
-            // Add an additional operator chain for repartition -> probe sink.
-            chains.push(OperatorChain::try_new(
-                Box::new(repartition),
-                Box::new(probe_sink),
-                Vec::new(),
-            )?);
+        //     // Add an additional operator chain for repartition -> probe sink.
+        //     chains.push(OperatorChain::try_new(
+        //         Box::new(repartition),
+        //         Box::new(probe_sink),
+        //         Vec::new(),
+        //     )?);
 
-            chains
-        };
+        //     chains
+        // };
 
-        // Source if this pipeline is now the hash join results.
-        self.source = Some(Box::new(hash_join));
+        // // Source if this pipeline is now the hash join results.
+        // self.source = Some(Box::new(hash_join));
 
-        // Append operator chains from the left and right children. Note that
-        // order doesn't matter with the chains.
-        self.completed_chains.append(&mut left_completed);
-        self.completed_chains.append(&mut right_completed);
+        // // Append operator chains from the left and right children. Note that
+        // // order doesn't matter with the chains.
+        // self.completed_chains.append(&mut left_completed);
+        // self.completed_chains.append(&mut right_completed);
 
-        Ok(())
+        // Ok(())
     }
 
     fn plan_cross_join(&mut self, join: operator::CrossJoin) -> Result<()> {

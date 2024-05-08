@@ -2,7 +2,6 @@ use super::{PollPull, PollPush, SinkOperator2, SourceOperator2};
 use crate::physical::plans::util::hash::{hash_arrays, partition_for_hash};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use arrow_array::UInt64Array;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};

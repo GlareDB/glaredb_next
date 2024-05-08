@@ -3,7 +3,6 @@ pub mod scalar;
 
 use self::scalar::{BinaryOperator, UnaryOperator, VariadicOperator};
 use crate::planner::operator::LogicalExpression;
-use arrow_array::{ArrayRef, BooleanArray};
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -92,10 +91,5 @@ impl PhysicalScalarExpression {
             }
             _ => unimplemented!(),
         })
-    }
-
-    /// Evaluate this expression on a batch where selection is true.
-    pub fn eval_selection(&self, _batch: &Batch, _selection: &BooleanArray) -> Result<ArrayRef> {
-        unimplemented!()
     }
 }

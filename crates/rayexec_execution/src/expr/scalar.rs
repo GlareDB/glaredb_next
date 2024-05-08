@@ -1,6 +1,6 @@
-use arrow_schema::DataType;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::compute::{arith, cmp};
+use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::fmt;

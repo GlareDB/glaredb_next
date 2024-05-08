@@ -9,14 +9,6 @@ rayexec_parser = { path = "../rayexec_parser" }
 rayexec_bullet = { path = "../rayexec_bullet" }
 
 ahash = { workspace = true }
-arrow = { workspace = true }
-arrow-array = { workspace = true }
-arrow-buffer = { workspace = true }
-arrow-cast = { workspace = true }
-arrow-ipc = { workspace = true }
-arrow-ord = { workspace = true }
-arrow-schema = { workspace = true }
-arrow-select = { workspace = true }
 dyn-clone = "1.0.17"
 chrono = { workspace = true }
 futures = { workspace = true }
