@@ -1,4 +1,5 @@
 pub mod numeric;
+pub mod arith;
 pub mod string;
 
 use rayexec_bullet::{array::Array, field::DataType};
