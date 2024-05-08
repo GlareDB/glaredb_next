@@ -77,6 +77,10 @@ macro_rules! generate_specialized_comparison {
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
+            fn return_type(&self) -> DataType {
+                DataType::Boolean
+            }
+
             fn function_impl(&self) -> ScalarFn {
                 fn inner(arrays: &[&Array]) -> Result<Array> {
                     let first = arrays[0];

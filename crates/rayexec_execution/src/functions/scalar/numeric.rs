@@ -19,6 +19,10 @@ macro_rules! generate_specialized_unary_numeric {
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
+            fn return_type(&self) -> DataType {
+                DataType::$output_variant
+            }
+
             fn function_impl(&self) -> ScalarFn {
                 fn inner(arrays: &[&Array]) -> Result<Array> {
                     let array = arrays[0];
@@ -73,6 +77,10 @@ impl GenericScalarFunction for IsNan {
 pub struct IsNanFloat32;
 
 impl SpecializedScalarFunction for IsNanFloat32 {
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
     fn function_impl(&self) -> ScalarFn {
         fn is_nan_f32_impl(arrays: &[&Array]) -> Result<Array> {
             let array = arrays[0];
@@ -94,6 +102,10 @@ impl SpecializedScalarFunction for IsNanFloat32 {
 pub struct IsNanFloat64;
 
 impl SpecializedScalarFunction for IsNanFloat64 {
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
     fn function_impl(&self) -> ScalarFn {
         fn is_nan_f64_impl(arrays: &[&Array]) -> Result<Array> {
             let array = arrays[0];

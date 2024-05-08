@@ -1,4 +1,5 @@
 use crossbeam::channel::TryRecvError;
+use hashbrown::HashMap;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser};
@@ -12,7 +13,8 @@ use crate::{
         sink::QuerySink,
     },
     functions::{
-        aggregate::{self},
+        aggregate,
+        scalar::{GenericScalarFunction, ALL_SCALAR_FUNCTIONS},
         table::{self, TableFunctionOld},
     },
     optimizer::Optimizer,
@@ -27,25 +29,44 @@ use super::{
     vars::{SessionVar, SessionVars},
 };
 
+#[derive(Debug)]
+struct SessionFunctions {
+    scalars: HashMap<&'static str, &'static Box<dyn GenericScalarFunction>>,
+}
+
+impl SessionFunctions {
+    fn new() -> Self {
+        // TODO: We wouldn't create this every time. Also these would be placed
+        // inside a builtin schema.
+        let mut scalars = HashMap::new();
+        for func in ALL_SCALAR_FUNCTIONS.iter() {
+            scalars.insert(func.name(), func);
+            for alias in func.aliases() {
+                scalars.insert(alias, func);
+            }
+        }
+
+        SessionFunctions { scalars }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct DebugResolver<'a> {
     vars: &'a SessionVars,
+    functions: &'a SessionFunctions,
 }
 
 impl<'a> Resolver for DebugResolver<'a> {
-    // fn resolve_aggregate_function(
-    //     &self,
-    //     reference: &ast::ObjectReference,
-    // ) -> Result<Option<Box<dyn AggregateFunction>>> {
-    //     if reference.0.len() != 1 {
-    //         return Err(RayexecError::new("Expected a single ident"));
-    //     }
-
-    //     Ok(match reference.0[0].value.as_ref() {
-    //         "sum" => Some(Box::new(aggregate::sum::Sum)),
-    //         other => return Err(RayexecError::new(format!("unknown function: {other}"))),
-    //     })
-    // }
+    fn resolve_scalar_function(
+        &self,
+        reference: &ast::ObjectReference,
+    ) -> Option<Box<dyn GenericScalarFunction>> {
+        if reference.0.len() != 1 {
+            return None;
+        }
+        let func = self.functions.scalars.get(reference.0[0].value.as_str())?;
+        Some((*func).clone())
+    }
 
     fn resolve_table_function(
         &self,
@@ -80,6 +101,7 @@ pub struct Session {
     pub(crate) modifications: SessionModifier,
     pub(crate) vars: SessionVars,
     pub(crate) scheduler: Scheduler,
+    pub(crate) functions: SessionFunctions,
 }
 
 impl Session {
@@ -88,6 +110,7 @@ impl Session {
             modifications: SessionModifier::new(),
             scheduler,
             vars: SessionVars::new_local(),
+            functions: SessionFunctions::new(),
         }
     }
 
@@ -102,7 +125,10 @@ impl Session {
         }
         let mut stmts = stmts.into_iter();
 
-        let resolver = DebugResolver { vars: &self.vars };
+        let resolver = DebugResolver {
+            vars: &self.vars,
+            functions: &self.functions,
+        };
         let plan_context = PlanContext::new(&resolver);
         let mut logical = plan_context.plan_statement(stmts.next().unwrap())?;
 

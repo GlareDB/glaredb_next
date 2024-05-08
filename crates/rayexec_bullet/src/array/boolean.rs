@@ -1,7 +1,7 @@
-use crate::bitmap::Bitmap;
+use crate::bitmap::{Bitmap, BitmapIter};
 use std::fmt::Debug;
 
-use super::ArrayBuilder;
+use super::{ArrayAccessor, ArrayBuilder};
 
 /// A logical array for representing bools.
 #[derive(Debug, PartialEq)]
@@ -102,26 +102,19 @@ impl FromIterator<Option<bool>> for BooleanArray {
     }
 }
 
-#[derive(Debug)]
-pub struct BooleanArrayIter<'a> {
-    idx: usize,
-    values: &'a Bitmap,
-    validity: Option<&'a Bitmap>,
-}
+impl<'a> ArrayAccessor<bool> for &'a BooleanArray {
+    type ValueIter = BitmapIter<'a>;
 
-impl Iterator for BooleanArrayIter<'_> {
-    type Item = Option<bool>;
+    fn len(&self) -> usize {
+        self.values.len()
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.idx == self.values.len() {
-            None
-        } else if self.validity.map(|v| v.value(self.idx)).unwrap_or(true) {
-            let val = self.values.value(self.idx);
-            self.idx += 1;
-            Some(Some(val))
-        } else {
-            Some(None)
-        }
+    fn values_iter(&self) -> Self::ValueIter {
+        self.values.iter()
+    }
+
+    fn validity(&self) -> Option<&Bitmap> {
+        self.validity.as_ref()
     }
 }
 

@@ -23,8 +23,8 @@ impl GenericScalarFunction for Repeat {
                 return_type: DataType::Utf8,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Utf8, DataType::Int64]),
-                return_type: DataType::Utf8,
+                input: InputTypes::Exact(&[DataType::LargeUtf8, DataType::Int64]),
+                return_type: DataType::LargeUtf8,
             },
         ]
     }
@@ -43,6 +43,10 @@ impl GenericScalarFunction for Repeat {
 pub struct RepeatUtf8;
 
 impl SpecializedScalarFunction for RepeatUtf8 {
+    fn return_type(&self) -> DataType {
+        DataType::Utf8
+    }
+
     fn function_impl(&self) -> ScalarFn {
         fn repeat_utf8(arrays: &[&Array]) -> Result<Array> {
             let strings = arrays[0];
@@ -70,6 +74,10 @@ impl SpecializedScalarFunction for RepeatUtf8 {
 pub struct RepeatLargeUtf8;
 
 impl SpecializedScalarFunction for RepeatLargeUtf8 {
+    fn return_type(&self) -> DataType {
+        DataType::LargeUtf8
+    }
+
     fn function_impl(&self) -> ScalarFn {
         fn repeat_large_utf8(arrays: &[&Array]) -> Result<Array> {
             let strings = arrays[0];

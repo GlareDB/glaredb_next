@@ -63,6 +63,10 @@ macro_rules! generate_specialized_binary_numeric {
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
+            fn return_type(&self) -> DataType {
+                DataType::$output_variant
+            }
+
             fn function_impl(&self) -> ScalarFn {
                 fn inner(arrays: &[&Array]) -> Result<Array> {
                     let first = arrays[0];

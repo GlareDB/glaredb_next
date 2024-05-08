@@ -1,12 +1,42 @@
 pub mod arith;
+pub mod boolean;
 pub mod comparison;
 pub mod numeric;
 pub mod string;
 
 use dyn_clone::DynClone;
+use once_cell::sync::Lazy;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
+
+// List of all scalar functions.
+pub static ALL_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
+    vec![
+        // Arith
+        Box::new(arith::Add),
+        Box::new(arith::Sub),
+        Box::new(arith::Mul),
+        Box::new(arith::Div),
+        Box::new(arith::Rem),
+        // Boolean
+        Box::new(boolean::And),
+        Box::new(boolean::Or),
+        // Comparison
+        Box::new(comparison::Eq),
+        Box::new(comparison::Neq),
+        Box::new(comparison::Lt),
+        Box::new(comparison::LtEq),
+        Box::new(comparison::Gt),
+        Box::new(comparison::GtEq),
+        // Numeric
+        Box::new(numeric::Ceil),
+        Box::new(numeric::Floor),
+        Box::new(numeric::IsNan),
+        // String
+        Box::new(string::Repeat),
+    ]
+});
 
 /// A function pointer with the concrete implementation of a scalar function.
 pub type ScalarFn = fn(&[&Array]) -> Result<Array>;
@@ -26,6 +56,10 @@ pub struct Signature {
     pub return_type: DataType,
 }
 
+/// A generic scalar function that can specialize into a more specific function
+/// depending on input types.
+///
+/// Generic scalar functions must be cheaply cloneable.
 pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
     /// Name of the function.
     fn name(&self) -> &str;
@@ -54,6 +88,9 @@ impl Clone for Box<dyn GenericScalarFunction> {
 /// `GenericScalarFunction` because this will be what's serialized when
 /// serializing pipelines for distributed execution.
 pub trait SpecializedScalarFunction: Debug + Sync + Send + DynClone {
+    /// The return type of the function.
+    fn return_type(&self) -> DataType;
+
     /// Return the function pointer that implements this scalar function.
     fn function_impl(&self) -> ScalarFn;
 }
