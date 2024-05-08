@@ -1,4 +1,5 @@
 pub mod numeric;
+pub mod string;
 
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::{RayexecError, Result};
@@ -66,11 +67,16 @@ pub(crate) fn specialize_check_num_args(
 
 pub(crate) fn specialize_invalid_input_type(
     scalar: &impl GenericScalarFunction,
-    got: &DataType,
+    got: &[&DataType],
 ) -> RayexecError {
+    let got_types = got
+        .iter()
+        .map(|d| d.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
     RayexecError::new(format!(
-        "Got invalid type '{}' for '{}'",
-        got,
+        "Got invalid type(s) '{}' for '{}'",
+        got_types,
         scalar.name()
     ))
 }
