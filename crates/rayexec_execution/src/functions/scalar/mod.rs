@@ -54,7 +54,7 @@ pub(crate) fn specialize_check_num_args(
     inputs: &[DataType],
     expected: usize,
 ) -> Result<()> {
-    if inputs.len() != 1 {
+    if inputs.len() != expected {
         return Err(RayexecError::new(format!(
             "Expected {} input for '{}', received {}",
             expected,

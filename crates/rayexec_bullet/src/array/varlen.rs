@@ -269,7 +269,7 @@ impl<'a, A: AsVarlenType + ?Sized, O: OffsetIndex> VarlenArrayBuilder<A, O> {
         }
     }
 
-    pub fn into_varlen_array(self) -> VarlenArray<A::AsType, O> {
+    pub fn into_typed_array(self) -> VarlenArray<A::AsType, O> {
         VarlenArray {
             validity: self.validity,
             offsets: self.offsets.into(),

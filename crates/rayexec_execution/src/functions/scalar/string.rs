@@ -56,7 +56,7 @@ impl SpecializedScalarFunction for RepeatUtf8 {
                         |s, count| s.repeat(count as usize),
                         &mut builder,
                     )?;
-                    Array::Utf8(builder.into_varlen_array())
+                    Array::Utf8(builder.into_typed_array())
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })
@@ -83,7 +83,7 @@ impl SpecializedScalarFunction for RepeatLargeUtf8 {
                         |s, count| s.repeat(count as usize),
                         &mut builder,
                     )?;
-                    Array::LargeUtf8(builder.into_varlen_array())
+                    Array::LargeUtf8(builder.into_typed_array())
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })

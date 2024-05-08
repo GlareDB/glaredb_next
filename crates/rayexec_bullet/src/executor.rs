@@ -177,7 +177,7 @@ mod tests {
 
         BinaryExecutor::execute(&left, &right, op, &mut builder).unwrap();
 
-        let got = builder.into_primitive_array();
+        let got = builder.into_typed_array();
         let expected = Int64Array::from_iter([5, 7, 9]);
 
         assert_eq!(expected, got);
@@ -194,7 +194,7 @@ mod tests {
 
         BinaryExecutor::execute(&left, &right, op, &mut builder).unwrap();
 
-        let got = builder.into_varlen_array();
+        let got = builder.into_typed_array();
         let expected = Utf8Array::from_iter(["hello", "worldworld", "goodbye!goodbye!goodbye!"]);
 
         assert_eq!(expected, got);
@@ -217,7 +217,7 @@ mod tests {
 
         TernaryExecutor::execute(&first, &second, &third, op, &mut builder).unwrap();
 
-        let got = builder.into_varlen_array();
+        let got = builder.into_typed_array();
         let expected = Utf8Array::from_iter(["ph"]);
 
         assert_eq!(expected, got);
@@ -235,7 +235,7 @@ mod tests {
 
         UniformExecutor::execute(&[&first, &second, &third], op, &mut builder).unwrap();
 
-        let got = builder.into_varlen_array();
+        let got = builder.into_typed_array();
         let expected = Utf8Array::from_iter(["a1dog", "b2cat", "c3horse"]);
 
         assert_eq!(expected, got);

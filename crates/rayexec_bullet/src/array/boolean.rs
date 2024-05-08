@@ -139,7 +139,7 @@ impl BooleanArrayBuilder {
         }
     }
 
-    pub fn into_boolean_array(self) -> BooleanArray {
+    pub fn into_typed_array(self) -> BooleanArray {
         BooleanArray {
             validity: self.validity,
             values: self.values,

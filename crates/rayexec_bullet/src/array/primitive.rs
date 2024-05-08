@@ -288,7 +288,7 @@ impl<T> PrimitiveArrayBuilder<T> {
         }
     }
 
-    pub fn into_primitive_array(self) -> PrimitiveArray<T> {
+    pub fn into_typed_array(self) -> PrimitiveArray<T> {
         PrimitiveArray {
             validity: self.validity,
             values: self.values.into(),
