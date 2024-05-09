@@ -8,8 +8,7 @@ use std::sync::Arc;
 #[derive(Debug, PartialEq)]
 pub struct StructArray {
     validity: Option<Bitmap>,
-    arrays: Vec<Arc<Array>>,
-    keys: Vec<String>,
+    arrays: Vec<(String, Arc<Array>)>,
 }
 
 impl StructArray {
@@ -22,15 +21,16 @@ impl StructArray {
             )));
         }
 
+        let arrays = keys.into_iter().zip(values.into_iter()).collect();
+
         Ok(StructArray {
             validity: None,
-            arrays: values,
-            keys,
+            arrays,
         })
     }
 
     pub fn len(&self) -> usize {
-        self.arrays[0].len()
+        self.arrays[0].1.len()
     }
 
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
@@ -43,17 +43,18 @@ impl StructArray {
 
     pub fn datatype(&self) -> DataType {
         let fields = self
-            .keys
+            .arrays
             .iter()
-            .zip(self.arrays.iter())
             .map(|(_key, arr)| arr.datatype())
             .collect();
         DataType::Struct { fields }
     }
 
     pub fn array_for_key(&self, key: &str) -> Option<&Arc<Array>> {
-        let idx = self.keys.iter().position(|k| *k == key)?;
-        self.arrays.get(idx)
+        self.arrays
+            .iter()
+            .find(|(k, _arr)| k == key)
+            .map(|(_, arr)| arr)
     }
 
     pub fn scalar(&self, idx: usize) -> Option<ScalarValue> {
@@ -64,7 +65,7 @@ impl StructArray {
         let scalars: Vec<_> = self
             .arrays
             .iter()
-            .map(|arr| arr.scalar(idx).unwrap())
+            .map(|(_, arr)| arr.scalar(idx).unwrap())
             .collect();
 
         Some(ScalarValue::Struct(scalars))

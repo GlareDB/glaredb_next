@@ -5,7 +5,7 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::functions::scalar::{self, GenericScalarFunction, Signature};
+use crate::functions::scalar::{self, GenericScalarFunction};
 
 use super::{
     operator::LogicalExpression,
@@ -141,11 +141,7 @@ impl<'a> ExpressionContext<'a> {
                         })
                         .collect::<Result<Vec<_>>>()?;
 
-                    if self
-                        .find_signature_for_scalar(scalar_func.as_ref(), &inputs)?
-                        .is_some()
-                    {
-                        // Valid signature found.
+                    if self.scalar_function_can_handle_input(scalar_func.as_ref(), &inputs)? {
                         return Ok(LogicalExpression::ScalarFunction {
                             function: scalar_func,
                             inputs,
@@ -290,27 +286,23 @@ impl<'a> ExpressionContext<'a> {
         }
     }
 
-    /// Find the best signature to use for a generic function given the inputs
-    /// into that function.
-    fn find_signature_for_scalar<'b>(
+    /// Check if a scalar function is able to handle the given inputs.
+    ///
+    /// Errors if the datatypes for the inputs cannot be determined.
+    fn scalar_function_can_handle_input(
         &self,
-        function: &'a dyn GenericScalarFunction,
+        function: &dyn GenericScalarFunction,
         inputs: &[LogicalExpression],
-    ) -> Result<Option<&'b Signature>>
-    where
-        'a: 'b,
-    {
+    ) -> Result<bool> {
         let inputs = inputs
             .iter()
             .map(|expr| expr.datatype(&self.input, &[])) // TODO: Outer schemas
             .collect::<Result<Vec<_>>>()?;
 
-        for sig in function.signatures() {
-            if sig.inputs_satisfy_signature(&inputs) {
-                return Ok(Some(sig));
-            }
+        if function.return_type_for_inputs(&inputs).is_some() {
+            return Ok(true);
         }
 
-        Ok(None)
+        Ok(false)
     }
 }

@@ -1,9 +1,10 @@
 use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, InputTypes,
-    ReturnType, ScalarFn, Signature, SpecializedScalarFunction,
+    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
+    SpecializedScalarFunction,
 };
+use crate::functions::{InputTypes, ReturnType, Signature};
 use rayexec_bullet::array::{BooleanArrayBuilder, PrimitiveArrayBuilder};
-use rayexec_bullet::executor::UnaryExecutor;
+use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;

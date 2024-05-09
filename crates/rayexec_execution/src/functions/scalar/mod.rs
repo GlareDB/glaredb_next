@@ -12,6 +12,8 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use super::{ReturnType, Signature};
+
 // List of all scalar functions.
 pub static ALL_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
     vec![
@@ -45,47 +47,6 @@ pub static ALL_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Laz
 /// A function pointer with the concrete implementation of a scalar function.
 pub type ScalarFn = fn(&[&Arc<Array>]) -> Result<Array>;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum InputTypes {
-    /// Exact number of inputs with the given types.
-    Exact(&'static [DataType]),
-
-    /// Variadic number of inputs with the same type.
-    Variadic(DataType),
-
-    /// Input is not statically determined. Further checks need to be done.
-    Dynamic,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ReturnType {
-    /// Return type is statically known.
-    Static(DataType),
-
-    /// Return type depends entirely on the input, and we can't know ahead of
-    /// time.
-    ///
-    /// This is typically used for compound types.
-    Dynamic,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Signature {
-    pub input: InputTypes,
-    pub return_type: ReturnType,
-}
-
-impl Signature {
-    /// Return if inputs given data types satisfy this signature.
-    pub fn inputs_satisfy_signature(&self, inputs: &[DataType]) -> bool {
-        match &self.input {
-            InputTypes::Exact(expected) => inputs == *expected,
-            InputTypes::Variadic(typ) => inputs.iter().all(|input| input == typ),
-            _ => true,
-        }
-    }
-}
-
 /// A generic scalar function that can specialize into a more specific function
 /// depending on input types.
 ///
@@ -102,23 +63,17 @@ pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
     /// Signatures of the function.
     fn signatures(&self) -> &[Signature];
 
-    /// Get a signature of the function for some set of inputs.
+    /// Get the return type for this function.
     ///
-    /// Returns None if no suitable signature is found.
-    ///
-    /// The default implementation requires that the inputs exactly match a
-    /// given signature for it to be considered.
-    fn signature_for_inputs(&self, inputs: &[DataType]) -> Option<&Signature> {
-        for sig in self.signatures() {
-            if sig.inputs_satisfy_signature(inputs) {
-                return Some(sig);
-            }
-        }
-        None
-    }
-
+    /// This is expected to be overridden by functions that return a dynamic
+    /// type based on input. The defualt implementation can only determine the
+    /// output if it can be statically determined.
     fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
-        let sig = self.signature_for_inputs(inputs)?;
+        let sig = self
+            .signatures()
+            .iter()
+            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
+
         match &sig.return_type {
             ReturnType::Static(datatype) => Some(datatype.clone()),
             ReturnType::Dynamic => None,

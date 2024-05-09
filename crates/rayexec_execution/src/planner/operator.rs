@@ -1,6 +1,6 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
-use crate::functions::scalar::{GenericScalarFunction, Signature, SpecializedScalarFunction};
+use crate::functions::scalar::{GenericScalarFunction, SpecializedScalarFunction};
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},

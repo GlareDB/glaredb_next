@@ -1,6 +1,5 @@
-use super::{
-    GenericScalarFunction, InputTypes, ReturnType, ScalarFn, Signature, SpecializedScalarFunction,
-};
+use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use crate::functions::{InputTypes, ReturnType, Signature};
 use rayexec_bullet::array::StructArray;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::{array::Array, field::DataType};
@@ -71,4 +70,28 @@ fn struct_pack(arrays: &[&Arc<Array>]) -> Result<Array> {
         .collect();
 
     Ok(Array::Struct(StructArray::try_new(keys, values)?))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructExtract;
+
+impl GenericScalarFunction for StructExtract {
+    fn name(&self) -> &str {
+        "struct_extract"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        &[Signature {
+            input: InputTypes::Dynamic,
+            return_type: ReturnType::Dynamic,
+        }]
+    }
+
+    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
+        unimplemented!()
+    }
+
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        unimplemented!()
+    }
 }

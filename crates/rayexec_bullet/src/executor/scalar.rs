@@ -1,4 +1,5 @@
-//! Executors for generic vectorized execution over different types of arrays.
+//! Scalar executors for generic vectorized execution over different types of
+//! arrays.
 //!
 //! Structs may be extended to include a buffer in the future to avoid
 //! operations having to allows strings or vecs when operating on string and
