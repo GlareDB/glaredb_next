@@ -562,7 +562,10 @@ impl LogicalExpression {
                 if col.scope_level == 0 {
                     // Get data type from current schema.
                     current.types.get(col.item_idx).cloned().ok_or_else(|| {
-                        RayexecError::new("Column reference points to outside of current schema")
+                        RayexecError::new(format!(
+                            "Column reference '{}' points to outside of current schema: {current:?}",
+                            col.item_idx
+                        ))
                     })?
                 } else {
                     // Get data type from one of the outer schemas.
@@ -597,8 +600,13 @@ impl LogicalExpression {
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.datatype(current, outer)?;
                 let right = right.datatype(current, outer)?;
-                unimplemented!()
-                // op.data_type(&left, &right)?
+                let sig = op
+                    .scalar_function()
+                    .signature_for_inputs(&[left, right])
+                    .ok_or_else(|| {
+                        RayexecError::new("Failed to get correct signature for scalar function")
+                    })?;
+                sig.return_type.clone()
             }
             _ => unimplemented!(),
         })

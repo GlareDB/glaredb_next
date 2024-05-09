@@ -135,9 +135,11 @@ impl<'a> PlanContext<'a> {
             },
         };
 
+        let from_type_schema = plan.root.output_schema(&[])?;
+
         // Handle WHERE
         if let Some(where_expr) = select.where_expr {
-            let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_TYPE_SCHEMA);
+            let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
             let expr = expr_ctx.plan_expression(where_expr)?;
 
             // Add filter to the plan, does not change the scope.
@@ -149,7 +151,7 @@ impl<'a> PlanContext<'a> {
 
         // Expand projections.
         // TODO: Error on wildcards if no from.
-        let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_TYPE_SCHEMA);
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         let mut projections = Vec::new();
         for select_proj in select.projections {
             let mut expanded = expr_ctx.expand_select_expr(select_proj)?;
@@ -163,7 +165,7 @@ impl<'a> PlanContext<'a> {
         // Add projections to plan using previously expanded select items.
         let mut select_exprs = Vec::with_capacity(projections.len());
         let mut names = Vec::with_capacity(projections.len());
-        let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_TYPE_SCHEMA);
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         for proj in projections {
             match proj {
                 ExpandedSelectExpr::Expr { expr, name } => {

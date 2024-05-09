@@ -12,9 +12,6 @@ const SLTS_PATH: &str = "slts/";
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
-    println!("--- SQLTESTS SKIPPED ---");
-    return;
-
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::INFO.into())
         .from_env_lossy()
