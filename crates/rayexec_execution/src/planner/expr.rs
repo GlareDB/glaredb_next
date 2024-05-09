@@ -124,6 +124,38 @@ impl<'a> ExpressionContext<'a> {
                 right: Box::new(self.plan_expression(*right)?),
             }),
             ast::Expr::Function(func) => {
+                // Check scalars first.
+                if let Some(scalar_func) = self
+                    .plan_context
+                    .resolver
+                    .resolve_scalar_function(&func.name)
+                {
+                    let inputs = func
+                        .args
+                        .into_iter()
+                        .map(|arg| match arg {
+                            ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
+                            ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                                "Named arguments to scalar functions not supported",
+                            )),
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    if self
+                        .find_signature_for_scalar(scalar_func.as_ref(), &inputs)?
+                        .is_some()
+                    {
+                        // Valid signature found.
+                        return Ok(LogicalExpression::ScalarFunction {
+                            function: scalar_func,
+                            inputs,
+                        });
+                    }
+
+                    // TODO: Do we want to fall through? Is it possible for a
+                    // scalar and aggregate function to have the same name?
+                }
+
                 // Check if there exists an aggregate function with this name.
                 // if let Some(agg) = self
                 //     .plan_context
@@ -260,11 +292,14 @@ impl<'a> ExpressionContext<'a> {
 
     /// Find the best signature to use for a generic function given the inputs
     /// into that function.
-    fn find_signature_for_scalar(
+    fn find_signature_for_scalar<'b>(
         &self,
-        function: &dyn GenericScalarFunction,
-        inputs: &[&LogicalExpression],
-    ) -> Result<Signature> {
+        function: &'a dyn GenericScalarFunction,
+        inputs: &[LogicalExpression],
+    ) -> Result<Option<&'b Signature>>
+    where
+        'a: 'b,
+    {
         let inputs = inputs
             .iter()
             .map(|expr| expr.datatype(&self.input, &[])) // TODO: Outer schemas
@@ -272,13 +307,10 @@ impl<'a> ExpressionContext<'a> {
 
         for sig in function.signatures() {
             if sig.inputs_satisfy_signature(&inputs) {
-                return Ok(sig.clone());
+                return Ok(Some(sig));
             }
         }
 
-        Err(RayexecError::new(format!(
-            "Unable to find a suitable signature for function '{}'",
-            function.name()
-        )))
+        Ok(None)
     }
 }

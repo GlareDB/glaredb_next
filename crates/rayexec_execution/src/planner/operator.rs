@@ -479,7 +479,6 @@ pub enum LogicalExpression {
     Literal(OwnedScalarValue),
 
     ScalarFunction {
-        signature: Signature,
         function: Box<dyn GenericScalarFunction>,
         inputs: Vec<LogicalExpression>,
     },
@@ -581,7 +580,19 @@ impl LogicalExpression {
                 }
             }
             LogicalExpression::Literal(lit) => lit.datatype(),
-            LogicalExpression::ScalarFunction { signature, .. } => signature.return_type.clone(),
+            LogicalExpression::ScalarFunction { function, inputs } => {
+                let datatypes = inputs
+                    .iter()
+                    .map(|input| input.datatype(current, outer))
+                    .collect::<Result<Vec<_>>>()?;
+                let sig = function.signature_for_inputs(&datatypes).ok_or_else(|| {
+                    RayexecError::new(format!(
+                        "Failed to find correct signature for '{}'",
+                        function.name()
+                    ))
+                })?;
+                sig.return_type.clone()
+            }
             LogicalExpression::Unary { op: _, expr: _ } => unimplemented!(),
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.datatype(current, outer)?;

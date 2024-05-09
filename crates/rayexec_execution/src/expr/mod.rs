@@ -72,6 +72,20 @@ impl PhysicalScalarExpression {
                     inputs: vec![left, right],
                 }
             }
+            LogicalExpression::ScalarFunction { function, inputs } => {
+                let inputs = inputs
+                    .into_iter()
+                    .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, input))
+                    .collect::<Result<Vec<_>>>()?;
+
+                let datatypes: Vec<_> = inputs.iter().map(|arg| arg.datatype(input)).collect();
+                let specialized = function.specialize(&datatypes)?;
+
+                PhysicalScalarExpression::ScalarFunction {
+                    function: specialized,
+                    inputs,
+                }
+            }
             _ => unimplemented!(),
         })
     }
