@@ -1,10 +1,9 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::compute::{arith, cmp};
 use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::fmt;
-use std::sync::Arc;
+
+use crate::functions::scalar::{arith, boolean, comparison, GenericScalarFunction};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnaryOperator {
@@ -67,32 +66,23 @@ impl fmt::Display for BinaryOperator {
 }
 
 impl BinaryOperator {
-    pub fn data_type(&self, left: &DataType, right: &DataType) -> Result<DataType> {
-        use BinaryOperator::*;
-
-        Ok(match self {
-            Eq | NotEq | Lt | LtEq | Gt | GtEq | And | Or => DataType::Boolean,
-            _ => unimplemented!(), // Plus | Minus | Multiply | Divide | Modulo => maybe_widen(left, right).ok_or_else(|| RayexecError::new(format!("Unable to determine output data type for {:?} using arguments {:?} and {:?}", self, left, right)))?
-        })
-    }
-
-    pub fn eval(&self, left: &Array, right: &Array) -> Result<Array> {
-        let arr = match self {
-            BinaryOperator::Eq => Array::Boolean(cmp::eq(&left, &right)?),
-            BinaryOperator::NotEq => Array::Boolean(cmp::neq(&left, &right)?),
-            BinaryOperator::Lt => Array::Boolean(cmp::lt(&left, &right)?),
-            BinaryOperator::LtEq => Array::Boolean(cmp::lt_eq(&left, &right)?),
-            BinaryOperator::Gt => Array::Boolean(cmp::gt(&left, &right)?),
-            BinaryOperator::GtEq => Array::Boolean(cmp::gt_eq(&left, &right)?),
-            // BinaryOperator::Plus => arith::add(&left, &right)?,
-            // BinaryOperator::Minus => arith::sub(&left, &right)?,
-            // BinaryOperator::Multiply => arith::mul(&left, &right)?,
-            // BinaryOperator::Divide => arith::div(&left, &right)?,
-            // BinaryOperator::Modulo => arith::rem(&left, &right)?,
-            _ => unimplemented!(),
-        };
-
-        Ok(arr)
+    /// Get the scalar function that represents this binary operator.
+    pub fn scalar_function(&self) -> &dyn GenericScalarFunction {
+        match self {
+            Self::Eq => &comparison::Eq,
+            Self::NotEq => &comparison::Neq,
+            Self::Lt => &comparison::Lt,
+            Self::LtEq => &comparison::LtEq,
+            Self::Gt => &comparison::Gt,
+            Self::GtEq => &comparison::GtEq,
+            Self::Plus => &arith::Add,
+            Self::Minus => &arith::Sub,
+            Self::Multiply => &arith::Mul,
+            Self::Divide => &arith::Div,
+            Self::Modulo => &arith::Rem,
+            Self::And => &boolean::And,
+            Self::Or => &boolean::Or,
+        }
     }
 }
 

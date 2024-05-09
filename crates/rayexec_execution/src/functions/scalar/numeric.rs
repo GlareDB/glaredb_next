@@ -15,7 +15,7 @@ use std::fmt::Debug;
 /// of the expected type.
 macro_rules! generate_specialized_unary_numeric {
     ($name:ident, $input_variant:ident, $output_variant:ident, $operation:expr) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
@@ -42,7 +42,7 @@ macro_rules! generate_specialized_unary_numeric {
     };
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsNan;
 
 impl GenericScalarFunction for IsNan {
@@ -73,7 +73,7 @@ impl GenericScalarFunction for IsNan {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsNanFloat32;
 
 impl SpecializedScalarFunction for IsNanFloat32 {
@@ -98,7 +98,7 @@ impl SpecializedScalarFunction for IsNanFloat32 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsNanFloat64;
 
 impl SpecializedScalarFunction for IsNanFloat64 {
@@ -123,7 +123,7 @@ impl SpecializedScalarFunction for IsNanFloat64 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ceil;
 
 impl GenericScalarFunction for Ceil {
@@ -161,7 +161,7 @@ impl GenericScalarFunction for Ceil {
 generate_specialized_unary_numeric!(CeilFloat32, Float32, Float32, |f| f.ceil());
 generate_specialized_unary_numeric!(CeilFloat64, Float64, Float64, |f| f.ceil());
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Floor;
 
 impl GenericScalarFunction for Floor {

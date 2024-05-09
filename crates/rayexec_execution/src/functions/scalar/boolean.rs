@@ -8,7 +8,7 @@ use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;
 
 impl GenericScalarFunction for And {
@@ -32,7 +32,7 @@ impl GenericScalarFunction for And {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AndBool;
 
 impl SpecializedScalarFunction for AndBool {
@@ -58,7 +58,7 @@ impl SpecializedScalarFunction for AndBool {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Or;
 
 impl GenericScalarFunction for Or {
@@ -82,7 +82,7 @@ impl GenericScalarFunction for Or {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OrBool;
 
 impl SpecializedScalarFunction for OrBool {

@@ -5,6 +5,8 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
+use crate::functions::scalar::{self, GenericScalarFunction, Signature};
+
 use super::{
     operator::LogicalExpression,
     plan::PlanContext,
@@ -254,5 +256,29 @@ impl<'a> ExpressionContext<'a> {
                 ast::ObjectReference(idents),
             ))), // TODO: Struct fields.
         }
+    }
+
+    /// Find the best signature to use for a generic function given the inputs
+    /// into that function.
+    fn find_signature_for_scalar(
+        &self,
+        function: &dyn GenericScalarFunction,
+        inputs: &[&LogicalExpression],
+    ) -> Result<Signature> {
+        let inputs = inputs
+            .iter()
+            .map(|expr| expr.datatype(&self.input, &[])) // TODO: Outer schemas
+            .collect::<Result<Vec<_>>>()?;
+
+        for sig in function.signatures() {
+            if sig.inputs_satisfy_signature(&inputs) {
+                return Ok(sig.clone());
+            }
+        }
+
+        Err(RayexecError::new(format!(
+            "Unable to find a suitable signature for function '{}'",
+            function.name()
+        )))
     }
 }

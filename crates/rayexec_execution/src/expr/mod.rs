@@ -1,40 +1,30 @@
-pub mod binary;
 pub mod scalar;
 
-use self::scalar::{BinaryOperator, UnaryOperator, VariadicOperator};
+use crate::functions::scalar::SpecializedScalarFunction;
 use crate::planner::operator::LogicalExpression;
+use rayexec_bullet::field::{DataType, TypeSchema};
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub enum Expression {
-    Literal(OwnedScalarValue),
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum PhysicalScalarExpression {
     /// Reference to a column in the input batch.
     Column(usize),
+
     /// A scalar literal.
     Literal(OwnedScalarValue),
-    /// Unary function.
-    Unary {
-        op: UnaryOperator,
-        expr: Box<PhysicalScalarExpression>,
+
+    /// A scalar function.
+    ScalarFunction {
+        /// The specialized function we'll be calling.
+        function: Box<dyn SpecializedScalarFunction>,
+
+        /// Column inputs into the function.
+        inputs: Vec<PhysicalScalarExpression>,
     },
-    /// Binary function.
-    Binary {
-        op: BinaryOperator,
-        left: Box<PhysicalScalarExpression>,
-        right: Box<PhysicalScalarExpression>,
-    },
-    /// Variadic function.
-    Variadic {
-        op: VariadicOperator,
-        exprs: Vec<PhysicalScalarExpression>,
-    },
+
     /// Case expressions.
     Case {
         input: Box<PhysicalScalarExpression>,
@@ -48,23 +38,51 @@ impl PhysicalScalarExpression {
     ///
     /// Errors if the expression is not scalar, or if it contains correlated
     /// columns (columns that reference an outer scope).
-    pub fn try_from_uncorrelated_expr(logical: LogicalExpression) -> Result<Self> {
+    pub fn try_from_uncorrelated_expr(
+        logical: LogicalExpression,
+        input: &TypeSchema,
+    ) -> Result<Self> {
         Ok(match logical {
             LogicalExpression::ColumnRef(col) => {
-                PhysicalScalarExpression::Column(col.try_as_uncorrelated()?)
+                let col = col.try_as_uncorrelated()?;
+                if col >= input.types.len() {
+                    return Err(RayexecError::new(format!(
+                        "Invalid column index '{}', max index: '{}'",
+                        col,
+                        input.types.len() - 1
+                    )));
+                }
+                PhysicalScalarExpression::Column(col)
             }
             LogicalExpression::Literal(lit) => PhysicalScalarExpression::Literal(lit),
-            LogicalExpression::Unary { op, expr } => PhysicalScalarExpression::Unary {
-                op,
-                expr: Box::new(Self::try_from_uncorrelated_expr(*expr)?),
-            },
-            LogicalExpression::Binary { op, left, right } => PhysicalScalarExpression::Binary {
-                op,
-                left: Box::new(Self::try_from_uncorrelated_expr(*left)?),
-                right: Box::new(Self::try_from_uncorrelated_expr(*right)?),
-            },
+            // LogicalExpression::Unary { op, expr } => PhysicalScalarExpression::Unary {
+            //     op,
+            //     expr: Box::new(Self::try_from_uncorrelated_expr(*expr, t)?),
+            // },
+            LogicalExpression::Binary { op, left, right } => {
+                let left = PhysicalScalarExpression::try_from_uncorrelated_expr(*left, input)?;
+                let right = PhysicalScalarExpression::try_from_uncorrelated_expr(*right, input)?;
+
+                let scalar_inputs = &[left.datatype(input), right.datatype(input)];
+                let func = op.scalar_function();
+                let specialized = func.specialize(scalar_inputs)?;
+
+                PhysicalScalarExpression::ScalarFunction {
+                    function: specialized,
+                    inputs: vec![left, right],
+                }
+            }
             _ => unimplemented!(),
         })
+    }
+
+    fn datatype(&self, input: &TypeSchema) -> DataType {
+        match self {
+            Self::Column(idx) => input.types[*idx].clone(),
+            Self::Literal(lit) => lit.datatype(),
+            Self::ScalarFunction { function, .. } => function.return_type(),
+            Self::Case { .. } => unimplemented!(),
+        }
     }
 
     /// Evaluate this expression on a batch.
@@ -84,10 +102,17 @@ impl PhysicalScalarExpression {
                 })?
                 .clone(),
             Self::Literal(lit) => Arc::new(lit.as_array(batch.num_rows())),
-            Self::Binary { op, left, right } => {
-                let left = left.eval(batch)?;
-                let right = right.eval(batch)?;
-                Arc::new(op.eval(&left, &right)?)
+            Self::ScalarFunction { function, inputs } => {
+                let inputs = inputs
+                    .iter()
+                    .map(|input| input.eval(batch))
+                    .collect::<Result<Vec<_>>>()?;
+                let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?
+                let out = (function.function_impl())(&refs)?;
+
+                // TODO: Do we want to Arc here? Should we allow batches to be mutable?
+
+                Arc::new(out)
             }
             _ => unimplemented!(),
         })

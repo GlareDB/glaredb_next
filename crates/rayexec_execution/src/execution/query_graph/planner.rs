@@ -17,9 +17,9 @@ use crate::{
         pipeline::{Pipeline, PipelineId},
     },
     expr::PhysicalScalarExpression,
-    planner::operator::{self, LogicalOperator},
+    planner::operator::{self, LogicalNode, LogicalOperator},
 };
-use rayexec_bullet::{array::Array, batch::Batch, compute::concat::concat};
+use rayexec_bullet::{array::Array, batch::Batch, compute::concat::concat, field::TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -203,6 +203,7 @@ impl BuildState {
     }
 
     fn push_project(&mut self, conf: &BuildConfig, project: operator::Projection) -> Result<()> {
+        let input_schema = project.input.output_schema(&[])?;
         self.walk(conf, *project.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
@@ -210,7 +211,7 @@ impl BuildState {
         let projections = project
             .exprs
             .into_iter()
-            .map(PhysicalScalarExpression::try_from_uncorrelated_expr)
+            .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &input_schema))
             .collect::<Result<Vec<_>>>()?;
         let physical = Arc::new(SimpleOperator::new(ProjectOperation::new(projections)));
         let operator_state = Arc::new(OperatorState::None);
@@ -224,11 +225,13 @@ impl BuildState {
     }
 
     fn push_filter(&mut self, conf: &BuildConfig, filter: operator::Filter) -> Result<()> {
+        let input_schema = filter.input.output_schema(&[])?;
         self.walk(conf, *filter.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
-        let predicate = PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate)?;
+        let predicate =
+            PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate, &input_schema)?;
         let physical = Arc::new(SimpleOperator::new(FilterOperation::new(predicate)));
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = (0..pipeline.num_partitions())
@@ -241,7 +244,10 @@ impl BuildState {
     }
 
     fn push_any_join(&mut self, conf: &BuildConfig, join: operator::AnyJoin) -> Result<()> {
-        let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on)?;
+        let left_schema = join.left.output_schema(&[])?;
+        let right_schema = join.right.output_schema(&[])?;
+        let input_schema = left_schema.merge(right_schema);
+        let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on, &input_schema)?;
 
         // Modify the filter as to match the join type.
         let filter = match join.join_type {
@@ -388,7 +394,9 @@ impl BuildState {
         for row_exprs in values.rows {
             let exprs = row_exprs
                 .into_iter()
-                .map(PhysicalScalarExpression::try_from_uncorrelated_expr)
+                .map(|expr| {
+                    PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &TypeSchema::empty())
+                })
                 .collect::<Result<Vec<_>>>()?;
             let arrs = exprs
                 .into_iter()

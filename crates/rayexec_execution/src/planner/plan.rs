@@ -281,8 +281,8 @@ impl<'a> PlanContext<'a> {
                 match join_condition {
                     ast::JoinCondition::On(on) => {
                         let merged = left_plan.scope.merge(right_plan.scope)?;
-                        let left_schema = left_plan.root.schema(&[])?; // TODO: Outers
-                        let right_schema = right_plan.root.schema(&[])?; // TODO: Outers
+                        let left_schema = left_plan.root.output_schema(&[])?; // TODO: Outers
+                        let right_schema = right_plan.root.output_schema(&[])?; // TODO: Outers
                         let merged_schema = left_schema.merge(right_schema);
                         let expr_ctx =
                             ExpressionContext::new(&left_nested, &merged, &merged_schema);

@@ -41,7 +41,7 @@ pub static ALL_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Laz
 /// A function pointer with the concrete implementation of a scalar function.
 pub type ScalarFn = fn(&[&Array]) -> Result<Array>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum InputTypes {
     /// Exact number of inputs with the given types.
     Exact(&'static [DataType]),
@@ -50,10 +50,20 @@ pub enum InputTypes {
     Variadic(DataType),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
     pub input: InputTypes,
     pub return_type: DataType,
+}
+
+impl Signature {
+    /// Return if inputs given data types satisfy this signature.
+    pub fn inputs_satisfy_signature(&self, inputs: &[DataType]) -> bool {
+        match &self.input {
+            InputTypes::Exact(expected) => inputs == *expected,
+            InputTypes::Variadic(typ) => inputs.iter().all(|input| input == typ),
+        }
+    }
 }
 
 /// A generic scalar function that can specialize into a more specific function
@@ -71,6 +81,21 @@ pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
 
     /// Signatures of the function.
     fn signatures(&self) -> &[Signature];
+
+    /// Get a signature of the function for some set of inputs.
+    ///
+    /// Returns None if no suitable signature is found.
+    ///
+    /// The default implementation requires that the inputs exactly match a
+    /// given signature for it to be considered.
+    fn signature_for_inputs(&self, inputs: &[DataType]) -> Option<&Signature> {
+        for sig in self.signatures() {
+            if sig.inputs_satisfy_signature(inputs) {
+                return Some(sig);
+            }
+        }
+        None
+    }
 
     /// Specialize the function using the given input types.
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>>;

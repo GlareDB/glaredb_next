@@ -59,7 +59,7 @@ const PRIMITIVE_ARITH_SIGNATURES: &'static [Signature] = &[
 /// expected type.
 macro_rules! generate_specialized_binary_numeric {
     ($name:ident, $first_variant:ident, $second_variant:ident, $output_variant:ident, $operation:expr) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
@@ -87,7 +87,7 @@ macro_rules! generate_specialized_binary_numeric {
     };
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Add;
 
 impl GenericScalarFunction for Add {
@@ -132,7 +132,7 @@ generate_specialized_binary_numeric!(AddUInt16, UInt16, UInt16, UInt16, |a, b| a
 generate_specialized_binary_numeric!(AddUInt32, UInt32, UInt32, UInt32, |a, b| a + b);
 generate_specialized_binary_numeric!(AddUInt64, UInt64, UInt64, UInt64, |a, b| a + b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sub;
 
 impl GenericScalarFunction for Sub {
@@ -218,7 +218,7 @@ generate_specialized_binary_numeric!(SubUInt16, UInt16, UInt16, UInt16, |a, b| a
 generate_specialized_binary_numeric!(SubUInt32, UInt32, UInt32, UInt32, |a, b| a - b);
 generate_specialized_binary_numeric!(SubUInt64, UInt64, UInt64, UInt64, |a, b| a - b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Div;
 
 impl GenericScalarFunction for Div {
@@ -263,7 +263,7 @@ generate_specialized_binary_numeric!(DivUInt16, UInt16, UInt16, UInt16, |a, b| a
 generate_specialized_binary_numeric!(DivUInt32, UInt32, UInt32, UInt32, |a, b| a / b);
 generate_specialized_binary_numeric!(DivUInt64, UInt64, UInt64, UInt64, |a, b| a / b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mul;
 
 impl GenericScalarFunction for Mul {
@@ -308,7 +308,7 @@ generate_specialized_binary_numeric!(MulUInt16, UInt16, UInt16, UInt16, |a, b| a
 generate_specialized_binary_numeric!(MulUInt32, UInt32, UInt32, UInt32, |a, b| a * b);
 generate_specialized_binary_numeric!(MulUInt64, UInt64, UInt64, UInt64, |a, b| a * b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rem;
 
 impl GenericScalarFunction for Rem {

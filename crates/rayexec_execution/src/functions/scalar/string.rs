@@ -8,7 +8,7 @@ use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Repeat;
 
 impl GenericScalarFunction for Repeat {
@@ -39,7 +39,7 @@ impl GenericScalarFunction for Repeat {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepeatUtf8;
 
 impl SpecializedScalarFunction for RepeatUtf8 {
@@ -70,7 +70,7 @@ impl SpecializedScalarFunction for RepeatUtf8 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepeatLargeUtf8;
 
 impl SpecializedScalarFunction for RepeatLargeUtf8 {

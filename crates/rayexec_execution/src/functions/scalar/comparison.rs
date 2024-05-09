@@ -73,7 +73,7 @@ const COMPARISON_SIGNATURES: &'static [Signature] = &[
 
 macro_rules! generate_specialized_comparison {
     ($name:ident, $first_variant:ident, $second_variant:ident, $operation:expr) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
@@ -101,7 +101,7 @@ macro_rules! generate_specialized_comparison {
     };
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Eq;
 
 impl GenericScalarFunction for Eq {
@@ -150,7 +150,7 @@ generate_specialized_comparison!(EqLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a == 
 generate_specialized_comparison!(EqBinary, Binary, Binary, |a, b| a == b);
 generate_specialized_comparison!(EqLargeBinary, LargeBinary, LargeBinary, |a, b| a == b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Neq;
 
 impl GenericScalarFunction for Neq {
@@ -203,7 +203,7 @@ generate_specialized_comparison!(NeqLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a !=
 generate_specialized_comparison!(NeqBinary, Binary, Binary, |a, b| a != b);
 generate_specialized_comparison!(NeqLargeBinary, LargeBinary, LargeBinary, |a, b| a != b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lt;
 
 impl GenericScalarFunction for Lt {
@@ -252,7 +252,7 @@ generate_specialized_comparison!(LtLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a < b
 generate_specialized_comparison!(LtBinary, Binary, Binary, |a, b| a < b);
 generate_specialized_comparison!(LtLargeBinary, LargeBinary, LargeBinary, |a, b| a < b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LtEq;
 
 impl GenericScalarFunction for LtEq {
@@ -301,7 +301,7 @@ generate_specialized_comparison!(LtEqLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a <
 generate_specialized_comparison!(LtEqBinary, Binary, Binary, |a, b| a <= b);
 generate_specialized_comparison!(LtEqLargeBinary, LargeBinary, LargeBinary, |a, b| a <= b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Gt;
 
 impl GenericScalarFunction for Gt {
@@ -350,7 +350,7 @@ generate_specialized_comparison!(GtLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a > b
 generate_specialized_comparison!(GtBinary, Binary, Binary, |a, b| a > b);
 generate_specialized_comparison!(GtLargeBinary, LargeBinary, LargeBinary, |a, b| a > b);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GtEq;
 
 impl GenericScalarFunction for GtEq {
