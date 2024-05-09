@@ -72,6 +72,7 @@ pub fn hash_row(row: &Row) -> u64 {
             ScalarValue::LargeUtf8(v) => v.hash_one(),
             ScalarValue::Binary(v) => v.hash_one(),
             ScalarValue::LargeBinary(v) => v.hash_one(),
+            _ => unimplemented!(),
         };
 
         if combine_hash {

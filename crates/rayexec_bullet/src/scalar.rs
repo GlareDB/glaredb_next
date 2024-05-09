@@ -58,6 +58,9 @@ pub enum ScalarValue<'a> {
 
     /// Large binary
     LargeBinary(Cow<'a, [u8]>),
+
+    /// A struct.
+    Struct(Vec<ScalarValue<'a>>),
 }
 
 pub type OwnedScalarValue = ScalarValue<'static>;
@@ -81,6 +84,9 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
             ScalarValue::Binary(_) => DataType::Binary,
             ScalarValue::LargeBinary(_) => DataType::LargeBinary,
+            ScalarValue::Struct(fields) => DataType::Struct {
+                fields: fields.iter().map(|f| f.datatype()).collect(),
+            },
         }
     }
 
@@ -102,6 +108,9 @@ impl<'a> ScalarValue<'a> {
             Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
             Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
             Self::LargeBinary(v) => OwnedScalarValue::LargeBinary(v.into_owned().into()),
+            Self::Struct(v) => {
+                OwnedScalarValue::Struct(v.into_iter().map(|v| v.into_owned()).collect())
+            }
         }
     }
 
@@ -138,6 +147,7 @@ impl<'a> ScalarValue<'a> {
             Self::LargeBinary(v) => Array::LargeBinary(LargeBinaryArray::from_iter(
                 std::iter::repeat(v.as_ref()).take(n),
             )),
+            Self::Struct(_) => unimplemented!("struct into array"),
         }
     }
 
@@ -235,6 +245,15 @@ impl fmt::Display for ScalarValue<'_> {
             Self::LargeUtf8(v) => write!(f, "{}", v),
             Self::Binary(v) => write!(f, "{:X?}", v),
             Self::LargeBinary(v) => write!(f, "{:X?}", v),
+            Self::Struct(fields) => write!(
+                f,
+                "{{{}}}",
+                fields
+                    .iter()
+                    .map(|typ| format!("{typ}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }

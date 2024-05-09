@@ -1,12 +1,12 @@
 use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, InputTypes,
-    ReturnType, ScalarFn, Signature, SpecializedScalarFunction,
+    GenericScalarFunction, InputTypes, ReturnType, ScalarFn, Signature, SpecializedScalarFunction,
 };
-use rayexec_bullet::array::BooleanArrayBuilder;
-use rayexec_bullet::executor::BinaryExecutor;
+use rayexec_bullet::array::StructArray;
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::{array::Array, field::DataType};
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructPack;
@@ -32,7 +32,43 @@ impl GenericScalarFunction for StructPack {
         })
     }
 
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        unimplemented!()
+    fn specialize(&self, _inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        Ok(Box::new(StructPackDynamic))
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructPackDynamic;
+
+impl SpecializedScalarFunction for StructPackDynamic {
+    fn function_impl(&self) -> ScalarFn {
+        struct_pack
+    }
+}
+
+/// Creates a struct array from some input arrays.
+///
+/// Key and values arrays are alternating.
+///
+/// It's assumed key arrays are string arrays containing all of the same value.
+fn struct_pack(arrays: &[&Arc<Array>]) -> Result<Array> {
+    let keys = arrays
+        .iter()
+        .step_by(2)
+        .map(|arr| match arr.scalar(0).expect("scalar to exist") {
+            ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => Ok(v.to_string()),
+            other => Err(RayexecError::new(format!(
+                "Invalid value for struct key: {other}"
+            ))),
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let values: Vec<_> = arrays
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .map(|&arr| arr.clone())
+        .collect();
+
+    Ok(Array::Struct(StructArray::try_new(keys, values)?))
 }

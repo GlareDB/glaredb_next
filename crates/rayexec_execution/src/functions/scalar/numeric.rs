@@ -7,6 +7,7 @@ use rayexec_bullet::executor::UnaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 /// Macro for generating a specialized unary function that accepts a primitive
 /// array of some variant, and produces a primitive array of some variant.
@@ -20,9 +21,9 @@ macro_rules! generate_specialized_unary_numeric {
 
         impl SpecializedScalarFunction for $name {
             fn function_impl(&self) -> ScalarFn {
-                fn inner(arrays: &[&Array]) -> Result<Array> {
+                fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
                     let array = arrays[0];
-                    Ok(match array {
+                    Ok(match array.as_ref() {
                         Array::$input_variant(array) => {
                             let mut builder = PrimitiveArrayBuilder::with_capacity(array.len());
                             UnaryExecutor::execute(array, $operation, &mut builder)?;
@@ -74,9 +75,9 @@ pub struct IsNanFloat32;
 
 impl SpecializedScalarFunction for IsNanFloat32 {
     fn function_impl(&self) -> ScalarFn {
-        fn is_nan_f32_impl(arrays: &[&Array]) -> Result<Array> {
+        fn is_nan_f32_impl(arrays: &[&Arc<Array>]) -> Result<Array> {
             let array = arrays[0];
-            Ok(match array {
+            Ok(match array.as_ref() {
                 Array::Float32(array) => {
                     let mut builder = BooleanArrayBuilder::new();
                     UnaryExecutor::execute(array, |f| f.is_nan(), &mut builder)?;
@@ -95,9 +96,9 @@ pub struct IsNanFloat64;
 
 impl SpecializedScalarFunction for IsNanFloat64 {
     fn function_impl(&self) -> ScalarFn {
-        fn is_nan_f64_impl(arrays: &[&Array]) -> Result<Array> {
+        fn is_nan_f64_impl(arrays: &[&Arc<Array>]) -> Result<Array> {
             let array = arrays[0];
-            Ok(match array {
+            Ok(match array.as_ref() {
                 Array::Float64(array) => {
                     let mut builder = BooleanArrayBuilder::new();
                     UnaryExecutor::execute(array, |f| f.is_nan(), &mut builder)?;

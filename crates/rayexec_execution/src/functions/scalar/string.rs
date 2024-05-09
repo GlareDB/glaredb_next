@@ -7,6 +7,7 @@ use rayexec_bullet::executor::{BinaryExecutor, UnaryExecutor};
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Repeat;
@@ -44,10 +45,10 @@ pub struct RepeatUtf8;
 
 impl SpecializedScalarFunction for RepeatUtf8 {
     fn function_impl(&self) -> ScalarFn {
-        fn repeat_utf8(arrays: &[&Array]) -> Result<Array> {
+        fn repeat_utf8(arrays: &[&Arc<Array>]) -> Result<Array> {
             let strings = arrays[0];
             let nums = arrays[1];
-            Ok(match (strings, nums) {
+            Ok(match (strings.as_ref(), nums.as_ref()) {
                 (Array::Utf8(strings), Array::Int64(nums)) => {
                     let mut builder = VarlenArrayBuilder::new();
                     BinaryExecutor::execute(
@@ -71,10 +72,10 @@ pub struct RepeatLargeUtf8;
 
 impl SpecializedScalarFunction for RepeatLargeUtf8 {
     fn function_impl(&self) -> ScalarFn {
-        fn repeat_large_utf8(arrays: &[&Array]) -> Result<Array> {
+        fn repeat_large_utf8(arrays: &[&Arc<Array>]) -> Result<Array> {
             let strings = arrays[0];
             let nums = arrays[1];
-            Ok(match (strings, nums) {
+            Ok(match (strings.as_ref(), nums.as_ref()) {
                 (Array::LargeUtf8(strings), Array::Int64(nums)) => {
                     let mut builder = VarlenArrayBuilder::new();
                     BinaryExecutor::execute(

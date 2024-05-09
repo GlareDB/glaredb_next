@@ -10,6 +10,7 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
+use std::sync::Arc;
 
 // List of all scalar functions.
 pub static ALL_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
@@ -36,11 +37,13 @@ pub static ALL_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Laz
         Box::new(numeric::IsNan),
         // String
         Box::new(string::Repeat),
+        // Struct
+        Box::new(struct_funcs::StructPack),
     ]
 });
 
 /// A function pointer with the concrete implementation of a scalar function.
-pub type ScalarFn = fn(&[&Array]) -> Result<Array>;
+pub type ScalarFn = fn(&[&Arc<Array>]) -> Result<Array>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputTypes {

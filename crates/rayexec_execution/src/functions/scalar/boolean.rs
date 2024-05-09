@@ -7,6 +7,7 @@ use rayexec_bullet::executor::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;
@@ -37,10 +38,10 @@ pub struct AndBool;
 
 impl SpecializedScalarFunction for AndBool {
     fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Array]) -> Result<Array> {
+        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
             let first = arrays[0];
             let second = arrays[1];
-            Ok(match (first, second) {
+            Ok(match (first.as_ref(), second.as_ref()) {
                 (Array::Boolean(first), Array::Boolean(second)) => {
                     let mut builder = BooleanArrayBuilder::new();
                     BinaryExecutor::execute(first, second, |a, b| a && b, &mut builder)?;
@@ -83,10 +84,10 @@ pub struct OrBool;
 
 impl SpecializedScalarFunction for OrBool {
     fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Array]) -> Result<Array> {
+        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
             let first = arrays[0];
             let second = arrays[1];
-            Ok(match (first, second) {
+            Ok(match (first.as_ref(), second.as_ref()) {
                 (Array::Boolean(first), Array::Boolean(second)) => {
                     let mut builder = BooleanArrayBuilder::new();
                     BinaryExecutor::execute(first, second, |a, b| a || b, &mut builder)?;
@@ -108,8 +109,10 @@ mod tests {
 
     #[test]
     fn and_bool() {
-        let a = Array::Boolean(BooleanArray::from_iter([true, false, false]));
-        let b = Array::Boolean(BooleanArray::from_iter([true, true, false]));
+        let a = Arc::new(Array::Boolean(BooleanArray::from_iter([
+            true, false, false,
+        ])));
+        let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
 
         let specialized = And
             .specialize(&[DataType::Boolean, DataType::Boolean])
@@ -123,8 +126,10 @@ mod tests {
 
     #[test]
     fn or_bool() {
-        let a = Array::Boolean(BooleanArray::from_iter([true, false, false]));
-        let b = Array::Boolean(BooleanArray::from_iter([true, true, false]));
+        let a = Arc::new(Array::Boolean(BooleanArray::from_iter([
+            true, false, false,
+        ])));
+        let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
 
         let specialized = Or
             .specialize(&[DataType::Boolean, DataType::Boolean])

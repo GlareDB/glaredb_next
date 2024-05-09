@@ -53,7 +53,7 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
 }
 
 /// Hash a row.
-pub fn hash_row(row: &Row) -> u64 {
+pub fn hash_row(row: &Row) -> Result<u64> {
     let mut result = 0;
     for (idx, scalar) in row.iter().enumerate() {
         let combine_hash = idx > 0;
@@ -75,6 +75,10 @@ pub fn hash_row(row: &Row) -> u64 {
             ScalarValue::LargeUtf8(v) => v.hash_one(),
             ScalarValue::Binary(v) => v.hash_one(),
             ScalarValue::LargeBinary(v) => v.hash_one(),
+            ScalarValue::Struct(_) => {
+                // Yet
+                return Err(RayexecError::new("hashing struct values not supported"));
+            }
         };
 
         if combine_hash {
@@ -84,7 +88,7 @@ pub fn hash_row(row: &Row) -> u64 {
         }
     }
 
-    result
+    Ok(result)
 }
 
 /// Helper trait for hashing values.
@@ -271,7 +275,7 @@ mod tests {
         let mut row_hashes = vec![0; 3];
         for idx in 0..3 {
             let row = Row::try_new_from_arrays(&arrays, idx).unwrap();
-            row_hashes[idx] = hash_row(&row);
+            row_hashes[idx] = hash_row(&row).unwrap();
         }
 
         assert_eq!(hashes, row_hashes);

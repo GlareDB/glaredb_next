@@ -7,6 +7,7 @@ use rayexec_bullet::executor::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 /// Signatures for primitive arith operations (+, -, /, *, %)
 const PRIMITIVE_ARITH_SIGNATURES: &'static [Signature] = &[
@@ -64,10 +65,10 @@ macro_rules! generate_specialized_binary_numeric {
 
         impl SpecializedScalarFunction for $name {
             fn function_impl(&self) -> ScalarFn {
-                fn inner(arrays: &[&Array]) -> Result<Array> {
+                fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
                     let first = arrays[0];
                     let second = arrays[1];
-                    Ok(match (first, second) {
+                    Ok(match (first.as_ref(), second.as_ref()) {
                         (Array::$first_variant(first), Array::$second_variant(second)) => {
                             let mut builder = PrimitiveArrayBuilder::with_capacity(first.len());
                             BinaryExecutor::execute(first, second, $operation, &mut builder)?;
@@ -316,8 +317,8 @@ mod tests {
 
     #[test]
     fn add_i32() {
-        let a = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-        let b = Array::Int32(Int32Array::from_iter([4, 5, 6]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
 
         let specialized = Add.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -329,8 +330,8 @@ mod tests {
 
     #[test]
     fn sub_i32() {
-        let a = Array::Int32(Int32Array::from_iter([4, 5, 6]));
-        let b = Array::Int32(Int32Array::from_iter([1, 2, 3]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
         let specialized = Sub.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -342,8 +343,8 @@ mod tests {
 
     #[test]
     fn div_i32() {
-        let a = Array::Int32(Int32Array::from_iter([4, 5, 6]));
-        let b = Array::Int32(Int32Array::from_iter([1, 2, 3]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
         let specialized = Div.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -355,8 +356,8 @@ mod tests {
 
     #[test]
     fn rem_i32() {
-        let a = Array::Int32(Int32Array::from_iter([4, 5, 6]));
-        let b = Array::Int32(Int32Array::from_iter([1, 2, 3]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
         let specialized = Rem.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -368,8 +369,8 @@ mod tests {
 
     #[test]
     fn mul_i32() {
-        let a = Array::Int32(Int32Array::from_iter([4, 5, 6]));
-        let b = Array::Int32(Int32Array::from_iter([1, 2, 3]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
         let specialized = Mul.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 

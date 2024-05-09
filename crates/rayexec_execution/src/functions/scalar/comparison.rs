@@ -7,6 +7,7 @@ use rayexec_bullet::executor::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 const COMPARISON_SIGNATURES: &'static [Signature] = &[
     Signature {
@@ -78,10 +79,10 @@ macro_rules! generate_specialized_comparison {
 
         impl SpecializedScalarFunction for $name {
             fn function_impl(&self) -> ScalarFn {
-                fn inner(arrays: &[&Array]) -> Result<Array> {
+                fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
                     let first = arrays[0];
                     let second = arrays[1];
-                    Ok(match (first, second) {
+                    Ok(match (first.as_ref(), second.as_ref()) {
                         (Array::$first_variant(first), Array::$second_variant(second)) => {
                             let mut builder = BooleanArrayBuilder::new();
                             BinaryExecutor::execute(first, second, $operation, &mut builder)?;
@@ -403,8 +404,8 @@ mod tests {
 
     #[test]
     fn eq_i32() {
-        let a = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-        let b = Array::Int32(Int32Array::from_iter([2, 2, 6]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Eq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -416,8 +417,8 @@ mod tests {
 
     #[test]
     fn neq_i32() {
-        let a = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-        let b = Array::Int32(Int32Array::from_iter([2, 2, 6]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Neq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -429,8 +430,8 @@ mod tests {
 
     #[test]
     fn lt_i32() {
-        let a = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-        let b = Array::Int32(Int32Array::from_iter([2, 2, 6]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Lt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -442,8 +443,8 @@ mod tests {
 
     #[test]
     fn lt_eq_i32() {
-        let a = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-        let b = Array::Int32(Int32Array::from_iter([2, 2, 6]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = LtEq
             .specialize(&[DataType::Int32, DataType::Int32])
@@ -457,8 +458,8 @@ mod tests {
 
     #[test]
     fn gt_i32() {
-        let a = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-        let b = Array::Int32(Int32Array::from_iter([2, 2, 6]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Gt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
@@ -470,8 +471,8 @@ mod tests {
 
     #[test]
     fn gt_eq_i32() {
-        let a = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-        let b = Array::Int32(Int32Array::from_iter([2, 2, 6]));
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = GtEq
             .specialize(&[DataType::Int32, DataType::Int32])
