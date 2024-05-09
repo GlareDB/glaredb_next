@@ -3,6 +3,7 @@ pub mod boolean;
 pub mod comparison;
 pub mod numeric;
 pub mod string;
+pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
@@ -48,12 +49,27 @@ pub enum InputTypes {
 
     /// Variadic number of inputs with the same type.
     Variadic(DataType),
+
+    /// Input is not statically determined. Further checks need to be done.
+    Dynamic,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReturnType {
+    /// Return type is statically known.
+    Static(DataType),
+
+    /// Return type depends entirely on the input, and we can't know ahead of
+    /// time.
+    ///
+    /// This is typically used for compound types.
+    Dynamic,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
     pub input: InputTypes,
-    pub return_type: DataType,
+    pub return_type: ReturnType,
 }
 
 impl Signature {
@@ -62,6 +78,7 @@ impl Signature {
         match &self.input {
             InputTypes::Exact(expected) => inputs == *expected,
             InputTypes::Variadic(typ) => inputs.iter().all(|input| input == typ),
+            _ => true,
         }
     }
 }
@@ -97,6 +114,14 @@ pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
         None
     }
 
+    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
+        let sig = self.signature_for_inputs(inputs)?;
+        match &sig.return_type {
+            ReturnType::Static(datatype) => Some(datatype.clone()),
+            ReturnType::Dynamic => None,
+        }
+    }
+
     /// Specialize the function using the given input types.
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>>;
 }
@@ -113,9 +138,6 @@ impl Clone for Box<dyn GenericScalarFunction> {
 /// `GenericScalarFunction` because this will be what's serialized when
 /// serializing pipelines for distributed execution.
 pub trait SpecializedScalarFunction: Debug + Sync + Send + DynClone {
-    /// The return type of the function.
-    fn return_type(&self) -> DataType;
-
     /// Return the function pointer that implements this scalar function.
     fn function_impl(&self) -> ScalarFn;
 }

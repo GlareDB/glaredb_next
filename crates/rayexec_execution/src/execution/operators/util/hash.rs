@@ -4,7 +4,7 @@ use rayexec_bullet::{
     row::Row,
     scalar::ScalarValue,
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 /// State used for all hashing operations during physical execution.
 pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
@@ -42,6 +42,10 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
             Array::LargeUtf8(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::Binary(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::LargeBinary(arr) => hash_varlen(arr, hashes, combine_hash),
+            Array::Struct(_) => {
+                // Yet
+                return Err(RayexecError::new("hashing struct arrays not supported"));
+            }
         }
     }
 

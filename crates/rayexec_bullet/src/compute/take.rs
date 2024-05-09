@@ -19,6 +19,7 @@ pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
         Array::LargeUtf8(arr) => Array::LargeUtf8(take_varlen(arr, indices)?),
         Array::Binary(arr) => Array::Binary(take_varlen(arr, indices)?),
         Array::LargeBinary(arr) => Array::LargeBinary(take_varlen(arr, indices)?),
+        _ => unimplemented!(),
     })
 }
 

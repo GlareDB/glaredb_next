@@ -100,6 +100,7 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype);
             Ok(Array::LargeBinary(concat_varlen(arrs.as_slice())))
         }
+        DataType::Struct { .. } => unimplemented!(),
     }
 }
 

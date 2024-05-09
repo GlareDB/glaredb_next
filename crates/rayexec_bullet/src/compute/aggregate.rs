@@ -26,6 +26,7 @@ pub fn min(arr: &Array) -> ScalarValue {
         Array::LargeUtf8(arr) => min_varlen(arr).into(),
         Array::Binary(arr) => min_varlen(arr).into(),
         Array::LargeBinary(arr) => min_varlen(arr).into(),
+        _ => unimplemented!(),
     }
 }
 
@@ -50,6 +51,7 @@ pub fn max(arr: &Array) -> ScalarValue {
         Array::LargeUtf8(arr) => max_varlen(arr).into(),
         Array::Binary(arr) => max_varlen(arr).into(),
         Array::LargeBinary(arr) => max_varlen(arr).into(),
+        _ => unimplemented!(),
     }
 }
 

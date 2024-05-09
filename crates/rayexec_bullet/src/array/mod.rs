@@ -1,7 +1,9 @@
 pub mod null;
 pub use null::*;
 pub mod boolean;
+pub mod struct_array;
 pub use boolean::*;
+pub use struct_array::*;
 pub mod primitive;
 pub use primitive::*;
 pub mod varlen;
@@ -10,7 +12,6 @@ pub use varlen::*;
 use crate::bitmap::Bitmap;
 use crate::field::DataType;
 use crate::scalar::ScalarValue;
-use rayexec_error::Result;
 use std::fmt::Debug;
 
 #[derive(Debug, PartialEq)]
@@ -31,6 +32,7 @@ pub enum Array {
     LargeUtf8(LargeUtf8Array),
     Binary(BinaryArray),
     LargeBinary(LargeBinaryArray),
+    Struct(StructArray),
 }
 
 impl Array {
@@ -52,6 +54,7 @@ impl Array {
             Array::LargeUtf8(_) => DataType::LargeUtf8,
             Array::Binary(_) => DataType::Binary,
             Array::LargeBinary(_) => DataType::LargeBinary,
+            Self::Struct(arr) => arr.datatype(),
         }
     }
 
@@ -78,6 +81,7 @@ impl Array {
             Self::LargeUtf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::Binary(arr) => ScalarValue::Binary(arr.value(idx)?.into()),
             Self::LargeBinary(arr) => ScalarValue::LargeBinary(arr.value(idx)?.into()),
+            _ => unimplemented!(),
         })
     }
 
@@ -99,6 +103,7 @@ impl Array {
             Self::LargeUtf8(arr) => arr.is_valid(idx),
             Self::Binary(arr) => arr.is_valid(idx),
             Self::LargeBinary(arr) => arr.is_valid(idx),
+            _ => unimplemented!(),
         }
     }
 
@@ -120,6 +125,7 @@ impl Array {
             Self::LargeUtf8(arr) => arr.len(),
             Self::Binary(arr) => arr.len(),
             Self::LargeBinary(arr) => arr.len(),
+            _ => unimplemented!(),
         }
     }
 }

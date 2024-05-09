@@ -1,6 +1,6 @@
 use super::{
     specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, InputTypes,
-    ScalarFn, Signature, SpecializedScalarFunction,
+    ReturnType, ScalarFn, Signature, SpecializedScalarFunction,
 };
 use rayexec_bullet::array::{BooleanArrayBuilder, PrimitiveArrayBuilder};
 use rayexec_bullet::executor::UnaryExecutor;
@@ -19,10 +19,6 @@ macro_rules! generate_specialized_unary_numeric {
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
-            fn return_type(&self) -> DataType {
-                DataType::$output_variant
-            }
-
             fn function_impl(&self) -> ScalarFn {
                 fn inner(arrays: &[&Array]) -> Result<Array> {
                     let array = arrays[0];
@@ -54,11 +50,11 @@ impl GenericScalarFunction for IsNan {
         &[
             Signature {
                 input: InputTypes::Exact(&[DataType::Float32]),
-                return_type: DataType::Boolean,
+                return_type: ReturnType::Static(DataType::Boolean),
             },
             Signature {
                 input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: DataType::Boolean,
+                return_type: ReturnType::Static(DataType::Boolean),
             },
         ]
     }
@@ -77,10 +73,6 @@ impl GenericScalarFunction for IsNan {
 pub struct IsNanFloat32;
 
 impl SpecializedScalarFunction for IsNanFloat32 {
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
     fn function_impl(&self) -> ScalarFn {
         fn is_nan_f32_impl(arrays: &[&Array]) -> Result<Array> {
             let array = arrays[0];
@@ -102,10 +94,6 @@ impl SpecializedScalarFunction for IsNanFloat32 {
 pub struct IsNanFloat64;
 
 impl SpecializedScalarFunction for IsNanFloat64 {
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
     fn function_impl(&self) -> ScalarFn {
         fn is_nan_f64_impl(arrays: &[&Array]) -> Result<Array> {
             let array = arrays[0];
@@ -139,11 +127,11 @@ impl GenericScalarFunction for Ceil {
         &[
             Signature {
                 input: InputTypes::Exact(&[DataType::Float32]),
-                return_type: DataType::Float32,
+                return_type: ReturnType::Static(DataType::Float32),
             },
             Signature {
                 input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: DataType::Float64,
+                return_type: ReturnType::Static(DataType::Float64),
             },
         ]
     }
@@ -173,11 +161,11 @@ impl GenericScalarFunction for Floor {
         &[
             Signature {
                 input: InputTypes::Exact(&[DataType::Float32]),
-                return_type: DataType::Float32,
+                return_type: ReturnType::Static(DataType::Float32),
             },
             Signature {
                 input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: DataType::Float64,
+                return_type: ReturnType::Static(DataType::Float64),
             },
         ]
     }

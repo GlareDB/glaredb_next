@@ -1,6 +1,6 @@
 use super::{
     specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, InputTypes,
-    ScalarFn, Signature, SpecializedScalarFunction,
+    ReturnType, ScalarFn, Signature, SpecializedScalarFunction,
 };
 use rayexec_bullet::array::BooleanArrayBuilder;
 use rayexec_bullet::executor::BinaryExecutor;
@@ -19,7 +19,7 @@ impl GenericScalarFunction for And {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-            return_type: DataType::Boolean,
+            return_type: ReturnType::Static(DataType::Boolean),
         }]
     }
 
@@ -36,10 +36,6 @@ impl GenericScalarFunction for And {
 pub struct AndBool;
 
 impl SpecializedScalarFunction for AndBool {
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
     fn function_impl(&self) -> ScalarFn {
         fn inner(arrays: &[&Array]) -> Result<Array> {
             let first = arrays[0];
@@ -69,7 +65,7 @@ impl GenericScalarFunction for Or {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-            return_type: DataType::Boolean,
+            return_type: ReturnType::Static(DataType::Boolean),
         }]
     }
 
@@ -86,10 +82,6 @@ impl GenericScalarFunction for Or {
 pub struct OrBool;
 
 impl SpecializedScalarFunction for OrBool {
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
     fn function_impl(&self) -> ScalarFn {
         fn inner(arrays: &[&Array]) -> Result<Array> {
             let first = arrays[0];

@@ -20,6 +20,7 @@ pub enum DataType {
     LargeUtf8,
     Binary,
     LargeBinary,
+    Struct { fields: Vec<DataType> },
 }
 
 impl DataType {
@@ -59,6 +60,15 @@ impl fmt::Display for DataType {
             Self::LargeUtf8 => write!(f, "LargeUtf8"),
             Self::Binary => write!(f, "Binary"),
             Self::LargeBinary => write!(f, "LargeBinary"),
+            Self::Struct { fields } => write!(
+                f,
+                "{{{}}}",
+                fields
+                    .iter()
+                    .map(|typ| format!("{typ}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }

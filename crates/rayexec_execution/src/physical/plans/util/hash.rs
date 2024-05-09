@@ -42,6 +42,7 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
             Array::LargeUtf8(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::Binary(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::LargeBinary(arr) => hash_varlen(arr, hashes, combine_hash),
+            _ => unimplemented!(),
         }
     }
 

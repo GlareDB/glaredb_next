@@ -588,25 +588,25 @@ impl LogicalExpression {
                     .iter()
                     .map(|input| input.datatype(current, outer))
                     .collect::<Result<Vec<_>>>()?;
-                let sig = function.signature_for_inputs(&datatypes).ok_or_else(|| {
+                let ret_type = function.return_type_for_inputs(&datatypes).ok_or_else(|| {
                     RayexecError::new(format!(
                         "Failed to find correct signature for '{}'",
                         function.name()
                     ))
                 })?;
-                sig.return_type.clone()
+                ret_type
             }
             LogicalExpression::Unary { op: _, expr: _ } => unimplemented!(),
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.datatype(current, outer)?;
                 let right = right.datatype(current, outer)?;
-                let sig = op
+                let ret_type = op
                     .scalar_function()
-                    .signature_for_inputs(&[left, right])
+                    .return_type_for_inputs(&[left, right])
                     .ok_or_else(|| {
                         RayexecError::new("Failed to get correct signature for scalar function")
                     })?;
-                sig.return_type.clone()
+                ret_type
             }
             _ => unimplemented!(),
         })

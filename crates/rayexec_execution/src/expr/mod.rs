@@ -60,10 +60,13 @@ impl PhysicalScalarExpression {
             //     expr: Box::new(Self::try_from_uncorrelated_expr(*expr, t)?),
             // },
             LogicalExpression::Binary { op, left, right } => {
+                let left_datatype = left.datatype(input, &[])?;
+                let right_datatype = right.datatype(input, &[])?;
+
                 let left = PhysicalScalarExpression::try_from_uncorrelated_expr(*left, input)?;
                 let right = PhysicalScalarExpression::try_from_uncorrelated_expr(*right, input)?;
 
-                let scalar_inputs = &[left.datatype(input), right.datatype(input)];
+                let scalar_inputs = &[left_datatype, right_datatype];
                 let func = op.scalar_function();
                 let specialized = func.specialize(scalar_inputs)?;
 
@@ -73,12 +76,16 @@ impl PhysicalScalarExpression {
                 }
             }
             LogicalExpression::ScalarFunction { function, inputs } => {
+                let datatypes = inputs
+                    .iter()
+                    .map(|arg| arg.datatype(input, &[]))
+                    .collect::<Result<Vec<_>>>()?;
+
                 let inputs = inputs
                     .into_iter()
                     .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, input))
                     .collect::<Result<Vec<_>>>()?;
 
-                let datatypes: Vec<_> = inputs.iter().map(|arg| arg.datatype(input)).collect();
                 let specialized = function.specialize(&datatypes)?;
 
                 PhysicalScalarExpression::ScalarFunction {
@@ -88,15 +95,6 @@ impl PhysicalScalarExpression {
             }
             _ => unimplemented!(),
         })
-    }
-
-    fn datatype(&self, input: &TypeSchema) -> DataType {
-        match self {
-            Self::Column(idx) => input.types[*idx].clone(),
-            Self::Literal(lit) => lit.datatype(),
-            Self::ScalarFunction { function, .. } => function.return_type(),
-            Self::Case { .. } => unimplemented!(),
-        }
     }
 
     /// Evaluate this expression on a batch.

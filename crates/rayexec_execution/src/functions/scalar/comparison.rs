@@ -1,6 +1,6 @@
 use super::{
     specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, InputTypes,
-    ScalarFn, Signature, SpecializedScalarFunction,
+    ReturnType, ScalarFn, Signature, SpecializedScalarFunction,
 };
 use rayexec_bullet::array::BooleanArrayBuilder;
 use rayexec_bullet::executor::BinaryExecutor;
@@ -11,63 +11,63 @@ use std::fmt::Debug;
 const COMPARISON_SIGNATURES: &'static [Signature] = &[
     Signature {
         input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Utf8, DataType::Utf8]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::LargeUtf8, DataType::LargeUtf8]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::Binary, DataType::Binary]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
         input: InputTypes::Exact(&[DataType::LargeBinary, DataType::LargeBinary]),
-        return_type: DataType::Boolean,
+        return_type: ReturnType::Static(DataType::Boolean),
     },
 ];
 
@@ -77,10 +77,6 @@ macro_rules! generate_specialized_comparison {
         pub struct $name;
 
         impl SpecializedScalarFunction for $name {
-            fn return_type(&self) -> DataType {
-                DataType::Boolean
-            }
-
             fn function_impl(&self) -> ScalarFn {
                 fn inner(arrays: &[&Array]) -> Result<Array> {
                     let first = arrays[0];
