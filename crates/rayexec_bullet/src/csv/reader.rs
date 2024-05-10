@@ -24,7 +24,7 @@ use super::decode::{DecodedRecords, Decoder};
 use crate::{
     array::{Array, BooleanArray, PrimitiveArray, Utf8Array},
     bitmap::Bitmap,
-    field::{DataType, Field},
+    field::{DataType, Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -92,6 +92,11 @@ impl DialectOptions {
         }
     }
 
+    /// Create a decoder for the dialect.
+    pub fn decoder(&self) -> Decoder {
+        Decoder::new(self.csv_core_reader(), None)
+    }
+
     /// Create a csv core reader from these options.
     fn csv_core_reader(&self) -> csv_core::Reader {
         csv_core::ReaderBuilder::new()
@@ -157,11 +162,6 @@ enum CandidateType {
 }
 
 impl CandidateType {
-    /// Whether or not self is stricter than some other candidate type.
-    fn is_stricter(&self, other: &CandidateType) -> bool {
-        self < other
-    }
-
     const fn as_datatype(&self) -> DataType {
         match self {
             Self::Boolean => DataType::Boolean,
@@ -242,6 +242,12 @@ impl CsvSchema {
         CsvSchema {
             fields,
             has_header: false,
+        }
+    }
+
+    pub fn into_schema(self) -> Schema {
+        Schema {
+            fields: self.fields,
         }
     }
 

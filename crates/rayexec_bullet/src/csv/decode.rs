@@ -79,6 +79,8 @@ impl Decoder {
             let output = &mut self.buffer[self.buffer_len..];
             let ends = &mut self.offsets[self.offsets_len..];
 
+            println!("--- input: {}", std::str::from_utf8(input).unwrap());
+
             // Try to read a complete record.
             let (result, bytes_read, bytes_written, ends_written) =
                 self.csv_reader.read_record(input, output, ends);
@@ -121,6 +123,10 @@ impl Decoder {
                     match self.num_fields {
                         Some(num_fields) => {
                             if self.current_field != num_fields {
+                                println!(
+                                    "--- buf: {}",
+                                    std::str::from_utf8(&self.buffer[..self.buffer_len]).unwrap()
+                                );
                                 return Err(RayexecError::new(format!(
                                     "Invalid number of fields in record. Got {}, expected {}",
                                     self.current_field, num_fields
