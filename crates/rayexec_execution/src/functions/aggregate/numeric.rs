@@ -88,7 +88,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sum_i32_single_group_two_partitions() {
+    fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
         let partition_1_vals = Array::Int64(Int64Array::from_iter([1, 2, 3]));
@@ -126,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn sum_i32_two_groups_two_partitions() {
+    fn sum_i64_two_groups_two_partitions() {
         // Two groups, two partitions, 'SELECT SUM(col2) FROM table GROUP BY col1'
         //
         // | col1 | col2 |

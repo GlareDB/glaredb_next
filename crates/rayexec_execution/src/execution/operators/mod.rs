@@ -1,6 +1,6 @@
+pub mod aggregate;
 pub mod empty;
 pub mod filter;
-pub mod hash_aggregate;
 pub mod nl_join;
 pub mod project;
 pub mod query_sink;

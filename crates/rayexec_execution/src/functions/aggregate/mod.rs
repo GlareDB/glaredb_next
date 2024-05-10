@@ -5,7 +5,10 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::{array::Array, executor::aggregate::AggregateState, field::DataType};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
-use std::{fmt::Debug, marker::PhantomData};
+use std::{
+    fmt::{self, Debug},
+    marker::PhantomData,
+};
 
 use super::{ReturnType, Signature};
 
@@ -50,7 +53,7 @@ pub trait SpecializedAggregateFunction: Debug + Sync + Send + DynClone {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
 }
 
-pub trait GroupedStates {
+pub trait GroupedStates: Debug {
     /// Needed to allow downcasting to the concrete type when combining multiple
     /// states that were computed in parallel.
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -178,5 +181,16 @@ where
 
     fn finalize(&mut self) -> Result<Array> {
         (self.finalize_fn)(std::mem::take(&mut self.states))
+    }
+}
+
+impl<S, T, O, UF, CF, FF> Debug for DefaultGroupedStates<S, T, O, UF, CF, FF>
+where
+    S: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DefaultGroupedStates")
+            .field("states", &self.states)
+            .finish_non_exhaustive()
     }
 }
