@@ -141,15 +141,45 @@ impl<'a> ExpressionContext<'a> {
                         })
                         .collect::<Result<Vec<_>>>()?;
 
-                    if self.scalar_function_can_handle_input(scalar_func.as_ref(), &inputs)? {
-                        return Ok(LogicalExpression::ScalarFunction {
-                            function: scalar_func,
-                            inputs,
-                        });
+                    if !self.scalar_function_can_handle_input(scalar_func.as_ref(), &inputs)? {
+                        // TODO: Do we want to fall through? Is it possible for a
+                        // scalar and aggregate function to have the same name?
+
+                        return Err(RayexecError::new(format!(
+                            "Invalid inputs to '{}'",
+                            scalar_func.name(),
+                        )));
                     }
 
-                    // TODO: Do we want to fall through? Is it possible for a
-                    // scalar and aggregate function to have the same name?
+                    return Ok(LogicalExpression::ScalarFunction {
+                        function: scalar_func,
+                        inputs,
+                    });
+                }
+
+                if let Some(agg_func) = self
+                    .plan_context
+                    .resolver
+                    .resolve_aggregate_function(&func.name)
+                {
+                    let inputs = func
+                        .args
+                        .into_iter()
+                        .map(|arg| match arg {
+                            ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
+                            ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                                "Named arguments to aggregate functions not supported",
+                            )),
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    // TODO: Sig check
+
+                    return Ok(LogicalExpression::Aggregate {
+                        agg: agg_func,
+                        inputs,
+                        filter: None,
+                    });
                 }
 
                 // Check if there exists an aggregate function with this name.

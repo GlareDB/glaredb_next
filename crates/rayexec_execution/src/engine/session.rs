@@ -13,7 +13,7 @@ use crate::{
         sink::QuerySink,
     },
     functions::{
-        aggregate,
+        aggregate::{self, GenericAggregateFunction, ALL_AGGREGATE_FUNCTIONS},
         scalar::{GenericScalarFunction, ALL_SCALAR_FUNCTIONS},
         table::{self, TableFunctionOld},
     },
@@ -23,7 +23,6 @@ use crate::{
 };
 
 use super::{
-    materialize::MaterializedBatchStream,
     modify::{Modification, SessionModifier},
     result_stream::ResultStream,
     vars::{SessionVar, SessionVars},
@@ -32,6 +31,7 @@ use super::{
 #[derive(Debug)]
 struct SessionFunctions {
     scalars: HashMap<&'static str, &'static Box<dyn GenericScalarFunction>>,
+    aggregates: HashMap<&'static str, &'static Box<dyn GenericAggregateFunction>>,
 }
 
 impl SessionFunctions {
@@ -46,7 +46,18 @@ impl SessionFunctions {
             }
         }
 
-        SessionFunctions { scalars }
+        let mut aggregates = HashMap::new();
+        for func in ALL_AGGREGATE_FUNCTIONS.iter() {
+            aggregates.insert(func.name(), func);
+            for alias in func.aliases() {
+                aggregates.insert(alias, func);
+            }
+        }
+
+        SessionFunctions {
+            scalars,
+            aggregates,
+        }
     }
 }
 
@@ -65,6 +76,20 @@ impl<'a> Resolver for DebugResolver<'a> {
             return None;
         }
         let func = self.functions.scalars.get(reference.0[0].value.as_str())?;
+        Some((*func).clone())
+    }
+
+    fn resolve_aggregate_function(
+        &self,
+        reference: &ast::ObjectReference,
+    ) -> Option<Box<dyn GenericAggregateFunction>> {
+        if reference.0.len() != 1 {
+            return None;
+        }
+        let func = self
+            .functions
+            .aggregates
+            .get(reference.0[0].value.as_str())?;
         Some((*func).clone())
     }
 

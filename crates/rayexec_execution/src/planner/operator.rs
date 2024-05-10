@@ -1,5 +1,6 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
+use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::{GenericScalarFunction, SpecializedScalarFunction};
 use crate::{
     engine::vars::SessionVar,
@@ -503,10 +504,10 @@ pub enum LogicalExpression {
     /// An aggregate function.
     Aggregate {
         /// The function.
-        // agg: Box<dyn AggregateFunction>, // TODO
+        agg: Box<dyn GenericAggregateFunction>,
 
         /// Input expressions to the aggragate.
-        args: Vec<Box<LogicalExpression>>,
+        inputs: Vec<LogicalExpression>,
 
         /// Optional filter to the aggregate.
         filter: Option<Box<LogicalExpression>>,

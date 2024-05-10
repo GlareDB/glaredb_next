@@ -6,7 +6,9 @@ pub mod scope;
 
 use crate::{
     engine::vars::SessionVar,
-    functions::{scalar::GenericScalarFunction, table::TableFunctionOld},
+    functions::{
+        aggregate::GenericAggregateFunction, scalar::GenericScalarFunction, table::TableFunctionOld,
+    },
 };
 use rayexec_error::Result;
 use rayexec_parser::ast;
@@ -21,6 +23,11 @@ pub trait Resolver: std::fmt::Debug {
         &self,
         reference: &ast::ObjectReference,
     ) -> Option<Box<dyn GenericScalarFunction>>;
+
+    fn resolve_aggregate_function(
+        &self,
+        reference: &ast::ObjectReference,
+    ) -> Option<Box<dyn GenericAggregateFunction>>;
 
     fn resolve_table_function(
         &self,

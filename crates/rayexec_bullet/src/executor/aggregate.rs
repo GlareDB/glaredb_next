@@ -4,32 +4,11 @@ use std::fmt::Debug;
 
 use crate::array::{ArrayAccessor, ArrayBuilder};
 
-#[derive(Debug)]
-pub struct SumI32 {
-    sum: i32,
-}
-
-impl AggregateState<i32, i32> for SumI32 {
-    fn merge(&mut self, other: Self) -> Result<()> {
-        self.sum = other.sum;
-        Ok(())
-    }
-
-    fn update(&mut self, input: i32) -> Result<()> {
-        self.sum += input;
-        Ok(())
-    }
-
-    fn finalize(self) -> Result<i32> {
-        Ok(self.sum)
-    }
-}
-
 /// State for a single group's aggregate.
 ///
 /// An example state for SUM would be a struct that takes a running sum from
 /// values provided in `update`.
-pub trait AggregateState<T, O>: Debug {
+pub trait AggregateState<T, O>: Default + Debug {
     /// Merge other state into this state.
     fn merge(&mut self, other: Self) -> Result<()>;
 
@@ -61,7 +40,7 @@ impl UnaryUpdater {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CovarSampFloat64 {
     count: usize,
     meanx: f64,
