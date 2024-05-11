@@ -38,7 +38,7 @@ pub struct SumI64;
 
 impl SpecializedAggregateFunction for SumI64 {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let update_fn = |arrays: &[Array], mapping: &[usize], states: &mut [SumI64State]| {
+        let update_fn = |arrays: &[&Array], mapping: &[usize], states: &mut [SumI64State]| {
             let inputs = match &arrays[0] {
                 Array::Int64(arr) => arr,
                 other => panic!("unexpected array type: {other:?}"),
@@ -91,8 +91,8 @@ mod tests {
     fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-        let partition_1_vals = Array::Int64(Int64Array::from_iter([1, 2, 3]));
-        let partition_2_vals = Array::Int64(Int64Array::from_iter([4, 5, 6]));
+        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
+        let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
 
         let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
 
@@ -141,8 +141,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = Array::Int64(Int64Array::from_iter([1, 2, 3]));
-        let partition_2_vals = Array::Int64(Int64Array::from_iter([4, 5, 6]));
+        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
+        let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
 
         let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
 

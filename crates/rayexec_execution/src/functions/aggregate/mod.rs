@@ -53,7 +53,7 @@ pub trait SpecializedAggregateFunction: Debug + Sync + Send + DynClone {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
 }
 
-pub trait GroupedStates: Debug {
+pub trait GroupedStates: Debug + Send {
     /// Needed to allow downcasting to the concrete type when combining multiple
     /// states that were computed in parallel.
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -76,7 +76,7 @@ pub trait GroupedStates: Debug {
     /// be updated. The 'n'th row in the input corresponds to the 'n'th value in
     /// `mapping` which corresponds to the state to be updated with the 'n'th
     /// row.
-    fn update_from_arrays(&mut self, inputs: &[Array], mapping: &[usize]) -> Result<()>;
+    fn update_from_arrays(&mut self, inputs: &[&Array], mapping: &[usize]) -> Result<()>;
 
     /// Try to combine two sets of grouped states into a single set of states.
     ///
@@ -119,7 +119,7 @@ pub struct DefaultGroupedStates<S, T, O, UF, CF, FF> {
 impl<S, T, O, UF, CF, FF> DefaultGroupedStates<S, T, O, UF, CF, FF>
 where
     S: AggregateState<T, O>,
-    UF: Fn(&[Array], &[usize], &mut [S]) -> Result<()>,
+    UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()>,
     CF: Fn(&mut [S], Vec<S>) -> Result<()>,
     FF: Fn(Vec<S>) -> Result<Array>,
 {
@@ -137,12 +137,12 @@ where
 
 impl<S, T, O, UF, CF, FF> GroupedStates for DefaultGroupedStates<S, T, O, UF, CF, FF>
 where
-    T: 'static,
-    O: 'static,
-    S: AggregateState<T, O> + 'static,
-    UF: Fn(&[Array], &[usize], &mut [S]) -> Result<()> + 'static,
-    CF: Fn(&mut [S], Vec<S>) -> Result<()> + 'static,
-    FF: Fn(Vec<S>) -> Result<Array> + 'static,
+    T: Send + 'static,
+    O: Send + 'static,
+    S: AggregateState<T, O> + Send + 'static,
+    UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()> + Send + 'static,
+    CF: Fn(&mut [S], Vec<S>) -> Result<()> + Send + 'static,
+    FF: Fn(Vec<S>) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -158,7 +158,7 @@ where
         self.states.len()
     }
 
-    fn update_from_arrays(&mut self, inputs: &[Array], mapping: &[usize]) -> Result<()> {
+    fn update_from_arrays(&mut self, inputs: &[&Array], mapping: &[usize]) -> Result<()> {
         (self.update_fn)(inputs, mapping, &mut self.states)
     }
 

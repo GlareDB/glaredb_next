@@ -2,10 +2,10 @@ use crate::functions::aggregate::{GroupedStates, SpecializedAggregateFunction};
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
     array::Array,
+    bitmap::{self, Bitmap},
     row::{OwnedRow, Row},
 };
 use rayexec_error::{RayexecError, Result};
-use smallvec::SmallVec;
 use std::fmt;
 
 pub struct AggregateHashTable {
@@ -53,11 +53,22 @@ impl AggregateHashTable {
         &mut self,
         groups: &[&Array],
         hashes: &[u64],
-        inputs: &[Array],
+        inputs: &[&Array],
+        selection: &Bitmap,
     ) -> Result<()> {
+        let row_count = selection.popcnt();
+        // If none of the rows are actually selection for insertion into the hash map, then
+        // we don't need to do anything.
+        if row_count == 0 {
+            return Ok(());
+        }
+
+        self.indexes_buffer.clear();
+        self.indexes_buffer.reserve(row_count);
+
         // Get group indices, creating new states as needed for groups we've
         // never seen before.
-        self.find_or_create_group_indices(groups, hashes)?;
+        self.find_or_create_group_indices(groups, hashes, selection)?;
 
         // Now we just rip through the values.
         for states in self.aggregate_states.iter_mut() {
@@ -67,11 +78,17 @@ impl AggregateHashTable {
         Ok(())
     }
 
-    fn find_or_create_group_indices(&mut self, groups: &[&Array], hashes: &[u64]) -> Result<()> {
-        self.indexes_buffer.clear();
-        self.indexes_buffer.reserve(hashes.len());
+    fn find_or_create_group_indices(
+        &mut self,
+        groups: &[&Array],
+        hashes: &[u64],
+        selection: &Bitmap,
+    ) -> Result<()> {
+        for (row_idx, (&hash, selected)) in hashes.iter().zip(selection.iter()).enumerate() {
+            if !selected {
+                continue;
+            }
 
-        for (row_idx, &hash) in hashes.iter().enumerate() {
             // TODO: This is probably a bit slower than we'd want.
             //
             // It's like that replacing this with something that compares

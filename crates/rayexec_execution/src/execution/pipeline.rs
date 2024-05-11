@@ -346,6 +346,17 @@ impl PartitionPipeline {
                             };
                             continue;
                         }
+                        Ok(PollPush::NeedsMore) => {
+                            // Operator accepted input, but needs more input
+                            // before it will produce output.
+                            //
+                            // Reset the state to pull from the operator
+                            // previous to this one to get more batches.
+                            assert_ne!(0, *operator_idx);
+                            *state = PipelinePartitionState::PullFrom {
+                                operator_idx: *operator_idx - 1,
+                            }
+                        }
                         Err(e) => {
                             // Errors currently unrecoverable.
                             *state = PipelinePartitionState::Completed;

@@ -84,6 +84,14 @@ impl GroupingSets {
         self.null_masks.len()
     }
 
+    pub fn columns(&self) -> &[usize] {
+        &self.columns
+    }
+
+    pub fn null_masks(&self) -> &[Bitmap] {
+        &self.null_masks
+    }
+
     /// Grouping set for a simple `GROUP BY a, b, ...`
     pub fn new_single(columns: Vec<usize>) -> Self {
         let null_masks = vec![Bitmap::from_iter(vec![false; columns.len()])];
