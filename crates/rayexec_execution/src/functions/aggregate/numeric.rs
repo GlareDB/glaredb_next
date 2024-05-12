@@ -9,6 +9,7 @@ use super::{
 };
 use crate::functions::{InputTypes, ReturnType, Signature};
 use rayexec_error::Result;
+use std::vec;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sum;
@@ -46,7 +47,7 @@ impl SpecializedAggregateFunction for SumI64 {
             UnaryUpdater::update(inputs, mapping, states)
         };
 
-        let finalize_fn = |states: Vec<_>| {
+        let finalize_fn = |states: vec::Drain<'_, _>| {
             let mut builder = PrimitiveArrayBuilder::with_capacity(states.len());
             StateFinalizer::finalize(states, &mut builder)?;
             Ok(Array::Int64(builder.into_typed_array()))
@@ -124,9 +125,9 @@ mod tests {
         states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.drain_finalize_n(100).unwrap();
         let expected = Array::Int64(Int64Array::from_iter([21]));
-        assert_eq!(expected, out);
+        assert_eq!(expected, out.unwrap());
     }
 
     #[test]
@@ -185,9 +186,9 @@ mod tests {
         states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.drain_finalize_n(100).unwrap();
         let expected = Array::Int64(Int64Array::from_iter([9, 12]));
-        assert_eq!(expected, out);
+        assert_eq!(expected, out.unwrap());
     }
 
     #[test]
@@ -197,8 +198,8 @@ mod tests {
         // This test represents a case where we're merging two aggregate hash
         // maps, where the map we're merging into has seen more groups than the
         // one that's being consumed. The implementation of the hash aggregate
-        // operator ensure this is the case, or that both hash maps have seen
-        // the same number of groups.
+        // operator ensures either this is the case, or that both hash maps have
+        // seen the same number of groups.
         //
         // | col1 | col2 |
         // |------|------|
@@ -252,8 +253,36 @@ mod tests {
         states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.drain_finalize_n(100).unwrap();
         let expected = Array::Int64(Int64Array::from_iter([8, 3, 25]));
-        assert_eq!(expected, out);
+        assert_eq!(expected, out.unwrap());
+    }
+
+    #[test]
+    fn sum_i64_drain_multiple() {
+        // Three groups, single partition, test that drain can be called
+        // multiple times until states are exhausted.
+        let vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
+
+        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let mut states = specialized.new_grouped_state();
+
+        states.new_group();
+        states.new_group();
+        states.new_group();
+
+        let mapping = vec![0, 0, 1, 1, 2, 2];
+        states.update_from_arrays(&[vals], &mapping).unwrap();
+
+        let expected_1 = Array::Int64(Int64Array::from_iter([3, 7]));
+        let out_1 = states.drain_finalize_n(2).unwrap();
+        assert_eq!(Some(expected_1), out_1);
+
+        let expected_2 = Array::Int64(Int64Array::from_iter([11]));
+        let out_2 = states.drain_finalize_n(2).unwrap();
+        assert_eq!(Some(expected_2), out_2);
+
+        let out_3 = states.drain_finalize_n(2).unwrap();
+        assert_eq!(None, out_3);
     }
 }

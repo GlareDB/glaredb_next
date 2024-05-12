@@ -8,6 +8,7 @@ use std::any::Any;
 use std::{
     fmt::{self, Debug},
     marker::PhantomData,
+    vec,
 };
 
 use super::{ReturnType, Signature};
@@ -86,8 +87,13 @@ pub trait GroupedStates: Debug + Send {
     // TODO: Mapping
     fn try_combine(&mut self, consume: Box<dyn GroupedStates>, mapping: &[usize]) -> Result<()>;
 
-    /// Finalizes the aggregate states into a single array.
-    fn finalize(&mut self) -> Result<Array>;
+    /// Drains some number of internal states, finalizing them and producing an
+    /// array of the results.
+    ///
+    /// May produce an array with length less than n
+    ///
+    /// Returns None when all internal states have been drained and finalized.
+    fn drain_finalize_n(&mut self, n: usize) -> Result<Option<Array>>;
 }
 
 /// Provides a default implementation of `GroupedStates`.
@@ -121,7 +127,7 @@ where
     S: AggregateState<T, O>,
     UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()>,
     CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()>,
-    FF: Fn(Vec<S>) -> Result<Array>,
+    FF: Fn(vec::Drain<'_, S>) -> Result<Array>,
 {
     fn new(update_fn: UF, combine_fn: CF, finalize_fn: FF) -> Self {
         DefaultGroupedStates {
@@ -137,12 +143,12 @@ where
 
 impl<S, T, O, UF, CF, FF> GroupedStates for DefaultGroupedStates<S, T, O, UF, CF, FF>
 where
+    S: AggregateState<T, O> + Send + 'static,
     T: Send + 'static,
     O: Send + 'static,
-    S: AggregateState<T, O> + Send + 'static,
     UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()> + Send + 'static,
     CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()> + Send + 'static,
-    FF: Fn(Vec<S>) -> Result<Array> + Send + 'static,
+    FF: Fn(vec::Drain<'_, S>) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -180,8 +186,17 @@ where
         (self.combine_fn)(consume, mapping, &mut self.states)
     }
 
-    fn finalize(&mut self) -> Result<Array> {
-        (self.finalize_fn)(std::mem::take(&mut self.states))
+    fn drain_finalize_n(&mut self, n: usize) -> Result<Option<Array>> {
+        assert_ne!(0, n);
+
+        let n = usize::min(n, self.states.len());
+        if n == 0 {
+            return Ok(None);
+        }
+
+        let drain = self.states.drain(0..n);
+        let arr = (self.finalize_fn)(drain)?;
+        Ok(Some(arr))
     }
 }
 

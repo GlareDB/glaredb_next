@@ -1,22 +1,25 @@
+use parking_lot::Mutex;
 use rayexec_bullet::array::{Array, NullArray};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_error::{RayexecError, Result};
-use std::task::Context;
-use std::{sync::Arc, task::Waker};
+use std::task::{Context, Waker};
 
 use crate::execution::operators::util::hash::{hash_arrays, partition_for_hash};
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
 
-use super::aggregate_hash_table::PartitionAggregateHashTable;
+use super::aggregate_hash_table::{AggregateHashTableDrain, PartitionAggregateHashTable};
 use super::grouping_set::GroupingSets;
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {
     /// Partition is currently aggregating inputs.
     Aggregating {
+        /// Index of this partition.
+        partition_idx: usize,
+
         /// Output hash tables for storing aggregate states.
         ///
         /// There exists one hash table per output partition.
@@ -31,13 +34,47 @@ pub enum HashAggregatePartitionState {
 
     /// Partition is currently producing final aggregate results.
     Producing {
+        /// Index of this partition.
+        partition_idx: usize,
+
         /// The aggregate hash table that we're pulling results from.
-        hashtable: PartitionAggregateHashTable,
+        ///
+        /// May be None if the final hash table hasn't been built yet. If it
+        /// hasn't been built, then the shared state will be need to be checked.
+        hashtable_drain: Option<AggregateHashTableDrain>,
     },
 }
 
+impl HashAggregatePartitionState {
+    fn partition_idx(&self) -> usize {
+        match self {
+            HashAggregatePartitionState::Aggregating { partition_idx, .. } => *partition_idx,
+            HashAggregatePartitionState::Producing { partition_idx, .. } => *partition_idx,
+        }
+    }
+}
+
 #[derive(Debug)]
-pub struct HashAggregateOperatorState {}
+pub struct HashAggregateOperatorState {
+    /// States containing pending hash tables from input partitions.
+    output_states: Vec<Mutex<SharedOutputPartitionState>>,
+}
+
+#[derive(Debug)]
+struct SharedOutputPartitionState {
+    /// Completed hash tables from input partitions that should be combined into
+    /// one final output table.
+    completed: Vec<PartitionAggregateHashTable>,
+
+    /// Number of remaining inputs. Initially set to number of input partitions.
+    ///
+    /// Once zero, the final hash table can be created.
+    remaining: usize,
+
+    /// Waker for thread that attempted to pull from this operator before we've
+    /// completed the aggregation.
+    pull_waker: Option<Waker>,
+}
 
 #[derive(Debug)]
 pub struct PhysicalHashAggregate {
@@ -66,6 +103,7 @@ impl PhysicalOperator for PhysicalHashAggregate {
                 output_hashtables,
                 hash_buf,
                 partitions_idx_buf,
+                ..
             } => {
                 // Columns that we're computing the aggregate over.
                 let aggregate_columns: Vec<_> = self
@@ -157,7 +195,57 @@ impl PhysicalOperator for PhysicalHashAggregate {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<()> {
-        unimplemented!()
+        let state = match partition_state {
+            PartitionState::HashAggregate(state) => state,
+            other => panic!("invalid partition state: {other:?}"),
+        };
+
+        let operator_state = match operator_state {
+            OperatorState::HashAggregate(state) => state,
+            other => panic!("invalid operator state: {other:?}"),
+        };
+
+        match state {
+            state @ HashAggregatePartitionState::Aggregating { .. } => {
+                // Set this partition's state to producing with an empty hash
+                // table.
+                //
+                // On pull, this partition will build the final hash table from
+                // the global state if all inputs are finished, or store a waker
+                // if not.
+                let producing_state = HashAggregatePartitionState::Producing {
+                    partition_idx: state.partition_idx(),
+                    hashtable_drain: None,
+                };
+                let aggregating_state = std::mem::replace(state, producing_state);
+                let partition_hashtables = match aggregating_state {
+                    HashAggregatePartitionState::Aggregating {
+                        output_hashtables, ..
+                    } => output_hashtables,
+                    _ => unreachable!("state variant already checked in outer match"),
+                };
+
+                for (partition_idx, partition_hashtable) in
+                    partition_hashtables.into_iter().enumerate()
+                {
+                    let mut output_state = operator_state.output_states[partition_idx].lock();
+                    output_state.completed.push(partition_hashtable);
+
+                    output_state.remaining -= 1;
+
+                    // If we're the last input partition for an output
+                    // partition, go ahead a wake up whoever is waiting.
+                    if let Some(waker) = output_state.pull_waker.take() {
+                        waker.wake();
+                    }
+                }
+
+                Ok(())
+            }
+            HashAggregatePartitionState::Producing { .. } => Err(RayexecError::new(
+                "Attempted to finalize a partition that's producing output",
+            )),
+        }
     }
 
     fn poll_pull(
@@ -171,13 +259,56 @@ impl PhysicalOperator for PhysicalHashAggregate {
             other => panic!("invalid partition state: {other:?}"),
         };
 
+        let operator_state = match operator_state {
+            OperatorState::HashAggregate(state) => state,
+            other => panic!("invalid operator state: {other:?}"),
+        };
+
         match state {
-            HashAggregatePartitionState::Producing { .. } => {
-                unimplemented!()
+            HashAggregatePartitionState::Producing {
+                partition_idx,
+                hashtable_drain,
+            } => {
+                // Check if we have the finaly hash table. Try to build it if we
+                // don't.
+                if hashtable_drain.is_none() {
+                    let mut shared_state = operator_state.output_states[*partition_idx].lock();
+                    if shared_state.remaining != 0 {
+                        // Still need to wait for some input partitions to complete. Store our
+                        // waker and come back later.
+                        shared_state.pull_waker = Some(cx.waker().clone());
+                        return Ok(PollPull::Pending);
+                    }
+
+                    // Othewise let's build the final table. Note that
+                    // continuing to hold the lock here is fine since all inputs
+                    // have completed and so won't try to acquire it.
+                    let completed = std::mem::take(&mut shared_state.completed);
+                    let mut completed_iter = completed.into_iter();
+                    let mut first = completed_iter
+                        .next()
+                        .expect("there to be at least one partition");
+
+                    for consume in completed_iter {
+                        first.merge(consume)?;
+                    }
+
+                    let drain = first.into_drain(1024); // TODO: Make batch size configurable.
+                    *hashtable_drain = Some(drain);
+                }
+
+                // Drain should be Some by here.
+                match hashtable_drain.as_mut().unwrap().next() {
+                    Some(Ok(batch)) => Ok(PollPull::Batch(batch)),
+                    Some(Err(e)) => Err(e),
+                    None => Ok(PollPull::Exhausted),
+                }
             }
-            HashAggregatePartitionState::Aggregating { .. } => Err(RayexecError::new(
-                "Attempted to pull from partition that's still aggregating inputs",
-            )),
+            HashAggregatePartitionState::Aggregating { partition_idx, .. } => {
+                let mut shared = operator_state.output_states[*partition_idx].lock();
+                shared.pull_waker = Some(cx.waker().clone());
+                Ok(PollPull::Pending)
+            }
         }
     }
 }

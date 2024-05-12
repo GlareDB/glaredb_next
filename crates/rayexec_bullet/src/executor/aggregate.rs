@@ -153,7 +153,10 @@ impl StateCombiner {
 pub struct StateFinalizer;
 
 impl StateFinalizer {
-    pub fn finalize<S, T, O>(states: Vec<S>, builder: &mut impl ArrayBuilder<O>) -> Result<()>
+    pub fn finalize<S, T, O>(
+        states: impl IntoIterator<Item = S>,
+        builder: &mut impl ArrayBuilder<O>,
+    ) -> Result<()>
     where
         S: AggregateState<T, O>,
     {

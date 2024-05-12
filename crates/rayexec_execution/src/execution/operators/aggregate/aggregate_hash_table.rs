@@ -1,8 +1,9 @@
-use crate::functions::aggregate::{GroupedStates, SpecializedAggregateFunction};
+use crate::functions::aggregate::GroupedStates;
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
     array::Array,
-    bitmap::{self, Bitmap},
+    batch::Batch,
+    bitmap::Bitmap,
     row::{OwnedRow, Row},
 };
 use rayexec_error::{RayexecError, Result};
@@ -135,6 +136,7 @@ impl PartitionAggregateHashTable {
                     self.hash_table
                         .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
 
+                    self.group_values.push(row.into_owned());
                     self.indexes_buffer.push(group_idx);
                 }
             }
@@ -145,66 +147,82 @@ impl PartitionAggregateHashTable {
         Ok(())
     }
 
-    /// Merge other hash tables into self.
-    pub fn merge(&mut self, mut others: Vec<Self>) -> Result<()> {
-        for other in others.iter_mut() {
-            let row_count = other.group_values.len();
-            if row_count == 0 {
-                continue;
-            }
+    /// Merge other hash table into self.
+    pub fn merge(&mut self, mut other: Self) -> Result<()> {
+        let row_count = other.group_values.len();
+        if row_count == 0 {
+            return Ok(());
+        }
 
-            self.indexes_buffer.clear();
-            self.indexes_buffer.reserve(row_count);
+        self.indexes_buffer.clear();
+        self.indexes_buffer.reserve(row_count);
 
-            // Ensure the has table we're merging into has all the groups from
-            // the other hash table.
-            for (hash, group_idx) in other.hash_table.drain() {
-                // TODO: Deduplicate with othe find and create method.
-                let ent = self.hash_table.get_mut(hash, |(_hash, self_group_idx)| {
-                    &other.group_values[group_idx] == &self.group_values[*self_group_idx]
-                });
+        // Ensure the has table we're merging into has all the groups from
+        // the other hash table.
+        for (hash, group_idx) in other.hash_table.drain() {
+            // TODO: Deduplicate with othe find and create method.
 
-                match ent {
-                    Some((_, self_group_idx)) => {
-                        // 'self' already has the group from the other table.
-                        self.indexes_buffer.push(*self_group_idx)
-                    }
-                    None => {
-                        // 'self' has never seend this group before. Add it to the map with
-                        // an empty state.
+            let row = std::mem::replace(&mut other.group_values[group_idx], Row::empty());
 
-                        let mut states_iter = self.aggregate_states.iter_mut();
+            let ent = self.hash_table.get_mut(hash, |(_hash, self_group_idx)| {
+                &row == &self.group_values[*self_group_idx]
+            });
 
-                        // Use first state to generate the group index. Each new
-                        // state we create for this group should generate the same
-                        // index.
-                        let group_idx = match states_iter.next() {
-                            Some(state) => state.new_group(),
-                            None => {
-                                return Err(RayexecError::new(
-                                    "Aggregate hash table has no aggregates",
-                                ))
-                            }
-                        };
+            match ent {
+                Some((_, self_group_idx)) => {
+                    // 'self' already has the group from the other table.
+                    self.indexes_buffer.push(*self_group_idx)
+                }
+                None => {
+                    // 'self' has never seend this group before. Add it to the map with
+                    // an empty state.
 
-                        for state in states_iter {
-                            let idx = state.new_group();
-                            // Very critical, if we're not generating the same
-                            // index, all bets are off.
-                            assert_eq!(group_idx, idx);
+                    let mut states_iter = self.aggregate_states.iter_mut();
+
+                    // Use first state to generate the group index. Each new
+                    // state we create for this group should generate the same
+                    // index.
+                    let group_idx = match states_iter.next() {
+                        Some(state) => state.new_group(),
+                        None => {
+                            return Err(RayexecError::new("Aggregate hash table has no aggregates"))
                         }
+                    };
 
-                        self.hash_table
-                            .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
-
-                        self.indexes_buffer.push(group_idx);
+                    for state in states_iter {
+                        let idx = state.new_group();
+                        // Very critical, if we're not generating the same
+                        // index, all bets are off.
+                        assert_eq!(group_idx, idx);
                     }
+
+                    self.hash_table
+                        .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
+
+                    self.group_values.push(row.into_owned());
+                    self.indexes_buffer.push(group_idx);
                 }
             }
-
-            //
         }
-        unimplemented!()
+
+        // And now we combine the states using the computed mappings.
+        let other_states = std::mem::take(&mut other.aggregate_states);
+        for (own_state, other_state) in self
+            .aggregate_states
+            .iter_mut()
+            .zip(other_states.into_iter())
+        {
+            own_state.try_combine(other_state, &self.indexes_buffer)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn into_drain(self, batch_size: usize) -> AggregateHashTableDrain {
+        AggregateHashTableDrain {
+            batch_size,
+            table: self,
+        }
     }
 }
 
@@ -213,5 +231,38 @@ impl fmt::Debug for PartitionAggregateHashTable {
         f.debug_struct("AggregateHashTable")
             .field("aggregate_states", &self.aggregate_states)
             .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
+pub struct AggregateHashTableDrain {
+    batch_size: usize,
+    table: PartitionAggregateHashTable,
+}
+
+impl AggregateHashTableDrain {
+    fn next_inner(&mut self) -> Result<Option<Batch>> {
+        // TODO: Include group value columns.
+        let mut batch_cols = Vec::with_capacity(self.table.aggregate_states.len());
+
+        for states in self.table.aggregate_states.iter_mut() {
+            let col = states.drain_finalize_n(self.batch_size)?;
+            match col {
+                Some(col) => batch_cols.push(col),
+                None => return Ok(None),
+            }
+        }
+
+        let batch = Batch::try_new(batch_cols)?;
+
+        Ok(Some(batch))
+    }
+}
+
+impl Iterator for AggregateHashTableDrain {
+    type Item = Result<Batch>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_inner().transpose()
     }
 }
