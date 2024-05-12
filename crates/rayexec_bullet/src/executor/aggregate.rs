@@ -131,12 +131,18 @@ impl BinaryUpdater {
 pub struct StateCombiner;
 
 impl StateCombiner {
-    pub fn combine<S, T, O>(states: &mut [S], consume: Vec<S>) -> Result<()>
+    /// Combine states, merging states from `consume` into `targets`.
+    ///
+    /// `mapping` provides a mapping of consume states to the target index. The
+    /// 'n'th state in `consume` corresponds to the 'n'th value `mapping`. With the value
+    /// in mapping being the index of the target state.
+    pub fn combine<S, T, O>(consume: Vec<S>, mapping: &[usize], targets: &mut [S]) -> Result<()>
     where
         S: AggregateState<T, O>,
     {
-        for (state, consume) in states.iter_mut().zip(consume.into_iter()) {
-            state.merge(consume)?;
+        for (target_idx, consume_state) in mapping.iter().zip(consume.into_iter()) {
+            let target = &mut targets[*target_idx];
+            target.merge(consume_state)?;
         }
 
         Ok(())

@@ -10,7 +10,7 @@ use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
 
-use super::aggregate_hash_table::AggregateHashTable;
+use super::aggregate_hash_table::PartitionAggregateHashTable;
 use super::grouping_set::GroupingSets;
 
 #[derive(Debug)]
@@ -20,7 +20,7 @@ pub enum HashAggregatePartitionState {
         /// Output hash tables for storing aggregate states.
         ///
         /// There exists one hash table per output partition.
-        output_hashtables: Vec<AggregateHashTable>,
+        output_hashtables: Vec<PartitionAggregateHashTable>,
 
         /// Reusable hashes buffer.
         hash_buf: Vec<u64>,
@@ -32,7 +32,7 @@ pub enum HashAggregatePartitionState {
     /// Partition is currently producing final aggregate results.
     Producing {
         /// The aggregate hash table that we're pulling results from.
-        hashtable: AggregateHashTable,
+        hashtable: PartitionAggregateHashTable,
     },
 }
 

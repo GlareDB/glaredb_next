@@ -117,7 +117,11 @@ mod tests {
             .unwrap();
 
         // Combine states.
-        states_1.try_combine(states_2).unwrap();
+        //
+        // Both partitions hold a single state (representing a single group),
+        // and those states map to each other.
+        let combine_mapping = vec![0];
+        states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
         let out = states_1.finalize().unwrap();
@@ -169,11 +173,87 @@ mod tests {
             .unwrap();
 
         // Combine states.
-        states_1.try_combine(states_2).unwrap();
+        //
+        // The above `mapping_1` and `mapping_2` vectors indices that the state
+        // for group 'a' is state 0 in each partition, and group 'b' is state 1
+        // in each.
+        //
+        // The mapping here indicates the the 0th state for both partitions
+        // should be combined, and the 1st state for both partitions should be
+        // combined.
+        let combine_mapping = vec![0, 1];
+        states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
         let out = states_1.finalize().unwrap();
         let expected = Array::Int64(Int64Array::from_iter([9, 12]));
+        assert_eq!(expected, out);
+    }
+
+    #[test]
+    fn sum_i64_three_groups_two_partitions_with_unseen_group() {
+        // Three groups, two partitions, 'SELECT SUM(col2) FROM table GROUP BY col1'
+        //
+        // This test represents a case where we're merging two aggregate hash
+        // maps, where the map we're merging into has seen more groups than the
+        // one that's being consumed. The implementation of the hash aggregate
+        // operator ensure this is the case, or that both hash maps have seen
+        // the same number of groups.
+        //
+        // | col1 | col2 |
+        // |------|------|
+        // | 'x'  | 1    |
+        // | 'x'  | 2    |
+        // | 'y'  | 3    |
+        // | 'z'  | 4    |
+        // | 'x'  | 5    |
+        // | 'z'  | 6    |
+        // | 'z'  | 7    |
+        // | 'z'  | 8    |
+        //
+        // Partition values and mappings represent the positions of the above
+        // table. The actual grouping values are stored in the operator, and
+        // operator is what computes the mappings.
+        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4]));
+        let partition_2_vals = &Array::Int64(Int64Array::from_iter([5, 6, 7, 8]));
+
+        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+
+        let mut states_1 = specialized.new_grouped_state();
+        let mut states_2 = specialized.new_grouped_state();
+
+        // Partition 1 sees groups 'x', 'y', and 'z'.
+        states_1.new_group();
+        states_1.new_group();
+        states_1.new_group();
+
+        // Partition 2 see groups 'x' and 'z' (no 'y').
+        states_2.new_group();
+        states_2.new_group();
+
+        // For partitions 1: 'x' == 0, 'y' == 1, 'z' == 2
+        let mapping_1 = vec![0, 0, 1, 2];
+        // For partitions 2: 'x' == 0, 'z' == 1
+        let mapping_2 = vec![0, 1, 1, 1];
+
+        states_1
+            .update_from_arrays(&[partition_1_vals], &mapping_1)
+            .unwrap();
+        states_2
+            .update_from_arrays(&[partition_2_vals], &mapping_2)
+            .unwrap();
+
+        // Combine states.
+        //
+        // States for 'x' both at the same position.
+        //
+        // States for 'y' at different positions, partition_2_state[1] => partition_1_state[2]
+        let combine_mapping = vec![0, 2];
+        states_1.try_combine(states_2, &combine_mapping).unwrap();
+
+        // Get final output.
+        let out = states_1.finalize().unwrap();
+        let expected = Array::Int64(Int64Array::from_iter([8, 3, 25]));
         assert_eq!(expected, out);
     }
 }

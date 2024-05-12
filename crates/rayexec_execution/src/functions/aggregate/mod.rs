@@ -84,7 +84,7 @@ pub trait GroupedStates: Debug + Send {
     /// trying to combine state between different aggregates (SumI32 and AvgF32)
     /// _and_ type (SumI32 and SumI64).
     // TODO: Mapping
-    fn try_combine(&mut self, other: Box<dyn GroupedStates>) -> Result<()>;
+    fn try_combine(&mut self, consume: Box<dyn GroupedStates>, mapping: &[usize]) -> Result<()>;
 
     /// Finalizes the aggregate states into a single array.
     fn finalize(&mut self) -> Result<Array>;
@@ -120,7 +120,7 @@ impl<S, T, O, UF, CF, FF> DefaultGroupedStates<S, T, O, UF, CF, FF>
 where
     S: AggregateState<T, O>,
     UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()>,
-    CF: Fn(&mut [S], Vec<S>) -> Result<()>,
+    CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()>,
     FF: Fn(Vec<S>) -> Result<Array>,
 {
     fn new(update_fn: UF, combine_fn: CF, finalize_fn: FF) -> Self {
@@ -141,7 +141,7 @@ where
     O: Send + 'static,
     S: AggregateState<T, O> + Send + 'static,
     UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()> + Send + 'static,
-    CF: Fn(&mut [S], Vec<S>) -> Result<()> + Send + 'static,
+    CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()> + Send + 'static,
     FF: Fn(Vec<S>) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -162,8 +162,12 @@ where
         (self.update_fn)(inputs, mapping, &mut self.states)
     }
 
-    fn try_combine(&mut self, mut other: Box<dyn GroupedStates>) -> Result<()> {
-        let other = match other.as_any_mut().downcast_mut::<Self>() {
+    fn try_combine(
+        &mut self,
+        mut consume: Box<dyn GroupedStates>,
+        mapping: &[usize],
+    ) -> Result<()> {
+        let other = match consume.as_any_mut().downcast_mut::<Self>() {
             Some(other) => other,
             None => {
                 return Err(RayexecError::new(
@@ -172,11 +176,8 @@ where
             }
         };
 
-        // TODO: Mapping
-
         let consume = std::mem::take(&mut other.states);
-
-        (self.combine_fn)(&mut self.states, consume)
+        (self.combine_fn)(consume, mapping, &mut self.states)
     }
 
     fn finalize(&mut self) -> Result<Array> {
