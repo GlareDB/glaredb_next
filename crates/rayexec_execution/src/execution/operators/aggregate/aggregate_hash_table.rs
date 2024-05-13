@@ -1,13 +1,33 @@
 use crate::functions::aggregate::GroupedStates;
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::Array,
+    array::{Array, NullArray},
     batch::Batch,
     bitmap::Bitmap,
     row::{OwnedRow, Row},
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
+
+use super::hash_aggregate::HashAggregateColumnOutput;
+
+/// States for a single aggregation.
+#[derive(Debug)]
+pub struct AggregateStates {
+    pub states: Box<dyn GroupedStates>,
+
+    /// Bitmap for selecting columns from the input to the hash map.
+    ///
+    /// This is used to allow the hash map to handle states for different
+    /// aggregates working on different columns. For example:
+    ///
+    /// SELECT SUM(a), MIN(b) FROM ...
+    ///
+    /// This query computes aggregates on columns 'a' and 'b', but to minimize
+    /// work, we pass both 'a' and 'b' to the hash table in one pass. Then this
+    /// bitmap is used to further refine the inputs specific to the aggregate.
+    pub col_selection: Bitmap,
+}
 
 /// An aggregate hash table for storing group values alongside the computed
 /// aggregates.
@@ -18,11 +38,11 @@ use std::fmt;
 pub struct PartitionAggregateHashTable {
     /// Statest for aggregates.
     ///
-    /// There should exist one `GroupedStates` per aggregate function call.
+    /// There should exist one `AggregateState` per aggregate function call.
     ///
     /// - `SELECT SUM(a), ...` => length of 1
     /// - `SELECT SUM(a), MAX(b), ...` => length  of 2
-    aggregate_states: Vec<Box<dyn GroupedStates>>,
+    agg_states: Vec<AggregateStates>,
 
     // TODO: This is likely a peformance bottleneck with storing group values in
     // rows.
@@ -39,17 +59,17 @@ impl PartitionAggregateHashTable {
     /// Create a new hash table using the provided aggregate states.
     ///
     /// All states must have zero initialized states.
-    pub fn try_new(aggregate_states: Vec<Box<dyn GroupedStates>>) -> Result<Self> {
-        for state in &aggregate_states {
-            if state.num_groups() != 0 {
+    pub fn try_new(agg_states: Vec<AggregateStates>) -> Result<Self> {
+        for agg in &agg_states {
+            if agg.states.num_groups() != 0 {
                 return Err(RayexecError::new(format!(
-                    "Attempted to initialize aggregate table with non-empty states: {state:?}"
+                    "Attempted to initialize aggregate table with non-empty states: {agg:?}"
                 )));
             }
         }
 
         Ok(PartitionAggregateHashTable {
-            aggregate_states,
+            agg_states,
             group_values: Vec::new(),
             hash_table: RawTable::new(),
             indexes_buffer: Vec::new(),
@@ -78,8 +98,17 @@ impl PartitionAggregateHashTable {
         self.find_or_create_group_indices(groups, hashes, selection)?;
 
         // Now we just rip through the values.
-        for states in self.aggregate_states.iter_mut() {
-            states.update_from_arrays(inputs, &self.indexes_buffer)?;
+        for agg_states in self.agg_states.iter_mut() {
+            let input_cols: Vec<_> = agg_states
+                .col_selection
+                .iter()
+                .zip(inputs.iter())
+                .filter_map(|(selected, arr)| if selected { Some(*arr) } else { None })
+                .collect();
+
+            agg_states
+                .states
+                .update_from_arrays(&input_cols, &self.indexes_buffer)?;
         }
 
         Ok(())
@@ -114,20 +143,20 @@ impl PartitionAggregateHashTable {
                 }
                 None => {
                     // Need to create new states and insert them into the hash table.
-                    let mut states_iter = self.aggregate_states.iter_mut();
+                    let mut states_iter = self.agg_states.iter_mut();
 
                     // Use first state to generate the group index. Each new
                     // state we create for this group should generate the same
                     // index.
                     let group_idx = match states_iter.next() {
-                        Some(state) => state.new_group(),
+                        Some(agg_state) => agg_state.states.new_group(),
                         None => {
                             return Err(RayexecError::new("Aggregate hash table has no aggregates"))
                         }
                     };
 
-                    for state in states_iter {
-                        let idx = state.new_group();
+                    for agg_state in states_iter {
+                        let idx = agg_state.states.new_group();
                         // Very critical, if we're not generating the same
                         // index, all bets are off.
                         assert_eq!(group_idx, idx);
@@ -177,20 +206,20 @@ impl PartitionAggregateHashTable {
                     // 'self' has never seend this group before. Add it to the map with
                     // an empty state.
 
-                    let mut states_iter = self.aggregate_states.iter_mut();
+                    let mut states_iter = self.agg_states.iter_mut();
 
                     // Use first state to generate the group index. Each new
                     // state we create for this group should generate the same
                     // index.
                     let group_idx = match states_iter.next() {
-                        Some(state) => state.new_group(),
+                        Some(agg_state) => agg_state.states.new_group(),
                         None => {
                             return Err(RayexecError::new("Aggregate hash table has no aggregates"))
                         }
                     };
 
-                    for state in states_iter {
-                        let idx = state.new_group();
+                    for agg_state in states_iter {
+                        let idx = agg_state.states.new_group();
                         // Very critical, if we're not generating the same
                         // index, all bets are off.
                         assert_eq!(group_idx, idx);
@@ -206,20 +235,23 @@ impl PartitionAggregateHashTable {
         }
 
         // And now we combine the states using the computed mappings.
-        let other_states = std::mem::take(&mut other.aggregate_states);
-        for (own_state, other_state) in self
-            .aggregate_states
-            .iter_mut()
-            .zip(other_states.into_iter())
-        {
-            own_state.try_combine(other_state, &self.indexes_buffer)?;
+        let other_states = std::mem::take(&mut other.agg_states);
+        for (own_state, other_state) in self.agg_states.iter_mut().zip(other_states.into_iter()) {
+            own_state
+                .states
+                .try_combine(other_state.states, &self.indexes_buffer)?;
         }
 
         Ok(())
     }
 
-    pub fn into_drain(self, batch_size: usize) -> AggregateHashTableDrain {
+    pub fn into_drain(
+        self,
+        batch_size: usize,
+        projection: Vec<HashAggregateColumnOutput>,
+    ) -> AggregateHashTableDrain {
         AggregateHashTableDrain {
+            projection,
             batch_size,
             table: self,
         }
@@ -229,33 +261,63 @@ impl PartitionAggregateHashTable {
 impl fmt::Debug for PartitionAggregateHashTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AggregateHashTable")
-            .field("aggregate_states", &self.aggregate_states)
+            .field("aggregate_states", &self.agg_states)
             .finish_non_exhaustive()
     }
 }
 
 #[derive(Debug)]
 pub struct AggregateHashTableDrain {
+    projection: Vec<HashAggregateColumnOutput>,
     batch_size: usize,
     table: PartitionAggregateHashTable,
 }
 
 impl AggregateHashTableDrain {
     fn next_inner(&mut self) -> Result<Option<Batch>> {
-        // TODO: Include group value columns.
-        let mut batch_cols = Vec::with_capacity(self.table.aggregate_states.len());
+        let cols = self
+            .table
+            .agg_states
+            .iter_mut()
+            .map(|agg_state| agg_state.states.drain_finalize_n(self.batch_size))
+            .collect::<Result<Option<Vec<_>>>>()?;
+        let mut cols = match cols {
+            Some(cols) => cols,
+            None => return Ok(None),
+        };
 
-        for states in self.table.aggregate_states.iter_mut() {
-            let col = states.drain_finalize_n(self.batch_size)?;
-            match col {
-                Some(col) => batch_cols.push(col),
-                None => return Ok(None),
-            }
-        }
+        // TODO: Use actual group values, this is currently just a placeholder.
+        let group_width = self
+            .table
+            .group_values
+            .first()
+            .map(|row| row.columns.len())
+            .unwrap_or(0);
+        let len = cols.first().map(|arr| arr.len()).unwrap_or(0);
+        let mut group_cols: Vec<_> = (0..group_width)
+            .map(|_| Array::Null(NullArray::new(len)))
+            .collect();
 
-        let batch = Batch::try_new(batch_cols)?;
+        let num_result_cols = cols.len();
+        cols.append(&mut group_cols);
 
-        Ok(Some(batch))
+        // Batch column ordering has aggregate results first, following by the
+        // grouping columns.
+        let batch = Batch::try_new(cols)?;
+
+        // Get projection indices based on the above.
+        let project_indices = self
+            .projection
+            .iter()
+            .map(|proj| match *proj {
+                HashAggregateColumnOutput::GroupingColumn(idx) => idx + num_result_cols,
+                HashAggregateColumnOutput::AggregateResult(idx) => idx,
+            })
+            .collect::<Vec<_>>();
+
+        let projected = batch.project(&project_indices);
+
+        Ok(Some(projected))
     }
 }
 

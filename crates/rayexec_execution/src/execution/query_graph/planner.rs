@@ -1,6 +1,10 @@
 use crate::{
     execution::{
         operators::{
+            aggregate::{
+                grouping_set::GroupingSets,
+                hash_aggregate::{HashAggregateColumnOutput, PhysicalHashAggregate},
+            },
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
             nl_join::{
@@ -16,10 +20,12 @@ use crate::{
         },
         pipeline::{Pipeline, PipelineId},
     },
-    expr::PhysicalScalarExpression,
+    expr::{PhysicalAggregateExpression, PhysicalScalarExpression},
     planner::operator::{self, LogicalNode, LogicalOperator},
 };
-use rayexec_bullet::{array::Array, batch::Batch, compute::concat::concat, field::TypeSchema};
+use rayexec_bullet::{
+    array::Array, batch::Batch, bitmap::Bitmap, compute::concat::concat, field::TypeSchema,
+};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -106,6 +112,7 @@ impl BuildState {
             LogicalOperator::CrossJoin(join) => self.push_cross_join(conf, join),
             LogicalOperator::AnyJoin(join) => self.push_any_join(conf, join),
             LogicalOperator::Empty => self.push_empty(conf),
+            LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
             // LogicalOperator::EqualityJoin(join) => self.plan_equality_join(join),
             // LogicalOperator::Limit(limit) => self.plan_limit(limit),
@@ -159,6 +166,65 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_aggregate(&mut self, conf: &BuildConfig, agg: operator::Aggregate) -> Result<()> {
+        let input_schema = agg.input.output_schema(&[])?;
+        self.walk(conf, *agg.input)?;
+
+        let pipeline = self.in_progress_pipeline_mut()?;
+
+        let mut agg_exprs = Vec::new();
+        let mut projection = Vec::new();
+        for (idx, expr) in agg.exprs.into_iter().enumerate() {
+            match expr {
+                operator::LogicalExpression::ColumnRef(col) => {
+                    let col = col.try_as_uncorrelated()?;
+                    projection.push(HashAggregateColumnOutput::GroupingColumn(col));
+                }
+                other => {
+                    let agg_expr = PhysicalAggregateExpression::try_from_logical_expression(
+                        other,
+                        &input_schema,
+                    )?;
+                    agg_exprs.push(agg_expr);
+                    projection.push(HashAggregateColumnOutput::AggregateResult(
+                        agg_exprs.len() - 1,
+                    ));
+                }
+            }
+        }
+
+        let grouping_sets = match agg.grouping_expr {
+            operator::GroupingExpr::None => {
+                // TODO: We'd actually use a different (ungrouped) operator if
+                // not provided any grouping sets.
+                //
+                // This just works because all hashes are initialized to zero,
+                // and so everything does map to the same thing. Def not
+                // something we should rely on.
+                GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])?
+            }
+            _ => unimplemented!(),
+        };
+
+        let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
+            pipeline.num_partitions(),
+            grouping_sets,
+            agg_exprs,
+            projection,
+        )?;
+
+        let operator = Arc::new(operator);
+        let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
+        let partition_states = partition_states
+            .into_iter()
+            .map(PartitionState::HashAggregate)
+            .collect();
+
+        pipeline.push_operator(operator, operator_state, partition_states)?;
 
         Ok(())
     }

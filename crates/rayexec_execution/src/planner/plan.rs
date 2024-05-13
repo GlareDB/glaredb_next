@@ -1,6 +1,9 @@
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
-    operator::{AnyJoin, CrossJoin, Limit, LogicalExpression, LogicalOperator, Projection},
+    operator::{
+        Aggregate, AnyJoin, CrossJoin, GroupingExpr, Limit, LogicalExpression, LogicalOperator,
+        Projection,
+    },
     scope::{ColumnRef, Scope},
     Resolver,
 };
@@ -184,14 +187,110 @@ impl<'a> PlanContext<'a> {
             }
         }
 
-        plan = LogicalQuery {
-            root: LogicalOperator::Projection(Projection {
-                exprs: select_exprs,
+        // If we have any aggregates in the select, rewrite the plan to
+        // accomadate the inputs into the aggregate, and add a projection for
+        // the output of the aggregate.
+        let has_aggregate = select_exprs.iter().any(|expr| expr.is_aggregate());
+        if has_aggregate {
+            let mut aggs = Vec::new();
+            let mut input_exprs = Vec::with_capacity(select_exprs.len());
+            let mut final_column_indices = Vec::with_capacity(select_exprs.len());
+
+            for (col_idx, expr) in select_exprs.into_iter().enumerate() {
+                match expr {
+                    LogicalExpression::Aggregate {
+                        agg,
+                        mut inputs,
+                        filter,
+                    } => {
+                        // Need to push the inputs to the aggregates to
+                        // `input_exprs` and rewrite aggregate to use those.
+                        let agg_input_start = input_exprs.len();
+                        let agg_input_count = inputs.len();
+
+                        // TODO: Need to check that the user isn't trying to
+                        // nest aggregate expressions.
+                        input_exprs.append(&mut inputs);
+
+                        // Compute new column exprs.
+                        let new_inputs: Vec<_> = (agg_input_start
+                            ..(agg_input_start + agg_input_count))
+                            .map(|col| {
+                                LogicalExpression::ColumnRef(ColumnRef {
+                                    scope_level: 0,
+                                    item_idx: col,
+                                })
+                            })
+                            .collect();
+
+                        let new_agg = LogicalExpression::Aggregate {
+                            agg,
+                            inputs: new_inputs,
+                            filter,
+                        };
+
+                        aggs.push(new_agg);
+                    }
+                    other => {
+                        // No need to rewrite this expression.
+                        input_exprs.push(other);
+                        final_column_indices.push(col_idx);
+                    }
+                }
+            }
+
+            // Apply input projection.
+            //
+            // This projection contains any columns used as inputs into
+            // aggregate functions _and_ columns used in a GROUP BY.
+            let input_plan = LogicalOperator::Projection(Projection {
+                exprs: input_exprs,
                 input: Box::new(plan.root),
-            }),
-            // Cleaned scope containing only output columns in the projection.
-            scope: Scope::with_columns(None, names),
-        };
+            });
+
+            // Generate the aggregate plan.
+            let agg_plan = LogicalOperator::Aggregate(Aggregate {
+                exprs: aggs,
+                grouping_expr: GroupingExpr::None, // TODO
+                input: Box::new(input_plan),
+            });
+
+            // Apply a final projection omitting inputs to the aggreate, and any
+            // columns/expressions we needed for the group by.
+            //
+            // These contain only column references since any computation should
+            // have happened on the input to the aggregate node.
+            let output_cols: Vec<_> = final_column_indices
+                .into_iter()
+                .map(|col| {
+                    LogicalExpression::ColumnRef(ColumnRef {
+                        scope_level: 0,
+                        item_idx: col,
+                    })
+                })
+                .collect();
+            plan = LogicalQuery {
+                root: LogicalOperator::Projection(Projection {
+                    exprs: output_cols,
+                    input: Box::new(agg_plan),
+                }),
+                scope: Scope::with_columns(None, names),
+            }
+        } else {
+            // No aggregates, we can just use the select expressions directly.
+
+            // TODO: Check group by, make sure it doesn't exist.
+
+            plan = LogicalQuery {
+                root: LogicalOperator::Projection(Projection {
+                    exprs: select_exprs,
+                    input: Box::new(plan.root),
+                }),
+                // Cleaned scope containing only output columns in the
+                // projection.
+                scope: Scope::with_columns(None, names),
+            };
+        }
 
         Ok(plan)
     }
