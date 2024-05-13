@@ -94,7 +94,7 @@ impl PhysicalScalarExpression {
                     inputs,
                 }
             }
-            _ => unimplemented!(),
+            other => unimplemented!("{other:?}"),
         })
     }
 

@@ -230,6 +230,7 @@ impl<'a> PlanContext<'a> {
                         };
 
                         aggs.push(new_agg);
+                        final_column_indices.push(col_idx);
                     }
                     other => {
                         // No need to rewrite this expression.
@@ -269,6 +270,7 @@ impl<'a> PlanContext<'a> {
                     })
                 })
                 .collect();
+
             plan = LogicalQuery {
                 root: LogicalOperator::Projection(Projection {
                     exprs: output_cols,

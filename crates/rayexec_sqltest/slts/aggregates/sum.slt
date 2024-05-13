@@ -1,6 +1,24 @@
-# TODO
-halt
+# NO GROUPING
 
 query I
-select country, sum(salary) from read_csv('../../testdata/csv/userdata1.csv');
+select sum(column1) from (values (1, 2), (3, 4));
 ----
+4
+
+query I
+select sum(column2), sum(column1) from (values (1, 2), (3, 4));
+----
+6  4
+
+query I
+select sum(column2 + 2) from (values (1, 2), (3, 4));
+----
+10
+
+halt
+query I
+select sum(column1) + 2 from (values (1, 2), (3, 4));
+----
+6
+
+
