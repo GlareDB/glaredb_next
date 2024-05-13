@@ -240,6 +240,76 @@ impl<'a> PlanContext<'a> {
                 }
             }
 
+            // Get the expressions in the group by.
+            let mut grouping_expr = match select.group_by {
+                Some(group_by) => {
+                    match group_by {
+                        ast::GroupByNode::All => unimplemented!(),
+                        ast::GroupByNode::Exprs { mut exprs } => {
+                            if exprs.len() != 1 {
+                                // TODO: Support this.
+                                return Err(RayexecError::new(
+                                    "multiple expressions in GROUP BY not supported",
+                                ));
+                            }
+                            let expr = exprs.pop().unwrap();
+
+                            // What's in scope for the plan is in scope for the
+                            // group by.
+                            let expr_ctx =
+                                ExpressionContext::new(self, &plan.scope, &from_type_schema);
+
+                            match expr {
+                                ast::GroupByExpr::Expr(exprs) => {
+                                    let exprs = exprs
+                                        .into_iter()
+                                        .map(|expr| expr_ctx.plan_expression(expr))
+                                        .collect::<Result<Vec<_>>>()?;
+                                    GroupingExpr::GroupBy(exprs)
+                                }
+                                ast::GroupByExpr::Rollup(exprs) => {
+                                    let exprs = exprs
+                                        .into_iter()
+                                        .map(|expr| expr_ctx.plan_expression(expr))
+                                        .collect::<Result<Vec<_>>>()?;
+                                    GroupingExpr::Rollup(exprs)
+                                }
+                                _ => unimplemented!(),
+                            }
+                        }
+                    }
+                }
+                None => GroupingExpr::None,
+            };
+
+            // Now we iterate over the expressions in the group by and make sure
+            // to include them in the pre-projection. The group by expressions
+            // will then be modified to point to the output of this projection.
+            for group_by_expr in grouping_expr.expressions_mut().iter_mut() {
+                // TODO: This currently just moves all expressions into the
+                // pre-projection. We could be smart here and instead check if
+                // this expression is already in the pre-projection and just
+                // point to that.
+                //
+                // For example:
+                //
+                // SELECT column1, SUM(column2) FROM table GROUP BY colum1;
+                //
+                // Will end up with [column1, column2, column1] in the
+                // pre-projection. For basic columns, this is fine since they're
+                // just behind an Arc, and so it'll just be cheaply cloned,
+                // however if there's actual computation in the expression (e.g.
+                // column1 / 100 is both in the select and group by), we'll end
+                // up computing that twice.
+                let col_idx = input_exprs.len();
+                let replacement_expr = LogicalExpression::ColumnRef(ColumnRef {
+                    scope_level: 0,
+                    item_idx: col_idx,
+                });
+                let actual_expr = std::mem::replace(group_by_expr, replacement_expr);
+                input_exprs.push(actual_expr);
+            }
+
             // Apply input projection.
             //
             // This projection contains any columns used as inputs into
@@ -252,7 +322,7 @@ impl<'a> PlanContext<'a> {
             // Generate the aggregate plan.
             let agg_plan = LogicalOperator::Aggregate(Aggregate {
                 exprs: aggs,
-                grouping_expr: GroupingExpr::None, // TODO
+                grouping_expr,
                 input: Box::new(input_plan),
             });
 

@@ -1,5 +1,6 @@
 use rayexec_bullet::{
     array::{Array, PrimitiveArrayBuilder},
+    bitmap::Bitmap,
     executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryUpdater},
     field::DataType,
 };
@@ -39,12 +40,15 @@ pub struct SumI64;
 
 impl SpecializedAggregateFunction for SumI64 {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let update_fn = |arrays: &[&Array], mapping: &[usize], states: &mut [SumI64State]| {
+        let update_fn = |row_selection: &Bitmap,
+                         arrays: &[&Array],
+                         mapping: &[usize],
+                         states: &mut [SumI64State]| {
             let inputs = match &arrays[0] {
                 Array::Int64(arr) => arr,
                 other => panic!("unexpected array type: {other:?}"),
             };
-            UnaryUpdater::update(inputs, mapping, states)
+            UnaryUpdater::update(row_selection, inputs, mapping, states)
         };
 
         let finalize_fn = |states: vec::Drain<'_, _>| {
@@ -82,6 +86,62 @@ impl AggregateState<i64, i64> for SumI64State {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct CovarSampFloat64 {
+    count: usize,
+    meanx: f64,
+    meany: f64,
+    co_moment: f64,
+}
+
+impl AggregateState<(f64, f64), f64> for CovarSampFloat64 {
+    fn merge(&mut self, other: Self) -> Result<()> {
+        let count = self.count + other.count;
+        let meanx =
+            (other.count as f64 * other.meanx + self.count as f64 * self.meanx) / count as f64;
+        let meany =
+            (other.count as f64 * other.meany + self.count as f64 * self.meany) / count as f64;
+
+        let deltax = self.meanx - other.meanx;
+        let deltay = self.meany - other.meany;
+
+        self.co_moment = other.co_moment
+            + self.co_moment
+            + deltax * deltay * other.count as f64 * self.count as f64 / count as f64;
+        self.meanx = meanx;
+        self.meany = meany;
+        self.count = count;
+
+        Ok(())
+    }
+
+    fn update(&mut self, input: (f64, f64)) -> Result<()> {
+        let x = input.1;
+        let y = input.0;
+
+        let n = self.count as f64;
+        self.count += 1;
+
+        let dx = x - self.meanx;
+        let meanx = self.meanx + dx / n;
+
+        let dy = y - self.meany;
+        let meany = self.meany + dy / n;
+
+        let co_moment = self.co_moment + dx * (y - meany);
+
+        self.meanx = meanx;
+        self.meany = meany;
+        self.co_moment = co_moment;
+
+        Ok(())
+    }
+
+    fn finalize(self) -> Result<f64> {
+        Ok(self.co_moment / (self.count - 1) as f64)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rayexec_bullet::array::Int64Array;
@@ -111,10 +171,10 @@ mod tests {
         let mapping_2 = vec![0; partition_2_vals.len()];
 
         states_1
-            .update_from_arrays(&[partition_1_vals], &mapping_1)
+            .update_states(&Bitmap::all_true(3), &[partition_1_vals], &mapping_1)
             .unwrap();
         states_2
-            .update_from_arrays(&[partition_2_vals], &mapping_2)
+            .update_states(&Bitmap::all_true(3), &[partition_2_vals], &mapping_2)
             .unwrap();
 
         // Combine states.
@@ -167,10 +227,10 @@ mod tests {
         let mapping_2 = vec![1, 1, 0];
 
         states_1
-            .update_from_arrays(&[partition_1_vals], &mapping_1)
+            .update_states(&Bitmap::all_true(3), &[partition_1_vals], &mapping_1)
             .unwrap();
         states_2
-            .update_from_arrays(&[partition_2_vals], &mapping_2)
+            .update_states(&Bitmap::all_true(3), &[partition_2_vals], &mapping_2)
             .unwrap();
 
         // Combine states.
@@ -238,10 +298,10 @@ mod tests {
         let mapping_2 = vec![0, 1, 1, 1];
 
         states_1
-            .update_from_arrays(&[partition_1_vals], &mapping_1)
+            .update_states(&Bitmap::all_true(4), &[partition_1_vals], &mapping_1)
             .unwrap();
         states_2
-            .update_from_arrays(&[partition_2_vals], &mapping_2)
+            .update_states(&Bitmap::all_true(4), &[partition_2_vals], &mapping_2)
             .unwrap();
 
         // Combine states.
@@ -272,7 +332,9 @@ mod tests {
         states.new_group();
 
         let mapping = vec![0, 0, 1, 1, 2, 2];
-        states.update_from_arrays(&[vals], &mapping).unwrap();
+        states
+            .update_states(&Bitmap::all_true(6), &[vals], &mapping)
+            .unwrap();
 
         let expected_1 = Array::Int64(Int64Array::from_iter([3, 7]));
         let out_1 = states.drain_finalize_n(2).unwrap();

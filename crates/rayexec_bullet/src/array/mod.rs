@@ -85,10 +85,6 @@ impl Array {
         })
     }
 
-    // pub fn scalar_eq_at_index(&self, scalar: ScalarValue, idx: usize) -> bool {
-
-    // }
-
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
         match self {
             Self::Null(arr) => arr.is_valid(idx),

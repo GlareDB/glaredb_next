@@ -178,7 +178,7 @@ impl BuildState {
 
         let mut agg_exprs = Vec::new();
         let mut projection = Vec::new();
-        for (idx, expr) in agg.exprs.into_iter().enumerate() {
+        for (_idx, expr) in agg.exprs.into_iter().enumerate() {
             match expr {
                 operator::LogicalExpression::ColumnRef(col) => {
                     let col = col.try_as_uncorrelated()?;
@@ -197,6 +197,9 @@ impl BuildState {
             }
         }
 
+        // Compute the grouping sets based on the grouping expression. It's
+        // expected that this plan only has uncorrelated column references as
+        // expressions.
         let grouping_sets = match agg.grouping_expr {
             operator::GroupingExpr::None => {
                 // TODO: We'd actually use a different (ungrouped) operator if
@@ -207,7 +210,46 @@ impl BuildState {
                 // something we should rely on.
                 GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])?
             }
-            _ => unimplemented!(),
+            operator::GroupingExpr::GroupBy(cols_exprs) => {
+                let cols = cols_exprs
+                    .into_iter()
+                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
+                    .collect::<Result<Vec<_>>>()?;
+                let null_masks = vec![Bitmap::new_with_val(false, cols.len())];
+                GroupingSets::try_new(cols, null_masks)?
+            }
+            operator::GroupingExpr::Rollup(cols_exprs) => {
+                let cols = cols_exprs
+                    .into_iter()
+                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
+                    .collect::<Result<Vec<_>>>()?;
+
+                // Generate all null masks.
+                //
+                // E.g. for rollup on 4 columns:
+                // [
+                //   0000,
+                //   0001,
+                //   0011,
+                //   0111,
+                //   1111,
+                // ]
+                let mut null_masks = Vec::with_capacity(cols.len() + 1);
+                for num_null_cols in 0..cols.len() {
+                    let iter = std::iter::repeat(false)
+                        .take(cols.len() - num_null_cols)
+                        .chain(std::iter::repeat(true).take(num_null_cols));
+                    let null_mask = Bitmap::from_iter(iter);
+                    null_masks.push(null_mask);
+                }
+
+                // Append null mask with all columns marked as null (the final
+                // rollup).
+                null_masks.push(Bitmap::all_true(cols.len()));
+
+                GroupingSets::try_new(cols, null_masks)?
+            }
+            operator::GroupingExpr::Cube(_) => unimplemented!(),
         };
 
         let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(

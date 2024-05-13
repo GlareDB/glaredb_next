@@ -108,7 +108,7 @@ impl PartitionAggregateHashTable {
 
             agg_states
                 .states
-                .update_from_arrays(&input_cols, &self.indexes_buffer)?;
+                .update_states(selection, &input_cols, &self.indexes_buffer)?;
         }
 
         Ok(())
@@ -170,8 +170,6 @@ impl PartitionAggregateHashTable {
                 }
             }
         }
-
-        debug_assert_eq!(hashes.len(), self.indexes_buffer.len());
 
         Ok(())
     }

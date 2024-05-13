@@ -415,11 +415,29 @@ impl Explainable for Aggregate {
 
 #[derive(Debug)]
 pub enum GroupingExpr {
+    /// No grouping expression.
     None,
-    // GroupingSet(Vec<Expression>),
-    // Rollup(Vec<Expression>),
-    // Cube(Vec<Expression>),
-    // GroupingSets(Vec<Vec<Expression>>),
+    /// Group by a single set of columns.
+    GroupBy(Vec<LogicalExpression>),
+    /// Group by a column rollup.
+    Rollup(Vec<LogicalExpression>),
+    /// Group by a powerset of the columns.
+    Cube(Vec<LogicalExpression>),
+}
+
+impl GroupingExpr {
+    /// Get mutable references to the input expressions.
+    ///
+    /// This is used to allow modifying the expression to point to a
+    /// pre-projection into the aggregate.
+    pub fn expressions_mut(&mut self) -> &mut [LogicalExpression] {
+        match self {
+            Self::None => &mut [],
+            Self::GroupBy(ref mut exprs) => exprs.as_mut_slice(),
+            Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
+            Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
+        }
+    }
 }
 
 /// Dummy create table for testing.
@@ -649,6 +667,15 @@ impl LogicalExpression {
         match self {
             Self::Literal(lit) => Ok(lit),
             other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
+        }
+    }
+
+    pub fn try_into_column_ref(self) -> Result<ColumnRef> {
+        match self {
+            Self::ColumnRef(col) => Ok(col),
+            other => Err(RayexecError::new(format!(
+                "Not a column reference: {other:?}"
+            ))),
         }
     }
 }

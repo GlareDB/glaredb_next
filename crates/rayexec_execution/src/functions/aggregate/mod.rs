@@ -2,6 +2,7 @@ pub mod numeric;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
+use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::{array::Array, executor::aggregate::AggregateState, field::DataType};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
@@ -70,14 +71,19 @@ pub trait GroupedStates: Debug + Send {
 
     /// Updates states for groups using the provided inputs.
     ///
-    /// Each row in `inputs` corresponds to values that should be used to update
-    /// states.
+    /// Each row selected in `inputs` corresponds to values that should be used
+    /// to update states.
     ///
-    /// `mapping` provides a mapping from the input row to the state that should
-    /// be updated. The 'n'th row in the input corresponds to the 'n'th value in
-    /// `mapping` which corresponds to the state to be updated with the 'n'th
-    /// row.
-    fn update_from_arrays(&mut self, inputs: &[&Array], mapping: &[usize]) -> Result<()>;
+    /// `mapping` provides a mapping from the selected input row to the state
+    /// that should be updated. The 'n'th selected row in the input corresponds
+    /// to the 'n'th value in `mapping` which corresponds to the state to be
+    /// updated with the 'n'th selected row.
+    fn update_states(
+        &mut self,
+        row_selection: &Bitmap,
+        inputs: &[&Array],
+        mapping: &[usize],
+    ) -> Result<()>;
 
     /// Try to combine two sets of grouped states into a single set of states.
     ///
@@ -125,7 +131,7 @@ pub struct DefaultGroupedStates<S, T, O, UF, CF, FF> {
 impl<S, T, O, UF, CF, FF> DefaultGroupedStates<S, T, O, UF, CF, FF>
 where
     S: AggregateState<T, O>,
-    UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()>,
+    UF: Fn(&Bitmap, &[&Array], &[usize], &mut [S]) -> Result<()>,
     CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()>,
     FF: Fn(vec::Drain<'_, S>) -> Result<Array>,
 {
@@ -146,7 +152,7 @@ where
     S: AggregateState<T, O> + Send + 'static,
     T: Send + 'static,
     O: Send + 'static,
-    UF: Fn(&[&Array], &[usize], &mut [S]) -> Result<()> + Send + 'static,
+    UF: Fn(&Bitmap, &[&Array], &[usize], &mut [S]) -> Result<()> + Send + 'static,
     CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()> + Send + 'static,
     FF: Fn(vec::Drain<'_, S>) -> Result<Array> + Send + 'static,
 {
@@ -164,8 +170,13 @@ where
         self.states.len()
     }
 
-    fn update_from_arrays(&mut self, inputs: &[&Array], mapping: &[usize]) -> Result<()> {
-        (self.update_fn)(inputs, mapping, &mut self.states)
+    fn update_states(
+        &mut self,
+        row_selection: &Bitmap,
+        inputs: &[&Array],
+        mapping: &[usize],
+    ) -> Result<()> {
+        (self.update_fn)(row_selection, inputs, mapping, &mut self.states)
     }
 
     fn try_combine(
