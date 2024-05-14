@@ -1,8 +1,9 @@
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::Array,
+    array::{Array, BooleanArray},
     batch::Batch,
-    compute::{concat::concat, take::take},
+    bitmap::Bitmap,
+    compute::{concat::concat, filter::filter, take::take},
 };
 use rayexec_error::Result;
 use std::{collections::HashMap, fmt};
@@ -40,8 +41,19 @@ impl PartitionJoinHashTable {
     ///
     /// `hash_indices` indicates which columns in the batch was used to compute
     /// the hashes.
-    pub fn insert_batch(&mut self, batch: Batch, hashes: &[u64]) -> Result<()> {
+    ///
+    /// `selection` is a bitmap for selecting only a subset of the batch to
+    /// insert into this hashmap.
+    pub fn insert_batch(&mut self, batch: &Batch, hashes: &[u64], selection: Bitmap) -> Result<()> {
         assert_eq!(batch.num_rows(), hashes.len());
+
+        let selection = BooleanArray::new_with_values(selection); // TODO: I don't like needing to wrap the bitmap.
+        let filtered_arrs = batch
+            .columns()
+            .iter()
+            .map(|arr| filter(arr.as_ref(), &selection))
+            .collect::<Result<Vec<_>>>()?;
+        let batch = Batch::try_new(filtered_arrs)?;
 
         if batch.num_rows() == 0 {
             return Ok(());
@@ -50,7 +62,12 @@ impl PartitionJoinHashTable {
         let batch_idx = self.batches.len();
         self.batches.push(batch);
 
-        for (row_idx, hash) in hashes.iter().enumerate() {
+        for (row_idx, (hash, _)) in hashes
+            .iter()
+            .zip(selection.values().iter())
+            .filter(|(_, sel)| *sel)
+            .enumerate()
+        {
             let row_key = RowKey { batch_idx, row_idx };
             self.hash_table
                 .insert(*hash, (*hash, row_key), |(hash, _)| *hash);
