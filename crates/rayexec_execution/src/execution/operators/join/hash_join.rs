@@ -14,6 +14,8 @@ use crate::execution::operators::{
 use crate::expr::PhysicalScalarExpression;
 use crate::planner::operator::JoinType;
 
+use super::join_hash_table::PartitionJoinHashTable;
+
 #[derive(Debug)]
 pub struct HashJoinBuildPartitionState {}
 
@@ -21,7 +23,23 @@ pub struct HashJoinBuildPartitionState {}
 pub struct HashJoinProbePartitionState {}
 
 #[derive(Debug)]
-pub struct HashJoinOperatorState {}
+pub struct HashJoinOperatorState {
+    /// Shared output states containing possibly completed hash tables.
+    output_states: Vec<Mutex<SharedOutputPartitionState>>,
+}
+
+#[derive(Debug)]
+struct SharedOutputPartitionState {
+    /// Completed hash tables from input partitions.
+    completed: Vec<PartitionJoinHashTable>,
+
+    /// Number of build input remaining for this partition.
+    remaining: usize,
+
+    /// If a thread tried to pull before this partition is ready to produce
+    /// output.
+    pull_waker: Option<Waker>,
+}
 
 #[derive(Debug)]
 pub struct PhysicalHashJoin {
