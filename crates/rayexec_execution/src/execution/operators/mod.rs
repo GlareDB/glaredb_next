@@ -1,7 +1,7 @@
 pub mod aggregate;
 pub mod empty;
 pub mod filter;
-pub mod nl_join;
+pub mod join;
 pub mod project;
 pub mod query_sink;
 pub mod repartition;
@@ -17,7 +17,10 @@ use std::task::Context;
 
 use self::aggregate::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::empty::EmptyPartitionState;
-use self::nl_join::{NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState};
+use self::join::nl_join::{
+    NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
+    NestedLoopJoinProbePartitionState,
+};
 use self::query_sink::QuerySinkPartitionState;
 use self::repartition::hash::{HashRepartitionOperatorState, HashRepartitionPartitionState};
 use self::repartition::round_robin::{
@@ -31,8 +34,8 @@ use self::values::ValuesPartitionState;
 #[derive(Debug)]
 pub enum PartitionState {
     HashAggregate(HashAggregatePartitionState),
-    NlJoinBuild(NlJoinBuildPartitionState),
-    NlJoinProbe(NlJoinProbePartitionState),
+    NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
+    NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
     Values(ValuesPartitionState),
     QuerySink(QuerySinkPartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
@@ -48,7 +51,7 @@ pub enum PartitionState {
 #[derive(Debug)]
 pub enum OperatorState {
     HashAggregate(HashAggregateOperatorState),
-    NlJoin(NlJoinOperatorState),
+    NestedLoopJoin(NestedLoopJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
     None,

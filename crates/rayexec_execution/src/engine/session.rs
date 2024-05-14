@@ -158,7 +158,7 @@ impl Session {
         let logical = plan_context.plan_statement(stmts.next().unwrap())?;
 
         let (result_stream, result_sink) = unpartitioned_result_stream();
-        let planner = QueryGraphPlanner::new(1, QueryGraphDebugConfig::default());
+        let planner = QueryGraphPlanner::new(8, QueryGraphDebugConfig::default());
         let query_graph = planner.create_graph(logical.root, QuerySink::new([result_sink]))?;
 
         self.scheduler.spawn_query_graph(query_graph);

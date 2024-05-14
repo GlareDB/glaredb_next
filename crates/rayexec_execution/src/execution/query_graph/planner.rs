@@ -7,9 +7,9 @@ use crate::{
             },
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
-            nl_join::{
-                NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState,
-                PhysicalNlJoin,
+            join::nl_join::{
+                NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
+                NestedLoopJoinProbePartitionState, PhysicalNestedLoopJoin,
             },
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
@@ -421,16 +421,17 @@ impl BuildState {
         let left_partitions = left_pipeline.num_partitions();
         let right_partitions = self.in_progress_pipeline_mut()?.num_partitions();
 
-        let physical = Arc::new(PhysicalNlJoin::new(filter));
+        let physical = Arc::new(PhysicalNestedLoopJoin::new(filter));
 
         // State shared between left and right.
-        let operator_state = Arc::new(OperatorState::NlJoin(NlJoinOperatorState::new(
-            left_partitions,
-            right_partitions,
-        )));
+        let operator_state = Arc::new(OperatorState::NestedLoopJoin(
+            NestedLoopJoinOperatorState::new(left_partitions, right_partitions),
+        ));
 
         let left_states = (0..left_partitions)
-            .map(|_| PartitionState::NlJoinBuild(NlJoinBuildPartitionState::default()))
+            .map(|_| {
+                PartitionState::NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState::default())
+            })
             .collect();
 
         // Push left states to left pipeline. This pipeline is now "completed".
@@ -441,7 +442,9 @@ impl BuildState {
         let current_pipeline = self.in_progress_pipeline_mut()?;
         let right_states = (0..right_partitions)
             .map(|partition| {
-                PartitionState::NlJoinProbe(NlJoinProbePartitionState::new_for_partition(partition))
+                PartitionState::NestedLoopJoinProbe(
+                    NestedLoopJoinProbePartitionState::new_for_partition(partition),
+                )
             })
             .collect();
 
