@@ -249,11 +249,20 @@ impl BuildState {
 
                 GroupingSets::try_new(cols, null_masks)?
             }
-            operator::GroupingExpr::Cube(_) => unimplemented!(),
+            operator::GroupingExpr::Cube(_) => {
+                unimplemented!("https://github.com/GlareDB/rayexec/issues/38")
+            }
         };
+
+        let group_types: Vec<_> = grouping_sets
+            .columns()
+            .iter()
+            .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
+            .collect();
 
         let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
             pipeline.num_partitions(),
+            group_types,
             grouping_sets,
             agg_exprs,
             projection,

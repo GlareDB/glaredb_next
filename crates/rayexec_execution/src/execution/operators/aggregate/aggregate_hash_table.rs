@@ -1,13 +1,15 @@
 use crate::functions::aggregate::GroupedStates;
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::{Array, NullArray},
+    array::Array,
     batch::Batch,
     bitmap::Bitmap,
+    field::DataType,
     row::{OwnedRow, Row},
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
+use std::sync::Arc;
 
 use super::hash_aggregate::HashAggregateColumnOutput;
 
@@ -246,12 +248,15 @@ impl PartitionAggregateHashTable {
     pub fn into_drain(
         self,
         batch_size: usize,
+        group_types: Vec<DataType>,
         projection: Vec<HashAggregateColumnOutput>,
     ) -> AggregateHashTableDrain {
         AggregateHashTableDrain {
+            group_types,
             projection,
             batch_size,
             table: self,
+            group_values_drain_buf: Vec::new(),
         }
     }
 }
@@ -266,56 +271,94 @@ impl fmt::Debug for PartitionAggregateHashTable {
 
 #[derive(Debug)]
 pub struct AggregateHashTableDrain {
+    /// Datatypes of the grouping columns. Used to construct the arrays
+    /// representing the group by values.
+    group_types: Vec<DataType>,
+
+    /// Final output projection. Can include the final aggregated results, or
+    /// reference the grouping values.
     projection: Vec<HashAggregateColumnOutput>,
+
+    /// Max size of batch to return.
     batch_size: usize,
+
+    /// Inner table.
     table: PartitionAggregateHashTable,
+
+    /// Reused buffer for draining rows representing the group values from the
+    /// table.
+    group_values_drain_buf: Vec<OwnedRow>,
 }
 
 impl AggregateHashTableDrain {
     fn next_inner(&mut self) -> Result<Option<Batch>> {
-        let cols = self
+        let result_cols = self
             .table
             .agg_states
             .iter_mut()
             .map(|agg_state| agg_state.states.drain_finalize_n(self.batch_size))
             .collect::<Result<Option<Vec<_>>>>()?;
-        let mut cols = match cols {
-            Some(cols) => cols,
+        let result_cols: Vec<_> = match result_cols {
+            Some(cols) => cols.into_iter().map(|col| Arc::new(col)).collect(),
             None => return Ok(None),
         };
 
-        // TODO: Use actual group values, this is currently just a placeholder.
-        let group_width = self
-            .table
-            .group_values
-            .first()
-            .map(|row| row.columns.len())
-            .unwrap_or(0);
-        let len = cols.first().map(|arr| arr.len()).unwrap_or(0);
-        let mut group_cols: Vec<_> = (0..group_width)
-            .map(|_| Array::Null(NullArray::new(len)))
-            .collect();
+        // Convert group values into arrays.
+        //
+        // We look at the projection as well to avoid unecessarily building an
+        // array from the group values if it's not actually part of the output.
+        let num_rows = result_cols.first().map(|col| col.len()).unwrap_or(0);
+        let mut group_cols: Vec<_> = (0..self.group_types.len()).map(|_| None).collect();
+        let num_groups = group_cols.len();
 
-        let num_result_cols = cols.len();
-        cols.append(&mut group_cols);
+        self.group_values_drain_buf.clear();
+        self.group_values_drain_buf
+            .extend(self.table.group_values.drain(0..num_rows));
 
-        // Batch column ordering has aggregate results first, following by the
-        // grouping columns.
-        let batch = Batch::try_new(cols)?;
+        // Note this works in reverse to how the group columns are stored to
+        // allow us to pop off the vecs and avoid cloning.
+        for (from_right, datatype) in self.group_types.iter().rev().enumerate() {
+            let iter = self
+                .group_values_drain_buf
+                .iter_mut()
+                .map(|row| row.columns.pop().expect("column to exist"));
 
-        // Get projection indices based on the above.
-        let project_indices = self
+            // If we're not actually in the projection, just skip this column.
+            let is_in_projection = self
+                .projection
+                .iter()
+                .position(|proj| match proj {
+                    HashAggregateColumnOutput::GroupingColumn(idx) => {
+                        *idx == (num_groups - from_right - 1)
+                    }
+                    _ => false,
+                })
+                .is_some();
+            if !is_in_projection {
+                continue;
+            }
+
+            // Otherwise build the array.
+            let arr = Array::try_from_scalars(datatype.clone(), iter)?;
+
+            group_cols[num_groups - from_right - 1] = Some(Arc::new(arr));
+        }
+
+        // Get the arrays to use in the output batch.
+        let output_arrays = self
             .projection
             .iter()
             .map(|proj| match *proj {
-                HashAggregateColumnOutput::GroupingColumn(idx) => idx + num_result_cols,
-                HashAggregateColumnOutput::AggregateResult(idx) => idx,
+                HashAggregateColumnOutput::GroupingColumn(idx) => group_cols[idx]
+                    .clone()
+                    .expect("group col should have been computed"),
+                HashAggregateColumnOutput::AggregateResult(idx) => result_cols[idx].clone(),
             })
             .collect::<Vec<_>>();
 
-        let projected = batch.project(&project_indices);
+        let batch = Batch::try_new(output_arrays)?;
 
-        Ok(Some(projected))
+        Ok(Some(batch))
     }
 }
 

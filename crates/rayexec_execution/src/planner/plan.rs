@@ -192,7 +192,7 @@ impl<'a> PlanContext<'a> {
         // the output of the aggregate.
         let has_aggregate = select_exprs.iter().any(|expr| expr.is_aggregate());
         if has_aggregate {
-            let mut aggs = Vec::new();
+            let mut agg_exprs = Vec::new();
             let mut input_exprs = Vec::with_capacity(select_exprs.len());
             let mut final_column_indices = Vec::with_capacity(select_exprs.len());
 
@@ -229,12 +229,19 @@ impl<'a> PlanContext<'a> {
                             filter,
                         };
 
-                        aggs.push(new_agg);
+                        agg_exprs.push(new_agg);
                         final_column_indices.push(col_idx);
                     }
                     other => {
-                        // No need to rewrite this expression.
+                        // No need to rewrite this expression, just make sure
+                        // the final projection maps to the correct column in
+                        // the input projection.
+                        let mapped_idx = input_exprs.len();
                         input_exprs.push(other);
+                        agg_exprs.push(LogicalExpression::ColumnRef(ColumnRef {
+                            scope_level: 0,
+                            item_idx: mapped_idx,
+                        }));
                         final_column_indices.push(col_idx);
                     }
                 }
@@ -321,7 +328,7 @@ impl<'a> PlanContext<'a> {
 
             // Generate the aggregate plan.
             let agg_plan = LogicalOperator::Aggregate(Aggregate {
-                exprs: aggs,
+                exprs: agg_exprs,
                 grouping_expr,
                 input: Box::new(input_plan),
             });

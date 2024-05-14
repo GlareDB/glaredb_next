@@ -1,3 +1,5 @@
+# Test functionality of aggregating and grouping.
+
 # NO GROUPING
 
 query I
@@ -117,3 +119,27 @@ select sum(column3) from
 12
 2
 9
+
+# GROUP BY column references
+
+query TI rowsort
+select column1, sum(column2) from
+    (values ('burger', 1),
+            ('hotdog', 2),
+            ('hotdog', 3),
+            ('burger', 4),
+            ('hotdog', 5)) group by column1;
+----
+burger  5
+hotdog  10
+
+# query TI rowsort
+# select sum(column2), column1 from
+#     (values ('burger', 1),
+#             ('hotdog', 2),
+#             ('hotdog', 3),
+#             ('burger', 4),
+#             ('hotdog', 5)) group by column1;
+# ----
+# 5   burger
+# 10  hotdog

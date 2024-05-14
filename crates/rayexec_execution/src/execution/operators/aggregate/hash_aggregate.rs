@@ -2,6 +2,7 @@ use parking_lot::Mutex;
 use rayexec_bullet::array::{Array, NullArray};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::collections::BTreeSet;
 use std::task::{Context, Waker};
@@ -94,6 +95,9 @@ pub struct PhysicalHashAggregate {
     /// Grouping sets we're grouping by.
     grouping_sets: GroupingSets,
 
+    /// Datatypes of the columns in the grouping sets.
+    group_types: Vec<DataType>,
+
     /// Union of all column indices that are inputs to the aggregate functions.
     aggregate_columns: Vec<usize>,
 
@@ -107,6 +111,7 @@ pub struct PhysicalHashAggregate {
 impl PhysicalHashAggregate {
     pub fn try_new(
         num_partitions: usize,
+        group_types: Vec<DataType>,
         grouping_sets: GroupingSets,
         exprs: Vec<PhysicalAggregateExpression>,
         projection: Vec<HashAggregateColumnOutput>,
@@ -172,6 +177,7 @@ impl PhysicalHashAggregate {
         }
 
         let operator = PhysicalHashAggregate {
+            group_types,
             grouping_sets,
             aggregate_columns: agg_input_cols.into_iter().collect(),
             projection,
@@ -389,7 +395,8 @@ impl PhysicalOperator for PhysicalHashAggregate {
                         first.merge(consume)?;
                     }
 
-                    let drain = first.into_drain(1024, self.projection.clone()); // TODO: Make batch size configurable.
+                    let drain =
+                        first.into_drain(1024, self.group_types.clone(), self.projection.clone()); // TODO: Make batch size configurable.
                     *hashtable_drain = Some(drain);
                 }
 
