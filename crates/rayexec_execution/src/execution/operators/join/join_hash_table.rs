@@ -87,7 +87,7 @@ impl PartitionJoinHashTable {
         for (hash, mut row_key) in other.hash_table.drain() {
             row_key.batch_idx += batch_offset;
             self.hash_table
-                .insert(hash, (hash, row_key), (|(hash, _)| *hash));
+                .insert(hash, (hash, row_key), |(hash, _)| *hash);
         }
 
         Ok(())

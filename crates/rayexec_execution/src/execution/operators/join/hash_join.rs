@@ -172,6 +172,8 @@ impl PhysicalOperator for PhysicalHashJoin {
                     .collect::<Result<Vec<_>>>()?;
 
                 // Compute hashes on input batch
+                state.hash_buf.clear();
+                state.hash_buf.resize(batch.num_rows(), 0);
                 let hashes = hash_arrays(&left_columns, &mut state.hash_buf)?;
 
                 state.local_hashtable.insert_batch(
