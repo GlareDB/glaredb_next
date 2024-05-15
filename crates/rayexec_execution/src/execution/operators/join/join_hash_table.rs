@@ -5,7 +5,7 @@ use rayexec_bullet::{
     bitmap::Bitmap,
     compute::{concat::concat, filter::filter, take::take},
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use std::{collections::HashMap, fmt};
 
 /// Points to a row in the hash table.
@@ -96,14 +96,24 @@ impl PartitionJoinHashTable {
     // inner
     pub fn probe(
         &self,
-        input_cols: &[&Array],
+        right: &Batch,
         hashes: &[u64],
-        col_indices: &[usize],
+        right_col_indices: &[usize],
     ) -> Result<Batch> {
         // Track per-batch row indices that match the input columns.
-        let mut row_indices: HashMap<usize, Vec<usize>> = HashMap::new();
+        //
+        // The value is a vec of (left_idx, right_idx) pairs pointing to rows in
+        // the left (build) and right (probe) batches respectively
+        let mut row_indices: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
 
-        for hash in hashes {
+        // TODO: Use this in the below equality check.
+        let _right_cols = right_col_indices
+            .iter()
+            .map(|idx| right.column(*idx).map(|arr| arr.as_ref()))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| RayexecError::new("missing column in input"))?;
+
+        for (right_idx, hash) in hashes.iter().enumerate() {
             let val = self.hash_table.get(*hash, |(_, _key)| {
                 // TODO: Use key to check that the row this key is pointing
                 // equals the row in the input columns.
@@ -114,25 +124,38 @@ impl PartitionJoinHashTable {
 
                 let row_key = val.1;
                 match row_indices.entry(row_key.batch_idx) {
-                    Entry::Occupied(mut ent) => ent.get_mut().push(row_key.row_idx),
+                    Entry::Occupied(mut ent) => ent.get_mut().push((row_key.row_idx, right_idx)),
                     Entry::Vacant(ent) => {
-                        ent.insert(vec![row_key.row_idx]);
+                        ent.insert(vec![(row_key.row_idx, right_idx)]);
                     }
                 }
             }
         }
 
-        // Get all rows from each batch in this hash table.
+        // Get all rows from the left and right batches.
+        //
+        // The final batch will be a batch containing all columns from the left
+        // and all columns from the right.
         let mut batches = Vec::with_capacity(row_indices.len());
         for (batch_idx, row_indices) in row_indices {
-            let batch = self.batches.get(batch_idx).expect("batch to exist");
-            let output = batch
+            let (left_rows, right_rows): (Vec<_>, Vec<_>) = row_indices.into_iter().unzip();
+
+            let left_batch = self.batches.get(batch_idx).expect("batch to exist");
+            let left_cols = left_batch
                 .columns()
                 .iter()
-                .map(|arr| take(arr.as_ref(), &row_indices))
+                .map(|arr| take(arr.as_ref(), &left_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(output)?;
+            let right_cols = right
+                .columns()
+                .iter()
+                .map(|arr| take(arr.as_ref(), &right_rows))
+                .collect::<Result<Vec<_>>>()?;
+
+            let all_cols = left_cols.into_iter().chain(right_cols.into_iter());
+
+            let batch = Batch::try_new(all_cols)?;
             batches.push(batch);
         }
 

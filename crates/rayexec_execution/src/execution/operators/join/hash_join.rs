@@ -33,8 +33,11 @@ pub struct HashJoinProbePartitionState {
     partition_idx: usize,
 
     /// The final output table. If None, the global state should be checked to
-    /// see if the final table can be built.
-    hashtable: Option<PartitionJoinHashTable>,
+    /// see if it's ready to copy into the partition local state.
+    global: Option<Arc<PartitionJoinHashTable>>,
+
+    /// Reusable hashes buffer.
+    hash_buf: Vec<u64>,
 
     /// Buffered output batch.
     buffered_output: Option<Batch>,
@@ -45,25 +48,37 @@ pub struct HashJoinProbePartitionState {
 
 #[derive(Debug)]
 pub struct HashJoinOperatorState {
-    /// Shared output states containing possibly completed hash tables.
-    output_states: Vec<Mutex<SharedOutputPartitionState>>,
+    /// Shared state between all partitions.
+    inner: Mutex<SharedOutputState>,
 }
 
 #[derive(Debug)]
-struct SharedOutputPartitionState {
-    /// Completed hash tables from input partitions.
-    completed: Vec<PartitionJoinHashTable>,
+struct SharedOutputState {
+    /// The partially built global hash table.
+    ///
+    /// Input partitions merge their partition-local hash table into this global
+    /// table once they complete.
+    partial: PartitionJoinHashTable,
 
-    /// Number of build input remaining for this partition.
+    /// Number of build inputs remaining.
     remaining: usize,
 
-    /// If a thread tried to pull before this partition is ready to produce
-    /// output.
-    pull_waker: Option<Waker>,
+    /// The shared global hash table once it's been fully built.
+    ///
+    /// This is None if there's still inputs still building.
+    shared_global: Option<Arc<PartitionJoinHashTable>>,
 
-    /// If a thread tried to push a batch on the probe side before this
-    /// partition's output table has been built.
-    probe_push_waker: Option<Waker>,
+    /// Pending wakers for threads that attempted to pull from the table prior
+    /// to it being built.
+    ///
+    /// Indexed by output partition index.
+    pull_wakers: Vec<Option<Waker>>,
+
+    /// Pending wakers for thread that attempted to probe the table prior to it
+    /// being built.
+    ///
+    /// Indexed by probe partition index.
+    probe_push_waker: Vec<Option<Waker>>,
 }
 
 #[derive(Debug)]
@@ -162,45 +177,35 @@ impl PhysicalOperator for PhysicalHashJoin {
 
                 // Check if we have the final hash table, if not, look in he
                 // global state.
-                if state.hashtable.is_none() {
-                    let mut shared = operator_state.output_states[state.partition_idx].lock();
+                if state.global.is_none() {
+                    let mut shared = operator_state.inner.lock();
 
                     // If there's still some inputs building, just store our
                     // waker to come back later.
                     if shared.remaining != 0 {
-                        shared.probe_push_waker = Some(cx.waker().clone());
+                        shared.probe_push_waker[state.partition_idx] = Some(cx.waker().clone());
                         return Ok(PollPush::Pending(batch));
                     }
 
-                    let completed = std::mem::take(&mut shared.completed);
-                    let mut completed_iter = completed.into_iter();
-
-                    // Otherwise lets build our partition's final hash table.
-                    let mut first = match completed_iter.next() {
-                        Some(table) => table,
-                        None => {
-                            return Err(RayexecError::new(
-                                "Expected at least one build input partition",
-                            ))
-                        }
-                    };
-
-                    for consume in completed_iter {
-                        first.merge(consume)?;
-                    }
+                    // Final partition on the build side should be what sets
+                    // this. So if remaining == 0, then it should exist.
+                    let shared_global = shared
+                        .shared_global
+                        .clone()
+                        .expect("shared global table should exist, no inputs remaining");
 
                     // Final hash table built, store in our partition local
                     // state.
-                    state.hashtable = Some(first);
+                    state.global = Some(shared_global);
                 }
 
-                let hashtable = state.hashtable.as_ref().expect("hash table to exist");
+                let hashtable = state.global.as_ref().expect("hash table to exist");
 
                 let right_input_cols = self
                     .right_on
                     .iter()
                     .map(|idx| {
-                        batch.column(*idx).ok_or_else(|| {
+                        batch.column(*idx).map(|arr| arr.as_ref()).ok_or_else(|| {
                             RayexecError::new(format!(
                                 "Missing column in probe batch at index {idx}"
                             ))
@@ -208,13 +213,48 @@ impl PhysicalOperator for PhysicalHashJoin {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                // match self.join_type {
-                //     JoinType::Inner => {
-                //         let probed = hashtable.probe(&right_input_cols, hashes, col_indices)
-                //     }
-                // }
+                state.hash_buf.clear();
+                state.hash_buf.resize(batch.num_rows(), 0);
+                let hashes = hash_arrays(&right_input_cols, &mut state.hash_buf)?;
 
-                unimplemented!()
+                // TODO: Handle everything else.
+                //
+                // Left:
+                // - Include every unvisited row in left batch, join with right nulls.
+                // - Partition local bitmap to track unvisited left batchs.
+                // - Flush out unvisited batches on finish.
+                //
+                // Right:
+                // - Include every unvisited row in right batch, join with left nulls.
+                // - Nothing else.
+                //
+                // Outer:
+                // - Include every unvisited row in right batch, join with left nulls.
+                // - Include every unvisited row in left batch, join with right nulls,
+                // - Partition local bitmap to track unvisited left batchs.
+                // - Flush out unvisited batches on finish.
+                //
+                // Left/right semi:
+                // - Just include left/right columns.
+                //
+                // Left/right anti:
+                // - Inverse of left/right
+                match self.join_type {
+                    JoinType::Inner => {
+                        let joined = hashtable.probe(&batch, hashes, &self.right_on)?;
+                        state.buffered_output = Some(joined);
+                        Ok(PollPush::Pushed)
+                    }
+                    JoinType::Left => {
+                        unimplemented!()
+                    }
+                    JoinType::Right => {
+                        unimplemented!()
+                    }
+                    JoinType::Full => {
+                        unimplemented!()
+                    }
+                }
             }
             other => panic!("invalid partition state: {other:?}"),
         }
