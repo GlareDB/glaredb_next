@@ -178,8 +178,7 @@ impl PartitionJoinHashTable {
                 .map(|batch| batch.column(col_idx).expect("column to exist").as_ref())
                 .collect();
 
-            let output = concat(&cols)?;
-            output_cols.push(output);
+            output_cols.push(concat(&cols)?);
         }
 
         let batch = Batch::try_new(output_cols)?;

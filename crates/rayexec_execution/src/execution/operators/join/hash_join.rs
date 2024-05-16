@@ -24,6 +24,15 @@ pub struct HashJoinBuildPartitionState {
     hash_buf: Vec<u64>,
 }
 
+impl HashJoinBuildPartitionState {
+    fn new() -> Self {
+        HashJoinBuildPartitionState {
+            local_hashtable: PartitionJoinHashTable::new(),
+            hash_buf: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct HashJoinProbePartitionState {
     /// Index of this partition.
@@ -47,6 +56,20 @@ pub struct HashJoinProbePartitionState {
 
     /// If the input for this partiton is complete.
     input_finished: bool,
+}
+
+impl HashJoinProbePartitionState {
+    fn new(partition_idx: usize) -> Self {
+        HashJoinProbePartitionState {
+            partition_idx,
+            global: None,
+            hash_buf: Vec::new(),
+            buffered_output: None,
+            push_waker: None,
+            pull_waker: None,
+            input_finished: false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -81,6 +104,17 @@ struct SharedOutputState {
     /// Woken once the global hash table has been completed (moved into
     /// `shared_global`).
     probe_push_wakers: Vec<Option<Waker>>,
+}
+
+impl SharedOutputState {
+    fn new(build_partitions: usize, probe_partitions: usize) -> Self {
+        SharedOutputState {
+            partial: PartitionJoinHashTable::new(),
+            remaining: build_partitions,
+            shared_global: None,
+            probe_push_wakers: vec![None; probe_partitions],
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -120,31 +154,15 @@ impl PhysicalHashJoin {
         Vec<HashJoinProbePartitionState>,
     ) {
         let operator_state = HashJoinOperatorState {
-            inner: Mutex::new(SharedOutputState {
-                partial: PartitionJoinHashTable::new(),
-                remaining: build_partitions,
-                shared_global: None,
-                probe_push_wakers: vec![None; probe_partitions],
-            }),
+            inner: Mutex::new(SharedOutputState::new(build_partitions, probe_partitions)),
         };
 
         let build_states: Vec<_> = (0..build_partitions)
-            .map(|_| HashJoinBuildPartitionState {
-                local_hashtable: PartitionJoinHashTable::new(),
-                hash_buf: Vec::new(),
-            })
+            .map(|_| HashJoinBuildPartitionState::new())
             .collect();
 
         let probe_states: Vec<_> = (0..probe_partitions)
-            .map(|idx| HashJoinProbePartitionState {
-                partition_idx: idx,
-                global: None,
-                hash_buf: Vec::new(),
-                buffered_output: None,
-                push_waker: None,
-                pull_waker: None,
-                input_finished: false,
-            })
+            .map(HashJoinProbePartitionState::new)
             .collect();
 
         (operator_state, build_states, probe_states)

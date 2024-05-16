@@ -31,7 +31,8 @@ select b, d, c from
 2  1  mario
 
 
-# query IIII
+# Using not implemented
+# query II
 # select * from
 #     (values (1, 2),
 #             (3, 4)) as t1(a, b)
@@ -41,6 +42,7 @@ select b, d, c from
 # ----
 # 2  5
 
+# Doesn't optimize to hash join
 # query II
 # select b, d from
 #     (values (1, 2),
