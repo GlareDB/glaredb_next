@@ -1,17 +1,15 @@
 # Query graph
 
-Design doc so Sean can get things out of his head.
+Overview of the current operator interfaces as of May 2024 alongside
+alternatives considered during the implementation of various operators.
+
+## Comments on the previous interfaces
 
 Physical operators now currently implement a push-based interface, and a
 separate struct helps with execution across some number of operators. At a
 high-level, this is what we want, and the current interfaces I think are a
 decent prototype. However there's a drawback where operators require a lot of
 unnecessary synchronization, making state management within operators tedious.
-
-This document attempts to describe interfaces that reduce synchronization across
-parallel partitions while also providing clearer "units of execution".
-
-## Comments on the current interfaces
 
 ### Physical operators
 
@@ -203,7 +201,7 @@ Bad:
 
 Unknown:
 
-## Proposal
+## Current design
 
 Operator logic and operator states should be separate. By having the state
 separate from the logic (the actual operator itself), we can reduce
@@ -211,381 +209,171 @@ synchronization across partitions, and provide better DX.
 
 ### Global/local states
 
-Each (stateful) operator will define two states that will be used during
-execution; the "local" state and the "global" state.
+Each (stateful) operator will define at least two states that will be used
+during execution; the "partition" state and the "operator" state. Partition
+states are local to a single partition during execution, while the operator
+state is shared among all partitions for a single operator instance.
 
-The "local" state will be for state that's local to the partition. For example,
-the build-side hash join operator would have a partition-local hash table in its
-local state. During execution, the operator will receive a mutable reference to
-its local state, allowing direct modification with no synchronization.
+For example, the build-side hash join operator would have a partition-local hash
+table in its partition state. During execution, the operator will receive a
+mutable reference to its partition-local state, allowing direct modification
+with no synchronization.
 
-The "global" state is for state that needs to be shared across all partitions.
-For example, the build-side hash join operator would have a global hash table
-that's written to from each partition with each partition's local hash table.
-During execution, the operator will receive a shared reference to the global
-state. Modifying the global state will require internal mutation through
-mutexes/atomics/etc.
+And for operator states, the build-side hash join operator would have a global
+hash table that's written to from each partition with each partition's local
+hash table. During execution, the operator will receive a shared reference to
+the global state. Modifying the global state will require internal mutation
+through mutexes/atomics/etc.
 
 Since we will only support a fixed number of operators, each operator will have
-a variant in each of the global and local state enums:
+a variant in each of the operator and partition state enums:
 
 ```rust
-pub enum GlobalState {
-    PhysicalHashJoin(PhysicalHashJoinGlobalState),
+pub enum OperatorState {
+    PhysicalHashJoin(PhysicalHashJoinOperatorState),
     ...
 }
 
-pub enum LocalState {
-    PhysicalHashJoin(PhysicalHashJoinLocalState),
+pub enum PartitionState {
+    PhysicalHashJoin(PhysicalHashJoinPartitionState),
     ...
 }
 ```
 
 ### Operator interfaces
 
-Slightly modified from our current trait definitions. `PollPush` and `PollPull`
-will remain the same.
-
 ```rust
 pub trait PhysicalOperator: Sync + Send + Explainable + Debug {
-    fn num_inputs(&self) -> usize;
-    fn input_partition(&self) -> usize;
-    fn output_partitions(&self) -> usize;
-
-    /// Initialize the local state for a partition.
-    ///
-    /// This should be called once per partition.
-    fn init_local_state(&self, input: usize, partition: usize) -> Result<LocalState>;
-
-    /// Initialize the global state.
-    ///
-    /// This should be called once in total.
-    fn init_global_state(&self) -> Result<GlobalState>;
-
     /// Try to push a batch for this partition.
     fn poll_push(
         &self,
         cx: &mut Context,
-        local: &mut LocalState,
-        global: &GlobalState,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
         batch: Batch,
-        input: usize,
-        partition: usize,
     ) -> Result<PollPush>;
 
-    /// Indicate that we're done pushing to this partition.
-    fn finish(
+    /// Finalize pushing to partition.
+    ///
+    /// This indicates the operator will receive no more input for a given
+    /// partition, allowing the operator to execution some finalization logic.
+    fn finalize_push(
         &self,
-        local: &mut LocalSinkState,
-        global: &GlobalSinkState,
-        input: usize,
-        partition: usize
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
     ) -> Result<()>;
 
     /// Try to pull a batch for this partition.
     fn poll_pull(
         &self,
         cx: &mut Context,
-        local: &mut LocalState,
-        global: &GlobalState,
-        partition: usize,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
     ) -> Result<PollPull>;
 }
 ```
 
-The primary difference with this trait is the inclusion of initialize
-local/global states and providing those states when pushing and pulling batches
-from operators.
+Key differences:
 
-A simplified example implementation of a nested loop join:
+- Operators receive both a mutable partition state, and a shared operator state.
+  Operator implementations deal with the logic, with any state needed being
+  stored on the provided state objects.
+- Operators are oblivious to number of input/output partitions. Operators are
+  constructed with "static" parameters (e.g. join keys for hash joins). States
+  are what will determine the number of input/output partitions.
 
-```rust
-// Defined in another file.
-pub enum GlobalState {
-    ...
-    PhysicalNestedLoopJoin(GlobalState),
-    ...
-}
+`PollPush` and `PollPull` will remain mostlye the same.
 
-// Defined in another file.
-pub enum LocalState {
-    ...
-    PhysicalNestedLoopJoinBuild(BuildSideLocalState),
-    PhysicalNestedLoopJoinProbe(ProbeSideLocalState),
-    ...
-}
+In the context of distributed execution, it's important that we're able to
+construct new states given just an operator, but the number of partitions to
+execute on should be determined by the node actually executing the pipeline.
 
-pub struct BuildSideLocalState {
-    /// All batches on the build side for a single partition.
-    ///
-    /// For hash joins, this would be a partition-local hash map.
-    batches: Vec<Batch>
-}
+### Partition pipeline
 
-pub struct ProbeSideLocalState {
-    /// All batches from all partitions received on the build side.
-    ///
-    /// Store in the probe side local state to avoid needing to lock.
-    ///
-    /// For hash joins, this would be a hash map containing all batches from the
-    /// build side.
-    ///
-    /// If this is empty, the global state should be consulted to check if
-    /// probing is ready to begin.
-    all_batches: Vec<Batch>,
+Partition pipelines are a higher level struct responsible for managing the
+relationships between states and operators for a single partition. This struct
+would have: Arc references to operators, Arc references to operator (global)
+state, exclusive references to partitions (local) states. Executing a partition
+pipeline will attempt to push data as far as it can through the chain of
+operators until it hits a "Pending" state, at which point it'll be rescheduled
+for later execution once it can continue to make progress.
 
-    /// Buffered batches that need to be sent out.
-    buffered: VecDeque<Batch>,
+When it comes to the scheduler, partition pipelines are the smallest unit of
+work. Partition pipelines implement a `poll_execute` method which behaves very
+similarly to a Rust `Future`. The scheduler continually calls `poll_execute` to
+make progress, and the partition pipeline will pull a batch from the "source"
+operator, and attempt to push it through a sequence of operators until it's
+pushed to a "sink" operator. Once the batch has been pushed to the "sink"
+operator, its internal state gets reset to then begin pulling from the "source"
+operator. This gets repeated until the source is exhausted.
 
-    /// Waker for thread wanting to pull.
-    pull_waker: Option<Waker>,
+Any operator in the partition pipeline may return "pending" on either
+`poll_push`, or `poll_pull`. The partition pipeline will bubble this up to the
+scheduler, and the thread currently executing the partition pipeline will return
+from the execution loop so that it can pick up another partition pipeline to
+begin executing. The original partition pipeline will resume execution when an
+operator signals there's more work to be done. This is done by calling `wake` on
+a stored `Waker`. The waker implementation is a `PartitionPipelineWaker` which
+internally holds a reference to the partition pipeline, whose `wake`
+implementation schedules that partition pipeline for execution.
 
-    /// If the input to this partition is finished.
-    input_finished: bool,
+### Pipeline
 
-    // TODO: Determine if we want/need this. This is probably dependent on the
-    // design of `PartitionPipeline`.
-    //
-    // /// Waker for thread waiting to push.
-    // ///
-    // /// This is set if we attempt push on the probe side but the buffer isn't
-    // /// empty yet.
-    // push_waker: Option<Waker>
-}
+Even higher level struct that holds multiple partition pipelines representing a
+portion of query execution. When a pipeline is passed to the scheduler, the
+scheduler just pulls out the partition pipelines and begins executing them
+independently. Dependencies between pipelines are implicitly handle by partition
+pipelines returning "pending" if there's no work to do yet.
 
-pub struct GlobalState {
-    shared: Arc<Mutex<SharedBuildProbeState>>,
-}
+Pipelines contain a consistent number of partitions end-to-end. The number of
+inputs into a pipeline equals the number of outputs from a pipeline. When a
+different number of partitions are required (e.g. a source produces 4
+partitions, but we want execution to happen across 8 partitions), a round-robin
+repartitioning operator is added to the _current_ pipeline, and a new pipeline
+is created whose "source" batches are the output of the repartition operator.
+This new pipeline is then used during planning up until a join (ish) or
+repartition is reached. So planning may produce any number of partitions, which
+can all be thrown to scheduler without care.
 
-/// State shared between the probe side and the build side.
-struct SharedBuildProbeState {
-    /// All batches from all partitions.
-    ///
-    /// Populated by the build side upon completion of a partition.
-    ///
-    /// For hash joins, this would be a global hash table.
-    all_batches: Vec<Batch>,
+### Query graph
 
-    /// Number of partitions we're still waiting for on the build side.
-    num_remaining: usize,
+More of a tree, but just holds a bunch of pipelines.
 
-    /// Wakers for the probe side.
-    ///
-    /// Only one waker per output partitions should be stored.
-    probe_side_wakers: Vec<Option<Waker>>,
-}
+More graph like execution might happen in the case of recursive CTEs.
 
-/// Implements the logic for a nested loop join.
-///
-/// The `Sink` implemenation for this implements the logic for the probe side of
-/// the join.
-pub struct PhysicalNestedLoopJoin {
-    shared: Arc<Mutex<SharedBuildProbeState>>,
-    partitions: usize,
-}
+## Current design rationale
 
-impl PhysicalNestedLoopJoin {
-    pub fn new(partitions: usize) -> Self {
-        let shared = SharedBuildProbeState {
-            partitions_batches: Vec::new(),
-            num_remaining: partitions,
-            probe_side_waker: vec![None; partitions],
-        }
+Various notes on the rationale of the current design. This will be appended to
+as changes are made, with some sections potentially moving to _Design
+alternatives_ if we move away from it.
 
-        PhysicalNestedLoopJoin {
-            shared: Arc::new(Mutex::new(shared))
-            partitions
-        }
-    }
-}
+### "Polling" operators
 
-impl PhysicalOperator for PhysicalNestedLoopJoin {
-    fn num_inputs(&self) -> usize {
-        2
-    }
+Physical operators implement a `poll_push` and `poll_pull` method, which can be
+seen as a very specialized version of a Rust Future.
 
-    fn output_partitions(&self) -> usize {
-        self.partitions
-    }
+We want a way to say "we don't have a batch ready yet" or "we don't have room
+for your batch yet", and by being able to return a `Poll...` object from these
+functions, we can signal to the higher level partition pipeline what action
+needs to be taken next. For example, the build side of a join might not have
+completed, and so the it doesn't make sense to continue to try to push to the
+probe side. By allowing the operator to return a `PollPull::Pending(_)` object,
+it can let the pipeline know that it can't yet accept batches.
 
-    fn input_partitions(&self) -> usize {
-        self.partitions
-    }
+We're using async Rust primitives here (`Context`, `Waker`) which provides the
+interfaces for triggering re-execution of pipelines once there's work to be
+done. This also gives us a very straightforward path to integrating async
+functions at the "edge" of the system (e.g. async http requests for fetching
+data) since we'll just be calling the required `poll_...` methods with the
+`Context` and `Waker` we're already passing around.
 
-    fn init_local_state(&self, input: usize, partition: usize) -> Result<LocalState> {
-        if input == 0 {
-            // Build side
-            return Ok(LocalState::PhysicalNestedLoopJoinBuild{
-                ...
-            })
-        }
-        if input == 1 {
-             return Ok(LocalState::PhysicalNestedLoopJoinProbe{
-                ...
-            })
-        }
+Essentially this makes our scheduler a very specialized async runtime.
 
-        Err(Rayexec::Error(new(format!("invalid input index: {input}"))))
-    }
+## Design alternatives
 
-    fn init_global_state(&self) -> Result<GlobalState> {
-        Ok(GlobalState::PhysicalNestedLoopJoin(GlobalState {
-            shared: self.shared.clone(),
-        }))
-    }
+### Using the previous implementation of physical operators
 
-    fn poll_push(
-        &self,
-        cx: &mut Context,
-        local: &mut LocalState,
-        global: &GlobalState,
-        batch: Batch,
-        input: usize,
-        partition: usize,
-    ) -> Result<PollPush> {
-        if input == 0 {
-            // Build side
-            let local = match local {
-                LocalState::PhysicalNestedLoopJoinBuild(local) => local,
-                other => panic!("invalid local state: {other:?}"),
-            };
-
-            local.batches.push(batch);
-            return Ok(PollPush::Pushed)
-        }
-
-        if input == 1 {
-            // Probe side
-            let local = match local {
-                LocalState::PhysicalNestedLoopJoinProbe(local) => local,
-                other => panic!("invalid local state: {other:?}"),
-            };
-
-            if !local.buffered.is_empty() {
-                // TODO: Do something here to provide a bit of back pressure.
-                // What we do here is probably dependent on the logic we do at
-                // the `PartitionPipeline` level.
-
-                // local.push_waker = Some(cx.waker().clone())
-            }
-
-            if local.all_batches.is_empty() {
-                // Need to see if we're actually ready to to probe.
-                let shared = match global {
-                    GlobalState::PhysicalNestedLoopJoin(global) => global.shared.lock(),
-                    other => panic!("invalid global state: {other:?}"),
-                };
-
-                if shared.num_remaining != 0 {
-                    // Still waiting for build to complete. Register a waker.
-                    shared.probe_side_wakers[partition] = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
-                }
-
-                // Otherwise we need to fill in the local state's copy of the
-                // all the batches.
-                local.all_batches = shared.all_batches.clone(); // TODO: Arc or something.
-
-                // Continue on to actual probe.
-            }
-
-            // Probe!
-            let batches = do_the_join(batch, &local.all_batches)?;
-
-            // Store in partition local buffer.
-            local.buffered.append(batches);
-
-            // Wake up anyone waiting for output.
-            if let Some(waker) = local.pull_waker.take() {
-                waker.wake();
-            }
-
-            return Ok(PollPush::Pushed)
-        }
-
-        Err(Rayexec::Error(new(format!("invalid input index: {input}"))))
-    }
-
-    fn finish(
-        &self,
-        local: &mut LocalState,
-        global: &GlobalState,
-        input: usize,
-        partition: usize
-    ) -> Result<()> {
-        if input == 0 {
-            // Build side
-            let local = match local {
-                LocalState::PhysicalNestedLoopJoinBuild(local) => local,
-                other => panic!("invalid local state: {other:?}"),
-            };
-
-            let shared = match global {
-                GlobalState::PhysicalNestedLoopJoin(global) => global.shared.lock(),
-                other => panic!("invalid global state: {other:?}"),
-            };
-
-            // Flush all of the partition local batches into the global state.
-            shared.all_batches.append(&mut local.batches);
-
-            shared.num_remaining -= 1;
-
-            // Wake up everyone on the probe side if the build is done.
-            // TODO: This might lead to contention on the lock.
-            if shared.num_remaining == 0 {
-                for waker in shared.probe_side_wakers.iter_mut() {
-                    if let Some(waker) = waker.take() {
-                        waker.wake();
-                    }
-                }
-            }
-
-            return Ok(())
-        }
-
-        if input == 1 {
-            // Probe side
-            let local = match local {
-                LocalState::PhysicalNestedLoopJoinProbe(local) => local,
-                other => panic!("invalid local state: {other:?}"),
-            };
-
-            local.input_finished = true;
-
-            if let Some(waker) = local.pull_waker.take() {
-                waker.wake();
-            }
-
-            return Ok(())
-        }
-
-        Err(Rayexec::Error(new(format!("invalid input index: {input}"))))
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        local: &mut LocalState,
-        global: &GlobalState,
-        partition: usize,
-    ) -> Result<PollPull> {
-        let local = match local {
-            LocalState::PhysicalNestedLoopJoinProbe(local) => local,
-            other => panic!("invalid local state: {other:?}"),
-        };
-
-        match local.buffered.pop_front() {
-            Some(batch) => Ok(PollPull::Batch(batch))
-            None => {
-                if local.input_finished {
-                    Ok(PollPull::Exhausted)
-                } else {
-                    local.pull_waker = Some(cx.waker().clone());
-                    Ok(PollPull::Pending)
-                }
-            }
-        }
-    }
-}
-```
-
+The idea was good, but having the state+logic live on the operator itself led to
+a lot synchronization needing to happen across partitions, as well as a
+confusing mix of logica between what was "local" to a partition, and what was
+shared between partitions.
