@@ -1,6 +1,6 @@
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use std::task::{Context, Waker};
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};

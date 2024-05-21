@@ -7,6 +7,7 @@ pub mod project;
 pub mod query_sink;
 pub mod repartition;
 pub mod simple;
+pub mod sort;
 pub mod values;
 
 mod util;
