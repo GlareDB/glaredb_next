@@ -84,26 +84,40 @@ impl PhysicalOperator for PhysicalLimit {
 
         // We're done, no more inputs should arrive.
         if state.remaining_count == 0 {
-            // TODO: Double check that partition pipeline calls
-            // `finalize_push` after receiving this.
+            // When returning `Break`, we do not call `finalize_push`, and
+            // instead the partition pipeline will immediately start to pull
+            // from this operator.
+            state.finished = true;
             return Ok(PollPush::Break);
         }
 
         let batch = if state.remaining_offset > 0 {
+            // Offset greater than the number of rows in this batch. Discard the
+            // batch, and keep asking for more input.
+            if state.remaining_offset >= batch.num_rows() {
+                state.remaining_offset -= batch.num_rows();
+                return Ok(PollPush::NeedsMore);
+            }
+
+            // Otherwise we have to slice the batch at the offset point.
             let count = std::cmp::min(
-                batch.num_rows(),
+                batch.num_rows() - state.remaining_offset,
                 state.remaining_count + state.remaining_offset,
             );
+
             let cols = batch
                 .columns()
                 .iter()
                 .map(|arr| compute::slice::slice(arr.as_ref(), state.remaining_offset, count))
                 .collect::<Result<Vec<_>>>()?;
+
             let batch = Batch::try_new(cols)?;
             state.remaining_offset = 0;
             state.remaining_count -= batch.num_rows();
             batch
         } else if state.remaining_count < batch.num_rows() {
+            // Remaining offset is 0, and input batch is has more rows than we
+            // need, just slice to the right size.
             let cols = batch
                 .columns()
                 .iter()
@@ -113,6 +127,8 @@ impl PhysicalOperator for PhysicalLimit {
             state.remaining_count = 0;
             batch
         } else {
+            // Remaing offset is 0, and input batch has more rows than our
+            // limit, so just use the batch as-is.
             state.remaining_count -= batch.num_rows();
             batch
         };

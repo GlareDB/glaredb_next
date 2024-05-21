@@ -99,9 +99,6 @@ impl<'a> PlanContext<'a> {
             ast::QueryNodeBody::Values(values) => self.plan_values(values)?,
         };
 
-        // ORDER BY
-        // DISTINCT
-
         // Handle LIMIT/OFFSET
         let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
         if let Some(limit_expr) = query.limit.limit {

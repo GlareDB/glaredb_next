@@ -14,6 +14,7 @@ use crate::{
                     NestedLoopJoinProbePartitionState, PhysicalNestedLoopJoin,
                 },
             },
+            limit::PhysicalLimit,
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
             repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
@@ -117,8 +118,8 @@ impl BuildState {
             LogicalOperator::EqualityJoin(join) => self.push_equality_join(conf, join),
             LogicalOperator::Empty => self.push_empty(conf),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
+            LogicalOperator::Limit(limit) => self.push_limit(conf, limit),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
-            // LogicalOperator::Limit(limit) => self.plan_limit(limit),
             // LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
             // LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
             other => unimplemented!("other: {other:?}"),
@@ -169,6 +170,25 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_limit(&mut self, conf: &BuildConfig, limit: operator::Limit) -> Result<()> {
+        self.walk(conf, *limit.input)?;
+
+        let pipeline = self.in_progress_pipeline_mut()?;
+
+        let operator = Arc::new(PhysicalLimit::new(limit.limit, limit.offset));
+        let partition_states: Vec<_> = operator
+            .create_states(pipeline.num_partitions())
+            .into_iter()
+            .map(PartitionState::Limit)
+            .collect();
+
+        // No global state in limit.
+        let operator_state = Arc::new(OperatorState::None);
+        pipeline.push_operator(operator, operator_state, partition_states)?;
 
         Ok(())
     }

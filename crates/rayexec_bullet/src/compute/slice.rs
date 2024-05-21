@@ -41,7 +41,10 @@ pub fn slice_primitive<T: Copy>(
     count: usize,
 ) -> Result<PrimitiveArray<T>> {
     if start + count > arr.len() {
-        return Err(RayexecError::new("Range end out of bounds"));
+        return Err(RayexecError::new(format!(
+            "Range end out of bounds, start: {start}, count: {count}, len: {}",
+            arr.len()
+        )));
     }
 
     let vals = arr.values_iter();
@@ -65,7 +68,10 @@ pub fn slice_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     count: usize,
 ) -> Result<VarlenArray<T, O>> {
     if start + count > arr.len() {
-        return Err(RayexecError::new("Range end out of bounds"));
+        return Err(RayexecError::new(format!(
+            "Range end out of bounds, start: {start}, count: {count}, len: {}",
+            arr.len()
+        )));
     }
 
     let vals = arr.values_iter();
