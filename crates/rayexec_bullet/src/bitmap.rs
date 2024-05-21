@@ -112,6 +112,17 @@ impl Bitmap {
 
         Ok(())
     }
+
+    /// Truncates the bitmap to a given lengths.
+    ///
+    /// If `len` is greater than the current length of the bitmap, nothing is
+    /// done.
+    pub fn truncate(&mut self, len: usize) {
+        if len >= self.len() {
+            return;
+        }
+        self.len = len;
+    }
 }
 
 impl FromIterator<bool> for Bitmap {

@@ -69,6 +69,14 @@ impl BooleanArray {
     pub fn values(&self) -> &Bitmap {
         &self.values
     }
+
+    pub(crate) fn truncate(&mut self, len: usize) {
+        if let Some(validity) = self.validity.as_mut() {
+            validity.truncate(len);
+        }
+        self.values.truncate(len);
+        // TODO: Do we care to truncate the `data` array?
+    }
 }
 
 impl FromIterator<bool> for BooleanArray {

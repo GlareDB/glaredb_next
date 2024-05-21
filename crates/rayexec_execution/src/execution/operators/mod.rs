@@ -2,6 +2,7 @@ pub mod aggregate;
 pub mod empty;
 pub mod filter;
 pub mod join;
+pub mod limit;
 pub mod project;
 pub mod query_sink;
 pub mod repartition;
@@ -24,6 +25,7 @@ use self::join::nl_join::{
     NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
     NestedLoopJoinProbePartitionState,
 };
+use self::limit::LimitPartitionState;
 use self::query_sink::QuerySinkPartitionState;
 use self::repartition::hash::{HashRepartitionOperatorState, HashRepartitionPartitionState};
 use self::repartition::round_robin::{
@@ -46,6 +48,7 @@ pub enum PartitionState {
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
     HashRepartition(HashRepartitionPartitionState),
+    Limit(LimitPartitionState),
     Simple(SimplePartitionState),
     Empty(EmptyPartitionState),
     None,

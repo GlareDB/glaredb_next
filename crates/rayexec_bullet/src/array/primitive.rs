@@ -176,6 +176,13 @@ impl<T> PrimitiveArray<T> {
         &mut self.values
     }
 
+    pub(crate) fn truncate(&mut self, len: usize) {
+        if let Some(validity) = self.validity.as_mut() {
+            validity.truncate(len);
+        }
+        self.values.truncate(len);
+    }
+
     pub fn iter(&self) -> PrimitiveArrayIter<T> {
         PrimitiveArrayIter {
             idx: 0,
