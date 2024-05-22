@@ -1,8 +1,12 @@
 use rayexec_bullet::{
+    array::Array,
     batch::Batch,
+    compute,
     row::encoding::{ComparableRowEncoder, ComparableRows},
 };
 use rayexec_error::{RayexecError, Result};
+
+use super::merge::KWayMerger;
 
 /// A logically sorted batch.
 ///
@@ -11,13 +15,13 @@ use rayexec_error::{RayexecError, Result};
 #[derive(Debug)]
 pub struct KeySortedBatch {
     /// Indices of rows in sort order.
-    sort_indices: Vec<usize>,
+    pub sort_indices: Vec<usize>,
 
     /// Unsorted keys for the batch.
-    keys: ComparableRows,
+    pub keys: ComparableRows,
 
     /// The original unsorted batch.
-    batch: Batch,
+    pub batch: Batch,
 }
 
 #[derive(Debug)]
@@ -30,9 +34,6 @@ pub struct PartitionSortData {
 
     /// Logically sorted batches.
     batches: Vec<KeySortedBatch>,
-
-    /// Desired output batch size.
-    batch_size: usize,
 }
 
 impl PartitionSortData {
@@ -66,5 +67,40 @@ impl PartitionSortData {
         self.batches.push(key_batch);
 
         Ok(())
+    }
+}
+
+/// Holds a reference to a single column across all batches.
+#[derive(Debug)]
+struct ColumnAcrossBatches<'a> {
+    columns: Vec<&'a Array>,
+}
+
+#[derive(Debug)]
+pub struct BatchMerger<'a> {
+    /// All batches represented as columns.
+    columns: Vec<ColumnAcrossBatches<'a>>,
+
+    /// Compute merge indices.
+    merger: KWayMerger<'a>,
+}
+
+impl<'a> BatchMerger<'a> {
+    pub fn next_batch(&mut self, batch_size: usize) -> Result<Option<Batch>> {
+        let indices = match self.merger.next_interleave_indices(batch_size) {
+            Some(indices) => indices,
+            None => return Ok(None),
+        };
+
+        // Build the batch using the computed indices.
+        let mut merged_columns = Vec::with_capacity(self.columns.len());
+        for column in &self.columns {
+            let merged = compute::interleave::interleave(&column.columns, indices)?;
+            merged_columns.push(merged);
+        }
+
+        let batch = Batch::try_new(merged_columns)?;
+
+        Ok(Some(batch))
     }
 }

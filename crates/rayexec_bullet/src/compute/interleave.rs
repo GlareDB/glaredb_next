@@ -1,7 +1,7 @@
 use crate::{
     array::{
         Array, ArrayBuilder, NullArray, OffsetIndex, PrimitiveArray, PrimitiveArrayBuilder,
-        VarlenArray, VarlenArrayBuilder, VarlenType,
+        VarlenArray, VarlenType,
     },
     bitmap::Bitmap,
     compute::macros::collect_arrays_of_type,
