@@ -5,6 +5,9 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 
 /// A logically sorted batch.
+///
+/// Note that this doens't store a sorted batch itself, but instead stores row
+/// indices which would result in a sorted batch.
 #[derive(Debug)]
 pub struct KeySortedBatch {
     /// Indices of rows in sort order.
