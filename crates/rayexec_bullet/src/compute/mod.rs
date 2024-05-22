@@ -5,5 +5,6 @@ pub mod cast;
 pub mod cmp;
 pub mod concat;
 pub mod filter;
+pub mod interleave;
 pub mod slice;
 pub mod take;
