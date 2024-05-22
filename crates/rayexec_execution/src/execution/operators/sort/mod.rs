@@ -1,4 +1,4 @@
-pub mod order_by;
+pub mod sort;
 pub mod top_k;
 
 mod merge;

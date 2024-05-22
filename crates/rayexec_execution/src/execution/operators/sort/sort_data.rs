@@ -1,12 +1,14 @@
+use std::collections::VecDeque;
+
 use rayexec_bullet::{
     array::Array,
     batch::Batch,
     compute,
-    row::encoding::{ComparableRow, ComparableRowEncoder, ComparableRows},
+    row::encoding::{ComparableColumn, ComparableRow, ComparableRowEncoder, ComparableRows},
 };
 use rayexec_error::{RayexecError, Result};
 
-use crate::execution::operators::sort::merge::RowReferenceIter;
+use crate::{execution::operators::sort::merge::RowReferenceIter, expr::PhysicalSortExpression};
 
 use super::merge::KWayMerger;
 
@@ -40,6 +42,25 @@ pub struct PartitionWorkingSortData {
 }
 
 impl PartitionWorkingSortData {
+    pub fn new(exprs: &[PhysicalSortExpression]) -> Self {
+        let order_by = exprs.iter().map(|expr| expr.column).collect();
+        let encoder = ComparableRowEncoder {
+            columns: exprs
+                .iter()
+                .map(|expr| ComparableColumn {
+                    desc: expr.desc,
+                    nulls_first: expr.nulls_first,
+                })
+                .collect(),
+        };
+
+        PartitionWorkingSortData {
+            order_by,
+            encoder,
+            batches: Vec::new(),
+        }
+    }
+
     /// Push a batch into this partition's sort data.
     pub fn push_batch(&mut self, batch: Batch) -> Result<()> {
         let sort_cols = self.sort_columns(&batch)?;
@@ -62,14 +83,16 @@ impl PartitionWorkingSortData {
         Ok(())
     }
 
-    /// Totally sort this partitions data.
-    pub fn try_into_total_sort(self, batch_size: usize) -> Result<PartitionTotalSortData> {
+    /// Try to totally sort all batches collected so far.
+    ///
+    /// This does not update the internal state of `self`.
+    pub fn try_into_total_sort(&self, batch_size: usize) -> Result<PartitionTotalSortData> {
         let num_cols = match self.batches.first() {
             Some(batch) => batch.batch.columns().len(),
             None => {
                 // No batches is valid.
                 return Ok(PartitionTotalSortData {
-                    batches: Vec::new(),
+                    batches: VecDeque::new(),
                 });
             }
         };
@@ -97,20 +120,10 @@ impl PartitionWorkingSortData {
         let merger = BatchMerger {
             columns: cols,
             merger: k_way,
-            batch_size: 1024, // TODO: Configurable.
+            batch_size,
         };
 
-        let mut sorted = Vec::new();
-        for result in merger {
-            let batch = result?;
-            let sort_cols = self.sort_columns(&batch)?;
-            let sort_rows = self.encoder.encode(&sort_cols)?;
-
-            sorted.push(SortedBatch {
-                keys: sort_rows,
-                batch,
-            });
-        }
+        let sorted = merger.collect::<Result<VecDeque<_>>>()?;
 
         Ok(PartitionTotalSortData { batches: sorted })
     }
@@ -132,29 +145,24 @@ impl PartitionWorkingSortData {
     }
 }
 
-/// A physically sorted batch.
-#[derive(Debug)]
-pub struct SortedBatch {
-    keys: ComparableRows,
-    batch: Batch,
-}
-
-impl SortedBatch {
-    pub fn max(&self) -> ComparableRow {
-        self.keys.first().expect("at least one row")
-    }
-
-    pub fn min(&self) -> ComparableRow {
-        self.keys.last().expect("at least one row")
-    }
-}
-
 #[derive(Debug)]
 pub struct PartitionTotalSortData {
     /// Totally sorted batches.
     ///
-    /// batches[0].min >= batches[1].max, batches[1].min >= batches[2].max, etc
-    batches: Vec<SortedBatch>,
+    /// batches[0].last_row >= batches[1].first_row, batches[1].last_row >= batches[2].first_row, etc
+    batches: VecDeque<Batch>,
+}
+
+impl Iterator for PartitionTotalSortData {
+    type Item = Batch;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.batches.pop_front()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.batches.len();
+        (len, Some(len))
+    }
 }
 
 /// Holds a reference to a single column across all batches.
