@@ -16,6 +16,17 @@ impl ComparableRows {
         self.offsets.len() - 1
     }
 
+    pub fn first(&self) -> Option<ComparableRow<'_>> {
+        self.row(0)
+    }
+
+    pub fn last(&self) -> Option<ComparableRow<'_>> {
+        if self.num_rows() == 0 {
+            return None;
+        }
+        self.row(self.num_rows() - 1)
+    }
+
     pub fn row(&self, idx: usize) -> Option<ComparableRow<'_>> {
         if idx > self.num_rows() {
             return None;

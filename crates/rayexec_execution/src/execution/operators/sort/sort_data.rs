@@ -2,7 +2,7 @@ use rayexec_bullet::{
     array::Array,
     batch::Batch,
     compute,
-    row::encoding::{ComparableRowEncoder, ComparableRows},
+    row::encoding::{ComparableRow, ComparableRowEncoder, ComparableRows},
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -42,17 +42,7 @@ pub struct PartitionWorkingSortData {
 impl PartitionWorkingSortData {
     /// Push a batch into this partition's sort data.
     pub fn push_batch(&mut self, batch: Batch) -> Result<()> {
-        let sort_cols = self
-            .order_by
-            .iter()
-            .map(|idx| {
-                batch
-                    .column(*idx)
-                    .map(|col| col.as_ref())
-                    .ok_or_else(|| RayexecError::new("Missing column"))
-            })
-            .collect::<Result<Vec<_>>>()?;
-
+        let sort_cols = self.sort_columns(&batch)?;
         let sort_rows = self.encoder.encode(&sort_cols)?;
 
         // Produce the indices that would result in a sorted batches. We can use
@@ -110,9 +100,52 @@ impl PartitionWorkingSortData {
             batch_size: 1024, // TODO: Configurable.
         };
 
-        let sorted = merger.collect::<Result<Vec<_>>>()?;
+        let mut sorted = Vec::new();
+        for result in merger {
+            let batch = result?;
+            let sort_cols = self.sort_columns(&batch)?;
+            let sort_rows = self.encoder.encode(&sort_cols)?;
+
+            sorted.push(SortedBatch {
+                keys: sort_rows,
+                batch,
+            });
+        }
 
         Ok(PartitionTotalSortData { batches: sorted })
+    }
+
+    /// Get the sort columns for a batch.
+    fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array>> {
+        let sort_cols = self
+            .order_by
+            .iter()
+            .map(|idx| {
+                batch
+                    .column(*idx)
+                    .map(|col| col.as_ref())
+                    .ok_or_else(|| RayexecError::new("Missing column"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(sort_cols)
+    }
+}
+
+/// A physically sorted batch.
+#[derive(Debug)]
+pub struct SortedBatch {
+    keys: ComparableRows,
+    batch: Batch,
+}
+
+impl SortedBatch {
+    pub fn max(&self) -> ComparableRow {
+        self.keys.first().expect("at least one row")
+    }
+
+    pub fn min(&self) -> ComparableRow {
+        self.keys.last().expect("at least one row")
     }
 }
 
@@ -120,8 +153,8 @@ impl PartitionWorkingSortData {
 pub struct PartitionTotalSortData {
     /// Totally sorted batches.
     ///
-    /// batches[0] > batches[1], batches[1] > batches[2], etc
-    batches: Vec<Batch>,
+    /// batches[0].min >= batches[1].max, batches[1].min >= batches[2].max, etc
+    batches: Vec<SortedBatch>,
 }
 
 /// Holds a reference to a single column across all batches.
