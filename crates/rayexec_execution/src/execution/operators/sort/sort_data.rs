@@ -6,6 +6,8 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 
+use crate::execution::operators::sort::merge::RowReferenceIter;
+
 use super::merge::KWayMerger;
 
 /// A logically sorted batch.
@@ -24,8 +26,9 @@ pub struct KeySortedBatch {
     pub batch: Batch,
 }
 
+/// Holds working data for partition-local sorting.
 #[derive(Debug)]
-pub struct PartitionSortData {
+pub struct PartitionWorkingSortData {
     /// Columns we're ordering on.
     order_by: Vec<usize>,
 
@@ -36,7 +39,7 @@ pub struct PartitionSortData {
     batches: Vec<KeySortedBatch>,
 }
 
-impl PartitionSortData {
+impl PartitionWorkingSortData {
     /// Push a batch into this partition's sort data.
     pub fn push_batch(&mut self, batch: Batch) -> Result<()> {
         let sort_cols = self
@@ -68,6 +71,57 @@ impl PartitionSortData {
 
         Ok(())
     }
+
+    /// Totally sort this partitions data.
+    pub fn try_into_total_sort(self, batch_size: usize) -> Result<PartitionTotalSortData> {
+        let num_cols = match self.batches.first() {
+            Some(batch) => batch.batch.columns().len(),
+            None => {
+                // No batches is valid.
+                return Ok(PartitionTotalSortData {
+                    batches: Vec::new(),
+                });
+            }
+        };
+
+        // Pull out all columns to make interleaving easier.
+        let mut cols: Vec<ColumnAcrossBatches> = Vec::with_capacity(num_cols);
+        for idx in 0..num_cols {
+            let columns = self
+                .batches
+                .iter()
+                .map(|batch| batch.batch.column(idx).expect("column to exist").as_ref())
+                .collect();
+            cols.push(ColumnAcrossBatches { columns })
+        }
+
+        // Create row iters for each batch, working in sorted order.
+        let iters: Vec<_> = self
+            .batches
+            .iter()
+            .enumerate()
+            .map(|(idx, batch)| RowReferenceIter::new(idx, &batch.sort_indices, &batch.keys))
+            .collect();
+
+        let k_way = KWayMerger::new(iters);
+        let merger = BatchMerger {
+            columns: cols,
+            merger: k_way,
+            batch_size: 1024, // TODO: Configurable.
+        };
+
+        let sorted = merger.collect::<Result<Vec<_>>>()?;
+
+        Ok(PartitionTotalSortData { batches: sorted })
+    }
+}
+
+#[derive(Debug)]
+pub struct PartitionTotalSortData {
+    /// Totally sorted batches.
+    ///
+    /// batches[0] > batches[1], batches[1] > batches[2], etc
+    batches: Vec<Batch>,
 }
 
 /// Holds a reference to a single column across all batches.
@@ -77,17 +131,20 @@ struct ColumnAcrossBatches<'a> {
 }
 
 #[derive(Debug)]
-pub struct BatchMerger<'a> {
+struct BatchMerger<'a> {
     /// All batches represented as columns.
     columns: Vec<ColumnAcrossBatches<'a>>,
 
     /// Compute merge indices.
     merger: KWayMerger<'a>,
+
+    /// Desired batch size.
+    batch_size: usize,
 }
 
 impl<'a> BatchMerger<'a> {
-    pub fn next_batch(&mut self, batch_size: usize) -> Result<Option<Batch>> {
-        let indices = match self.merger.next_interleave_indices(batch_size) {
+    fn next_batch(&mut self) -> Result<Option<Batch>> {
+        let indices = match self.merger.next_interleave_indices(self.batch_size) {
             Some(indices) => indices,
             None => return Ok(None),
         };
@@ -102,5 +159,13 @@ impl<'a> BatchMerger<'a> {
         let batch = Batch::try_new(merged_columns)?;
 
         Ok(Some(batch))
+    }
+}
+
+impl<'a> Iterator for BatchMerger<'a> {
+    type Item = Result<Batch>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_batch().transpose()
     }
 }

@@ -6,11 +6,11 @@ use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
 
-use super::sort_data::PartitionSortData;
+use super::sort_data::PartitionWorkingSortData;
 
 #[derive(Debug)]
 pub struct OrderByPartitionState {
-    sort_data: PartitionSortData,
+    sort_data: PartitionWorkingSortData,
 }
 
 #[derive(Debug)]

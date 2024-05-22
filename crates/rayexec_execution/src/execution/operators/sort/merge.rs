@@ -48,6 +48,7 @@ impl<'a> KWayMerger<'a> {
     /// Get the next set of interleave indices which would produce a totally
     /// ordered batch.
     pub fn next_interleave_indices(&mut self, max_batch_size: usize) -> Option<&[(usize, usize)]> {
+        self.indices_buf.reserve(max_batch_size);
         self.indices_buf.clear();
 
         for _idx in 0..max_batch_size {
@@ -79,6 +80,18 @@ pub struct RowReferenceIter<'a> {
     sort_idx: usize,
     sort_indices: &'a [usize],
     rows: &'a ComparableRows,
+}
+
+impl<'a> RowReferenceIter<'a> {
+    pub fn new(batch_idx: usize, sort_indices: &'a [usize], rows: &'a ComparableRows) -> Self {
+        debug_assert_eq!(sort_indices.len(), rows.num_rows());
+        RowReferenceIter {
+            batch_idx,
+            sort_idx: 0,
+            sort_indices,
+            rows,
+        }
+    }
 }
 
 impl<'a> Iterator for RowReferenceIter<'a> {
