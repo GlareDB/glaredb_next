@@ -186,12 +186,9 @@ where
         VarlenArrayIter { idx: 0, arr: self }
     }
 
-    pub(crate) fn truncate(&mut self, len: usize) {
-        if let Some(validity) = self.validity.as_mut() {
-            validity.truncate(len);
-        }
-        self.offsets.truncate(len);
-        // TODO: Do we care to truncate the `data` array?
+    /// Get a reference to the raw data buffer.
+    pub(crate) fn data(&self) -> &PrimitiveStorage<u8> {
+        &self.data
     }
 
     pub(crate) fn put_validity(&mut self, validity: Bitmap) {
