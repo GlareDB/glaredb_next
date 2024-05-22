@@ -33,6 +33,7 @@ use self::repartition::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
+use self::sort::order_by::OrderByPartitionState;
 use self::values::ValuesPartitionState;
 
 /// States local to a partition within a single operator.
@@ -49,6 +50,7 @@ pub enum PartitionState {
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
     HashRepartition(HashRepartitionPartitionState),
+    OrderBy(OrderByPartitionState),
     Limit(LimitPartitionState),
     Simple(SimplePartitionState),
     Empty(EmptyPartitionState),

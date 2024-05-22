@@ -235,6 +235,8 @@ impl ComparableRowEncoder {
         Ok(ComparableRows { data, offsets })
     }
 
+    /// Compute the size of the data buffer we'll need for storing all encoded
+    /// rows.
     fn compute_data_size(&self, columns: &[&Array]) -> usize {
         let mut size = 0;
         for arr in columns {
@@ -271,6 +273,9 @@ impl ComparableRowEncoder {
         size
     }
 
+    /// Encodes a variable length array into `buf` starting at `start`.
+    ///
+    /// This should return the new offset to write to for the next value.
     fn encode_varlen<T: ComparableEncode + VarlenType + ?Sized, O: OffsetIndex>(
         col: &ComparableColumn,
         arr: &VarlenArray<T, O>,
@@ -299,6 +304,9 @@ impl ComparableRowEncoder {
         }
     }
 
+    /// Encodes a primitive length array into `buf` starting at `start`.
+    ///
+    /// This should return the new offset to write to for the next value.
     fn encode_primitive<T: ComparableEncode>(
         col: &ComparableColumn,
         arr: &PrimitiveArray<T>,
@@ -371,6 +379,7 @@ comparable_encode_signed!(i64);
 
 impl ComparableEncode for f32 {
     fn encode(&self, buf: &mut [u8]) {
+        // Adapted from <https://github.com/rust-lang/rust/blob/791adf759cc065316f054961875052d5bc03e16c/library/core/src/num/f32.rs#L1456-L1485>
         let bits = self.to_bits() as i32;
         let v = bits ^ (((bits >> 31) as u32) >> 1) as i32;
         v.encode(buf)
@@ -379,6 +388,7 @@ impl ComparableEncode for f32 {
 
 impl ComparableEncode for f64 {
     fn encode(&self, buf: &mut [u8]) {
+        // Adapted from <https://github.com/rust-lang/rust/blob/791adf759cc065316f054961875052d5bc03e16c/library/core/src/num/f32.rs#L1456-L1485>
         let bits = self.to_bits() as i64;
         let v = bits ^ (((bits >> 31) as u64) >> 1) as i64;
         v.encode(buf)

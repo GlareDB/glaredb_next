@@ -6,8 +6,12 @@ use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
 
+use super::sort_data::PartitionSortData;
+
 #[derive(Debug)]
-pub struct OrderByPartitionState {}
+pub struct OrderByPartitionState {
+    sort_data: PartitionSortData,
+}
 
 #[derive(Debug)]
 pub struct OrderByOperatorState {}
@@ -33,7 +37,16 @@ impl PhysicalOperator for PhysicalOrderBy {
         _operator_state: &OperatorState,
         batch: Batch,
     ) -> Result<PollPush> {
-        unimplemented!()
+        let state = match partition_state {
+            PartitionState::OrderBy(state) => state,
+            other => panic!("invalid partition state: {other:?}"),
+        };
+
+        state.sort_data.push_batch(batch)?;
+
+        // TODO: When merge?
+
+        Ok(PollPush::NeedsMore)
     }
 
     fn finalize_push(
@@ -41,7 +54,14 @@ impl PhysicalOperator for PhysicalOrderBy {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<()> {
-        unimplemented!()
+        let state = match partition_state {
+            PartitionState::OrderBy(state) => state,
+            other => panic!("invalid partition state: {other:?}"),
+        };
+
+        // TODO: Merge here?
+
+        Ok(())
     }
 
     fn poll_pull(
@@ -50,6 +70,13 @@ impl PhysicalOperator for PhysicalOrderBy {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
+        let state = match partition_state {
+            PartitionState::OrderBy(state) => state,
+            other => panic!("invalid partition state: {other:?}"),
+        };
+
+        // TODO: Or maybe here?
+
         unimplemented!()
     }
 }
