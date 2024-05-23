@@ -2,10 +2,7 @@ use rayexec_bullet::{
     batch::Batch,
     row::encoding::{ComparableRow, ComparableRows},
 };
-
-pub trait SortedBatch {
-    fn get_row(&self, row_idx: usize) -> Option<ComparableRow>;
-}
+use std::{cmp::Ordering, sync::Arc};
 
 /// A batch that's been physically sorted.
 ///
@@ -20,9 +17,45 @@ pub struct PhysicallySortedBatch {
     pub keys: ComparableRows,
 }
 
-impl SortedBatch for PhysicallySortedBatch {
-    fn get_row(&self, row_idx: usize) -> Option<ComparableRow> {
-        self.keys.row(row_idx)
+impl PhysicallySortedBatch {
+    pub fn into_batch_and_iter(self, input_idx: usize) -> (Batch, SortedKeysIter) {
+        let iter = SortedKeysIter {
+            input_idx,
+            row_idx: 0,
+            keys: Arc::new(self.keys),
+        };
+
+        (self.batch, iter)
+    }
+}
+
+#[derive(Debug)]
+pub struct SortedKeysIter {
+    input_idx: usize,
+    row_idx: usize,
+    keys: Arc<ComparableRows>,
+}
+
+impl Iterator for SortedKeysIter {
+    type Item = RowReference;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.row_idx >= self.keys.num_rows() {
+            return None;
+        }
+        let row_idx = self.row_idx;
+        self.row_idx += 1;
+
+        Some(RowReference {
+            input_idx: self.input_idx,
+            rows: self.keys.clone(),
+            row_idx,
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.keys.num_rows() - self.row_idx;
+        (len, Some(len))
     }
 }
 
@@ -45,9 +78,91 @@ pub struct IndexSortedBatch {
     pub batch: Batch,
 }
 
-impl SortedBatch for IndexSortedBatch {
-    fn get_row(&self, row_idx: usize) -> Option<ComparableRow> {
-        let idx = self.sort_indices.get(row_idx)?;
-        self.keys.row(*idx)
+impl IndexSortedBatch {
+    pub fn into_batch_and_iter(self, input_idx: usize) -> (Batch, SortedIndicesIter) {
+        let iter = SortedIndicesIter {
+            input_idx,
+            indices: self.sort_indices,
+            idx: 0,
+            keys: Arc::new(self.keys),
+        };
+
+        (self.batch, iter)
+    }
+}
+
+#[derive(Debug)]
+pub struct SortedIndicesIter {
+    input_idx: usize,
+    indices: Vec<usize>,
+    idx: usize,
+    keys: Arc<ComparableRows>,
+}
+
+impl Iterator for SortedIndicesIter {
+    type Item = RowReference;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.indices.len() {
+            return None;
+        }
+
+        let row_idx = self.indices[self.idx];
+        self.idx += 1;
+
+        Some(RowReference {
+            input_idx: self.input_idx,
+            rows: self.keys.clone(),
+            row_idx,
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.indices.len() - self.idx;
+        (len, Some(len))
+    }
+}
+
+/// A reference to row in a sorted batch.
+///
+/// The `Ord` and `Eq` implementations only takes into account the row key, and
+/// not the batch index or row index. This lets us shove these references into a
+/// heap containing references to multiple batches, letting us getting the total
+/// order of all batches.
+#[derive(Debug)]
+pub struct RowReference {
+    /// Index of the input this reference is for.
+    pub input_idx: usize,
+
+    /// Index of the row inside the batch this reference is for.
+    pub row_idx: usize,
+
+    /// Reference to the comparable rows.
+    pub rows: Arc<ComparableRows>,
+}
+
+impl RowReference {
+    fn row(&self) -> ComparableRow {
+        self.rows.row(self.row_idx).expect("row to exist")
+    }
+}
+
+impl PartialEq for RowReference {
+    fn eq(&self, other: &Self) -> bool {
+        self.row() == other.row()
+    }
+}
+
+impl Eq for RowReference {}
+
+impl PartialOrd for RowReference {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.row().partial_cmp(&other.row())
+    }
+}
+
+impl Ord for RowReference {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.row().cmp(&other.row())
     }
 }

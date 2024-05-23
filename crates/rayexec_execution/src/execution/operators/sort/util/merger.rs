@@ -1,11 +1,8 @@
-use rayexec_bullet::{
-    batch::Batch,
-    row::encoding::{ComparableRow, ComparableRows},
-};
-use rayexec_error::{RayexecError, Result};
-use std::{cmp::Ordering, collections::BinaryHeap, rc::Rc};
+use rayexec_bullet::batch::Batch;
+use rayexec_error::Result;
+use std::collections::BinaryHeap;
 
-use super::accumulator::IndicesAccumulator;
+use super::{accumulator::IndicesAccumulator, sorted_batch::RowReference};
 
 #[derive(Debug)]
 pub enum MergeResult {
@@ -29,8 +26,7 @@ enum IterState<I> {
     /// Normal state, we just need to iterate.
     Iterator(I),
 
-    /// Still to initialize the iterator. If we reach this state when attempting
-    /// to merge, we'll error. That indicates a programmer bug.
+    /// Still to initialize the iterator.
     NeedsInitialize,
 
     /// Input is finished, we don't need to account for this iterator anymore.
@@ -58,6 +54,11 @@ pub struct KWayMerger<I> {
     ///
     /// None indicates no more batches for the input.
     row_reference_iters: Vec<IterState<I>>,
+
+    /// If we're needing additional input.
+    ///
+    /// This is for debugging only.
+    needs_input: bool,
 }
 
 impl<I> KWayMerger<I>
@@ -71,7 +72,12 @@ where
             row_reference_iters: (0..num_inputs)
                 .map(|_| IterState::NeedsInitialize)
                 .collect(),
+            needs_input: false,
         }
+    }
+
+    pub fn num_inputs(&self) -> usize {
+        self.row_reference_iters.len()
     }
 
     /// Push a batch and iterator for an input.
@@ -79,6 +85,7 @@ where
     /// This sets the iterator as initialized, and if all other iterators have
     /// been initialized, merging can proceed.
     pub fn push_batch_for_input(&mut self, input: usize, batch: Batch, iter: I) {
+        self.needs_input = false;
         self.acc.push_input_batch(input, batch);
         self.row_reference_iters[input] = IterState::Iterator(iter);
     }
@@ -88,6 +95,7 @@ where
     /// During merge, there will be no attempts to continue to read rows for
     /// this partition.
     pub fn input_finished(&mut self, input: usize) {
+        self.needs_input = false;
         self.row_reference_iters[input] = IterState::Finished;
     }
 
@@ -95,10 +103,12 @@ where
     /// `batch_size`.
     ///
     /// If one of the inputs runs out of rows, the index of the input will be
-    /// returned. `push_batch_for_input` or `input_finished` needs to be called
-    /// before trying to continue the merge, otherwise no progress will be made.
+    /// returned. `push_batch_for_input` or `input_finished` should be called
+    /// before trying to continue the merge.
     pub fn try_merge(&mut self, batch_size: usize) -> Result<MergeResult> {
         let remaining = batch_size - self.acc.len();
+
+        assert!(!self.needs_input, "Additional input needed");
 
         for _ in 0..remaining {
             // TODO: If the heap only contains a single row reference, we know
@@ -118,7 +128,8 @@ where
                     None => return Ok(MergeResult::NeedsInput(reference.input_idx)),
                 },
                 IterState::NeedsInitialize => {
-                    return Err(RayexecError::new("Reached uninitialized iterator"))
+                    self.needs_input = true;
+                    return Ok(MergeResult::NeedsInput(reference.input_idx));
                 }
                 IterState::Finished => (), // Just continue. No more batches from this input.
             }
@@ -128,49 +139,5 @@ where
             Some(batch) => Ok(MergeResult::Batch(batch)),
             None => Ok(MergeResult::Exhausted),
         }
-    }
-}
-
-/// A reference to row in a sorted batch.
-///
-/// The `Ord` and `Eq` implementations only takes into account the row key, and
-/// not the batch index or row index. This lets us shove these references into a
-/// heap containing references to multiple batches, letting us getting the total
-/// order of all batches.
-#[derive(Debug)]
-struct RowReference {
-    /// Index of the input this reference is for.
-    input_idx: usize,
-
-    /// Index of the row inside the batch this reference is for.
-    row_idx: usize,
-
-    /// Reference to the comparable rows.
-    rows: Rc<ComparableRows>,
-}
-
-impl RowReference {
-    fn row(&self) -> ComparableRow {
-        self.rows.row(self.row_idx).expect("row to exist")
-    }
-}
-
-impl PartialEq for RowReference {
-    fn eq(&self, other: &Self) -> bool {
-        self.row() == other.row()
-    }
-}
-
-impl Eq for RowReference {}
-
-impl PartialOrd for RowReference {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.row().partial_cmp(&other.row())
-    }
-}
-
-impl Ord for RowReference {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.row().cmp(&other.row())
     }
 }

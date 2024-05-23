@@ -9,7 +9,7 @@ use crate::expr::PhysicalSortExpression;
 
 /// Extract sort keys from batches.
 #[derive(Debug)]
-pub struct SortKeysExractor {
+pub struct SortKeysExtractor {
     /// Columns that make up the sort key.
     order_by: Vec<usize>,
 
@@ -17,7 +17,7 @@ pub struct SortKeysExractor {
     encoder: ComparableRowEncoder,
 }
 
-impl SortKeysExractor {
+impl SortKeysExtractor {
     pub fn new(exprs: &[PhysicalSortExpression]) -> Self {
         let order_by = exprs.iter().map(|expr| expr.column).collect();
         let encoder = ComparableRowEncoder {
@@ -30,7 +30,7 @@ impl SortKeysExractor {
                 .collect(),
         };
 
-        SortKeysExractor { order_by, encoder }
+        SortKeysExtractor { order_by, encoder }
     }
 
     /// Get the sort keys for the batch as rows.
