@@ -6,7 +6,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::task::{Context, Waker};
 
-use super::sort_data::{PartitionTotalSortData, PartitionWorkingSortData};
+use super::util::sort_data::{PartitionTotalSortData, PartitionWorkingSortData};
 
 #[derive(Debug)]
 pub enum SortPartitionState {

@@ -33,6 +33,9 @@ use self::repartition::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
+use self::sort::merge_sorted::{
+    MergeSortedOperatorState, MergeSortedPullPartitionState, MergeSortedPushPartitionState,
+};
 use self::sort::sort::SortPartitionState;
 use self::values::ValuesPartitionState;
 
@@ -50,6 +53,8 @@ pub enum PartitionState {
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
     HashRepartition(HashRepartitionPartitionState),
+    MergeSortedPush(MergeSortedPushPartitionState),
+    MergeSortedPull(MergeSortedPullPartitionState),
     Sort(SortPartitionState),
     Limit(LimitPartitionState),
     Simple(SimplePartitionState),
@@ -58,7 +63,7 @@ pub enum PartitionState {
 }
 
 /// A global state across all partitions in an operator.
-// Current size: 72 bytes
+// Current size: 112 bytes
 #[derive(Debug)]
 pub enum OperatorState {
     HashAggregate(HashAggregateOperatorState),
@@ -66,6 +71,7 @@ pub enum OperatorState {
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
+    MergeSorted(MergeSortedOperatorState),
     None,
 }
 
