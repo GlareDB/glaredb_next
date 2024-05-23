@@ -12,6 +12,12 @@ use crate::{execution::operators::sort::merge::RowReferenceIter, expr::PhysicalS
 
 use super::merge::KWayMerger;
 
+#[derive(Debug)]
+pub struct BatchAndKeys {
+    batch: Batch,
+    keys: ComparableRows,
+}
+
 /// A logically sorted batch.
 ///
 /// Note that this doens't store a sorted batch itself, but instead stores row
