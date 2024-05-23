@@ -8,7 +8,38 @@ use std::{cmp::Ordering, collections::BinaryHeap, rc::Rc};
 use super::accumulator::IndicesAccumulator;
 
 #[derive(Debug)]
-pub struct KWayMerger {
+pub enum MergeResult {
+    /// We have a merged batch.
+    ///
+    /// Nothing else needed before the next call to `try_merge`.
+    Batch(Batch),
+
+    /// Need to push a new batch for the input at the given index.
+    ///
+    /// `push_batch_for_input` should be called before the next call to
+    /// `try_merge`.
+    NeedsInput(usize),
+
+    /// No more outputs will be produced.
+    Exhausted,
+}
+
+#[derive(Debug)]
+enum IterState<I> {
+    /// Normal state, we just need to iterate.
+    Iterator(I),
+
+    /// Still to initialize the iterator. If we reach this state when attempting
+    /// to merge, we'll error. That indicates a programmer bug.
+    NeedsInitialize,
+
+    /// Input is finished, we don't need to account for this iterator anymore.
+    Finished,
+}
+
+/// Merge k inputs into totally sorted outputs.
+#[derive(Debug)]
+pub struct KWayMerger<I> {
     /// Accumulator for the interleave indices.
     acc: IndicesAccumulator,
 
@@ -19,11 +50,84 @@ pub struct KWayMerger {
     /// is popped, the next row reference for that same batch should be pushed
     /// onto the heap.
     heap: BinaryHeap<RowReference>,
+
+    /// Iterators for getting row references. This iterator should return rows
+    /// in order.
+    ///
+    /// Indexed by input idx.
+    ///
+    /// None indicates no more batches for the input.
+    row_reference_iters: Vec<IterState<I>>,
 }
 
-impl KWayMerger {
-    pub fn try_merge(&mut self, batch_size: usize) -> Result<Batch> {
-        unimplemented!()
+impl<I> KWayMerger<I>
+where
+    I: Iterator<Item = RowReference>,
+{
+    pub fn new(num_inputs: usize) -> Self {
+        KWayMerger {
+            acc: IndicesAccumulator::new(num_inputs),
+            heap: BinaryHeap::with_capacity(num_inputs),
+            row_reference_iters: (0..num_inputs)
+                .map(|_| IterState::NeedsInitialize)
+                .collect(),
+        }
+    }
+
+    /// Push a batch and iterator for an input.
+    ///
+    /// This sets the iterator as initialized, and if all other iterators have
+    /// been initialized, merging can proceed.
+    pub fn push_batch_for_input(&mut self, input: usize, batch: Batch, iter: I) {
+        self.acc.push_input_batch(input, batch);
+        self.row_reference_iters[input] = IterState::Iterator(iter);
+    }
+
+    /// Marks an input as finished.
+    ///
+    /// During merge, there will be no attempts to continue to read rows for
+    /// this partition.
+    pub fn input_finished(&mut self, input: usize) {
+        self.row_reference_iters[input] = IterState::Finished;
+    }
+
+    /// Try to merge the inputs, attempting to create a batch of size
+    /// `batch_size`.
+    ///
+    /// If one of the inputs runs out of rows, the index of the input will be
+    /// returned. `push_batch_for_input` or `input_finished` needs to be called
+    /// before trying to continue the merge, otherwise no progress will be made.
+    pub fn try_merge(&mut self, batch_size: usize) -> Result<MergeResult> {
+        let remaining = batch_size - self.acc.len();
+
+        for _ in 0..remaining {
+            // TODO: If the heap only contains a single row reference, we know
+            // that there's only one batch we'll be pulling from. We should just
+            // short circuit in that case.
+
+            let reference = match self.heap.pop() {
+                Some(r) => r,
+                None => break, // Heap empty, we're done. Break and try to build.
+            };
+
+            self.acc.append_row_to_indices(reference.input_idx);
+
+            match &mut self.row_reference_iters[reference.input_idx] {
+                IterState::Iterator(iter) => match iter.next() {
+                    Some(reference) => self.heap.push(reference),
+                    None => return Ok(MergeResult::NeedsInput(reference.input_idx)),
+                },
+                IterState::NeedsInitialize => {
+                    return Err(RayexecError::new("Reached uninitialized iterator"))
+                }
+                IterState::Finished => (), // Just continue. No more batches from this input.
+            }
+        }
+
+        match self.acc.build()? {
+            Some(batch) => Ok(MergeResult::Batch(batch)),
+            None => Ok(MergeResult::Exhausted),
+        }
     }
 }
 
@@ -35,8 +139,8 @@ impl KWayMerger {
 /// order of all batches.
 #[derive(Debug)]
 struct RowReference {
-    /// Index of the batch this reference is for.
-    batch_idx: usize,
+    /// Index of the input this reference is for.
+    input_idx: usize,
 
     /// Index of the row inside the batch this reference is for.
     row_idx: usize,

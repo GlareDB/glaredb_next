@@ -25,14 +25,27 @@ pub struct IndicesAccumulator {
 }
 
 impl IndicesAccumulator {
-    /// Push a new batch for a partition.
+    pub fn new(num_inputs: usize) -> Self {
+        IndicesAccumulator {
+            batches: Vec::new(),
+            states: (0..num_inputs)
+                .map(|_| InputState {
+                    batch_idx: 0,
+                    row_idx: 0,
+                })
+                .collect(),
+            indices: Vec::new(),
+        }
+    }
+
+    /// Push a new batch for an input.
     ///
-    /// The partition's state will be updated to point to the beginning of this
-    /// batch (making any previous batches pushed for this partion unreachable).
-    pub fn push_partition_batch(&mut self, partition: usize, batch: Batch) {
+    /// The inputs's state will be updated to point to the beginning of this
+    /// batch (making any previous batches pushed for this input unreachable).
+    pub fn push_input_batch(&mut self, input: usize, batch: Batch) {
         let idx = self.states.len();
-        self.batches.push((partition, batch));
-        self.states[partition] = InputState {
+        self.batches.push((input, batch));
+        self.states[input] = InputState {
             batch_idx: idx,
             row_idx: 0,
         };
@@ -45,6 +58,10 @@ impl IndicesAccumulator {
         let row = state.row_idx;
         state.row_idx += 1;
         self.indices.push((state.batch_idx, row))
+    }
+
+    pub fn len(&self) -> usize {
+        self.indices.len()
     }
 
     /// Build a batch from the accumulated interleave indices.
