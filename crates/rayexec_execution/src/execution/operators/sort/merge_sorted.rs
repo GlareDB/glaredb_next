@@ -1,19 +1,13 @@
 use crate::{
-    execution::operators::{
-        sort::util::k_way_merge::KWayMergeExhaustBehavior, OperatorState, PartitionState,
-        PhysicalOperator, PollPull, PollPush,
-    },
+    execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
     expr::PhysicalSortExpression,
 };
 use parking_lot::Mutex;
-use rayexec_bullet::{batch::Batch, row::encoding::ComparableRows};
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::task::{Context, Waker};
 
-use super::util::{
-    k_way_merge::{RestartableKWayState, SortedBatch},
-    sort_keys::SortKeysExractor,
-};
+use super::util::{sort_keys::SortKeysExractor, sorted_batch::PhysicallySortedBatch};
 
 /// Partition state on the push side.
 #[derive(Debug)]
@@ -26,13 +20,20 @@ pub struct MergeSortedPushPartitionState {
 /// Partition state on the pull side.
 #[derive(Debug)]
 pub struct MergeSortedPullPartitionState {
-    /// Inputs that will be merged.
-    inputs: Vec<PullInput>,
+    /// Batches indexed by input partition idx.
+    ///
+    /// If None and not finished, the global state needs to be checked to get
+    /// the next batch for the partition.
+    batches: Vec<Option<PhysicallySortedBatch>>,
 
-    /// State stored between pulls to pick up where we left on from the previous
-    /// merge.
-    merge_state: RestartableKWayState,
-    // TODO: `limit` for use with top k
+    /// Finished bools for each input partition.
+    finished: Vec<bool>,
+
+    /// Row states for each partition.
+    ///
+    /// These are passed into the k-way merger to allow continuing to scan
+    /// partially scanned batches.
+    row_states: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -40,7 +41,7 @@ struct PullInput {
     /// Input batch that will be part of the merge.
     ///
     /// If None and input not finished, the global state needs to be checked.
-    batch: Option<SortedBatch>,
+    batch: Option<PhysicallySortedBatch>,
 
     /// If the input partition is finished.
     finished: bool,
@@ -56,7 +57,7 @@ struct SharedGlobalState {
     /// Batches from the input partitions.
     ///
     /// Indexed by input partition_idx.
-    batches: Vec<Option<SortedBatch>>,
+    batches: Vec<Option<PhysicallySortedBatch>>,
 
     /// If input partitions are finished.
     ///
@@ -118,10 +119,8 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
             return Ok(PollPush::Pending(batch));
         }
 
-        let sorted = SortedBatch {
-            batch,
-            keys: self.extractor.sort_keys(&batch)?,
-        };
+        let keys = self.extractor.sort_keys(&batch)?;
+        let sorted = PhysicallySortedBatch { batch, keys };
         shared.batches[state.partition_idx] = Some(sorted);
 
         // Wake up the pull side if its waiting on this partition.
@@ -180,7 +179,7 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
 
         // Check that we have batches from all inputs. If we do, we can avoid
         // taking a lock on the global state.
-        if state
+        if !state
             .inputs
             .iter()
             .all(|input| input.batch.is_some() || input.finished)
@@ -192,16 +191,16 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
                 other => panic!("invalid operator state: {other:?}"),
             };
 
-            for (input_idx, input) in state.inputs.iter().enumerate() {
+            for (input_idx, input) in state.inputs.iter_mut().enumerate() {
                 if input.batch.is_some() || input.finished {
                     continue;
                 }
 
                 match shared.batches[input_idx].take() {
-                    Some(batch) => state.inputs[input_idx].batch = Some(batch),
+                    Some(batch) => input.batch = Some(batch),
                     None => {
                         if shared.finished[input_idx] {
-                            state.inputs[input_idx].finished = true;
+                            input.finished = true;
                             // Continue, we have other batches to check.
                         } else {
                             // Batch not yet available for this input partition.
@@ -223,16 +222,16 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
                     None
                 } else {
                     // This is done above.
-                    Some(&input.batch.expect("batch to exist"))
+                    Some(input.batch.as_ref().expect("batch to exist"))
                 }
             })
             .collect();
 
-        let mut merger = state.merge_state.create_merger(batches)?;
-        let indices = match merger.interleave_indices(KWayMergeExhaustBehavior::Break, 1024) {
-            Some(indices) => indices,
-            None => return Ok(PollPull::Exhausted),
-        };
+        // let mut merger = state.merge_state.create_merger(batches)?;
+        // let indices = match merger.interleave_indices(KWayMergeExhaustBehavior::Break, 1024) {
+        //     Some(indices) => indices,
+        //     None => return Ok(PollPull::Exhausted),
+        // };
 
         // let mut merged_columns = Vec::with_capacity(self.columns.len());
         // for column in &self.columns {

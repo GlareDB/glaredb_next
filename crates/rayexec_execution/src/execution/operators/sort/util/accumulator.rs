@@ -1,0 +1,107 @@
+use rayexec_bullet::{batch::Batch, compute};
+use rayexec_error::{RayexecError, Result};
+
+/// Tracks the state per input into the merge.
+#[derive(Debug, Clone)]
+struct InputState {
+    /// Index of the batch.
+    batch_idx: usize,
+
+    /// Index of the row inside the batch.
+    row_idx: usize,
+}
+
+/// Accumulate interleave indices across batches from multiple inputs.
+#[derive(Debug)]
+pub struct IndicesAccumulator {
+    /// Batches we're using for the build.
+    batches: Vec<(usize, Batch)>,
+
+    /// States for each input we're reading from.
+    states: Vec<InputState>,
+
+    /// Interleave indices referencing the stored batches.
+    indices: Vec<(usize, usize)>,
+}
+
+impl IndicesAccumulator {
+    /// Push a new batch for a partition.
+    ///
+    /// The partition's state will be updated to point to the beginning of this
+    /// batch (making any previous batches pushed for this partion unreachable).
+    pub fn push_partition_batch(&mut self, partition: usize, batch: Batch) {
+        let idx = self.states.len();
+        self.batches.push((partition, batch));
+        self.states[partition] = InputState {
+            batch_idx: idx,
+            row_idx: 0,
+        };
+    }
+
+    /// Appends a row to interleave indices using the current state of the
+    /// provided input.
+    pub fn append_row_to_indices(&mut self, input: usize) {
+        let state = &mut self.states[input];
+        let row = state.row_idx;
+        state.row_idx += 1;
+        self.indices.push((state.batch_idx, row))
+    }
+
+    /// Build a batch from the accumulated interleave indices.
+    ///
+    /// Internally drops batches that will no longer be part of the output.
+    pub fn build(&mut self) -> Result<Option<Batch>> {
+        if self.indices.is_empty() {
+            return Ok(None);
+        }
+
+        // If we have indices, we should have at least one batch.
+        let num_cols = self.num_columns()?;
+
+        let merged = (0..num_cols)
+            .map(|col_idx| {
+                let cols: Vec<_> = self
+                    .batches
+                    .iter()
+                    .map(|(_, batch)| batch.column(col_idx).expect("column to exist").as_ref())
+                    .collect();
+
+                compute::interleave::interleave(&cols, &self.indices)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let batch = Batch::try_new(merged)?;
+
+        // Drops batches that are no longer reachable (won't be contributing to
+        // the output).
+        let mut removed = 0;
+        let mut curr_idx = 0;
+        self.batches.retain(|(input, _batch)| {
+            let state = &mut self.states[*input];
+            let latest = state.batch_idx == curr_idx;
+            curr_idx += 1;
+
+            if latest {
+                // Keep batch, adjust batch index to point to the new position.
+                state.batch_idx -= removed;
+                true
+            } else {
+                // Drop batch...
+                removed + 1;
+                false
+            }
+        });
+
+        Ok(Some(batch))
+    }
+
+    /// Return the number of columns in the ouput.
+    ///
+    /// Errors if there's no buffered batches.
+    fn num_columns(&self) -> Result<usize> {
+        match self.batches.first() {
+            Some((_, b)) => Ok(b.num_columns()),
+            None => Err(RayexecError::new("Cannot get number of columns")),
+        }
+    }
+}

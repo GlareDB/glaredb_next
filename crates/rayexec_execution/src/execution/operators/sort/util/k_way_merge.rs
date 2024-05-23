@@ -4,145 +4,16 @@ use rayexec_error::{RayexecError, Result};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-/// A sorted batch with its associated sort keys.
-#[derive(Debug)]
-pub struct SortedBatch {
-    pub batch: Batch,
-    pub keys: ComparableRows,
-}
+use super::sorted_batch::{IndexSortedBatch, PhysicallySortedBatch, SortedBatch};
 
-/// Storeable state for restarting a k-way merge.
+/// Produce indices for merging k number of batches into totally ordered output
+/// batches.
 ///
-/// This is used when merging sorted partition inputs into a single partition.
-/// Since inputs may not be available at the time of the pull, we need a way to
-/// store the state between executions.
+/// This is used when merging multiple batches within a partition to produce the
+/// partition's output. As such, this will continue to run until all iterators
+/// producing row references are exhausted.
 #[derive(Debug)]
-pub struct RestartableKWayState {
-    /// States that are used to initialize the k-way merger.
-    ///
-    /// Essentially this stores the row index to start at when iterator over a
-    /// sorted batch.
-    ///
-    /// As input partitions are exhausted, states will be set to None.
-    states: Vec<Option<BatchState>>,
-}
-
-impl RestartableKWayState {
-    /// Create a new state for some number of partitions.
-    pub fn new(num_partitions: usize) -> Self {
-        RestartableKWayState {
-            states: (0..num_partitions)
-                .map(|idx| {
-                    Some(BatchState {
-                        batch_idx: idx,
-                        row_idx: 0,
-                        exhausted: false,
-                    })
-                })
-                .collect(),
-        }
-    }
-
-    /// Create a new k-way merger using the stored state.
-    ///
-    /// The batches vec should hold Some for states that are still Some, and
-    /// None for states that are None.
-    pub fn create_merger<'a>(
-        &mut self,
-        batches: Vec<Option<&'a SortedBatch>>,
-    ) -> Result<KWayMerger<'a, BatchStateIter<'a>>> {
-        let mut iters = Vec::new();
-        for (batch, state) in batches.into_iter().zip(self.states.iter_mut()) {
-            match (batch, state) {
-                (Some(sorted), Some(state)) => {
-                    let iter = BatchStateIter { state, sorted };
-                    iters.push(iter);
-                }
-                (None, None) => continue,
-                _ => return Err(RayexecError::new("States out of sync")),
-            }
-        }
-
-        Ok(KWayMerger::new(iters))
-    }
-
-    pub fn set_state_none(&mut self, idx: usize) {
-        self.states[idx] = None;
-    }
-
-    pub fn find_exhausted(&self) -> Option<usize> {
-        self.states.iter().find_map(|state| match state.as_ref() {
-            Some(state) if state.exhausted => Some(state.batch_idx),
-            _ => None,
-        })
-    }
-
-    /// Reset a batch state.
-    pub fn reset_state(&mut self, idx: usize) {
-        match &mut self.states[idx] {
-            Some(state) => {
-                state.row_idx = 0;
-                state.exhausted = false;
-            }
-            None => panic!("attempted to reset a state for a partition that's been exhausted"),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct BatchState {
-    /// Read-only batch index.
-    batch_idx: usize,
-
-    /// Start row index that gets updated during iterating the sorted batch.
-    row_idx: usize,
-
-    /// Marker if this iterator was exhausted.
-    exhausted: bool,
-}
-
-#[derive(Debug)]
-struct BatchStateIter<'a> {
-    state: &'a mut BatchState,
-    sorted: &'a SortedBatch,
-}
-
-impl<'a> Iterator for BatchStateIter<'a> {
-    type Item = RowReference<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.state.row_idx >= self.sorted.batch.num_rows() {
-            self.state.exhausted = true;
-            return None;
-        }
-
-        let row_idx = self.state.row_idx;
-        let row = self.sorted.keys.row(row_idx).expect("row to exist");
-        self.state.row_idx += 1;
-
-        let reference = RowReference {
-            batch_idx: self.state.batch_idx,
-            row_idx,
-            key: row,
-        };
-
-        Some(reference)
-    }
-}
-
-/// Behavior of what happens when one of the iterators producing row references
-/// is exhausted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KWayMergeExhaustBehavior {
-    /// Continue with all the other iterators.
-    Continue,
-
-    /// Break and return early.
-    Break,
-}
-
-#[derive(Debug)]
-pub struct KWayMerger<'a, I: Iterator<Item = RowReference<'a>>> {
+pub struct LocalKWayMerge<'a> {
     /// Heap containing the heads of all batches we're sorting.
     ///
     /// This heap contains at most one row reference for each batch. This row
@@ -154,7 +25,7 @@ pub struct KWayMerger<'a, I: Iterator<Item = RowReference<'a>>> {
     /// Iterators for getting the next row in a batch.
     ///
     /// Length of this should equal the number of batches we're merging.
-    row_iters: Vec<I>,
+    row_iters: Vec<SortedBatchIter<'a, IndexSortedBatch>>,
 
     /// Interleave indices buffer, (batch_idx, row_idx)
     ///
@@ -162,20 +33,18 @@ pub struct KWayMerger<'a, I: Iterator<Item = RowReference<'a>>> {
     indices_buf: Vec<(usize, usize)>,
 }
 
-impl<'a, I> KWayMerger<'a, I>
-where
-    I: Iterator<Item = RowReference<'a>>,
-{
-    pub fn new(mut row_iters: Vec<I>) -> Self {
+impl<'a> LocalKWayMerge<'a> {
+    pub fn new(mut row_iters: Vec<SortedBatchIter<'a, IndexSortedBatch>>) -> Self {
         let mut heap = BinaryHeap::with_capacity(row_iters.len());
 
         // Fill up initial heap state.
         for iter in &mut row_iters {
-            let reference = iter.next().expect("iters to not be empty");
-            heap.push(reference);
+            if let Some(reference) = iter.next() {
+                heap.push(reference);
+            }
         }
 
-        KWayMerger {
+        LocalKWayMerge {
             heap,
             row_iters,
             indices_buf: Vec::new(),
@@ -184,11 +53,7 @@ where
 
     /// Get the next set of interleave indices which would produce a totally
     /// ordered batch.
-    pub fn interleave_indices(
-        &mut self,
-        exhaust_behavior: KWayMergeExhaustBehavior,
-        max_batch_size: usize,
-    ) -> Option<&[(usize, usize)]> {
+    pub fn interleave_indices(&mut self, max_batch_size: usize) -> Option<&[(usize, usize)]> {
         self.indices_buf.reserve(max_batch_size);
         self.indices_buf.clear();
 
@@ -203,12 +68,8 @@ where
             };
 
             // Add next reference for this batch onto the heap.
-            match self.row_iters[reference.batch_idx].next() {
-                Some(next) => self.heap.push(next),
-                None => match exhaust_behavior {
-                    KWayMergeExhaustBehavior::Continue => (),
-                    KWayMergeExhaustBehavior::Break => break,
-                },
+            if let Some(next) = self.row_iters[reference.batch_idx].next() {
+                self.heap.push(next);
             }
 
             self.indices_buf
@@ -219,14 +80,162 @@ where
     }
 }
 
-/// A reference to row in a partition's sort data.
+/// Produces indices for merging k number of batches into totally ordered output
+/// batches.
+///
+/// Similar to `LocalKWayMerge` except for use with merged batches across
+/// partitions. The primary difference is each iterator provided represents the
+/// input batches from one partition. And when an iterator is exhausted, we
+/// break early instead of exhausting all iterators so that we can go and fetch
+/// the next batch for that partition.
+///
+/// Since we need to keep the state around in order to "resume" merging once we
+/// fetch the next batch for a partition, it's easier to just have this be a
+/// separate type from `LocalKWayMerge` instead of trying to abstract over it.
+#[derive(Debug)]
+pub struct GlobalKWayMerge<'a> {
+    /// Heap containing the heads of all batches we're sorting.
+    heap: BinaryHeap<RowReference<'a>>,
+
+    /// Iterators for getting the next row in a batch.
+    row_iters: Vec<SortedBatchIter<'a, PhysicallySortedBatch>>,
+
+    /// Interleave indices buffer, (batch_idx, row_idx)
+    ///
+    /// Used to avoid reallocating everytime we generate new indices.
+    indices_buf: Vec<(usize, usize)>,
+
+    /// Input states into the merge.
+    inputs: &'a mut [GlobalKWayMergeInputStates],
+}
+
+/// Input into the global merge.
+#[derive(Debug)]
+pub struct GlobalKWayMergeInputStates {
+    /// Batch input.
+    ///
+    /// If None, an iterator for this input will not be created.
+    batch: Option<PhysicallySortedBatch>,
+
+    /// Index of the row to start scanning from.
+    row_start: usize,
+}
+
+impl GlobalKWayMergeInputStates {
+    pub fn replace_batch(&mut self, batch: PhysicallySortedBatch) {
+        self.batch = Some(batch);
+        self.row_start = 0;
+    }
+
+    pub fn batch_is_none(&self) -> bool {
+        self.batch.is_none()
+    }
+
+    pub fn take_batch(&mut self) -> Option<PhysicallySortedBatch> {
+        self.batch.take()
+    }
+}
+
+#[derive(Debug)]
+pub enum GlobalMergeResult<'a> {
+    /// Some number of indices produced. Either the max number of indices were
+    /// computed (according to max batch size), or the heap has been exhausted.
+    /// If the heap's been exhausted, the next round of merging will produce an
+    /// `Exhausted` result.
+    ///
+    /// Nothing need to happen prior to the next call to `interleave_indices`.
+    Indices { indices: &'a [(usize, usize)] },
+
+    /// One of the iterators were exhausted.
+    ///
+    /// Prior to the next call to `interleave_indices`, the merge input as
+    /// indicated by `input_idx` needs to have a new batch inserted.
+    IterExhausted {
+        indices: &'a [(usize, usize)],
+        input_idx: usize,
+    },
+
+    /// There's no more rows that will be produced. This indicates the global
+    /// sort is done.
+    Exhausted,
+}
+
+impl<'a> GlobalKWayMerge<'a> {
+    pub fn interleave_indices(&mut self, max_batch_size: usize) -> GlobalMergeResult {
+        self.indices_buf.reserve(max_batch_size);
+        self.indices_buf.clear();
+
+        for _idx in 0..max_batch_size {
+            // TODO: If the heap only contains a single row reference, we know
+            // that there's only one batch we'll be pulling from. We should just
+            // short circuit in that case.
+
+            let reference = match self.heap.pop() {
+                Some(r) => r,
+                None => break, // Heap empty, we're done.
+            };
+
+            self.indices_buf
+                .push((reference.batch_idx, reference.row_idx));
+
+            // Add next reference for this batch onto the heap.
+            match self.row_iters[reference.batch_idx].next() {
+                Some(next) => {
+                    self.inputs[reference.batch_idx].row_start += 1;
+                    self.heap.push(next);
+                }
+                None => {
+                    // Iterator exhausted, need to stop early so we can fetch
+                    // the next batch for the partition.
+                    return GlobalMergeResult::IterExhausted {
+                        indices: &self.indices_buf,
+                        input_idx: reference.batch_idx,
+                    };
+                }
+            }
+        }
+
+        if self.indices_buf.is_empty() {
+            GlobalMergeResult::Exhausted
+        } else {
+            GlobalMergeResult::Indices {
+                indices: &self.indices_buf,
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct SortedBatchIter<'a, B: SortedBatch> {
+    batch_idx: usize,
+    batch: &'a B,
+    idx: usize,
+}
+
+impl<'a, B: SortedBatch> Iterator for SortedBatchIter<'a, B> {
+    type Item = RowReference<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row_idx = self.idx;
+        let row = self.batch.get_row(row_idx)?;
+        self.idx += 1;
+
+        Some(RowReference {
+            batch_idx: self.batch_idx,
+            row_idx,
+            key: row,
+        })
+    }
+}
+
+/// A reference to row in a sorted batch.
 ///
 /// The `Ord` and `Eq` implementations only takes into account the row key, and
 /// not the batch index or row index. This lets us shove these references into a
 /// heap containing references to multiple batches, letting us getting the total
 /// order of all batches.
 #[derive(Debug)]
-pub struct RowReference<'a> {
+struct RowReference<'a> {
     /// Index of the batch this reference is for.
     batch_idx: usize,
 

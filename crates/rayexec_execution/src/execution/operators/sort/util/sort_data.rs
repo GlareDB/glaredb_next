@@ -8,9 +8,9 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 
-use crate::{execution::operators::sort::merge::RowReferenceIter, expr::PhysicalSortExpression};
+use crate::expr::PhysicalSortExpression;
 
-use super::merge::KWayMerger;
+use super::merge::{KWayMerger, RowReferenceIter};
 
 #[derive(Debug)]
 pub struct BatchAndKeys {
