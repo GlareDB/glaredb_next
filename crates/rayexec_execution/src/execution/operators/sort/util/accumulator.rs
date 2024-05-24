@@ -6,9 +6,6 @@ use rayexec_error::{RayexecError, Result};
 struct InputState {
     /// Index of the batch.
     batch_idx: usize,
-
-    /// Index of the row inside the batch.
-    row_idx: usize,
 }
 
 /// Accumulate interleave indices across batches from multiple inputs.
@@ -29,10 +26,7 @@ impl IndicesAccumulator {
         IndicesAccumulator {
             batches: Vec::new(),
             states: (0..num_inputs)
-                .map(|_| InputState {
-                    batch_idx: 0,
-                    row_idx: 0,
-                })
+                .map(|_| InputState { batch_idx: 0 })
                 .collect(),
             indices: Vec::new(),
         }
@@ -43,21 +37,16 @@ impl IndicesAccumulator {
     /// The inputs's state will be updated to point to the beginning of this
     /// batch (making any previous batches pushed for this input unreachable).
     pub fn push_input_batch(&mut self, input: usize, batch: Batch) {
-        let idx = self.states.len() - 1;
+        let idx = self.batches.len();
         self.batches.push((input, batch));
-        self.states[input] = InputState {
-            batch_idx: idx,
-            row_idx: 0,
-        };
+        self.states[input] = InputState { batch_idx: idx };
     }
 
     /// Appends a row to interleave indices using the current state of the
     /// provided input.
-    pub fn append_row_to_indices(&mut self, input: usize) {
+    pub fn append_row_to_indices(&mut self, input: usize, row: usize) {
         let state = &mut self.states[input];
-        let row = state.row_idx;
-        state.row_idx += 1;
-        self.indices.push((state.batch_idx, row))
+        self.indices.push((state.batch_idx, row));
     }
 
     pub fn len(&self) -> usize {

@@ -2,6 +2,7 @@ use rayexec_bullet::{
     batch::Batch,
     row::encoding::{ComparableRow, ComparableRows},
 };
+use std::fmt;
 use std::{cmp::Ordering, sync::Arc};
 
 /// A batch that's been physically sorted.
@@ -18,9 +19,8 @@ pub struct PhysicallySortedBatch {
 }
 
 impl PhysicallySortedBatch {
-    pub fn into_batch_and_iter(self, input_idx: usize) -> (Batch, SortedKeysIter) {
+    pub fn into_batch_and_iter(self) -> (Batch, SortedKeysIter) {
         let iter = SortedKeysIter {
-            input_idx,
             row_idx: 0,
             keys: Arc::new(self.keys),
         };
@@ -31,7 +31,6 @@ impl PhysicallySortedBatch {
 
 #[derive(Debug)]
 pub struct SortedKeysIter {
-    input_idx: usize,
     row_idx: usize,
     keys: Arc<ComparableRows>,
 }
@@ -47,7 +46,6 @@ impl Iterator for SortedKeysIter {
         self.row_idx += 1;
 
         Some(RowReference {
-            input_idx: self.input_idx,
             rows: self.keys.clone(),
             row_idx,
         })
@@ -79,9 +77,8 @@ pub struct IndexSortedBatch {
 }
 
 impl IndexSortedBatch {
-    pub fn into_batch_and_iter(self, input_idx: usize) -> (Batch, SortedIndicesIter) {
+    pub fn into_batch_and_iter(self) -> (Batch, SortedIndicesIter) {
         let iter = SortedIndicesIter {
-            input_idx,
             indices: self.sort_indices,
             idx: 0,
             keys: Arc::new(self.keys),
@@ -93,7 +90,6 @@ impl IndexSortedBatch {
 
 #[derive(Debug)]
 pub struct SortedIndicesIter {
-    input_idx: usize,
     indices: Vec<usize>,
     idx: usize,
     keys: Arc<ComparableRows>,
@@ -111,7 +107,6 @@ impl Iterator for SortedIndicesIter {
         self.idx += 1;
 
         Some(RowReference {
-            input_idx: self.input_idx,
             rows: self.keys.clone(),
             row_idx,
         })
@@ -129,11 +124,7 @@ impl Iterator for SortedIndicesIter {
 /// not the batch index or row index. This lets us shove these references into a
 /// heap containing references to multiple batches, letting us getting the total
 /// order of all batches.
-#[derive(Debug)]
 pub struct RowReference {
-    /// Index of the input this reference is for.
-    pub input_idx: usize,
-
     /// Index of the row inside the batch this reference is for.
     pub row_idx: usize,
 
@@ -164,5 +155,14 @@ impl PartialOrd for RowReference {
 impl Ord for RowReference {
     fn cmp(&self, other: &Self) -> Ordering {
         self.row().cmp(&other.row())
+    }
+}
+
+impl fmt::Debug for RowReference {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RowReference")
+            .field("row_idx", &self.row_idx)
+            .field("row", &self.row())
+            .finish()
     }
 }

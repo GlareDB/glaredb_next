@@ -7,7 +7,7 @@ use rayexec_error::Result;
 use std::task::{Context, Waker};
 
 use super::util::{
-    merger::{KWayMerger, MergeResult},
+    merger::{IterState, KWayMerger, MergeResult},
     sort_keys::SortKeysExtractor,
     sorted_batch::{IndexSortedBatch, SortedIndicesIter},
 };
@@ -67,7 +67,6 @@ impl PhysicalOperator for PhysicalSort {
         _operator_state: &OperatorState,
         batch: Batch,
     ) -> Result<PollPush> {
-        println!("push batch (sort): {batch:?}");
         let state = match partition_state {
             PartitionState::Sort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -119,15 +118,20 @@ impl PhysicalOperator for PhysicalSort {
                 let pull_waker = pull_waker.take(); // Taken here to satisfy lifetime.
 
                 // Initialize the merger with all the batches.
-                let mut merger = KWayMerger::new(batches.len());
+                let mut inputs = Vec::with_capacity(batches.len());
+
                 let batches = std::mem::take(batches);
 
-                // Index is arbitrary here. Just used to identify batches within
-                // the partition.
-                for (idx, batch) in batches.into_iter().enumerate() {
-                    let (batch, iter) = batch.into_batch_and_iter(idx);
-                    merger.push_batch_for_input(idx, batch, iter);
+                // Filter out any batches that don't have rows, and add them to the merger inputs.
+                for batch in batches
+                    .into_iter()
+                    .filter(|batch| batch.batch.num_rows() > 0)
+                {
+                    let (batch, iter) = batch.into_batch_and_iter();
+                    inputs.push((Some(batch), IterState::Iterator(iter)));
                 }
+
+                let merger = KWayMerger::try_new(inputs)?;
 
                 // Wake up thread waiting to pull.
                 if let Some(waker) = pull_waker {
@@ -167,15 +171,12 @@ impl PhysicalOperator for PhysicalSort {
                     // TODO: Configurable batch size.
                     match merger.try_merge(1024)? {
                         MergeResult::Batch(batch) => {
-                            println!("pulling (sort): {batch:?}");
                             return Ok(PollPull::Batch(batch));
                         }
                         MergeResult::Exhausted => {
-                            println!("exhausted");
                             return Ok(PollPull::Exhausted);
                         }
                         MergeResult::NeedsInput(idx) => {
-                            println!("pull (needs input)");
                             // We're merging all batch in this partition, and
                             // the merger already has everything, so we go ahead
                             // and mark this batch as complete.
@@ -186,5 +187,62 @@ impl PhysicalOperator for PhysicalSort {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::execution::operators::test_util::{
+        make_i32_batch, unwrap_poll_pull_batch, TestContext,
+    };
+    use std::sync::Arc;
+
+    use super::*;
+
+    fn create_states(operator: &PhysicalSort, partitions: usize) -> Vec<PartitionState> {
+        operator
+            .create_states(partitions)
+            .into_iter()
+            .map(PartitionState::Sort)
+            .collect()
+    }
+
+    #[test]
+    fn sort_single_partition_desc_nulls_first() {
+        let inputs = vec![
+            make_i32_batch([8, 10, 8, 4]),
+            make_i32_batch([2, 3]),
+            make_i32_batch([9, 1, 7, -1]),
+        ];
+
+        let operator = Arc::new(PhysicalSort::new(vec![PhysicalSortExpression {
+            column: 0,
+            desc: true,
+            nulls_first: true,
+        }]));
+        let operator_state = Arc::new(OperatorState::None);
+        let mut partition_states = create_states(&operator, 1);
+
+        // Push all the inputs.
+        let push_cx = TestContext::new();
+        for input in inputs {
+            let poll_push = push_cx
+                .poll_push(&operator, &mut partition_states[0], &operator_state, input)
+                .unwrap();
+            assert_eq!(PollPush::NeedsMore, poll_push);
+        }
+        operator
+            .finalize_push(&mut partition_states[0], &operator_state)
+            .unwrap();
+
+        // Now pull.
+        // TODO: Currently batch size is hard coded to 1024.
+        let pull_cx = TestContext::new();
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        let output = unwrap_poll_pull_batch(poll_pull);
+        let expected = make_i32_batch([10, 9, 8, 8, 7, 4, 3, 2, 1, -1]);
+        assert_eq!(expected, output);
     }
 }
