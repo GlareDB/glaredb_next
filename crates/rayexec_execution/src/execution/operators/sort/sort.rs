@@ -43,14 +43,19 @@ pub struct PhysicalSort {
 }
 
 impl PhysicalSort {
+    pub fn new(exprs: Vec<PhysicalSortExpression>) -> Self {
+        PhysicalSort { exprs }
+    }
+
     pub fn create_states(&self, partitions: usize) -> Vec<SortPartitionState> {
-        unimplemented!()
-        // (0..partitions)
-        //     .map(|_| SortPartitionState::Consuming {
-        //         sort_data: PartitionWorkingSortData::new(&self.exprs),
-        //         pull_waker: None,
-        //     })
-        //     .collect()
+        let extractor = SortKeysExtractor::new(&self.exprs);
+        (0..partitions)
+            .map(|_| SortPartitionState::Consuming {
+                extractor: extractor.clone(),
+                batches: Vec::new(),
+                pull_waker: None,
+            })
+            .collect()
     }
 }
 
@@ -62,6 +67,7 @@ impl PhysicalOperator for PhysicalSort {
         _operator_state: &OperatorState,
         batch: Batch,
     ) -> Result<PollPush> {
+        println!("push batch (sort): {batch:?}");
         let state = match partition_state {
             PartitionState::Sort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -128,6 +134,9 @@ impl PhysicalOperator for PhysicalSort {
                     waker.wake()
                 }
 
+                // Update partition state to "producing" using the merger.
+                *state = SortPartitionState::Producing { merger };
+
                 Ok(())
             }
             SortPartitionState::Producing { .. } => {
@@ -157,9 +166,16 @@ impl PhysicalOperator for PhysicalSort {
                 loop {
                     // TODO: Configurable batch size.
                     match merger.try_merge(1024)? {
-                        MergeResult::Batch(batch) => return Ok(PollPull::Batch(batch)),
-                        MergeResult::Exhausted => return Ok(PollPull::Exhausted),
+                        MergeResult::Batch(batch) => {
+                            println!("pulling (sort): {batch:?}");
+                            return Ok(PollPull::Batch(batch));
+                        }
+                        MergeResult::Exhausted => {
+                            println!("exhausted");
+                            return Ok(PollPull::Exhausted);
+                        }
                         MergeResult::NeedsInput(idx) => {
+                            println!("pull (needs input)");
                             // We're merging all batch in this partition, and
                             // the merger already has everything, so we go ahead
                             // and mark this batch as complete.

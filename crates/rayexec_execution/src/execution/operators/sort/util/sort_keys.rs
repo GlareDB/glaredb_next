@@ -8,7 +8,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::expr::PhysicalSortExpression;
 
 /// Extract sort keys from batches.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SortKeysExtractor {
     /// Columns that make up the sort key.
     order_by: Vec<usize>,

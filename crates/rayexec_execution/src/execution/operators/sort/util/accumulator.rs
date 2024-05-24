@@ -43,7 +43,7 @@ impl IndicesAccumulator {
     /// The inputs's state will be updated to point to the beginning of this
     /// batch (making any previous batches pushed for this input unreachable).
     pub fn push_input_batch(&mut self, input: usize, batch: Batch) {
-        let idx = self.states.len();
+        let idx = self.states.len() - 1;
         self.batches.push((input, batch));
         self.states[input] = InputState {
             batch_idx: idx,
@@ -86,12 +86,13 @@ impl IndicesAccumulator {
                 compute::interleave::interleave(&cols, &self.indices)
             })
             .collect::<Result<Vec<_>>>()?;
+        self.indices.clear();
 
         let batch = Batch::try_new(merged)?;
 
         // Drops batches that are no longer reachable (won't be contributing to
         // the output).
-        let mut removed = 0;
+        let mut retained = 0;
         let mut curr_idx = 0;
         self.batches.retain(|(input, _batch)| {
             let state = &mut self.states[*input];
@@ -100,11 +101,11 @@ impl IndicesAccumulator {
 
             if latest {
                 // Keep batch, adjust batch index to point to the new position.
-                state.batch_idx -= removed;
+                state.batch_idx = retained;
+                retained += 1;
                 true
             } else {
                 // Drop batch...
-                removed + 1;
                 false
             }
         });

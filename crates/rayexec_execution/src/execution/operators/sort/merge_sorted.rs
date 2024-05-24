@@ -82,13 +82,69 @@ struct SharedGlobalState {
     pull_waker: (usize, Option<Waker>),
 }
 
+impl SharedGlobalState {
+    fn new(num_partitions: usize) -> Self {
+        let batches: Vec<_> = (0..num_partitions).map(|_| None).collect();
+        let finished: Vec<_> = (0..num_partitions).map(|_| false).collect();
+        let push_wakers: Vec<_> = (0..num_partitions).map(|_| None).collect();
+
+        SharedGlobalState {
+            batches,
+            finished,
+            push_wakers,
+            pull_waker: (0, None),
+        }
+    }
+}
+
 /// Merge sorted partitions into a single output partition.
 #[derive(Debug)]
 pub struct PhysicalMergeSortedInputs {
     exprs: Vec<PhysicalSortExpression>,
 }
 
-impl PhysicalMergeSortedInputs {}
+impl PhysicalMergeSortedInputs {
+    pub fn new(exprs: Vec<PhysicalSortExpression>) -> Self {
+        PhysicalMergeSortedInputs { exprs }
+    }
+
+    pub fn create_states(
+        &self,
+        input_partitions: usize,
+    ) -> (
+        MergeSortedOperatorState,
+        Vec<MergeSortedPushPartitionState>,
+        Vec<MergeSortedPullPartitionState>,
+    ) {
+        let operator_state = MergeSortedOperatorState {
+            shared: Mutex::new(SharedGlobalState::new(input_partitions)),
+        };
+
+        let extractor = SortKeysExtractor::new(&self.exprs);
+
+        let push_states: Vec<_> = (0..input_partitions)
+            .map(|idx| MergeSortedPushPartitionState {
+                partition_idx: idx,
+                extractor: extractor.clone(),
+            })
+            .collect();
+
+        // Note vec with a single element representing a single output
+        // partition.
+        //
+        // I'm not sure if we care to support multiple output partitions, but
+        // extending this a little could provide an interesting repartitioning
+        // scheme where we repartition based on the sort key.
+        let pull_states = vec![MergeSortedPullPartitionState {
+            buffered: (0..input_partitions).map(|_| None).collect(),
+            finished: (0..input_partitions).map(|_| false).collect(),
+            fetch_input: None,
+            merger: KWayMerger::new(input_partitions),
+        }];
+
+        (operator_state, push_states, pull_states)
+    }
+}
 
 impl PhysicalOperator for PhysicalMergeSortedInputs {
     fn poll_push(
@@ -213,10 +269,16 @@ fn pull_merge(
         }
     }
 
+    println!("pulling");
+
     // TODO: Configure batch size.
     match state.merger.try_merge(1024)? {
-        MergeResult::Batch(batch) => Ok(PollPull::Batch(batch)),
+        MergeResult::Batch(batch) => {
+            println!("batch: {batch:?}");
+            Ok(PollPull::Batch(batch))
+        }
         MergeResult::NeedsInput(idx) => {
+            println!("needs input: {idx}");
             // If we have a batch in out local state, go ahead and used that.
             //
             // Once added to the merger, try merging again.

@@ -1,0 +1,8 @@
+# ORDER BY
+
+# query T
+# select * from (values ('a'), ('c'), ('b')) order by column1;
+# ----
+# a
+# b
+# c

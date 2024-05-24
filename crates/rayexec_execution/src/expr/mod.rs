@@ -166,14 +166,16 @@ impl PhysicalAggregateExpression {
                     column_indices,
                 }
             }
-            other => return Err(RayexecError::new(format!(
+            other => {
+                return Err(RayexecError::new(format!(
                 "Cannot create a physical aggregate expression from logical expression: {other}",
-            ))),
+            )))
+            }
         })
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhysicalSortExpression {
     /// Column this expression is for.
     pub column: usize,

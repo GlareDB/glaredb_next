@@ -108,7 +108,25 @@ where
     pub fn try_merge(&mut self, batch_size: usize) -> Result<MergeResult> {
         let remaining = batch_size - self.acc.len();
 
-        assert!(!self.needs_input, "Additional input needed");
+        // assert!(!self.needs_input, "Additional input needed");
+
+        // Initialize the heap if its empty.
+        // TODO: This should be a separate step, probably want to stick in `new`.
+        if self.heap.is_empty() {
+            for (input_idx, iter) in self.row_reference_iters.iter_mut().enumerate() {
+                match iter {
+                    IterState::Iterator(iter) => match iter.next() {
+                        Some(reference) => self.heap.push(reference),
+                        None => return Ok(MergeResult::NeedsInput(input_idx)),
+                    },
+                    IterState::NeedsInitialize => {
+                        self.needs_input = true;
+                        return Ok(MergeResult::NeedsInput(input_idx));
+                    }
+                    IterState::Finished => (), // Just continue. No more batches from this input.
+                }
+            }
+        }
 
         for _ in 0..remaining {
             // TODO: If the heap only contains a single row reference, we know
