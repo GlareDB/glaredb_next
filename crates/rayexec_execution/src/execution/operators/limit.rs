@@ -82,15 +82,6 @@ impl PhysicalOperator for PhysicalLimit {
             return Ok(PollPush::Pending(batch));
         }
 
-        // We're done, no more inputs should arrive.
-        if state.remaining_count == 0 {
-            // When returning `Break`, we do not call `finalize_push`, and
-            // instead the partition pipeline will immediately start to pull
-            // from this operator.
-            state.finished = true;
-            return Ok(PollPush::Break);
-        }
-
         let batch = if state.remaining_offset > 0 {
             // Offset greater than the number of rows in this batch. Discard the
             // batch, and keep asking for more input.
@@ -138,7 +129,16 @@ impl PhysicalOperator for PhysicalLimit {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        // We're done, no more inputs should arrive.
+        if state.remaining_count == 0 {
+            // When returning `Break`, we do not call `finalize_push`, and
+            // instead the partition pipeline will immediately start to pull
+            // from this operator.
+            state.finished = true;
+            Ok(PollPush::Break)
+        } else {
+            Ok(PollPush::Pushed)
+        }
     }
 
     fn finalize_push(
@@ -251,7 +251,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPush::Break, poll_push);
 
         // We did _not_ store a new pull waker, the current count for the pull
         // waker should still be one.
@@ -310,7 +310,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPush::Break, poll_push);
 
         // Pull part of next batch.
         let poll_pull = pull_cx
@@ -354,7 +354,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPush::Break, poll_push);
 
         let pull_cx = TestContext::new();
         let poll_pull = pull_cx
@@ -382,23 +382,13 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPush::Break, poll_push);
 
         let pull_cx = TestContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         let _ = unwrap_poll_pull_batch(poll_pull);
-
-        let poll_push = push_cx
-            .poll_push(
-                &operator,
-                &mut partition_states[0],
-                &operator_state,
-                inputs.remove(0),
-            )
-            .unwrap();
-        assert_eq!(PollPush::Break, poll_push);
 
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
