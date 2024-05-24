@@ -102,7 +102,7 @@ impl PhysicalOperator for PhysicalLimit {
             // Otherwise we have to slice the batch at the offset point.
             let count = std::cmp::min(
                 batch.num_rows() - state.remaining_offset,
-                state.remaining_count + state.remaining_offset,
+                state.remaining_count,
             );
 
             let cols = batch
@@ -183,5 +183,226 @@ impl PhysicalOperator for PhysicalLimit {
                 Ok(PollPull::Pending)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::execution::operators::test_util::{
+        make_i32_batch, unwrap_poll_pull_batch, TestContext,
+    };
+    use std::sync::Arc;
+
+    use super::*;
+
+    fn create_states(operator: &PhysicalLimit, partitions: usize) -> Vec<PartitionState> {
+        operator
+            .create_states(partitions)
+            .into_iter()
+            .map(PartitionState::Limit)
+            .collect()
+    }
+
+    #[test]
+    fn limit_single_partition() {
+        let mut inputs = vec![
+            make_i32_batch([1, 2, 3, 4]),
+            make_i32_batch([5, 6, 7, 8, 9, 10]),
+        ];
+
+        let operator = Arc::new(PhysicalLimit::new(5, None));
+        let operator_state = Arc::new(OperatorState::None);
+        let mut partition_states = create_states(&operator, 1);
+
+        // Try to pull before we have a batch ready.
+        let pull_cx = TestContext::new();
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        assert_eq!(PollPull::Pending, poll_pull);
+
+        // Push our first batch.
+        let push_cx = TestContext::new();
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::Pushed, poll_push);
+
+        // Pull side should have been woken.
+        assert_eq!(1, pull_cx.wake_count());
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        let output = unwrap_poll_pull_batch(poll_pull);
+        let expected = make_i32_batch([1, 2, 3, 4]); // Matches the first batch pushed.
+        assert_eq!(expected, output);
+
+        // Push next batch
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::Pushed, poll_push);
+
+        // We did _not_ store a new pull waker, the current count for the pull
+        // waker should still be one.
+        //
+        // This not being 1 would indicate a bug with not actually clearing the
+        // waker once it's woken.
+        assert_eq!(1, pull_cx.wake_count());
+
+        // Get next batch, result should only contain the first element from the
+        // second batch.
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        let output = unwrap_poll_pull_batch(poll_pull);
+        let expected = make_i32_batch([5]);
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn limit_offset_single_partition_first_batch_partial() {
+        let mut inputs = vec![
+            make_i32_batch([1, 2, 3, 4]),
+            make_i32_batch([5, 6, 7, 8, 9, 10]),
+        ];
+
+        let operator = Arc::new(PhysicalLimit::new(5, Some(2)));
+        let operator_state = Arc::new(OperatorState::None);
+        let mut partition_states = create_states(&operator, 1);
+
+        // Push our first batch, will be part of the output.
+        let push_cx = TestContext::new();
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::Pushed, poll_push);
+
+        let pull_cx = TestContext::new();
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        let output = unwrap_poll_pull_batch(poll_pull);
+        let expected = make_i32_batch([3, 4]); // First two elements skipped.
+        assert_eq!(expected, output);
+
+        // Push next batch
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::Pushed, poll_push);
+
+        // Pull part of next batch.
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        let output = unwrap_poll_pull_batch(poll_pull);
+        let expected = make_i32_batch([5, 6, 7]);
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn limit_offset_single_partition_first_batch_skipped() {
+        let mut inputs = vec![
+            make_i32_batch([1, 2, 3, 4]),
+            make_i32_batch([5, 6, 7, 8, 9, 10]),
+        ];
+
+        let operator = Arc::new(PhysicalLimit::new(2, Some(5)));
+        let operator_state = Arc::new(OperatorState::None);
+        let mut partition_states = create_states(&operator, 1);
+
+        // Push our first batch, will be skipped. Operator will return
+        // indicating it needs more input.
+        let push_cx = TestContext::new();
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::NeedsMore, poll_push);
+
+        // Keep pushing...
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::Pushed, poll_push);
+
+        let pull_cx = TestContext::new();
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        let output = unwrap_poll_pull_batch(poll_pull);
+        let expected = make_i32_batch([6, 7]);
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn limit_break_exhaust() {
+        let mut inputs = vec![make_i32_batch([1, 2, 3, 4]), make_i32_batch([5, 6, 7, 8])];
+
+        let operator = Arc::new(PhysicalLimit::new(2, None));
+        let operator_state = Arc::new(OperatorState::None);
+        let mut partition_states = create_states(&operator, 1);
+
+        let push_cx = TestContext::new();
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::Pushed, poll_push);
+
+        let pull_cx = TestContext::new();
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        let _ = unwrap_poll_pull_batch(poll_pull);
+
+        let poll_push = push_cx
+            .poll_push(
+                &operator,
+                &mut partition_states[0],
+                &operator_state,
+                inputs.remove(0),
+            )
+            .unwrap();
+        assert_eq!(PollPush::Break, poll_push);
+
+        let poll_pull = pull_cx
+            .poll_pull(&operator, &mut partition_states[0], &operator_state)
+            .unwrap();
+        assert_eq!(PollPull::Exhausted, poll_pull);
     }
 }

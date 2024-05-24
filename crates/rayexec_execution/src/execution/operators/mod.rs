@@ -12,6 +12,9 @@ pub mod values;
 
 mod util;
 
+#[cfg(test)]
+mod test_util;
+
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -80,7 +83,7 @@ pub enum OperatorState {
 /// An operator may not be ready to accept input either because it's waiting on
 /// something else to complete (e.g. the right side of a join needs to the left
 /// side to complete first) or some internal buffer is full.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PollPush {
     /// Batch was successfully pushed.
     Pushed,
@@ -102,7 +105,7 @@ pub enum PollPush {
 }
 
 /// Result of a pull from a Source.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PollPull {
     /// Successfully received a data batch.
     Batch(Batch),
