@@ -1,5 +1,8 @@
 use crate::{
-    execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
+    execution::operators::{
+        sort::util::merger::IterState, OperatorState, PartitionState, PhysicalOperator, PollPull,
+        PollPush,
+    },
     expr::PhysicalSortExpression,
 };
 use parking_lot::Mutex;
@@ -27,6 +30,18 @@ pub struct MergeSortedPushPartitionState {
 /// Partition state on the pull side.
 #[derive(Debug)]
 pub struct MergeSortedPullPartitionState {
+    /// Partition-local buffers for input batches.
+    ///
+    /// To avoid taking the global lock too frequently, we try to copy in as
+    /// many batches as possible into the local state every time we look at the
+    /// global state.
+    input_buffers: InputBuffers,
+
+    merge_state: PullMergeState,
+}
+
+#[derive(Debug)]
+struct InputBuffers {
     /// Buffered batches that we retrieve from the global state to avoid needing
     /// to acquire the global lock.
     ///
@@ -37,13 +52,25 @@ pub struct MergeSortedPullPartitionState {
     ///
     /// Indexed by input partition idx.
     finished: Vec<bool>,
+}
 
-    /// Next input we need to try to fetch. If this is Some, we _must_ get a
-    /// batch for this input before attempting to merge again.
-    fetch_input: Option<usize>,
+#[derive(Debug)]
+enum PullMergeState {
+    /// Currently initialing the state.
+    ///
+    /// We need at least one batch (or finished==true) from each input input
+    /// partition before being able to produce output batches.
+    Initializing,
 
-    /// K-way merger for inputs.
-    merger: KWayMerger<SortedKeysIter>,
+    /// Able to start producing output.
+    Producing {
+        /// Partitions index for an input that's required. Merging will not
+        /// continue until we have a batch from this input.
+        input_required: Option<usize>,
+
+        /// Merger for input batches.
+        merger: KWayMerger<SortedKeysIter>,
+    },
 }
 
 #[derive(Debug)]
@@ -135,15 +162,15 @@ impl PhysicalMergeSortedInputs {
         // I'm not sure if we care to support multiple output partitions, but
         // extending this a little could provide an interesting repartitioning
         // scheme where we repartition based on the sort key.
-        // let pull_states = vec![MergeSortedPullPartitionState {
-        //     buffered: (0..input_partitions).map(|_| None).collect(),
-        //     finished: (0..input_partitions).map(|_| false).collect(),
-        //     fetch_input: None,
-        //     merger: KWayMerger::new(input_partitions),
-        // }];
+        let pull_states = vec![MergeSortedPullPartitionState {
+            input_buffers: InputBuffers {
+                buffered: (0..input_partitions).map(|_| None).collect(),
+                finished: (0..input_partitions).map(|_| false).collect(),
+            },
+            merge_state: PullMergeState::Initializing,
+        }];
 
-        // (operator_state, push_states, pull_states)
-        unimplemented!()
+        (operator_state, push_states, pull_states)
     }
 }
 
@@ -237,86 +264,241 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
             other => panic!("invalid operator state: {other:?}"),
         };
 
-        pull_merge(cx, state, operator_state)
-    }
-}
-
-/// Try to pull a batch by merging input batches.
-fn pull_merge(
-    cx: &mut Context,
-    state: &mut MergeSortedPullPartitionState,
-    operator_state: &MergeSortedOperatorState,
-) -> Result<PollPull> {
-    // If we're waiting on a particular input, make sure we can fetch that
-    // before attempting to merge.
-    if let Some(idx) = state.fetch_input {
-        let mut shared = operator_state.shared.lock();
-        match shared.batches[idx].take() {
-            Some(batch) => {
-                state.buffered[idx] = Some(batch);
-                state.fetch_input = None; // We can continue.
-            }
-            None => {
-                state.finished[idx] = shared.finished[idx];
-                if state.finished[idx] {
-                    state.merger.input_finished(idx);
-                    // We can continue...
-                } else {
-                    // Otherwise we have to wait.
-                    shared.pull_waker = (idx, Some(cx.waker().clone()));
+        // Finish up initialization if needed.
+        if let PullMergeState::Initializing = &state.merge_state {
+            match Self::try_finish_initialize(cx, &mut state.input_buffers, operator_state)? {
+                Some(merger) => {
+                    // Flip state and continue.
+                    state.merge_state = PullMergeState::Producing {
+                        input_required: None,
+                        merger,
+                    }
+                }
+                None => {
+                    // Not finished initializing, still waiting on some input.
+                    //
+                    // `try_finish_initialize` registers a waker for us.
                     return Ok(PollPull::Pending);
                 }
             }
         }
+
+        match &mut state.merge_state {
+            PullMergeState::Producing {
+                input_required,
+                merger,
+            } => {
+                if let Some(input_idx) = input_required {
+                    let input_pushed = Self::try_push_input_batch_to_merger(
+                        cx,
+                        merger,
+                        &mut state.input_buffers,
+                        operator_state,
+                        *input_idx,
+                    )?;
+                    if !input_pushed {
+                        // `try_push_input_batch_to_merger` registers a waker for us.
+                        return Ok(PollPull::Pending);
+                    }
+
+                    // Input no longer required, we've either pushed the batch
+                    // to the merger, or let the merger know that that input's
+                    // finished.
+                    *input_required = None;
+                }
+
+                // Now try to merge.
+                //
+                // We loop to try to make as much progress with the merger using
+                // our local buffered batches as much as possible.
+                loop {
+                    // TODO: Configurable batch size.
+                    match merger.try_merge(1024)? {
+                        MergeResult::Batch(batch) => return Ok(PollPull::Batch(batch)),
+                        MergeResult::NeedsInput(input_idx) => {
+                            match state.input_buffers.buffered[input_idx].take() {
+                                Some(batch) => {
+                                    let (batch, iter) = batch.into_batch_and_iter();
+                                    merger.push_batch_for_input(input_idx, batch, iter);
+                                    continue; // Keep trying to merge.
+                                }
+                                None => {
+                                    let pushed = Self::try_push_input_batch_to_merger(
+                                        cx,
+                                        merger,
+                                        &mut state.input_buffers,
+                                        operator_state,
+                                        input_idx,
+                                    )?;
+
+                                    if pushed {
+                                        // Keep trying to merge
+                                        continue;
+                                    } else {
+                                        // Batch not availab yet. Waker
+                                        // registered by
+                                        // `try_push_input_batch_to_merger`.
+                                        return Ok(PollPull::Pending);
+                                    }
+                                }
+                            }
+                        }
+                        MergeResult::Exhausted => return Ok(PollPull::Exhausted),
+                    }
+                }
+            }
+            PullMergeState::Initializing => unreachable!("should should be 'producing' by now"),
+        }
+    }
+}
+
+impl PhysicalMergeSortedInputs {
+    /// Try to finish the pull-side initialization step.
+    ///
+    /// This will try to get a batch from each input partition so we can
+    /// initialize the merger. If we are able to initialize the merger, the
+    /// partition's merge state is flipped to Producing.
+    ///
+    /// Returns the initialized merger on success.
+    ///
+    /// If this returns None, our waker will be registered in the global state
+    /// for the input partition we're waiting on.
+    fn try_finish_initialize(
+        cx: &mut Context,
+        input_buffers: &mut InputBuffers,
+        operator_state: &MergeSortedOperatorState,
+    ) -> Result<Option<KWayMerger<SortedKeysIter>>> {
+        let mut shared = operator_state.shared.lock();
+        for (idx, local_buf) in input_buffers.buffered.iter_mut().enumerate() {
+            if local_buf.is_none() {
+                *local_buf = shared.batches[idx].take();
+            }
+            input_buffers.finished[idx] = shared.finished[idx];
+        }
+
+        // Find the partition index that we still need input for.
+        let need_partition = input_buffers
+            .buffered
+            .iter()
+            .zip(input_buffers.finished.iter())
+            .position(|(batch, finished)| batch.is_none() && !finished);
+
+        match need_partition {
+            Some(partition_idx) => {
+                // Need to wait for input from this partition.
+                shared.pull_waker = (partition_idx, Some(cx.waker().clone()));
+                Ok(None)
+            }
+            None => {
+                // Otherwise we can begin merging.
+                std::mem::drop(shared); // No need to keep the lock.
+
+                let mut inputs = Vec::with_capacity(input_buffers.buffered.len());
+                for (batch, finished) in input_buffers
+                    .buffered
+                    .iter_mut()
+                    .zip(input_buffers.finished.iter())
+                {
+                    match batch.take() {
+                        Some(batch) => {
+                            let (batch, iter) = batch.into_batch_and_iter();
+                            inputs.push((Some(batch), IterState::Iterator(iter)));
+                        }
+                        None => {
+                            assert!(
+                                finished,
+                                "partition input must be finished if no batches produced"
+                            );
+                            inputs.push((None, IterState::Finished));
+                        }
+                    }
+                }
+                assert_eq!(inputs.len(), input_buffers.buffered.len());
+
+                let merger = KWayMerger::try_new(inputs)?;
+                // We're good, state's been flipped and we can continue with the
+                // pull.
+                Ok(Some(merger))
+            }
+        }
     }
 
-    // TODO: Configure batch size.
-    match state.merger.try_merge(1024)? {
-        MergeResult::Batch(batch) => Ok(PollPull::Batch(batch)),
-        MergeResult::NeedsInput(idx) => {
-            // println!("needs input: {idx}");
-            // // If we have a batch in out local state, go ahead and used that.
-            // //
-            // // Once added to the merger, try merging again.
-            // if let Some(batch) = state.buffered[idx].take() {
-            //     let (batch, iter) = batch.into_batch_and_iter(idx);
-            //     state.merger.push_batch_for_input(idx, batch, iter);
-            //     return pull_merge(cx, state, operator_state);
-            // }
+    /// Try to push an batch for input indicated by `input_idx` to the merger.
+    ///
+    /// This will first check to see if we have a batch ready in the
+    /// partition-local state. If not, we'll then check the global state.
+    ///
+    /// If we are able to get a batch for the input, or we see that the input is
+    /// finished, the merger will be updated with that info. Otherwise, we
+    /// register our waker in the global state, and we need to wait.
+    ///
+    /// Returns true on successfully getting a batch (or seeing that
+    /// finished==true). Returns false otherwise.
+    fn try_push_input_batch_to_merger(
+        cx: &mut Context,
+        merger: &mut KWayMerger<SortedKeysIter>,
+        input_buffers: &mut InputBuffers,
+        operator_state: &MergeSortedOperatorState,
+        input_idx: usize,
+    ) -> Result<bool> {
+        // We need to make sure we have a batch from this input. Try from the
+        // partition state first, then look in the global state.
+        match input_buffers.buffered[input_idx].take() {
+            Some(batch) => {
+                // We're good, go ahead and given this batch to the
+                // merger and keep going.
+                let (batch, iter) = batch.into_batch_and_iter();
+                merger.push_batch_for_input(input_idx, batch, iter);
 
-            // // Otherwise we need to get a batch from the global state.
-            // {
-            //     let mut shared = operator_state.shared.lock();
+                Ok(true)
+            }
+            None => {
+                // Check if this input is finished, and let the
+                // merger know if so.
+                if input_buffers.finished[input_idx] {
+                    merger.input_finished(input_idx);
+                    Ok(true)
+                } else {
+                    // Otherwise need to get from global input_buffers.
+                    let mut shared = operator_state.shared.lock();
 
-            //     match shared.batches[idx].take() {
-            //         Some(batch) => {
-            //             // Push the batch to the merger.
-            //             let (batch, iter) = batch.into_batch_and_iter(idx);
-            //             state.merger.push_batch_for_input(idx, batch, iter);
-            //             // And continue..
-            //         }
-            //         None => {
-            //             // Batch not ready yet, we need to check back later.
-            //             state.fetch_input = Some(idx); // Prevent merging prior to getting this input.
-            //             shared.pull_waker = (idx, Some(cx.waker().clone()));
-            //             return Ok(PollPull::Pending);
-            //         }
-            //     }
+                    // Copy in as many batches as we can from the
+                    // global input_buffers.
+                    for (idx, local_buf) in input_buffers.buffered.iter_mut().enumerate() {
+                        if local_buf.is_none() {
+                            *local_buf = shared.batches[idx].take();
+                        }
+                        input_buffers.finished[idx] = shared.finished[idx];
+                    }
 
-            //     // As an optimization, before releasing the lock, we try to take
-            //     // as much as possible from the global state and move it to
-            //     // partition state.
-            //     for (partition_idx, buffered) in state.buffered.iter_mut().enumerate() {
-            //         if buffered.is_none() {
-            //             *buffered = shared.batches[partition_idx].take();
-            //         }
-            //         state.finished[partition_idx] = shared.finished[partition_idx];
-            //     }
-            // }
-
-            // We're good to try to merge again. We have the
-            pull_merge(cx, state, operator_state)
+                    // Check local input_buffers again.
+                    match (
+                        input_buffers.buffered[input_idx].take(),
+                        input_buffers.finished[input_idx],
+                    ) {
+                        (Some(batch), false) => {
+                            // We have a batch read to go, give it
+                            // to the merge and continue.
+                            let (batch, iter) = batch.into_batch_and_iter();
+                            merger.push_batch_for_input(input_idx, batch, iter);
+                            Ok(true)
+                        }
+                        (None, true) => {
+                            // Input is finished, let the merger
+                            // know and continue.
+                            merger.input_finished(input_idx);
+                            Ok(true)
+                        }
+                        (None, false) => {
+                            // Need to wait for a batch, register
+                            // our waker, and return Pending.
+                            shared.pull_waker = (input_idx, Some(cx.waker().clone()));
+                            Ok(false)
+                        }
+                        (Some(_), true) => panic!("invalid state"),
+                    }
+                }
+            }
         }
-        MergeResult::Exhausted => Ok(PollPull::Exhausted),
     }
 }
