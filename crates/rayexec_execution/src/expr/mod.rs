@@ -3,7 +3,7 @@ pub mod scalar;
 use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
 use crate::planner::operator::LogicalExpression;
-use rayexec_bullet::field::{TypeSchema};
+use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -210,11 +210,9 @@ impl PhysicalSortExpression {
                     nulls_first,
                 })
             }
-            other => {
-                Err(RayexecError::new(format!(
-                    "Cannot create a physical sort expression from logical expression: {other:?}"
-                )))
-            }
+            other => Err(RayexecError::new(format!(
+                "Cannot create a physical sort expression from logical expression: {other:?}"
+            ))),
         }
     }
 }

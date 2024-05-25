@@ -1,6 +1,6 @@
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::task::{Context};
+use std::task::Context;
 
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,

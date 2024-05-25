@@ -305,12 +305,10 @@ impl ComparableRowEncoder {
             value.encode(write_buf);
             col.invert_if_desc(write_buf);
 
-            
             start + 1 + write_buf.len()
         } else {
             buf[start] = null_bit;
 
-            
             start + 1
         }
     }
@@ -336,12 +334,10 @@ impl ComparableRowEncoder {
             value.encode(write_buf);
             col.invert_if_desc(write_buf);
 
-            
             start + 1 + write_buf.len()
         } else {
             buf[start] = null_bit;
 
-            
             start + 1
         }
     }

@@ -1,7 +1,7 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
 use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::{GenericScalarFunction};
+use crate::functions::scalar::GenericScalarFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
@@ -615,7 +615,7 @@ impl LogicalExpression {
                     .iter()
                     .map(|input| input.datatype(current, outer))
                     .collect::<Result<Vec<_>>>()?;
-                
+
                 function.return_type_for_inputs(&datatypes).ok_or_else(|| {
                     RayexecError::new(format!(
                         "Failed to find correct signature for '{}'",
@@ -632,7 +632,7 @@ impl LogicalExpression {
                     .iter()
                     .map(|input| input.datatype(current, outer))
                     .collect::<Result<Vec<_>>>()?;
-                
+
                 agg.return_type_for_inputs(&datatypes).ok_or_else(|| {
                     RayexecError::new(format!(
                         "Failed to find correct signature for '{}'",
@@ -644,9 +644,8 @@ impl LogicalExpression {
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.datatype(current, outer)?;
                 let right = right.datatype(current, outer)?;
-                
-                op
-                    .scalar_function()
+
+                op.scalar_function()
                     .return_type_for_inputs(&[left, right])
                     .ok_or_else(|| {
                         RayexecError::new("Failed to get correct signature for scalar function")

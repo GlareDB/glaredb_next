@@ -58,8 +58,10 @@ mod macros {
 
             let typed_arrs = collect_arrays_of_type!(arrs, Int32, DataType::Int32).unwrap();
 
-            let expected = [Int32Array::from_iter([1, 2, 3]),
-                Int32Array::from_iter([3, 4, 5])];
+            let expected = [
+                Int32Array::from_iter([1, 2, 3]),
+                Int32Array::from_iter([3, 4, 5]),
+            ];
             let expected_refs: Vec<&Int32Array> = expected.iter().collect();
 
             assert_eq!(expected_refs, typed_arrs);

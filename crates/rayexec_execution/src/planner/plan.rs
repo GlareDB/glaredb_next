@@ -11,7 +11,7 @@ use crate::planner::{
     operator::{ExpressionList, Filter, JoinType, SetVar, ShowVar},
     scope::TableReference,
 };
-use rayexec_bullet::field::{TypeSchema};
+use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -416,7 +416,10 @@ impl<'a> PlanContext<'a> {
                 let mut nested = self.nested(current_scope);
                 nested.plan_query(query)?
             }
-            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference: _, args: _ }) => {
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                reference: _,
+                args: _,
+            }) => {
                 unimplemented!()
                 // let func = self.resolver.resolve_table_function(&reference)?;
 

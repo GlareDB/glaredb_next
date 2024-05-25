@@ -1,7 +1,5 @@
-
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use rayexec_bullet::scalar::OwnedScalarValue;
-
 
 /// Modifications to be applied to the session.
 #[derive(Debug)]

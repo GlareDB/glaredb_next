@@ -1,8 +1,6 @@
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_error::{RayexecError, Result};
 
-
-
 /// Represents groups in the GROUP BY clause.
 ///
 /// Examples:

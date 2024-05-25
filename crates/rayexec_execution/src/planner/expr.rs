@@ -1,11 +1,8 @@
-use rayexec_bullet::{
-    field::{TypeSchema},
-    scalar::OwnedScalarValue,
-};
+use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::functions::scalar::{GenericScalarFunction};
+use crate::functions::scalar::GenericScalarFunction;
 
 use super::{
     operator::LogicalExpression,

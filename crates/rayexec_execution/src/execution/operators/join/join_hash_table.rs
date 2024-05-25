@@ -1,6 +1,6 @@
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::{BooleanArray},
+    array::BooleanArray,
     batch::Batch,
     bitmap::Bitmap,
     compute::{concat::concat, filter::filter, take::take},

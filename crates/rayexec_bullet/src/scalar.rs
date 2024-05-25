@@ -171,7 +171,7 @@ impl<'a> ScalarValue<'a> {
                 if *i < i64::MAX as u64 {
                     Ok(*i as i64)
                 } else {
-                    Err(RayexecError::new("u64 too large to fit into an i64".to_string()))
+                    Err(RayexecError::new("u64 too large to fit into an i64"))
                 }
             }
             other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
@@ -187,7 +187,7 @@ impl<'a> ScalarValue<'a> {
                 if *i < i32::MAX as i64 {
                     Ok(*i as i32)
                 } else {
-                    Err(RayexecError::new("i64 too large to fit into an i32".to_string()))
+                    Err(RayexecError::new("i64 too large to fit into an i32"))
                 }
             }
             Self::UInt8(i) => Ok(*i as i32),
@@ -196,14 +196,14 @@ impl<'a> ScalarValue<'a> {
                 if *i < i32::MAX as u32 {
                     Ok(*i as i32)
                 } else {
-                    Err(RayexecError::new("u32 too large to fit into an i32".to_string()))
+                    Err(RayexecError::new("u32 too large to fit into an i32"))
                 }
             }
             Self::UInt64(i) => {
                 if *i < i32::MAX as u64 {
                     Ok(*i as i32)
                 } else {
-                    Err(RayexecError::new("u64 too large to fit into an i32".to_string()))
+                    Err(RayexecError::new("u64 too large to fit into an i32"))
                 }
             }
             other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),

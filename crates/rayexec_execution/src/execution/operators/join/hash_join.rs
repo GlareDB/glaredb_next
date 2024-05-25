@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
-use crate::execution::operators::util::hash::{hash_arrays};
+use crate::execution::operators::util::hash::hash_arrays;
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
