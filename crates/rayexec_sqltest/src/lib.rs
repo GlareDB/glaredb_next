@@ -55,9 +55,16 @@ impl sqllogictest::AsyncDB for TestSession {
         info!(%sql, "running query");
 
         let mut rows = Vec::new();
-        let mut output = self.session.execute(sql)?;
-        let typs = schema_to_types(&output.output_schema);
-        while let Some(batch) = output.stream.next().await {
+        let mut results = self.session.simple(sql)?;
+        if results.len() != 1 {
+            return Err(RayexecError::new(format!(
+                "Unexpected number of results for '{sql}': {}",
+                results.len()
+            )));
+        }
+
+        let typs = schema_to_types(&results[0].output_schema);
+        while let Some(batch) = results[0].stream.next().await {
             rows.extend(batch_to_rows(batch)?);
         }
 

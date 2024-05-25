@@ -8,6 +8,7 @@ static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(SessionVars::g
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionVar {
     pub name: &'static str,
+    pub desc: &'static str,
     pub value: OwnedScalarValue,
 }
 
@@ -42,11 +43,34 @@ impl SessionVars {
         let vars = [
             SessionVar {
                 name: "debug_string_var",
+                desc: "Debug variable for testing SET/SHOW.",
                 value: ScalarValue::Utf8("debug".into()),
             },
             SessionVar {
+                name: "application_name",
+                desc: "Postgres compatability variable.",
+                value: ScalarValue::Utf8("".into()),
+            },
+            SessionVar {
                 name: "debug_error_on_nested_loop_join",
+                desc:
+                    "Trigger an error during planning when attempting to plan a nested loop join.",
                 value: ScalarValue::Boolean(false),
+            },
+            SessionVar {
+                name: "partitions",
+                desc: "Number of partitions to use during execution.",
+                value: ScalarValue::UInt64(num_cpus::get() as u64),
+            },
+            SessionVar {
+                name: "partitions",
+                desc: "Number of partitions to use during execution.",
+                value: ScalarValue::UInt64(num_cpus::get() as u64),
+            },
+            SessionVar {
+                name: "batch_size",
+                desc: "Desired number of rows in a batch.",
+                value: ScalarValue::UInt64(2048),
             },
         ];
 

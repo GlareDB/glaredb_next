@@ -20,7 +20,7 @@ use crate::{
             repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
-            values::{PhysicalValues, ValuesPartitionState},
+            values::PhysicalValues,
             OperatorState, PartitionState,
         },
         pipeline::{Pipeline, PipelineId},
@@ -29,7 +29,11 @@ use crate::{
     planner::operator::{self, LogicalOperator},
 };
 use rayexec_bullet::{
-    array::Array, batch::Batch, bitmap::Bitmap, compute::concat::concat, field::TypeSchema,
+    array::{Array, Utf8Array},
+    batch::Batch,
+    bitmap::Bitmap,
+    compute::concat::concat,
+    field::TypeSchema,
 };
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
@@ -121,9 +125,11 @@ impl BuildState {
             LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
             LogicalOperator::Limit(limit) => self.push_limit(conf, limit),
             LogicalOperator::Order(order) => self.push_global_sort(conf, order),
+            LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, show_var),
+            LogicalOperator::SetVar(_) => {
+                Err(RayexecError::new("SET should be handled in the session"))
+            }
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
-            // LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
-            // LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
             other => unimplemented!("other: {other:?}"),
         }
     }
@@ -172,6 +178,28 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_show_var(&mut self, _conf: &BuildConfig, show: operator::ShowVar) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
+            Array::Utf8(Utf8Array::from_iter([show.var.value.to_string().as_str()])),
+        ])?]));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = physical
+            .create_states(1)
+            .into_iter()
+            .map(PartitionState::Values)
+            .collect();
+
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }
@@ -716,15 +744,13 @@ impl BuildState {
 
         let mut pipeline = Pipeline::new(pipeline_id, conf.target_partitions);
 
-        let physical = Arc::new(PhysicalValues);
+        let physical = Arc::new(PhysicalValues::new(vec![batch]));
         let operator_state = Arc::new(OperatorState::None);
-        let mut partition_states = vec![PartitionState::Values(
-            ValuesPartitionState::with_batches(vec![batch]),
-        )];
-        // Extend out partition states with empty states.
-        partition_states.resize_with(conf.target_partitions, || {
-            PartitionState::Values(ValuesPartitionState::empty())
-        });
+        let partition_states = physical
+            .create_states(conf.target_partitions)
+            .into_iter()
+            .map(PartitionState::Values)
+            .collect();
 
         pipeline.push_operator(physical, operator_state, partition_states)?;
 

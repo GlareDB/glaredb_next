@@ -9,20 +9,30 @@ pub struct ValuesPartitionState {
     batches: Vec<Batch>,
 }
 
-impl ValuesPartitionState {
-    pub const fn with_batches(batches: Vec<Batch>) -> Self {
-        ValuesPartitionState { batches }
-    }
-
-    pub const fn empty() -> Self {
-        ValuesPartitionState {
-            batches: Vec::new(),
-        }
-    }
+#[derive(Debug)]
+pub struct PhysicalValues {
+    batches: Vec<Batch>,
 }
 
-#[derive(Debug)]
-pub struct PhysicalValues;
+impl PhysicalValues {
+    pub fn new(batches: Vec<Batch>) -> Self {
+        PhysicalValues { batches }
+    }
+
+    pub fn create_states(&self, num_partitions: usize) -> Vec<ValuesPartitionState> {
+        let mut states: Vec<_> = (0..num_partitions)
+            .map(|_| ValuesPartitionState {
+                batches: Vec::new(),
+            })
+            .collect();
+
+        for (idx, batch) in self.batches.iter().enumerate() {
+            states[idx % num_partitions].batches.push(batch.clone());
+        }
+
+        states
+    }
+}
 
 impl PhysicalOperator for PhysicalValues {
     fn poll_push(
