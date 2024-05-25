@@ -54,14 +54,12 @@ mod macros {
             let arr1 = Array::Int32(Int32Array::from_iter([1, 2, 3]));
             let arr2 = Array::Int32(Int32Array::from_iter([3, 4, 5]));
 
-            let arrs = vec![&arr1, &arr2];
+            let arrs = [&arr1, &arr2];
 
             let typed_arrs = collect_arrays_of_type!(arrs, Int32, DataType::Int32).unwrap();
 
-            let expected = vec![
-                Int32Array::from_iter([1, 2, 3]),
-                Int32Array::from_iter([3, 4, 5]),
-            ];
+            let expected = [Int32Array::from_iter([1, 2, 3]),
+                Int32Array::from_iter([3, 4, 5])];
             let expected_refs: Vec<&Int32Array> = expected.iter().collect();
 
             assert_eq!(expected_refs, typed_arrs);
@@ -72,7 +70,7 @@ mod macros {
             let arr1 = Array::Int32(Int32Array::from_iter([1, 2, 3]));
             let arr2 = Array::UInt32(UInt32Array::from_iter([3, 4, 5]));
 
-            let arrs = vec![&arr1, &arr2];
+            let arrs = [&arr1, &arr2];
 
             let _ = collect_arrays_of_type!(arrs, Int32, DataType::Int32).unwrap_err();
         }

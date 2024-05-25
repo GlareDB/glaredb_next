@@ -3,14 +3,19 @@ pub mod join_order;
 use crate::{
     optimizer::join_order::JoinOrderRule,
     planner::operator::{
-        Aggregate, AnyJoin, CreateTableAs, CrossJoin, EqualityJoin, Filter, Limit, LogicalOperator,
-        Order, Projection,
+        LogicalOperator,
     },
 };
 use rayexec_error::Result;
 
 #[derive(Debug)]
 pub struct Optimizer {}
+
+impl Default for Optimizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Optimizer {
     pub fn new() -> Self {
@@ -144,10 +149,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
 
-    use crate::planner::operator::LogicalExpression;
-    use rayexec_bullet::scalar::OwnedScalarValue;
+    
+    
 
     // #[test]
     // fn walk_plan_pre_post() {

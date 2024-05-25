@@ -1,7 +1,7 @@
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_error::{RayexecError, Result};
 
-use crate::planner::operator::GroupingExpr;
+
 
 /// Represents groups in the GROUP BY clause.
 ///

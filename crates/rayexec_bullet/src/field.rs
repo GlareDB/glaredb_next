@@ -116,7 +116,7 @@ impl Schema {
             fields: self
                 .fields
                 .into_iter()
-                .chain(other.fields.into_iter())
+                .chain(other.fields)
                 .collect(),
         }
     }
@@ -161,7 +161,7 @@ impl TypeSchema {
             types: self
                 .types
                 .into_iter()
-                .chain(other.types.into_iter())
+                .chain(other.types)
                 .collect(),
         }
     }
