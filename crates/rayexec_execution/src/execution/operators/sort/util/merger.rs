@@ -132,13 +132,24 @@ where
     }
 
     /// Push a batch and iterator for an input.
-    ///
-    /// This sets the iterator as initialized, and if all other iterators have
-    /// been initialized, merging can proceed.
-    pub fn push_batch_for_input(&mut self, input: usize, batch: Batch, iter: I) {
+    pub fn push_batch_for_input(&mut self, input: usize, batch: Batch, mut iter: I) -> Result<()> {
+        assert!(self.needs_input);
+
         self.needs_input = false;
         self.acc.push_input_batch(input, batch);
+
+        let row_reference = match iter.next() {
+            Some(reference) => reference,
+            None => return Err(RayexecError::new("Unexpected empty iterator")),
+        };
+        self.heap.push(Reverse(InputRowReference {
+            input_idx: input,
+            row_reference,
+        }));
+
         self.row_reference_iters[input] = IterState::Iterator(iter);
+
+        Ok(())
     }
 
     /// Marks an input as finished.
@@ -146,6 +157,8 @@ where
     /// During merge, there will be no attempts to continue to read rows for
     /// this partition.
     pub fn input_finished(&mut self, input: usize) {
+        assert!(self.needs_input);
+
         self.needs_input = false;
         self.row_reference_iters[input] = IterState::Finished;
     }

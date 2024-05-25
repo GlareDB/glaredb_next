@@ -40,20 +40,6 @@ impl<T> PrimitiveStorage<T> {
             )),
         }
     }
-
-    /// Truncates the storage to some length.
-    ///
-    /// If `len` is greather than the current length, this does nothing.
-    pub fn truncate(&mut self, len: usize) {
-        match self {
-            PrimitiveStorage::Vec(v) => v.truncate(len),
-            PrimitiveStorage::Raw { len: curr_len, .. } => {
-                if len < *curr_len {
-                    *curr_len = len;
-                }
-            }
-        }
-    }
 }
 
 /// Implementation of equality that compares the actual values regardless of if

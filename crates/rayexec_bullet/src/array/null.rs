@@ -19,10 +19,4 @@ impl NullArray {
         }
         Some(false)
     }
-
-    pub(crate) fn truncate(&mut self, len: usize) {
-        if len < self.len {
-            self.len = len;
-        }
-    }
 }
