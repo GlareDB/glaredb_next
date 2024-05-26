@@ -1,0 +1,17 @@
+# EXPLAIN
+#
+# Keep minimal since explain formats will probably change.
+
+query TT
+explain select 1;
+----
+logical  Projection (expressions = [1])
+.          Empty
+
+query TT
+explain select * from (values (1), (2)) order by column1;
+----
+logical  Order (expressions = [#0 DESC NULLS FIRST])
+.          Projection (expressions = [#0])
+.            ExpressionList
+

@@ -36,9 +36,10 @@ use rayexec_bullet::{
     field::TypeSchema,
 };
 use rayexec_error::{RayexecError, Result};
+use rayexec_parser::ast::ExplainNode;
 use std::sync::Arc;
 
-use super::{sink::QuerySink, QueryGraph};
+use super::{explain::format_logical_plan_for_explain, sink::QuerySink, QueryGraph};
 
 /// Configuration used for trigger debug condititions during planning.
 #[derive(Debug, Clone, Copy, Default)]
@@ -129,6 +130,7 @@ impl BuildState {
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
+            LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
             other => unimplemented!("other: {other:?}"),
         }
@@ -182,12 +184,47 @@ impl BuildState {
         Ok(())
     }
 
+    fn push_explain(&mut self, conf: &BuildConfig, explain: operator::Explain) -> Result<()> {
+        if explain.analyze {
+            unimplemented!()
+        }
+
+        let formatted_logical =
+            format_logical_plan_for_explain(explain.format, explain.verbose, &explain.input)?;
+
+        // Build up the pipeline.
+        self.walk(conf, *explain.input)?;
+
+        // And then take it, we'll be discarding this for non-analyze explains.
+        let _current = self
+            .in_progress
+            .take()
+            .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
+
+        // TODO: Format & add pipeline.
+        let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
+            Array::Utf8(Utf8Array::from_iter(["logical"])),
+            Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
+        ])?]));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = physical
+            .create_states(1)
+            .into_iter()
+            .map(PartitionState::Values)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+        self.in_progress = Some(pipeline);
+
+        Ok(())
+    }
+
     fn push_show_var(&mut self, _conf: &BuildConfig, show: operator::ShowVar) -> Result<()> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
         let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
             Array::Utf8(Utf8Array::from_iter([show.var.value.to_string().as_str()])),
         ])?]));
@@ -198,6 +235,7 @@ impl BuildState {
             .map(PartitionState::Values)
             .collect();
 
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
