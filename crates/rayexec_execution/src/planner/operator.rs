@@ -404,7 +404,11 @@ impl LogicalNode for ExpressionList {
 
 impl Explainable for ExpressionList {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("ExpressionList")
+        let mut ent = ExplainEntry::new("ExpressionList");
+        for (idx, row) in self.rows.iter().enumerate() {
+            ent = ent.with_values(format!("row{idx}"), row);
+        }
+        ent
     }
 }
 

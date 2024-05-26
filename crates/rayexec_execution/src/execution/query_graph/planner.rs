@@ -38,7 +38,11 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
-use super::{explain::format_logical_plan_for_explain, sink::QuerySink, QueryGraph};
+use super::{
+    explain::{format_logical_plan_for_explain, format_pipelines_for_explain},
+    sink::QuerySink,
+    QueryGraph,
+};
 
 /// Configuration used for trigger debug condititions during planning.
 #[derive(Debug, Clone, Copy, Default)]
@@ -189,21 +193,29 @@ impl BuildState {
         }
 
         let formatted_logical =
-            format_logical_plan_for_explain(explain.format, explain.verbose, &explain.input)?;
+            format_logical_plan_for_explain(&explain.input, explain.format, explain.verbose)?;
 
         // Build up the pipeline.
         self.walk(conf, *explain.input)?;
 
         // And then take it, we'll be discarding this for non-analyze explains.
-        let _current = self
+        let current = self
             .in_progress
             .take()
             .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
 
-        // TODO: Format & add pipeline.
+        let formatted_pipelines = format_pipelines_for_explain(
+            self.completed.iter().chain(std::iter::once(&current)),
+            explain.format,
+            explain.verbose,
+        )?;
+
         let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
-            Array::Utf8(Utf8Array::from_iter(["logical"])),
-            Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
+            Array::Utf8(Utf8Array::from_iter(["logical", "pipelines"])),
+            Array::Utf8(Utf8Array::from_iter([
+                formatted_logical.as_str(),
+                formatted_pipelines.as_str(),
+            ])),
         ])?]));
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = physical

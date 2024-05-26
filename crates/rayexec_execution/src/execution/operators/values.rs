@@ -1,3 +1,4 @@
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
@@ -66,5 +67,11 @@ impl PhysicalOperator for PhysicalValues {
             },
             other => panic!("invalid partition state: {other:?}"),
         }
+    }
+}
+
+impl Explainable for PhysicalValues {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Values")
     }
 }
