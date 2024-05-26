@@ -11,7 +11,7 @@ pub fn format_logical_plan_for_explain(
 ) -> Result<String> {
     let conf = ExplainConfig { verbose };
     match format {
-        ExplainFormat::Text => ExplainNode::walk_logical(&plan, conf).format_text(0, String::new()),
+        ExplainFormat::Text => ExplainNode::walk_logical(plan, conf).format_text(0, String::new()),
         ExplainFormat::Json => unimplemented!(),
     }
 }

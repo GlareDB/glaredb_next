@@ -36,7 +36,6 @@ use rayexec_bullet::{
     field::TypeSchema,
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast::ExplainNode;
 use std::sync::Arc;
 
 use super::{explain::format_logical_plan_for_explain, sink::QuerySink, QueryGraph};
