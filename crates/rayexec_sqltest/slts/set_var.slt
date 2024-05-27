@@ -16,10 +16,10 @@ show application_name;
 ----
 test1
 
-# statement ok
-# set batch_size to 8096;
+statement ok
+set batch_size to 8096;
 
-# query I
-# show batch_size;
-# ----
-# 8096
+query I
+show batch_size;
+----
+8096

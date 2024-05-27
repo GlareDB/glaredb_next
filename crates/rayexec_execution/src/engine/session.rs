@@ -206,7 +206,10 @@ impl Session {
                 // We could have an implementation for the local session, and a
                 // separate implementation used for nodes taking part in
                 // distributed execution.
-                self.vars.set_var(&set_var.name, set_var.value)?;
+                let val = self
+                    .vars
+                    .try_cast_scalar_value(&set_var.name, set_var.value)?;
+                self.vars.set_var(&set_var.name, val)?;
                 planner.create_graph(LogicalOperator::Empty, query_sink)?
             }
             root => planner.create_graph(root, query_sink)?,

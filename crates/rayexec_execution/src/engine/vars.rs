@@ -1,5 +1,8 @@
 use once_cell::sync::Lazy;
-use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
+use rayexec_bullet::{
+    compute,
+    scalar::{OwnedScalarValue, ScalarValue},
+};
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 
@@ -40,7 +43,7 @@ pub struct SessionVars {
 impl SessionVars {
     /// Create a session variables map that contains the default values.
     fn global_default() -> Self {
-        let vars = [
+        let default_vars = [
             SessionVar {
                 name: "debug_string_var",
                 desc: "Debug variable for testing SET/SHOW.",
@@ -63,18 +66,18 @@ impl SessionVars {
                 value: ScalarValue::UInt64(num_cpus::get() as u64),
             },
             SessionVar {
-                name: "partitions",
-                desc: "Number of partitions to use during execution.",
-                value: ScalarValue::UInt64(num_cpus::get() as u64),
-            },
-            SessionVar {
                 name: "batch_size",
                 desc: "Desired number of rows in a batch.",
                 value: ScalarValue::UInt64(2048),
             },
         ];
 
-        let vars = vars.into_iter().map(|var| (var.name, var)).collect();
+        let mut vars = HashMap::new();
+        for var in default_vars {
+            if let Some(existing) = vars.insert(var.name, var) {
+                panic!("duplicate vars: {}", existing.name);
+            }
+        }
 
         SessionVars { vars }
     }
@@ -102,6 +105,21 @@ impl SessionVars {
 
     pub fn exists(&self, name: &str) -> bool {
         self.get_var(name).is_ok()
+    }
+
+    /// Try to cast a scalar value to the correct type for a variable if needed.
+    pub fn try_cast_scalar_value(
+        &self,
+        name: &str,
+        value: OwnedScalarValue,
+    ) -> Result<OwnedScalarValue> {
+        let var = DEFAULT_GLOBAL_SESSION_VARS
+            .vars
+            .get(name)
+            .ok_or_else(|| RayexecError::new(format!("Session variable doesn't exist: {name}")))?;
+        let value = compute::cast::cast_scalar(value, var.value.datatype())?;
+
+        Ok(value)
     }
 
     pub fn set_var(&mut self, name: &str, value: OwnedScalarValue) -> Result<()> {
@@ -134,6 +152,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unique_var_names() {
+        // Panics on non-unique names.
+        let _ = SessionVars::global_default();
+    }
+
+    #[test]
     fn set_var_exists() {
         let mut vars = SessionVars::new_local();
         let var = vars.get_var("debug_string_var").unwrap();
@@ -157,5 +181,13 @@ mod tests {
         let mut vars = SessionVars::new_local();
         vars.set_var("does_not_exist", ScalarValue::Utf8("test".into()))
             .unwrap_err();
+    }
+
+    #[test]
+    fn cast_value() {
+        let vars = SessionVars::new_local();
+        let new_value = ScalarValue::Int64(8096);
+        let new_value = vars.try_cast_scalar_value("batch_size", new_value).unwrap();
+        assert_eq!(ScalarValue::UInt64(8096), new_value);
     }
 }
