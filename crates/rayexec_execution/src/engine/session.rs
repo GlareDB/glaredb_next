@@ -4,17 +4,18 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser, statement::Statement};
 
 use crate::{
+    database::DatabaseContext,
     engine::result_stream::unpartitioned_result_stream,
     execution::query_graph::{
         planner::{QueryGraphDebugConfig, QueryGraphPlanner},
         sink::QuerySink,
     },
     functions::{
-        aggregate::{GenericAggregateFunction, ALL_AGGREGATE_FUNCTIONS},
-        scalar::{GenericScalarFunction, ALL_SCALAR_FUNCTIONS},
+        aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS},
+        scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS},
     },
     optimizer::Optimizer,
-    planner::{operator::LogicalOperator, plan::PlanContext, Resolver},
+    planner::{operator::LogicalOperator, plan::PlanContext},
     scheduler::Scheduler,
 };
 
@@ -24,77 +25,6 @@ use super::{
 };
 
 #[derive(Debug)]
-#[allow(clippy::borrowed_box)] // Boxing is useful for the clones. The 'static lifetime might go away at some point.
-struct SessionFunctions {
-    scalars: HashMap<&'static str, &'static Box<dyn GenericScalarFunction>>,
-    aggregates: HashMap<&'static str, &'static Box<dyn GenericAggregateFunction>>,
-}
-
-impl SessionFunctions {
-    fn new() -> Self {
-        // TODO: We wouldn't create this every time. Also these would be placed
-        // inside a builtin schema.
-        let mut scalars = HashMap::new();
-        for func in ALL_SCALAR_FUNCTIONS.iter() {
-            scalars.insert(func.name(), func);
-            for alias in func.aliases() {
-                scalars.insert(alias, func);
-            }
-        }
-
-        let mut aggregates = HashMap::new();
-        for func in ALL_AGGREGATE_FUNCTIONS.iter() {
-            aggregates.insert(func.name(), func);
-            for alias in func.aliases() {
-                aggregates.insert(alias, func);
-            }
-        }
-
-        SessionFunctions {
-            scalars,
-            aggregates,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct DebugResolver<'a> {
-    vars: &'a SessionVars,
-    functions: &'a SessionFunctions,
-}
-
-impl<'a> Resolver for DebugResolver<'a> {
-    fn resolve_scalar_function(
-        &self,
-        reference: &ast::ObjectReference,
-    ) -> Option<Box<dyn GenericScalarFunction>> {
-        if reference.0.len() != 1 {
-            return None;
-        }
-        let func = self.functions.scalars.get(reference.0[0].value.as_str())?;
-        Some((*func).clone())
-    }
-
-    fn resolve_aggregate_function(
-        &self,
-        reference: &ast::ObjectReference,
-    ) -> Option<Box<dyn GenericAggregateFunction>> {
-        if reference.0.len() != 1 {
-            return None;
-        }
-        let func = self
-            .functions
-            .aggregates
-            .get(reference.0[0].value.as_str())?;
-        Some((*func).clone())
-    }
-
-    fn get_session_variable(&self, name: &str) -> Result<SessionVar> {
-        self.vars.get_var(name).cloned()
-    }
-}
-
-#[derive(Debug)]
 pub struct ExecutionResult {
     pub output_schema: Schema,
     pub stream: ResultStream,
@@ -102,9 +32,9 @@ pub struct ExecutionResult {
 
 #[derive(Debug)]
 pub struct Session {
+    context: DatabaseContext,
     vars: SessionVars,
     scheduler: Scheduler,
-    functions: SessionFunctions,
 
     prepared: HashMap<String, PreparedStatement>,
     portals: HashMap<String, Portal>,
@@ -113,9 +43,9 @@ pub struct Session {
 impl Session {
     pub fn new(scheduler: Scheduler) -> Self {
         Session {
+            context: DatabaseContext::new(),
             scheduler,
             vars: SessionVars::new_local(),
-            functions: SessionFunctions::new(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
         }
@@ -175,11 +105,7 @@ impl Session {
             .map(|p| p.statement.clone())
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
-        let resolver = DebugResolver {
-            vars: &self.vars,
-            functions: &self.functions,
-        };
-        let plan_context = PlanContext::new(&resolver);
+        let plan_context = PlanContext::new(&self.context, &self.vars);
         let mut logical = plan_context.plan_statement(stmt)?;
 
         let optimizer = Optimizer::new();

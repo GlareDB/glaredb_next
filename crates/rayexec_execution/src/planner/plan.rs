@@ -5,11 +5,14 @@ use super::{
         Order, OrderByExpr, Projection,
     },
     scope::{ColumnRef, Scope},
-    Resolver,
 };
-use crate::planner::{
-    operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
-    scope::TableReference,
+use crate::{
+    database::DatabaseContext,
+    engine::vars::SessionVars,
+    planner::{
+        operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
+        scope::TableReference,
+    },
 };
 use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
@@ -34,16 +37,20 @@ pub struct LogicalQuery {
 #[derive(Debug, Clone)]
 pub struct PlanContext<'a> {
     /// Resolver for resolving table and other table like items.
-    pub resolver: &'a dyn Resolver,
+    pub resolver: &'a DatabaseContext,
+
+    /// Session variables.
+    pub vars: &'a SessionVars,
 
     /// Scopes outside this context.
     pub outer_scopes: Vec<Scope>,
 }
 
 impl<'a> PlanContext<'a> {
-    pub fn new(resolver: &'a dyn Resolver) -> Self {
+    pub fn new(resolver: &'a DatabaseContext, vars: &'a SessionVars) -> Self {
         PlanContext {
             resolver,
+            vars,
             outer_scopes: Vec::new(),
         }
     }
@@ -84,10 +91,10 @@ impl<'a> PlanContext<'a> {
             }
             Statement::ShowVariable { reference } => {
                 let name = reference.0[0].value.clone(); // TODO: Normalize, allow compound references?
-                let var = self.resolver.get_session_variable(&name)?;
+                let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 Ok(LogicalQuery {
-                    root: LogicalOperator::ShowVar(ShowVar { var }),
+                    root: LogicalOperator::ShowVar(ShowVar { var: var.clone() }),
                     scope,
                 })
             }
@@ -99,6 +106,7 @@ impl<'a> PlanContext<'a> {
     fn nested(&self, outer: Scope) -> Self {
         PlanContext {
             resolver: self.resolver,
+            vars: self.vars,
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
                 .collect(),

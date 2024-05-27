@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
 
-use super::CatalogTx;
+use super::catalog::CatalogTx;
 
 #[derive(Debug, Clone)]
 pub struct CreateTable {
@@ -50,6 +50,40 @@ pub enum FunctionImpl {
 
 pub trait Schema: Debug + Sync + Send {
     fn try_get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>>;
+
+    fn try_get_scalar_function(
+        &self,
+        tx: &CatalogTx,
+        name: &str,
+    ) -> Result<Option<&Box<dyn GenericScalarFunction>>> {
+        match self.try_get_entry(tx, name)? {
+            Some(CatalogEntry::Function(FunctionEntry { implementation, .. })) => {
+                match implementation {
+                    FunctionImpl::Scalar(scalar) => Ok(Some(scalar)),
+                    _ => Ok(None),
+                }
+            }
+            Some(_) => Err(RayexecError::new("Not a function")),
+            None => Ok(None),
+        }
+    }
+
+    fn try_get_aggregate_function(
+        &self,
+        tx: &CatalogTx,
+        name: &str,
+    ) -> Result<Option<&Box<dyn GenericAggregateFunction>>> {
+        match self.try_get_entry(tx, name)? {
+            Some(CatalogEntry::Function(FunctionEntry { implementation, .. })) => {
+                match implementation {
+                    FunctionImpl::Aggregate(agg) => Ok(Some(agg)),
+                    _ => Ok(None),
+                }
+            }
+            Some(_) => Err(RayexecError::new("Not a function")),
+            None => Ok(None),
+        }
+    }
 
     fn create_table(&mut self, tx: &CatalogTx, create: CreateTable) -> Result<()>;
     fn create_scalar_function(
@@ -116,9 +150,15 @@ impl Schema for InMemorySchema {
 }
 
 impl InMemorySchema {
+    pub fn new() -> Self {
+        InMemorySchema {
+            entries: HashMap::new(),
+        }
+    }
+
     fn insert_entry(
         &mut self,
-        tx: &CatalogTx,
+        _tx: &CatalogTx,
         name: impl Into<String>,
         ent: impl Into<CatalogEntry>,
     ) -> Result<()> {
