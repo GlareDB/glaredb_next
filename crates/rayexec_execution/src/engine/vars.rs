@@ -37,10 +37,6 @@ impl<'a> VarAccessor<'a> {
     }
 }
 
-trait VarValidator: Sync + Send {
-    fn validate(&self, var: &ScalarValue) -> Result<()>;
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionVar {
     pub name: &'static str,
