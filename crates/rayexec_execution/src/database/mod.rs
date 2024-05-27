@@ -1,6 +1,11 @@
+pub mod schema;
+
 use rayexec_error::{RayexecError, Result};
+use schema::{CreateTable, Schema};
 use std::collections::HashMap;
 use std::fmt::Debug;
+
+use crate::functions::scalar::GenericScalarFunction;
 
 #[derive(Debug)]
 pub struct CatalogTx {}
@@ -32,30 +37,47 @@ impl DatabaseContext {
 
         Ok(())
     }
-}
 
-pub trait Catalog: Debug + Sync + Send {
-    fn get_schema(&self, tx: &CatalogTx, name: &str) -> Result<Option<&dyn Schema>>;
+    pub fn detach_catalog(&mut self, name: &str) -> Result<()> {
+        if self.catalogs.remove(name).is_none() {
+            return Err(RayexecError::new(format!(
+                "Catalog with name '{name}' doesn't exist"
+            )));
+        }
+        Ok(())
+    }
 
-    fn create_table(&self, tx: &CatalogTx, schema: &str, create: CreateTable) -> Result<()> {
-        let schema = self
-            .get_schema(tx, schema)?
-            .ok_or_else(|| RayexecError::new(format!("Missing schema : {schema}")))?;
-        schema.create_table(tx, create)
+    pub fn get_catalog(&self, name: &str) -> Option<&dyn Catalog> {
+        self.catalogs.get(name).map(|c| c.as_ref())
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CreateTable {
-    name: String,
-}
+pub trait Catalog: Debug + Sync + Send {
+    fn try_get_schema(&self, tx: &CatalogTx, name: &str) -> Result<Option<&dyn Schema>>;
+    fn try_get_schema_mut(&mut self, tx: &CatalogTx, name: &str)
+        -> Result<Option<&mut dyn Schema>>;
 
-pub trait Schema: Debug + Sync + Send {
-    fn get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>>;
-    fn create_table(&self, tx: &CatalogTx, create: CreateTable) -> Result<()>;
-}
+    fn get_schema(&self, tx: &CatalogTx, name: &str) -> Result<&dyn Schema> {
+        self.try_get_schema(tx, name)?
+            .ok_or_else(|| RayexecError::new(format!("Missing schema '{name}'")))
+    }
 
-pub enum CatalogEntry {
-    Table(()),
-    External(()),
+    fn get_schema_mut(&mut self, tx: &CatalogTx, name: &str) -> Result<&mut dyn Schema> {
+        self.try_get_schema_mut(tx, name)?
+            .ok_or_else(|| RayexecError::new(format!("Missing schema '{name}'")))
+    }
+
+    fn create_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()>;
+    fn drop_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()>;
+
+    fn get_scalar_function(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> Result<Option<Box<dyn GenericScalarFunction>>>;
+
+    fn create_table(&mut self, tx: &CatalogTx, schema: &str, create: CreateTable) -> Result<()> {
+        self.get_schema_mut(tx, schema)?.create_table(tx, create)
+    }
 }
