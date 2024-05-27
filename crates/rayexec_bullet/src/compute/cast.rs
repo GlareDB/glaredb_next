@@ -3,7 +3,7 @@ use crate::{
     field::DataType,
     scalar::ScalarValue,
 };
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 
 // TODO: This is woefully incomplete.
 pub fn cast(arr: Array, to: DataType) -> Result<Array> {

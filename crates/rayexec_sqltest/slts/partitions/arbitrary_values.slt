@@ -8,8 +8,11 @@ show partitions
 ----
 1
 
-statement ok
+query T rowsort
 select * from (values ('a'), ('b'));
+----
+a
+b
 
 statement ok
 set partitions = 8;
@@ -19,8 +22,11 @@ show partitions
 ----
 8
 
-statement ok
+query T rowsort
 select * from (values ('a'), ('b'));
+----
+a
+b
 
 statement ok
 set partitions = 345234;
@@ -30,8 +36,11 @@ show partitions
 ----
 345234
 
-statement ok
+query T rowsort
 select * from (values ('a'), ('b'));
+----
+a
+b
 
 # TODO: This should error when setting 0
 # statement ok
