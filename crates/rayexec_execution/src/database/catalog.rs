@@ -2,7 +2,10 @@ use hashbrown::HashMap;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
-use super::schema::{CreateTable, InMemorySchema, Schema};
+use super::{
+    create::{CreateSchema, CreateTable},
+    schema::{InMemorySchema, Schema},
+};
 
 #[derive(Debug, Default)]
 pub struct CatalogTx {}
@@ -34,7 +37,7 @@ pub trait Catalog: Debug + Sync + Send {
             .ok_or_else(|| RayexecError::new(format!("Missing schema '{name}'")))
     }
 
-    fn create_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()>;
+    fn create_schema(&mut self, tx: &CatalogTx, create: CreateSchema) -> Result<()>;
     fn drop_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()>;
 
     fn create_table(&mut self, tx: &CatalogTx, schema: &str, create: CreateTable) -> Result<()> {
@@ -57,7 +60,7 @@ impl Catalog for &dyn Catalog {
         Err(RayexecError::new("Cannot get mutable schema"))
     }
 
-    fn create_schema(&mut self, _tx: &CatalogTx, _name: &str) -> Result<()> {
+    fn create_schema(&mut self, _tx: &CatalogTx, _create: CreateSchema) -> Result<()> {
         Err(RayexecError::new("Cannot create schema"))
     }
 
@@ -89,12 +92,15 @@ impl Catalog for InMemoryCatalog {
         Ok(self.schemas.get_mut(name).map(|s| s as _))
     }
 
-    fn create_schema(&mut self, _tx: &CatalogTx, name: &str) -> Result<()> {
-        if self.schemas.contains_key(name) {
-            return Err(RayexecError::new(format!("Schema '{name}' already exists")));
+    fn create_schema(&mut self, _tx: &CatalogTx, create: CreateSchema) -> Result<()> {
+        // TODO: On conflict
+        if self.schemas.contains_key(&create.name) {
+            return Err(RayexecError::new(format!(
+                "Schema '{}' already exists",
+                create.name
+            )));
         }
-        self.schemas
-            .insert(name.to_string(), InMemorySchema::default());
+        self.schemas.insert(create.name, InMemorySchema::default());
         Ok(())
     }
 

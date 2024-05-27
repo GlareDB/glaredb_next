@@ -4,58 +4,11 @@ use std::fmt::Debug;
 
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
 
-use super::catalog::CatalogTx;
-
-#[derive(Debug, Clone)]
-pub struct CreateTable {
-    pub name: String,
-}
-
-#[derive(Debug)]
-pub struct CreateScalarFunction {
-    pub name: String,
-    pub implementation: Box<dyn GenericScalarFunction>,
-}
-
-#[derive(Debug)]
-pub struct CreateAggregateFunction {
-    pub name: String,
-    pub implementation: Box<dyn GenericAggregateFunction>,
-}
-
-#[derive(Debug)]
-pub enum CatalogEntry {
-    Table(()),
-    Function(FunctionEntry),
-    External(()),
-}
-
-impl CatalogEntry {
-    pub fn try_as_function(&self) -> Result<&FunctionEntry> {
-        match self {
-            Self::Function(f) => Ok(f),
-            _ => Err(RayexecError::new("Not a function")),
-        }
-    }
-}
-
-impl From<FunctionEntry> for CatalogEntry {
-    fn from(value: FunctionEntry) -> Self {
-        CatalogEntry::Function(value)
-    }
-}
-
-#[derive(Debug)]
-pub struct FunctionEntry {
-    pub name: String,
-    pub implementation: FunctionImpl,
-}
-
-#[derive(Debug)]
-pub enum FunctionImpl {
-    Scalar(Box<dyn GenericScalarFunction>),
-    Aggregate(Box<dyn GenericAggregateFunction>),
-}
+use super::{
+    catalog::CatalogTx,
+    create::{CreateAggregateFunction, CreateScalarFunction, CreateTable},
+    entry::{CatalogEntry, FunctionEntry, FunctionImpl},
+};
 
 pub trait Schema: Debug + Sync + Send {
     fn try_get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>>;
@@ -95,11 +48,13 @@ pub trait Schema: Debug + Sync + Send {
     }
 
     fn create_table(&mut self, tx: &CatalogTx, create: CreateTable) -> Result<()>;
+
     fn create_scalar_function(
         &mut self,
         tx: &CatalogTx,
         create: CreateScalarFunction,
     ) -> Result<()>;
+
     fn create_aggregate_function(
         &mut self,
         tx: &CatalogTx,

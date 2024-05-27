@@ -1,14 +1,14 @@
 use crate::{
-    database::{
-        catalog::{Catalog, CatalogTx},
-        schema::{CreateAggregateFunction, CreateScalarFunction},
-    },
+    database::catalog::{Catalog, CatalogTx},
     functions::{aggregate::BUILTIN_AGGREGATE_FUNCTIONS, scalar::BUILTIN_SCALAR_FUNCTIONS},
 };
 use once_cell::sync::Lazy;
 use rayexec_error::Result;
 
-use super::catalog::InMemoryCatalog;
+use super::{
+    catalog::InMemoryCatalog,
+    create::{CreateAggregateFunction, CreateScalarFunction, CreateSchema, OnConflict},
+};
 
 pub static SYSTEM_CATALOG: Lazy<InMemoryCatalog> =
     Lazy::new(|| new_system_catalog().expect("catalog to be valid"));
@@ -19,8 +19,27 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
     let mut catalog = InMemoryCatalog::default();
     let tx = CatalogTx::new();
 
-    catalog.create_schema(&tx, "glare_catalog")?;
-    catalog.create_schema(&tx, "information_schema")?;
+    catalog.create_schema(
+        &tx,
+        CreateSchema {
+            name: "glare_catalog".into(),
+            on_conflict: OnConflict::Error,
+        },
+    )?;
+    catalog.create_schema(
+        &tx,
+        CreateSchema {
+            name: "information_schema".into(),
+            on_conflict: OnConflict::Error,
+        },
+    )?;
+    catalog.create_schema(
+        &tx,
+        CreateSchema {
+            name: "pg_catalog".into(),
+            on_conflict: OnConflict::Error,
+        },
+    )?;
 
     let schema = catalog.get_schema_mut(&tx, "glare_catalog")?;
 
@@ -31,6 +50,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
             CreateScalarFunction {
                 name: func.name().to_string(),
                 implementation: func.clone(),
+                on_conflict: OnConflict::Error,
             },
         )?;
 
@@ -40,6 +60,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
                 CreateScalarFunction {
                     name: alias.to_string(),
                     implementation: func.clone(),
+                    on_conflict: OnConflict::Error,
                 },
             )?
         }
@@ -52,6 +73,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
             CreateAggregateFunction {
                 name: func.name().to_string(),
                 implementation: func.clone(),
+                on_conflict: OnConflict::Error,
             },
         )?;
 
@@ -61,6 +83,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
                 CreateAggregateFunction {
                     name: alias.to_string(),
                     implementation: func.clone(),
+                    on_conflict: OnConflict::Error,
                 },
             )?
         }
