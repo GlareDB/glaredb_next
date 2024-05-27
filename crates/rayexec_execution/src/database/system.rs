@@ -5,23 +5,18 @@ use crate::{
     },
     functions::{aggregate::BUILTIN_AGGREGATE_FUNCTIONS, scalar::BUILTIN_SCALAR_FUNCTIONS},
 };
-use hashbrown::HashMap;
 use once_cell::sync::Lazy;
-use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
+use rayexec_error::Result;
 
-use super::{
-    catalog::InMemoryCatalog,
-    schema::{CatalogEntry, Schema},
-};
+use super::catalog::InMemoryCatalog;
 
 pub static SYSTEM_CATALOG: Lazy<InMemoryCatalog> =
     Lazy::new(|| new_system_catalog().expect("catalog to be valid"));
 
-////Creates a new in-memory system catalog containing all of our built in
+/// Creates a new in-memory system catalog containing all of our built in
 /// functions and schemas.
 fn new_system_catalog() -> Result<InMemoryCatalog> {
-    let mut catalog = InMemoryCatalog::new();
+    let mut catalog = InMemoryCatalog::default();
     let tx = CatalogTx::new();
 
     catalog.create_schema(&tx, "glare_catalog")?;

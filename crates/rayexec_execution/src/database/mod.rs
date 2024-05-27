@@ -18,6 +18,11 @@ pub struct DatabaseContext {
 }
 
 impl DatabaseContext {
+    /// Creates a new database context containing containing a builtin "system"
+    /// catalog.
+    ///
+    /// By itself, this context cannot be used to store data. Additional
+    /// catalogs need to be attached via `attach_catalog`.
     pub fn new() -> Self {
         let catalogs = [(
             "system".to_string(),
@@ -36,10 +41,7 @@ impl DatabaseContext {
             .ok_or_else(|| RayexecError::new("Missing system catalog"))
     }
 
-    pub fn get_builtin_scalar(
-        &self,
-        name: &str,
-    ) -> Result<Option<&Box<dyn GenericScalarFunction>>> {
+    pub fn get_builtin_scalar(&self, name: &str) -> Result<Option<Box<dyn GenericScalarFunction>>> {
         let tx = &CatalogTx::new();
         self.system_catalog()?
             .get_schema(tx, "glare_catalog")?
@@ -49,7 +51,7 @@ impl DatabaseContext {
     pub fn get_builtin_aggregate(
         &self,
         name: &str,
-    ) -> Result<Option<&Box<dyn GenericAggregateFunction>>> {
+    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
         let tx = &CatalogTx::new();
         self.system_catalog()?
             .get_schema(tx, "glare_catalog")?
@@ -83,5 +85,11 @@ impl DatabaseContext {
 
     pub fn get_catalog(&self, name: &str) -> Option<&dyn Catalog> {
         self.catalogs.get(name).map(|c| c.as_ref())
+    }
+}
+
+impl Default for DatabaseContext {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -1,7 +1,7 @@
 use hashbrown::HashMap;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::{ast, parser, statement::Statement};
+use rayexec_parser::{parser, statement::Statement};
 
 use crate::{
     database::DatabaseContext,
@@ -10,10 +10,6 @@ use crate::{
         planner::{QueryGraphDebugConfig, QueryGraphPlanner},
         sink::QuerySink,
     },
-    functions::{
-        aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS},
-        scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS},
-    },
     optimizer::Optimizer,
     planner::{operator::LogicalOperator, plan::PlanContext},
     scheduler::Scheduler,
@@ -21,7 +17,7 @@ use crate::{
 
 use super::{
     result_stream::ResultStream,
-    vars::{SessionVar, SessionVars, VarAccessor},
+    vars::{SessionVars, VarAccessor},
 };
 
 #[derive(Debug)]

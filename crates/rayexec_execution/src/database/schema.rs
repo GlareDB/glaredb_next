@@ -30,6 +30,15 @@ pub enum CatalogEntry {
     External(()),
 }
 
+impl CatalogEntry {
+    pub fn try_as_function(&self) -> Result<&FunctionEntry> {
+        match self {
+            Self::Function(f) => Ok(f),
+            _ => Err(RayexecError::new("Not a function")),
+        }
+    }
+}
+
 impl From<FunctionEntry> for CatalogEntry {
     fn from(value: FunctionEntry) -> Self {
         CatalogEntry::Function(value)
@@ -55,15 +64,15 @@ pub trait Schema: Debug + Sync + Send {
         &self,
         tx: &CatalogTx,
         name: &str,
-    ) -> Result<Option<&Box<dyn GenericScalarFunction>>> {
+    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
         match self.try_get_entry(tx, name)? {
-            Some(CatalogEntry::Function(FunctionEntry { implementation, .. })) => {
-                match implementation {
-                    FunctionImpl::Scalar(scalar) => Ok(Some(scalar)),
+            Some(ent) => {
+                let ent = ent.try_as_function()?;
+                match &ent.implementation {
+                    FunctionImpl::Scalar(scalar) => Ok(Some(scalar.clone())),
                     _ => Ok(None),
                 }
             }
-            Some(_) => Err(RayexecError::new("Not a function")),
             None => Ok(None),
         }
     }
@@ -72,15 +81,15 @@ pub trait Schema: Debug + Sync + Send {
         &self,
         tx: &CatalogTx,
         name: &str,
-    ) -> Result<Option<&Box<dyn GenericAggregateFunction>>> {
+    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
         match self.try_get_entry(tx, name)? {
-            Some(CatalogEntry::Function(FunctionEntry { implementation, .. })) => {
-                match implementation {
-                    FunctionImpl::Aggregate(agg) => Ok(Some(agg)),
+            Some(ent) => {
+                let ent = ent.try_as_function()?;
+                match &ent.implementation {
+                    FunctionImpl::Aggregate(agg) => Ok(Some(agg.clone())),
                     _ => Ok(None),
                 }
             }
-            Some(_) => Err(RayexecError::new("Not a function")),
             None => Ok(None),
         }
     }
@@ -100,9 +109,9 @@ pub trait Schema: Debug + Sync + Send {
 
 /// A schema implementation that holds all items in memory.
 ///
-////This may be intialized by reading a catalog from persistent storage, or
+/// This may be intialized by reading a catalog from persistent storage, or
 /// created on-demand.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct InMemorySchema {
     // TODO: OIDs
     // TODO: Seperate maps for funcs/tables
@@ -114,7 +123,7 @@ impl Schema for InMemorySchema {
         Ok(self.entries.get(name))
     }
 
-    fn create_table(&mut self, tx: &CatalogTx, create: CreateTable) -> Result<()> {
+    fn create_table(&mut self, _tx: &CatalogTx, _create: CreateTable) -> Result<()> {
         unimplemented!()
     }
 
@@ -150,12 +159,6 @@ impl Schema for InMemorySchema {
 }
 
 impl InMemorySchema {
-    pub fn new() -> Self {
-        InMemorySchema {
-            entries: HashMap::new(),
-        }
-    }
-
     fn insert_entry(
         &mut self,
         _tx: &CatalogTx,

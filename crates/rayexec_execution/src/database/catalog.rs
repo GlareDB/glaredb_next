@@ -1,16 +1,15 @@
 use hashbrown::HashMap;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use super::schema::{CreateTable, InMemorySchema, Schema};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CatalogTx {}
 
 impl CatalogTx {
     pub fn new() -> Self {
-        CatalogTx {}
+        Self::default()
     }
 }
 
@@ -43,7 +42,7 @@ pub trait Catalog: Debug + Sync + Send {
     }
 }
 
-////Implementation of Catalog over a shared catalog (e.g. the global system
+/// Implementation of Catalog over a shared catalog (e.g. the global system
 /// catalog that cannot be changed).
 impl Catalog for &dyn Catalog {
     fn try_get_schema(&self, tx: &CatalogTx, name: &str) -> Result<Option<&dyn Schema>> {
@@ -69,9 +68,9 @@ impl Catalog for &dyn Catalog {
 
 /// In-memory implementation of a catalog.
 ///
-////Can be intialized from reading a catalog from persistent storage, or created
+/// Can be intialized from reading a catalog from persistent storage, or created
 /// on-demand.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct InMemoryCatalog {
     // TODO: OIDs
     schemas: HashMap<String, InMemorySchema>,
@@ -90,23 +89,16 @@ impl Catalog for InMemoryCatalog {
         Ok(self.schemas.get_mut(name).map(|s| s as _))
     }
 
-    fn create_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()> {
+    fn create_schema(&mut self, _tx: &CatalogTx, name: &str) -> Result<()> {
         if self.schemas.contains_key(name) {
             return Err(RayexecError::new(format!("Schema '{name}' already exists")));
         }
-        self.schemas.insert(name.to_string(), InMemorySchema::new());
+        self.schemas
+            .insert(name.to_string(), InMemorySchema::default());
         Ok(())
     }
 
-    fn drop_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()> {
+    fn drop_schema(&mut self, _tx: &CatalogTx, _name: &str) -> Result<()> {
         unimplemented!()
-    }
-}
-
-impl InMemoryCatalog {
-    pub fn new() -> Self {
-        InMemoryCatalog {
-            schemas: HashMap::new(),
-        }
     }
 }
