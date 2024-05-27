@@ -20,7 +20,7 @@ use crate::{
 
 use super::{
     result_stream::ResultStream,
-    vars::{SessionVar, SessionVars},
+    vars::{SessionVar, SessionVars, VarAccessor},
 };
 
 #[derive(Debug)]
@@ -187,10 +187,8 @@ impl Session {
 
         let (result_stream, result_sink) = unpartitioned_result_stream();
         let planner = QueryGraphPlanner::new(
-            8,
-            QueryGraphDebugConfig {
-                error_on_nested_loop_join: true,
-            },
+            VarAccessor::new(&self.vars).partitions(),
+            QueryGraphDebugConfig::new(&self.vars),
         );
         let query_sink = QuerySink::new([result_sink]);
 

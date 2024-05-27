@@ -8,6 +8,39 @@ use std::collections::HashMap;
 
 static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(SessionVars::global_default);
 
+/// Wrapper around session variables providing nicer ergonimics around accessing
+/// select variables.
+#[derive(Debug)]
+pub struct VarAccessor<'a> {
+    pub vars: &'a SessionVars,
+}
+
+impl<'a> VarAccessor<'a> {
+    pub const fn new(vars: &'a SessionVars) -> Self {
+        VarAccessor { vars }
+    }
+
+    pub fn partitions(&self) -> usize {
+        self.vars
+            .get_var_expect("partitions")
+            .value
+            .try_as_usize()
+            .expect("convertable to usize")
+    }
+
+    pub fn batch_size(&self) -> usize {
+        self.vars
+            .get_var_expect("batch_size")
+            .value
+            .try_as_usize()
+            .expect("convertable to usize")
+    }
+}
+
+trait VarValidator: Sync + Send {
+    fn validate(&self, var: &ScalarValue) -> Result<()>;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionVar {
     pub name: &'static str,
@@ -89,6 +122,7 @@ impl SessionVars {
         }
     }
 
+    /// Get a session variable, erroring if the variable doens't exist.
     pub fn get_var(&self, name: &str) -> Result<&SessionVar> {
         if let Some(var) = self.vars.get(name) {
             return Ok(var);
@@ -101,6 +135,11 @@ impl SessionVars {
         Err(RayexecError::new(format!(
             "Session variable doesn't exist: {name}"
         )))
+    }
+
+    /// Get a session variable, panicking if it doesn't exist.
+    pub fn get_var_expect(&self, name: &str) -> &SessionVar {
+        self.get_var(name).expect("variable to exist")
     }
 
     pub fn exists(&self, name: &str) -> bool {

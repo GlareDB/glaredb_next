@@ -1,4 +1,5 @@
 use crate::{
+    engine::vars::SessionVars,
     execution::{
         operators::{
             aggregate::{
@@ -49,6 +50,18 @@ use super::{
 pub struct QueryGraphDebugConfig {
     /// Trigger an error if we attempt to plan a nested loop join.
     pub error_on_nested_loop_join: bool,
+}
+
+impl QueryGraphDebugConfig {
+    pub fn new(vars: &SessionVars) -> Self {
+        QueryGraphDebugConfig {
+            error_on_nested_loop_join: vars
+                .get_var_expect("debug_error_on_nested_loop_join")
+                .value
+                .try_as_bool()
+                .unwrap(),
+        }
+    }
 }
 
 /// Create a query graph from a logical plan.
