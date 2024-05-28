@@ -3,6 +3,7 @@
 pub mod aggregate;
 pub mod empty;
 pub mod filter;
+pub mod insert;
 pub mod join;
 pub mod limit;
 pub mod project;
@@ -18,6 +19,7 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+use insert::InsertPartitionState;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use scan::ScanPartitionState;
@@ -68,6 +70,7 @@ pub enum PartitionState {
     Limit(LimitPartitionState),
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
+    Insert(InsertPartitionState),
     Empty(EmptyPartitionState),
     None,
 }
