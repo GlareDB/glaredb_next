@@ -7,7 +7,7 @@ use rayexec_error::Result;
 
 use super::{
     catalog::InMemoryCatalog,
-    create::{CreateAggregateFunction, CreateScalarFunction, CreateSchema, OnConflict},
+    create::{CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo, OnConflict},
 };
 
 pub static SYSTEM_CATALOG: Lazy<InMemoryCatalog> =
@@ -21,21 +21,21 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
 
     catalog.create_schema(
         &tx,
-        CreateSchema {
+        CreateSchemaInfo {
             name: "glare_catalog".into(),
             on_conflict: OnConflict::Error,
         },
     )?;
     catalog.create_schema(
         &tx,
-        CreateSchema {
+        CreateSchemaInfo {
             name: "information_schema".into(),
             on_conflict: OnConflict::Error,
         },
     )?;
     catalog.create_schema(
         &tx,
-        CreateSchema {
+        CreateSchemaInfo {
             name: "pg_catalog".into(),
             on_conflict: OnConflict::Error,
         },
@@ -47,7 +47,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
     for func in BUILTIN_SCALAR_FUNCTIONS.iter() {
         schema.create_scalar_function(
             &tx,
-            CreateScalarFunction {
+            CreateScalarFunctionInfo {
                 name: func.name().to_string(),
                 implementation: func.clone(),
                 on_conflict: OnConflict::Error,
@@ -57,7 +57,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
         for alias in func.aliases() {
             schema.create_scalar_function(
                 &tx,
-                CreateScalarFunction {
+                CreateScalarFunctionInfo {
                     name: alias.to_string(),
                     implementation: func.clone(),
                     on_conflict: OnConflict::Error,
@@ -70,7 +70,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
     for func in BUILTIN_AGGREGATE_FUNCTIONS.iter() {
         schema.create_aggregate_function(
             &tx,
-            CreateAggregateFunction {
+            CreateAggregateFunctionInfo {
                 name: func.name().to_string(),
                 implementation: func.clone(),
                 on_conflict: OnConflict::Error,
@@ -80,7 +80,7 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
         for alias in func.aliases() {
             schema.create_aggregate_function(
                 &tx,
-                CreateAggregateFunction {
+                CreateAggregateFunctionInfo {
                     name: alias.to_string(),
                     implementation: func.clone(),
                     on_conflict: OnConflict::Error,

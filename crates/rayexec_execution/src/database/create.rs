@@ -21,7 +21,7 @@ pub enum OnConflict {
 }
 
 #[derive(Debug, Clone)]
-pub struct CreateTable {
+pub struct CreateTableInfo {
     pub name: String,
     pub column_names: Vec<String>,
     pub column_types: Vec<DataType>,
@@ -29,20 +29,20 @@ pub struct CreateTable {
 }
 
 #[derive(Debug, Clone)]
-pub struct CreateSchema {
+pub struct CreateSchemaInfo {
     pub name: String,
     pub on_conflict: OnConflict,
 }
 
 #[derive(Debug)]
-pub struct CreateScalarFunction {
+pub struct CreateScalarFunctionInfo {
     pub name: String,
     pub implementation: Box<dyn GenericScalarFunction>,
     pub on_conflict: OnConflict,
 }
 
 #[derive(Debug)]
-pub struct CreateAggregateFunction {
+pub struct CreateAggregateFunctionInfo {
     pub name: String,
     pub implementation: Box<dyn GenericAggregateFunction>,
     pub on_conflict: OnConflict,

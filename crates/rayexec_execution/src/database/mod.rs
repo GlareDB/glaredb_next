@@ -1,5 +1,6 @@
 pub mod catalog;
 pub mod create;
+pub mod ddl;
 pub mod entry;
 pub mod schema;
 pub mod system;

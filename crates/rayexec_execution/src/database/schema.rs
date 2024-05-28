@@ -6,7 +6,8 @@ use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScala
 
 use super::{
     catalog::CatalogTx,
-    create::{CreateAggregateFunction, CreateScalarFunction, CreateTable},
+    create::{CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateTableInfo},
+    ddl::SchemaModifier,
     entry::{CatalogEntry, FunctionEntry, FunctionImpl, TableEntry},
     table::DataTable,
 };
@@ -15,6 +16,8 @@ pub trait Schema: Debug + Sync + Send {
     fn try_get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>>;
 
     fn get_data_table(&self, tx: &CatalogTx, ent: &TableEntry) -> Result<Box<dyn DataTable>>;
+
+    fn get_modifier(&self, tx: &CatalogTx) -> Result<Box<dyn SchemaModifier>>;
 
     fn try_get_scalar_function(
         &self,
@@ -50,18 +53,18 @@ pub trait Schema: Debug + Sync + Send {
         }
     }
 
-    fn create_table(&mut self, tx: &CatalogTx, create: CreateTable) -> Result<()>;
+    fn create_table(&mut self, tx: &CatalogTx, create: CreateTableInfo) -> Result<()>;
 
     fn create_scalar_function(
         &mut self,
         tx: &CatalogTx,
-        create: CreateScalarFunction,
+        create: CreateScalarFunctionInfo,
     ) -> Result<()>;
 
     fn create_aggregate_function(
         &mut self,
         tx: &CatalogTx,
-        create: CreateAggregateFunction,
+        create: CreateAggregateFunctionInfo,
     ) -> Result<()>;
 }
 
@@ -85,14 +88,18 @@ impl Schema for InMemorySchema {
         unimplemented!()
     }
 
-    fn create_table(&mut self, _tx: &CatalogTx, _create: CreateTable) -> Result<()> {
+    fn get_modifier(&self, tx: &CatalogTx) -> Result<Box<dyn SchemaModifier>> {
+        unimplemented!()
+    }
+
+    fn create_table(&mut self, _tx: &CatalogTx, _create: CreateTableInfo) -> Result<()> {
         unimplemented!()
     }
 
     fn create_scalar_function(
         &mut self,
         tx: &CatalogTx,
-        create: CreateScalarFunction,
+        create: CreateScalarFunctionInfo,
     ) -> Result<()> {
         self.insert_entry(
             tx,
@@ -107,7 +114,7 @@ impl Schema for InMemorySchema {
     fn create_aggregate_function(
         &mut self,
         tx: &CatalogTx,
-        create: CreateAggregateFunction,
+        create: CreateAggregateFunctionInfo,
     ) -> Result<()> {
         self.insert_entry(
             tx,

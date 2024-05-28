@@ -1,6 +1,7 @@
 //! Implementations of physical operators in an execution pipeline.
 
 pub mod aggregate;
+pub mod create_table;
 pub mod empty;
 pub mod filter;
 pub mod insert;
@@ -19,6 +20,7 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+use create_table::CreateTablePartitionState;
 use insert::InsertPartitionState;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
@@ -71,6 +73,7 @@ pub enum PartitionState {
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     Insert(InsertPartitionState),
+    CreateTable(CreateTablePartitionState),
     Empty(EmptyPartitionState),
     None,
 }

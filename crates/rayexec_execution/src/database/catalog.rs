@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
 use super::{
-    create::{CreateSchema, CreateTable},
+    create::{CreateSchemaInfo, CreateTableInfo},
     schema::{InMemorySchema, Schema},
 };
 
@@ -37,10 +37,15 @@ pub trait Catalog: Debug + Sync + Send {
             .ok_or_else(|| RayexecError::new(format!("Missing schema '{name}'")))
     }
 
-    fn create_schema(&mut self, tx: &CatalogTx, create: CreateSchema) -> Result<()>;
+    fn create_schema(&mut self, tx: &CatalogTx, create: CreateSchemaInfo) -> Result<()>;
     fn drop_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()>;
 
-    fn create_table(&mut self, tx: &CatalogTx, schema: &str, create: CreateTable) -> Result<()> {
+    fn create_table(
+        &mut self,
+        tx: &CatalogTx,
+        schema: &str,
+        create: CreateTableInfo,
+    ) -> Result<()> {
         self.get_schema_mut(tx, schema)?.create_table(tx, create)
     }
 }
@@ -60,7 +65,7 @@ impl Catalog for &dyn Catalog {
         Err(RayexecError::new("Cannot get mutable schema"))
     }
 
-    fn create_schema(&mut self, _tx: &CatalogTx, _create: CreateSchema) -> Result<()> {
+    fn create_schema(&mut self, _tx: &CatalogTx, _create: CreateSchemaInfo) -> Result<()> {
         Err(RayexecError::new("Cannot create schema"))
     }
 
@@ -92,7 +97,7 @@ impl Catalog for InMemoryCatalog {
         Ok(self.schemas.get_mut(name).map(|s| s as _))
     }
 
-    fn create_schema(&mut self, _tx: &CatalogTx, create: CreateSchema) -> Result<()> {
+    fn create_schema(&mut self, _tx: &CatalogTx, create: CreateSchemaInfo) -> Result<()> {
         // TODO: On conflict
         if self.schemas.contains_key(&create.name) {
             return Err(RayexecError::new(format!(
