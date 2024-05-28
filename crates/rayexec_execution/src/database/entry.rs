@@ -1,10 +1,11 @@
+use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
 
 #[derive(Debug)]
 pub enum CatalogEntry {
-    Table(()),
+    Table(TableEntry),
     Function(FunctionEntry),
     External(()),
 }
@@ -22,6 +23,13 @@ impl From<FunctionEntry> for CatalogEntry {
     fn from(value: FunctionEntry) -> Self {
         CatalogEntry::Function(value)
     }
+}
+
+#[derive(Debug)]
+pub struct TableEntry {
+    pub name: String,
+    pub column_names: Vec<String>,
+    pub column_types: Vec<DataType>,
 }
 
 #[derive(Debug)]

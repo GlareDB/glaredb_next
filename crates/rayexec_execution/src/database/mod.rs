@@ -3,6 +3,7 @@ pub mod create;
 pub mod entry;
 pub mod schema;
 pub mod system;
+pub mod table;
 
 use catalog::{Catalog, CatalogTx};
 use rayexec_error::{RayexecError, Result};

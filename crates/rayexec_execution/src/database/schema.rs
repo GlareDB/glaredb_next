@@ -7,11 +7,14 @@ use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScala
 use super::{
     catalog::CatalogTx,
     create::{CreateAggregateFunction, CreateScalarFunction, CreateTable},
-    entry::{CatalogEntry, FunctionEntry, FunctionImpl},
+    entry::{CatalogEntry, FunctionEntry, FunctionImpl, TableEntry},
+    table::DataTable,
 };
 
 pub trait Schema: Debug + Sync + Send {
     fn try_get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>>;
+
+    fn get_data_table(&self, tx: &CatalogTx, ent: &TableEntry) -> Result<Box<dyn DataTable>>;
 
     fn try_get_scalar_function(
         &self,
@@ -76,6 +79,10 @@ pub struct InMemorySchema {
 impl Schema for InMemorySchema {
     fn try_get_entry(&self, _tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>> {
         Ok(self.entries.get(name))
+    }
+
+    fn get_data_table(&self, tx: &CatalogTx, ent: &TableEntry) -> Result<Box<dyn DataTable>> {
+        unimplemented!()
     }
 
     fn create_table(&mut self, _tx: &CatalogTx, _create: CreateTable) -> Result<()> {
