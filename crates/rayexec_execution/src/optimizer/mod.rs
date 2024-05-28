@@ -125,6 +125,7 @@ where
         | plan @ LogicalOperator::Empty
         | plan @ LogicalOperator::SetVar(_)
         | plan @ LogicalOperator::ShowVar(_)
+        | plan @ LogicalOperator::CreateTable(_)
         | plan @ LogicalOperator::Scan(_) => plan,
     };
     post(&mut plan)?;

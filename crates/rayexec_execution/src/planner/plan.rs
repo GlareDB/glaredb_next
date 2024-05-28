@@ -1,20 +1,20 @@
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{
-        Aggregate, AnyJoin, CrossJoin, GroupingExpr, Limit, LogicalExpression, LogicalOperator,
-        Order, OrderByExpr, Projection,
+        Aggregate, AnyJoin, CreateTable, CrossJoin, GroupingExpr, Limit, LogicalExpression,
+        LogicalOperator, Order, OrderByExpr, Projection,
     },
     scope::{ColumnRef, Scope},
 };
 use crate::{
-    database::DatabaseContext,
+    database::{create::OnConflict, DatabaseContext},
     engine::vars::SessionVars,
     planner::{
         operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
         scope::TableReference,
     },
 };
-use rayexec_bullet::field::TypeSchema;
+use rayexec_bullet::field::{DataType, Field, TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -78,6 +78,7 @@ impl<'a> PlanContext<'a> {
                 })
             }
             Statement::Query(query) => self.plan_query(query),
+            Statement::CreateTable(create) => self.plan_create_table(create),
             Statement::SetVariable { reference, value } => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(value)?;
@@ -111,6 +112,46 @@ impl<'a> PlanContext<'a> {
                 .chain(self.outer_scopes.clone())
                 .collect(),
         }
+    }
+
+    fn plan_create_table(&mut self, create: ast::CreateTable) -> Result<LogicalQuery> {
+        let on_conflict = match (create.or_replace, create.if_not_exists) {
+            (true, false) => OnConflict::Replace,
+            (false, true) => OnConflict::Ignore,
+            (false, false) => OnConflict::Error,
+            (true, true) => {
+                return Err(RayexecError::new(
+                    "Cannot specify both OR REPLACE and IF NOT EXISTS",
+                ))
+            }
+        };
+
+        // TODO: Better name handling.
+        // TODO: Get schema from name or search path.
+        let name = create.name.0[0].value.clone();
+
+        // TODO: Constraints.
+        let columns: Vec<_> = create
+            .columns
+            .into_iter()
+            .map(|col| {
+                Field::new(
+                    col.name.to_string(),
+                    Self::ast_datatype_to_exec_datatype(col.datatype),
+                    true,
+                )
+            })
+            .collect();
+
+        Ok(LogicalQuery {
+            root: LogicalOperator::CreateTable(CreateTable {
+                name,
+                temp: create.temp,
+                columns,
+                on_conflict,
+            }),
+            scope: Scope::empty(),
+        })
     }
 
     fn plan_query(&mut self, query: ast::QueryNode) -> Result<LogicalQuery> {
@@ -654,5 +695,17 @@ impl<'a> PlanContext<'a> {
             root: operator,
             scope,
         })
+    }
+
+    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {
+        match datatype {
+            ast::DataType::Varchar(_) => DataType::Utf8,
+            ast::DataType::SmallInt => DataType::Int16,
+            ast::DataType::Integer => DataType::Int32,
+            ast::DataType::BigInt => DataType::Int64,
+            ast::DataType::Real => DataType::Float32,
+            ast::DataType::Double => DataType::Float64,
+            ast::DataType::Bool => DataType::Boolean,
+        }
     }
 }

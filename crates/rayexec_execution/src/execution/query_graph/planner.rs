@@ -1,4 +1,5 @@
 use crate::{
+    database::DatabaseContext,
     engine::vars::SessionVars,
     execution::{
         operators::{
@@ -65,15 +66,35 @@ impl QueryGraphDebugConfig {
 }
 
 /// Create a query graph from a logical plan.
+// TODO: This planner should be split up into two planners.
+//
+// Planner 1: Build the intermediate pipeline. An intermediate pipeline is the
+// same as the current pipeline, just without the states. An intermediate
+// pipeline should be fully serializable to enable dist exec. We should also
+// plan to have diagnostic info as well (which pipeline feeds into another).
+//
+// Planner 2: Take the intermediate pipeline and generate the states. This
+// should happen on the node that's doing the execution. The final pipeline
+// won't be fully serializable due to the states not having a requirement on
+// being serializable (since they hold things like clients, hash tables, etc and
+// it's not worth making those serializable)
+//
+// The current `BuildConfig` contains parameters that are only applicable to
+// planner 2.
 #[derive(Debug)]
-pub struct QueryGraphPlanner {
-    conf: BuildConfig,
+pub struct QueryGraphPlanner<'a> {
+    conf: BuildConfig<'a>,
 }
 
-impl QueryGraphPlanner {
-    pub fn new(target_partitions: usize, debug: QueryGraphDebugConfig) -> Self {
+impl<'a> QueryGraphPlanner<'a> {
+    pub fn new(
+        db_context: &'a DatabaseContext,
+        target_partitions: usize,
+        debug: QueryGraphDebugConfig,
+    ) -> Self {
         QueryGraphPlanner {
             conf: BuildConfig {
+                db_context,
                 target_partitions,
                 debug,
             },
@@ -101,7 +122,8 @@ impl QueryGraphPlanner {
 }
 
 #[derive(Debug)]
-struct BuildConfig {
+struct BuildConfig<'a> {
+    db_context: &'a DatabaseContext,
     target_partitions: usize,
     debug: QueryGraphDebugConfig,
 }

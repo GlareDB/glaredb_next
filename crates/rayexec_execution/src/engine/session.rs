@@ -109,6 +109,7 @@ impl Session {
 
         let (result_stream, result_sink) = unpartitioned_result_stream();
         let planner = QueryGraphPlanner::new(
+            &self.context,
             VarAccessor::new(&self.vars).partitions(),
             QueryGraphDebugConfig::new(&self.vars),
         );

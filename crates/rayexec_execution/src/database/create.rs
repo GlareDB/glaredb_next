@@ -1,6 +1,6 @@
 //! Various create messages/structs.
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
-use rayexec_bullet::field::DataType;
+use rayexec_bullet::field::{DataType, Field};
 
 /// Behavior on create conflict.
 #[derive(Debug, Default, Clone, Copy)]
@@ -23,8 +23,7 @@ pub enum OnConflict {
 #[derive(Debug, Clone)]
 pub struct CreateTableInfo {
     pub name: String,
-    pub column_names: Vec<String>,
-    pub column_types: Vec<DataType>,
+    pub columns: Vec<Field>,
     pub on_conflict: OnConflict,
 }
 

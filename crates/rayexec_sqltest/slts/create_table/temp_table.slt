@@ -1,0 +1,4 @@
+# CREATE TEMP TABLE
+
+statement ok
+create temp table t1 (a int);
