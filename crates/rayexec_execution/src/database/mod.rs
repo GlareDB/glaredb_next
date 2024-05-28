@@ -86,8 +86,11 @@ impl DatabaseContext {
         Ok(())
     }
 
-    pub fn get_catalog(&self, name: &str) -> Option<&dyn Catalog> {
-        self.catalogs.get(name).map(|c| c.as_ref())
+    pub fn get_catalog(&self, name: &str) -> Result<&dyn Catalog> {
+        self.catalogs
+            .get(name)
+            .map(|c| c.as_ref())
+            .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
     }
 }
 
