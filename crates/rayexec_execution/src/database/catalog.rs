@@ -39,15 +39,6 @@ pub trait Catalog: Debug + Sync + Send {
 
     fn create_schema(&mut self, tx: &CatalogTx, create: CreateSchemaInfo) -> Result<()>;
     fn drop_schema(&mut self, tx: &CatalogTx, name: &str) -> Result<()>;
-
-    fn create_table(
-        &mut self,
-        tx: &CatalogTx,
-        schema: &str,
-        create: CreateTableInfo,
-    ) -> Result<()> {
-        self.get_schema_mut(tx, schema)?.create_table(tx, create)
-    }
 }
 
 /// Implementation of Catalog over a shared catalog (e.g. the global system

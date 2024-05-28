@@ -1,9 +1,9 @@
-use rayexec_bullet::field::DataType;
+use rayexec_bullet::field::{DataType, Field};
 use rayexec_error::{RayexecError, Result};
 
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CatalogEntry {
     Table(TableEntry),
     Function(FunctionEntry),
@@ -11,7 +11,7 @@ pub enum CatalogEntry {
 }
 
 impl CatalogEntry {
-    pub fn try_as_function(&self) -> Result<&FunctionEntry> {
+    pub fn try_as_function(self) -> Result<FunctionEntry> {
         match self {
             Self::Function(f) => Ok(f),
             _ => Err(RayexecError::new("Not a function")),
@@ -25,20 +25,19 @@ impl From<FunctionEntry> for CatalogEntry {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableEntry {
     pub name: String,
-    pub column_names: Vec<String>,
-    pub column_types: Vec<DataType>,
+    pub columns: Vec<Field>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionEntry {
     pub name: String,
     pub implementation: FunctionImpl,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FunctionImpl {
     Scalar(Box<dyn GenericScalarFunction>),
     Aggregate(Box<dyn GenericAggregateFunction>),

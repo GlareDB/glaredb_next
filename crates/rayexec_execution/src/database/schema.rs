@@ -13,7 +13,7 @@ use super::{
 };
 
 pub trait Schema: Debug + Sync + Send {
-    fn try_get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>>;
+    fn try_get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<CatalogEntry>>;
 
     fn get_data_table(&self, tx: &CatalogTx, ent: &TableEntry) -> Result<Box<dyn DataTable>>;
 
@@ -27,8 +27,8 @@ pub trait Schema: Debug + Sync + Send {
         match self.try_get_entry(tx, name)? {
             Some(ent) => {
                 let ent = ent.try_as_function()?;
-                match &ent.implementation {
-                    FunctionImpl::Scalar(scalar) => Ok(Some(scalar.clone())),
+                match ent.implementation {
+                    FunctionImpl::Scalar(scalar) => Ok(Some(scalar)),
                     _ => Ok(None),
                 }
             }
@@ -52,20 +52,6 @@ pub trait Schema: Debug + Sync + Send {
             None => Ok(None),
         }
     }
-
-    fn create_table(&mut self, tx: &CatalogTx, create: CreateTableInfo) -> Result<()>;
-
-    fn create_scalar_function(
-        &mut self,
-        tx: &CatalogTx,
-        create: CreateScalarFunctionInfo,
-    ) -> Result<()>;
-
-    fn create_aggregate_function(
-        &mut self,
-        tx: &CatalogTx,
-        create: CreateAggregateFunctionInfo,
-    ) -> Result<()>;
 }
 
 /// A schema implementation that holds all items in memory.
@@ -80,8 +66,8 @@ pub struct InMemorySchema {
 }
 
 impl Schema for InMemorySchema {
-    fn try_get_entry(&self, _tx: &CatalogTx, name: &str) -> Result<Option<&CatalogEntry>> {
-        Ok(self.entries.get(name))
+    fn try_get_entry(&self, _tx: &CatalogTx, name: &str) -> Result<Option<CatalogEntry>> {
+        Ok(self.entries.get(name).cloned())
     }
 
     fn get_data_table(&self, tx: &CatalogTx, ent: &TableEntry) -> Result<Box<dyn DataTable>> {
@@ -91,11 +77,9 @@ impl Schema for InMemorySchema {
     fn get_modifier(&self, tx: &CatalogTx) -> Result<Box<dyn SchemaModifier>> {
         unimplemented!()
     }
+}
 
-    fn create_table(&mut self, _tx: &CatalogTx, _create: CreateTableInfo) -> Result<()> {
-        unimplemented!()
-    }
-
+impl InMemorySchema {
     fn create_scalar_function(
         &mut self,
         tx: &CatalogTx,
@@ -125,9 +109,7 @@ impl Schema for InMemorySchema {
             },
         )
     }
-}
 
-impl InMemorySchema {
     fn insert_entry(
         &mut self,
         _tx: &CatalogTx,

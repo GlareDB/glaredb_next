@@ -3,6 +3,7 @@ pub mod create;
 pub mod ddl;
 pub mod entry;
 pub mod schema;
+pub mod storage;
 pub mod system;
 pub mod table;
 

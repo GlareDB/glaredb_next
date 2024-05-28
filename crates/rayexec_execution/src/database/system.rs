@@ -41,53 +41,53 @@ fn new_system_catalog() -> Result<InMemoryCatalog> {
         },
     )?;
 
-    let schema = catalog.get_schema_mut(&tx, "glare_catalog")?;
+    // let schema = catalog.get_schema_mut(&tx, "glare_catalog")?;
 
-    // Add builtin scalars.
-    for func in BUILTIN_SCALAR_FUNCTIONS.iter() {
-        schema.create_scalar_function(
-            &tx,
-            CreateScalarFunctionInfo {
-                name: func.name().to_string(),
-                implementation: func.clone(),
-                on_conflict: OnConflict::Error,
-            },
-        )?;
+    // // Add builtin scalars.
+    // for func in BUILTIN_SCALAR_FUNCTIONS.iter() {
+    //     schema.create_scalar_function(
+    //         &tx,
+    //         CreateScalarFunctionInfo {
+    //             name: func.name().to_string(),
+    //             implementation: func.clone(),
+    //             on_conflict: OnConflict::Error,
+    //         },
+    //     )?;
 
-        for alias in func.aliases() {
-            schema.create_scalar_function(
-                &tx,
-                CreateScalarFunctionInfo {
-                    name: alias.to_string(),
-                    implementation: func.clone(),
-                    on_conflict: OnConflict::Error,
-                },
-            )?
-        }
-    }
+    //     for alias in func.aliases() {
+    //         schema.create_scalar_function(
+    //             &tx,
+    //             CreateScalarFunctionInfo {
+    //                 name: alias.to_string(),
+    //                 implementation: func.clone(),
+    //                 on_conflict: OnConflict::Error,
+    //             },
+    //         )?
+    //     }
+    // }
 
-    // Add builtin aggregates.
-    for func in BUILTIN_AGGREGATE_FUNCTIONS.iter() {
-        schema.create_aggregate_function(
-            &tx,
-            CreateAggregateFunctionInfo {
-                name: func.name().to_string(),
-                implementation: func.clone(),
-                on_conflict: OnConflict::Error,
-            },
-        )?;
+    // // Add builtin aggregates.
+    // for func in BUILTIN_AGGREGATE_FUNCTIONS.iter() {
+    //     schema.create_aggregate_function(
+    //         &tx,
+    //         CreateAggregateFunctionInfo {
+    //             name: func.name().to_string(),
+    //             implementation: func.clone(),
+    //             on_conflict: OnConflict::Error,
+    //         },
+    //     )?;
 
-        for alias in func.aliases() {
-            schema.create_aggregate_function(
-                &tx,
-                CreateAggregateFunctionInfo {
-                    name: alias.to_string(),
-                    implementation: func.clone(),
-                    on_conflict: OnConflict::Error,
-                },
-            )?
-        }
-    }
+    //     for alias in func.aliases() {
+    //         schema.create_aggregate_function(
+    //             &tx,
+    //             CreateAggregateFunctionInfo {
+    //                 name: alias.to_string(),
+    //                 implementation: func.clone(),
+    //                 on_conflict: OnConflict::Error,
+    //             },
+    //         )?
+    //     }
+    // }
 
     Ok(catalog)
 }

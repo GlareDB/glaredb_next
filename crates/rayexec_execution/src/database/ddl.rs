@@ -22,3 +22,21 @@ pub trait CreateFut: Debug + Sync + Send {
 pub trait DropFut: Debug + Sync + Send {
     fn poll_drop(&mut self, cx: &mut Context) -> Poll<Result<()>>;
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct EmptyCreateFut;
+
+impl CreateFut for EmptyCreateFut {
+    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct EmptyDropFut;
+
+impl DropFut for EmptyDropFut {
+    fn poll_drop(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
