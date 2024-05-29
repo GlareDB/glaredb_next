@@ -42,6 +42,7 @@ pub enum LogicalOperator {
     ShowVar(ShowVar),
     CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
+    Insert(Insert),
     Explain(Explain),
 }
 
@@ -67,6 +68,7 @@ impl LogicalOperator {
             Self::ShowVar(n) => n.output_schema(outer),
             Self::CreateTable(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
+            Self::Insert(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
         }
     }
@@ -90,6 +92,7 @@ impl Explainable for LogicalOperator {
             Self::ShowVar(p) => p.explain_entry(conf),
             Self::CreateTable(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
+            Self::Insert(p) => p.explain_entry(conf),
             Self::Explain(p) => p.explain_entry(conf),
         }
     }
@@ -436,6 +439,25 @@ pub struct CreateTableAs {
 impl Explainable for CreateTableAs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTableAs")
+    }
+}
+
+#[derive(Debug)]
+pub struct Insert {
+    pub table: TableEntry,
+    pub input: Box<LogicalOperator>,
+}
+
+impl LogicalNode for Insert {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        // TODO: This would be someting in the case of RETURNING.
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for Insert {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Insert")
     }
 }
 

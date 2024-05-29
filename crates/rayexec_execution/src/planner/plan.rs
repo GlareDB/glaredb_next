@@ -1,13 +1,13 @@
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{
-        Aggregate, AnyJoin, CreateTable, CrossJoin, GroupingExpr, Limit, LogicalExpression,
+        Aggregate, AnyJoin, CreateTable, CrossJoin, GroupingExpr, Insert, Limit, LogicalExpression,
         LogicalOperator, Order, OrderByExpr, Projection, Scan,
     },
     scope::{ColumnRef, Scope},
 };
 use crate::{
-    database::{catalog::CatalogTx, create::OnConflict, DatabaseContext},
+    database::{catalog::CatalogTx, create::OnConflict, entry::TableEntry, DatabaseContext},
     engine::vars::SessionVars,
     planner::{
         operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
@@ -82,6 +82,7 @@ impl<'a> PlanContext<'a> {
             }
             Statement::Query(query) => self.plan_query(query),
             Statement::CreateTable(create) => self.plan_create_table(create),
+            Statement::Insert(insert) => self.plan_insert(insert),
             Statement::SetVariable { reference, value } => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(value)?;
@@ -116,6 +117,23 @@ impl<'a> PlanContext<'a> {
                 .chain(self.outer_scopes.clone())
                 .collect(),
         }
+    }
+
+    fn plan_insert(&mut self, insert: ast::Insert) -> Result<LogicalQuery> {
+        let (_reference, ent) = self.resolve_table(insert.table)?;
+
+        let source = self.plan_query(insert.source)?;
+
+        // TODO: Handle specified columns. If provided, insert a projection that
+        // maps the columns to the right position.
+
+        Ok(LogicalQuery {
+            root: LogicalOperator::Insert(Insert {
+                table: ent,
+                input: Box::new(source.root),
+            }),
+            scope: Scope::empty(),
+        })
     }
 
     fn plan_create_table(&mut self, create: ast::CreateTable) -> Result<LogicalQuery> {
@@ -484,40 +502,21 @@ impl<'a> PlanContext<'a> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                // TODO: Better handling, also search path.
-                let name = &reference.0[0].value;
+                let (reference, ent) = self.resolve_table(reference)?;
+                let scope = Scope::with_columns(
+                    Some(reference),
+                    ent.columns.iter().map(|f| f.name.clone()),
+                );
 
-                // Search temp first
-                if let Some(ent) = self
-                    .resolver
-                    .get_catalog("temp")?
-                    .get_table_ent(self.tx, "temp", name)?
-                {
-                    let reference = TableReference {
-                        database: None,
-                        schema: None,
-                        table: name.clone(),
-                    };
-                    let scope = Scope::with_columns(
-                        Some(reference),
-                        ent.columns.iter().map(|f| f.name.clone()),
-                    );
-
-                    LogicalQuery {
-                        root: LogicalOperator::Scan(Scan {
-                            catalog: "temp".to_string(),
-                            schema: "temp".to_string(),
-                            source: ent,
-                        }),
-                        scope,
-                    }
-                } else {
-                    // Search other catalogs/schemas in the search path (once we
-                    // have them).
-
-                    return Err(RayexecError::new(format!(
-                        "Unable to find entry for '{name}'"
-                    )));
+                // TODO: We need a "resolved" entry type that wraps a table
+                // entry telling us which catalog/schema it's from.
+                LogicalQuery {
+                    root: LogicalOperator::Scan(Scan {
+                        catalog: "temp".to_string(),
+                        schema: "temp".to_string(),
+                        source: ent,
+                    }),
+                    scope,
                 }
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
@@ -735,6 +734,36 @@ impl<'a> PlanContext<'a> {
             root: operator,
             scope,
         })
+    }
+
+    fn resolve_table(
+        &self,
+        reference: ast::ObjectReference,
+    ) -> Result<(TableReference, TableEntry)> {
+        // TODO: Better handling, also search path.
+        let name = &reference.0[0].value;
+
+        // Search temp first
+        if let Some(ent) = self
+            .resolver
+            .get_catalog("temp")?
+            .get_table_ent(self.tx, "temp", name)?
+        {
+            let reference = TableReference {
+                database: None,
+                schema: None,
+                table: name.clone(),
+            };
+
+            Ok((reference, ent))
+        } else {
+            // Search other catalogs/schemas in the search path (once we
+            // have them).
+
+            Err(RayexecError::new(format!(
+                "Unable to find entry for '{name}'"
+            )))
+        }
     }
 
     fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {

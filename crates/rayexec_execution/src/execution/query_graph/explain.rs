@@ -98,6 +98,7 @@ impl ExplainNode {
             }
             LogicalOperator::Limit(p) => vec![Self::walk_logical(&p.input, conf)],
             LogicalOperator::CreateTableAs(p) => vec![Self::walk_logical(&p.input, conf)],
+            LogicalOperator::Insert(p) => vec![Self::walk_logical(&p.input, conf)],
             LogicalOperator::Explain(p) => vec![Self::walk_logical(&p.input, conf)],
             LogicalOperator::Empty
             | LogicalOperator::ExpressionList(_)

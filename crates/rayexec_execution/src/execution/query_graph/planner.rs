@@ -10,6 +10,7 @@ use crate::{
             create_table::PhysicalCreateTable,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
+            insert::PhysicalInsert,
             join::{
                 hash_join::PhysicalHashJoin,
                 nl_join::{
@@ -172,6 +173,7 @@ impl BuildState {
             }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
+            LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
             other => unimplemented!("other: {other:?}"),
         }
@@ -221,6 +223,24 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_insert(&mut self, conf: &BuildConfig, insert: operator::Insert) -> Result<()> {
+        self.walk(conf, *insert.input)?;
+
+        // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
+        let physical = Arc::new(PhysicalInsert::new("temp", "temp", insert.table));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_states(conf.db_context, conf.target_partitions)?
+            .into_iter()
+            .map(PartitionState::Insert)
+            .collect();
+
+        let pipeline = self.in_progress_pipeline_mut()?;
+        pipeline.push_operator(physical, operator_state, partition_states)?;
 
         Ok(())
     }

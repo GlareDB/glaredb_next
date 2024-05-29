@@ -305,7 +305,7 @@ pub struct MemoryDataTableInsert {
 impl DataTableInsert for MemoryDataTableInsert {
     fn poll_push(&mut self, _cx: &mut Context, batch: Batch) -> Result<PollPush> {
         self.collected.push(batch);
-        Ok(PollPush::Pushed)
+        Ok(PollPush::NeedsMore)
     }
 
     fn finalize(&mut self) -> Result<()> {

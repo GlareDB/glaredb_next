@@ -1,5 +1,7 @@
 use crate::{
-    ast::{AstParseable, CreateTable, ExplainNode, Expr, Ident, ObjectReference, QueryNode},
+    ast::{
+        AstParseable, CreateTable, ExplainNode, Expr, Ident, Insert, ObjectReference, QueryNode,
+    },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
     tokens::{Token, TokenWithLocation, Tokenizer},
@@ -83,6 +85,7 @@ impl Parser {
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(Statement::Query(QueryNode::parse(self)?))
                     }
+                    Keyword::INSERT => Ok(Statement::Insert(Insert::parse(self)?)),
                     Keyword::EXPLAIN => Ok(Statement::Explain(ExplainNode::parse(self)?)),
                     other => Err(RayexecError::new(format!("Unexpected keyword: {other:?}",))),
                 }
