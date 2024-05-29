@@ -62,7 +62,7 @@ impl MemoryCatalog {
 }
 
 impl Catalog for MemoryCatalog {
-    fn get_table_ent(
+    fn get_table_entry(
         &self,
         _tx: &CatalogTx,
         schema: &str,

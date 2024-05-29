@@ -747,7 +747,7 @@ impl<'a> PlanContext<'a> {
         if let Some(ent) = self
             .resolver
             .get_catalog("temp")?
-            .get_table_ent(self.tx, "temp", name)?
+            .get_table_entry(self.tx, "temp", name)?
         {
             let reference = TableReference {
                 database: None,

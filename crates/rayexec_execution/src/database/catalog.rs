@@ -21,8 +21,12 @@ impl CatalogTx {
 /// support a given operation (e.g. create schema for our bigquery data source),
 /// an appropriate error should be returned.
 pub trait Catalog: Debug + Sync + Send {
-    fn get_table_ent(&self, tx: &CatalogTx, schema: &str, name: &str)
-        -> Result<Option<TableEntry>>;
+    fn get_table_entry(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> Result<Option<TableEntry>>;
 
     fn get_scalar_fn(
         &self,
@@ -51,13 +55,13 @@ pub trait Catalog: Debug + Sync + Send {
 /// Implementation of Catalog over a shared catalog (e.g. the global system
 /// catalog that cannot be changed).
 impl Catalog for &dyn Catalog {
-    fn get_table_ent(
+    fn get_table_entry(
         &self,
         tx: &CatalogTx,
         schema: &str,
         name: &str,
     ) -> Result<Option<TableEntry>> {
-        (*self).get_table_ent(tx, schema, name)
+        (*self).get_table_entry(tx, schema, name)
     }
 
     fn get_scalar_fn(

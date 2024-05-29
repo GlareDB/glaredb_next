@@ -68,7 +68,7 @@ impl SystemCatalog {
 }
 
 impl Catalog for SystemCatalog {
-    fn get_table_ent(
+    fn get_table_entry(
         &self,
         _tx: &CatalogTx,
         _schema: &str,
