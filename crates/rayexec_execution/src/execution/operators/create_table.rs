@@ -21,6 +21,18 @@ pub struct PhysicalCreateTable {
 }
 
 impl PhysicalCreateTable {
+    pub fn new(
+        catalog: impl Into<String>,
+        schema: impl Into<String>,
+        info: CreateTableInfo,
+    ) -> Self {
+        PhysicalCreateTable {
+            catalog: catalog.into(),
+            schema: schema.into(),
+            info,
+        }
+    }
+
     pub fn try_create_state(&self, context: &DatabaseContext) -> Result<CreateTablePartitionState> {
         // TODO: Placeholder.
         let tx = CatalogTx::new();

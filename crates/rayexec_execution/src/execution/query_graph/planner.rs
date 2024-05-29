@@ -1,5 +1,5 @@
 use crate::{
-    database::DatabaseContext,
+    database::{create::CreateTableInfo, DatabaseContext},
     engine::vars::SessionVars,
     execution::{
         operators::{
@@ -7,6 +7,7 @@ use crate::{
                 grouping_set::GroupingSets,
                 hash_aggregate::{HashAggregateColumnOutput, PhysicalHashAggregate},
             },
+            create_table::PhysicalCreateTable,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
             join::{
@@ -169,6 +170,7 @@ impl BuildState {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
+            LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
             other => unimplemented!("other: {other:?}"),
         }
@@ -218,6 +220,45 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_create_table(
+        &mut self,
+        conf: &BuildConfig,
+        create: operator::CreateTable,
+    ) -> Result<()> {
+        if self.in_progress.is_some() {
+            // Well... for CREATE TABLE AS it could be some
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = if create.temp {
+            Arc::new(PhysicalCreateTable::new(
+                "temp",
+                "temp",
+                CreateTableInfo {
+                    name: create.name,
+                    columns: create.columns,
+                    on_conflict: create.on_conflict,
+                },
+            ))
+        } else {
+            return Err(RayexecError::new("Non-temp tables not yet supported"));
+        };
+
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_state(conf.db_context)
+            .into_iter()
+            .map(PartitionState::CreateTable)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }

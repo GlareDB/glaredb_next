@@ -9,6 +9,7 @@ use catalog::{Catalog, CatalogTx};
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use storage::memory::MemoryCatalog;
 use storage::system::GLOBAL_SYSTEM_CATALOG;
 
 use crate::functions::aggregate::GenericAggregateFunction;
@@ -22,15 +23,21 @@ pub struct DatabaseContext {
 
 impl DatabaseContext {
     /// Creates a new database context containing containing a builtin "system"
-    /// catalog.
+    /// catalog, and a "temp" catalog for temporary database items.
     ///
-    /// By itself, this context cannot be used to store data. Additional
+    /// By itself, this context cannot be used to persist data. Additional
     /// catalogs need to be attached via `attach_catalog`.
-    pub fn new() -> Self {
-        let catalogs = [(
-            "system".to_string(),
-            Box::new(&*GLOBAL_SYSTEM_CATALOG as &dyn Catalog) as _,
-        )]
+    pub fn new_with_temp() -> Self {
+        let catalogs = [
+            (
+                "system".to_string(),
+                Box::new(&*GLOBAL_SYSTEM_CATALOG as &dyn Catalog) as _,
+            ),
+            (
+                "temp".to_string(),
+                Box::new(MemoryCatalog::new_with_temp_schema("temp")) as _,
+            ),
+        ]
         .into_iter()
         .collect();
 
@@ -47,7 +54,7 @@ impl DatabaseContext {
     pub fn get_builtin_scalar(&self, name: &str) -> Result<Option<Box<dyn GenericScalarFunction>>> {
         let tx = &CatalogTx::new();
         self.system_catalog()?
-            .get_scalar_fn(&tx, "glare_catalog", name)
+            .get_scalar_fn(tx, "glare_catalog", name)
     }
 
     pub fn get_builtin_aggregate(
@@ -56,7 +63,7 @@ impl DatabaseContext {
     ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
         let tx = &CatalogTx::new();
         self.system_catalog()?
-            .get_aggregate_fn(&tx, "glare_catalog", name)
+            .get_aggregate_fn(tx, "glare_catalog", name)
     }
 
     pub fn attach_catalog(
@@ -94,6 +101,6 @@ impl DatabaseContext {
 
 impl Default for DatabaseContext {
     fn default() -> Self {
-        Self::new()
+        Self::new_with_temp()
     }
 }

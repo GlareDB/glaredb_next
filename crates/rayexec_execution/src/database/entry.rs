@@ -1,4 +1,4 @@
-use rayexec_bullet::field::{DataType, Field};
+use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};

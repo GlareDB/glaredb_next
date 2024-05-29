@@ -9,7 +9,7 @@ use crate::database::table::DataTable;
 use crate::functions::aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
 use crate::functions::scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
 
-pub static GLOBAL_SYSTEM_CATALOG: Lazy<SystemCatalog> = Lazy::new(|| SystemCatalog::new());
+pub static GLOBAL_SYSTEM_CATALOG: Lazy<SystemCatalog> = Lazy::new(SystemCatalog::new);
 
 /// Read-only system catalog that cannot be modified once constructed.
 #[derive(Debug)]
@@ -131,5 +131,11 @@ impl Catalog for SystemCatalog {
 
     fn catalog_modifier(&self, _tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>> {
         Err(RayexecError::new("Cannot modify the system catalog"))
+    }
+}
+
+impl Default for SystemCatalog {
+    fn default() -> Self {
+        Self::new()
     }
 }

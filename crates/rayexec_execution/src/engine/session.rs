@@ -39,7 +39,7 @@ pub struct Session {
 impl Session {
     pub fn new(scheduler: Scheduler) -> Self {
         Session {
-            context: DatabaseContext::new(),
+            context: DatabaseContext::new_with_temp(),
             scheduler,
             vars: SessionVars::new_local(),
             prepared: HashMap::new(),

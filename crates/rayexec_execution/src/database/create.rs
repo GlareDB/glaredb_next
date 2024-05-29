@@ -1,6 +1,6 @@
 //! Various create messages/structs.
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
-use rayexec_bullet::field::{DataType, Field};
+use rayexec_bullet::field::Field;
 
 /// Behavior on create conflict.
 #[derive(Debug, Default, Clone, Copy)]

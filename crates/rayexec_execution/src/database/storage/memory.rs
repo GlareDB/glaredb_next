@@ -49,6 +49,18 @@ struct MemorySchema {
     tables: HashMap<String, MemoryDataTable>,
 }
 
+impl MemoryCatalog {
+    /// Creates a new memory catalog with a single named schema.
+    pub fn new_with_temp_schema(schema: &str) -> Self {
+        let mut schemas = HashMap::new();
+        schemas.insert(schema.to_string(), MemorySchema::default());
+
+        MemoryCatalog {
+            inner: Arc::new(RwLock::new(MemorySchemas { schemas })),
+        }
+    }
+}
+
 impl Catalog for MemoryCatalog {
     fn get_table_ent(
         &self,
@@ -71,18 +83,18 @@ impl Catalog for MemoryCatalog {
 
     fn get_scalar_fn(
         &self,
-        tx: &CatalogTx,
-        schema: &str,
-        name: &str,
+        _tx: &CatalogTx,
+        _schema: &str,
+        _name: &str,
     ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
         unimplemented!()
     }
 
     fn get_aggregate_fn(
         &self,
-        tx: &CatalogTx,
-        schema: &str,
-        name: &str,
+        _tx: &CatalogTx,
+        _schema: &str,
+        _name: &str,
     ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
         unimplemented!()
     }
@@ -107,17 +119,19 @@ impl Catalog for MemoryCatalog {
         Ok(Box::new(table) as _)
     }
 
-    fn catalog_modifier(&self, tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>> {
-        unimplemented!()
+    fn catalog_modifier(&self, _tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>> {
+        Ok(Box::new(MemoryCatalogModifier {
+            inner: self.inner.clone(),
+        }))
     }
 }
 
 #[derive(Debug)]
-pub struct MemorySchemaModifer {
+pub struct MemoryCatalogModifier {
     inner: Arc<RwLock<MemorySchemas>>,
 }
 
-impl CatalogModifier for MemorySchemaModifer {
+impl CatalogModifier for MemoryCatalogModifier {
     fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut>> {
         Ok(Box::new(MemoryCreateSchema {
             schema: name.to_string(),
