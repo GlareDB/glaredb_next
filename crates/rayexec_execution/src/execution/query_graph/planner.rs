@@ -234,6 +234,8 @@ impl BuildState {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
+        // To explain my TODO above, this would be what happens in "planner 1".
+        // Just creating the operator, and the planning can happen anywhere.
         let physical = if create.temp {
             Arc::new(PhysicalCreateTable::new(
                 "temp",
@@ -248,6 +250,9 @@ impl BuildState {
             return Err(RayexecError::new("Non-temp tables not yet supported"));
         };
 
+        // And creating the states would happen in "planner 2". This relies on
+        // the database context, and so should happen on the node that will be
+        // executing the pipeline.
         let operator_state = Arc::new(OperatorState::None);
         let partition_states: Vec<_> = physical
             .try_create_state(conf.db_context)
