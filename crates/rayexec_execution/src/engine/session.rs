@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{parser, statement::Statement};
 
 use crate::{
-    database::DatabaseContext,
+    database::{catalog::CatalogTx, DatabaseContext},
     engine::result_stream::unpartitioned_result_stream,
     execution::query_graph::{
         planner::{QueryGraphDebugConfig, QueryGraphPlanner},
@@ -101,7 +101,8 @@ impl Session {
             .map(|p| p.statement.clone())
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
-        let plan_context = PlanContext::new(&self.context, &self.vars);
+        let tx = CatalogTx::new();
+        let plan_context = PlanContext::new(&tx, &self.context, &self.vars);
         let mut logical = plan_context.plan_statement(stmt)?;
 
         let optimizer = Optimizer::new();

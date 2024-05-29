@@ -21,6 +21,14 @@ pub struct PhysicalScan {
 }
 
 impl PhysicalScan {
+    pub fn new(catalog: impl Into<String>, schema: impl Into<String>, table: TableEntry) -> Self {
+        PhysicalScan {
+            catalog: catalog.into(),
+            schema: schema.into(),
+            table,
+        }
+    }
+
     pub fn try_create_states(
         &self,
         context: &DatabaseContext,

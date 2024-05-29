@@ -2,3 +2,7 @@
 
 statement ok
 create temp table t1 (a int);
+
+query I
+select * from t1;
+----

@@ -1,6 +1,7 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
 use crate::database::create::OnConflict;
+use crate::database::entry::TableEntry;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
 use crate::{
@@ -297,23 +298,10 @@ impl Explainable for Limit {
 }
 
 #[derive(Debug)]
-pub enum ScanItem {
-    TableFunction(),
-}
-
-impl Explainable for ScanItem {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        unimplemented!()
-        // match self {
-        //     Self::TableFunction(func) => func.explain_entry(conf),
-        // }
-    }
-}
-
-#[derive(Debug)]
 pub struct Scan {
-    pub source: ScanItem,
-    pub schema: TypeSchema,
+    pub catalog: String,
+    pub schema: String,
+    pub source: TableEntry,
     // pub projection: Option<Vec<usize>>,
     // pub input: BindIdx,
     // TODO: Pushdowns
@@ -321,13 +309,14 @@ pub struct Scan {
 
 impl LogicalNode for Scan {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
-        Ok(self.schema.clone())
+        let schema = TypeSchema::new(self.source.columns.iter().map(|f| f.datatype.clone()));
+        Ok(schema)
     }
 }
 
 impl Explainable for Scan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Scan")
+        ExplainEntry::new("Scan").with_value("source", &self.source.name)
     }
 }
 

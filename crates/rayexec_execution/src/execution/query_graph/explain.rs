@@ -99,14 +99,11 @@ impl ExplainNode {
             LogicalOperator::Limit(p) => vec![Self::walk_logical(&p.input, conf)],
             LogicalOperator::CreateTableAs(p) => vec![Self::walk_logical(&p.input, conf)],
             LogicalOperator::Explain(p) => vec![Self::walk_logical(&p.input, conf)],
-            LogicalOperator::Scan(p) => vec![ExplainNode {
-                entry: p.source.explain_entry(conf),
-                children: Vec::new(),
-            }],
             LogicalOperator::Empty
             | LogicalOperator::ExpressionList(_)
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)
+            | LogicalOperator::Scan(_)
             | LogicalOperator::CreateTable(_) => Vec::new(),
         };
 

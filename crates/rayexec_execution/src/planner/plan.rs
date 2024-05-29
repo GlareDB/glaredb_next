@@ -2,12 +2,12 @@ use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{
         Aggregate, AnyJoin, CreateTable, CrossJoin, GroupingExpr, Limit, LogicalExpression,
-        LogicalOperator, Order, OrderByExpr, Projection,
+        LogicalOperator, Order, OrderByExpr, Projection, Scan,
     },
     scope::{ColumnRef, Scope},
 };
 use crate::{
-    database::{create::OnConflict, DatabaseContext},
+    database::{catalog::CatalogTx, create::OnConflict, DatabaseContext},
     engine::vars::SessionVars,
     planner::{
         operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
@@ -36,6 +36,8 @@ pub struct LogicalQuery {
 
 #[derive(Debug, Clone)]
 pub struct PlanContext<'a> {
+    pub tx: &'a CatalogTx,
+
     /// Resolver for resolving table and other table like items.
     pub resolver: &'a DatabaseContext,
 
@@ -47,8 +49,9 @@ pub struct PlanContext<'a> {
 }
 
 impl<'a> PlanContext<'a> {
-    pub fn new(resolver: &'a DatabaseContext, vars: &'a SessionVars) -> Self {
+    pub fn new(tx: &'a CatalogTx, resolver: &'a DatabaseContext, vars: &'a SessionVars) -> Self {
         PlanContext {
+            tx,
             resolver,
             vars,
             outer_scopes: Vec::new(),
@@ -106,6 +109,7 @@ impl<'a> PlanContext<'a> {
     /// Create a new nested plan context for planning subqueries.
     fn nested(&self, outer: Scope) -> Self {
         PlanContext {
+            tx: self.tx,
             resolver: self.resolver,
             vars: self.vars,
             outer_scopes: std::iter::once(outer)
@@ -479,7 +483,43 @@ impl<'a> PlanContext<'a> {
     fn plan_from_node(&self, from: ast::FromNode, current_scope: Scope) -> Result<LogicalQuery> {
         // Plan the "body" of the FROM.
         let body = match from.body {
-            ast::FromNodeBody::BaseTable(_) => unimplemented!(),
+            ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
+                // TODO: Better handling, also search path.
+                let name = &reference.0[0].value;
+
+                // Search temp first
+                if let Some(ent) = self
+                    .resolver
+                    .get_catalog("temp")?
+                    .get_table_ent(self.tx, "temp", name)?
+                {
+                    let reference = TableReference {
+                        database: None,
+                        schema: None,
+                        table: name.clone(),
+                    };
+                    let scope = Scope::with_columns(
+                        Some(reference),
+                        ent.columns.iter().map(|f| f.name.clone()),
+                    );
+
+                    LogicalQuery {
+                        root: LogicalOperator::Scan(Scan {
+                            catalog: "temp".to_string(),
+                            schema: "temp".to_string(),
+                            source: ent,
+                        }),
+                        scope,
+                    }
+                } else {
+                    // Search other catalogs/schemas in the search path (once we
+                    // have them).
+
+                    return Err(RayexecError::new(format!(
+                        "Unable to find entry for '{name}'"
+                    )));
+                }
+            }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
                 let mut nested = self.nested(current_scope);
                 nested.plan_query(query)?

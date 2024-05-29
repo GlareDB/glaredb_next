@@ -21,6 +21,7 @@ use crate::{
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
             repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
+            scan::PhysicalScan,
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             values::PhysicalValues,
@@ -171,7 +172,7 @@ impl BuildState {
             }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
-            // LogicalOperator::Scan(scan) => self.plan_scan(scan),
+            LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
             other => unimplemented!("other: {other:?}"),
         }
     }
@@ -224,6 +225,30 @@ impl BuildState {
         Ok(())
     }
 
+    fn push_scan(&mut self, conf: &BuildConfig, scan: operator::Scan) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalScan::new(scan.catalog, scan.schema, scan.source));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_states(conf.db_context, conf.target_partitions)?
+            .into_iter()
+            .map(PartitionState::Scan)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
+
+        // TODO: If we don't get the desired number of partitions, we should
+        // push a repartition here.
+
+        Ok(())
+    }
+
     fn push_create_table(
         &mut self,
         conf: &BuildConfig,
@@ -254,11 +279,9 @@ impl BuildState {
         // the database context, and so should happen on the node that will be
         // executing the pipeline.
         let operator_state = Arc::new(OperatorState::None);
-        let partition_states: Vec<_> = physical
-            .try_create_state(conf.db_context)
-            .into_iter()
-            .map(PartitionState::CreateTable)
-            .collect();
+        let partition_states = vec![PartitionState::CreateTable(
+            physical.try_create_state(conf.db_context)?,
+        )];
 
         let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
