@@ -27,9 +27,8 @@ impl PhysicalCreateTable {
 
         let create = context
             .get_catalog(&self.catalog)?
-            .get_schema(&tx, &self.schema)?
-            .get_modifier(&tx)?
-            .create_table(self.info.clone())?;
+            .catalog_modifier(&tx)?
+            .create_table(&self.schema, self.info.clone())?;
 
         Ok(CreateTablePartitionState { create })
     }

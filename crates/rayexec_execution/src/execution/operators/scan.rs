@@ -30,10 +30,10 @@ impl PhysicalScan {
         // operator.
         let tx = CatalogTx::new();
 
-        let data_table = context
-            .get_catalog(&self.catalog)?
-            .get_schema(&tx, &self.schema)?
-            .get_data_table(&tx, &self.table)?;
+        let data_table =
+            context
+                .get_catalog(&self.catalog)?
+                .data_table(&tx, &self.schema, &self.table)?;
 
         // TODO: Pushdown projections, filters
         let scans = data_table.scan(num_partitions)?;

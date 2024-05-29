@@ -1,21 +1,22 @@
 use parking_lot::{Mutex, RwLock};
-use rayexec_bullet::{batch::Batch, field::Field};
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::database::catalog::CatalogTx;
+use crate::database::catalog::{Catalog, CatalogTx};
 use crate::database::create::{CreateScalarFunctionInfo, CreateTableInfo, OnConflict};
-use crate::database::ddl::{CreateFut, DropFut, EmptyCreateFut, SchemaModifier};
+use crate::database::ddl::{CatalogModifier, CreateFut, DropFut};
 use crate::database::entry::{CatalogEntry, TableEntry};
-use crate::database::schema::Schema;
+use crate::functions::aggregate::GenericAggregateFunction;
+use crate::functions::scalar::GenericScalarFunction;
 use crate::{
     database::table::{DataTable, DataTableInsert, DataTableScan},
     execution::operators::{PollPull, PollPush},
 };
 
-/// Quick and dirty in-memory implementation of a schema and related data
+/// Quick and dirty in-memory implementation of a catalog and related data
 /// tables.
 ///
 /// This utilizes a few more locks than I'd like, however it should be good
@@ -31,58 +32,112 @@ use crate::{
 ///
 /// Actual storage is not transactional either.
 #[derive(Debug)]
-pub struct MemorySchema {
-    inner: Arc<RwLock<MemorySchemaInner>>,
+pub struct MemoryCatalog {
+    inner: Arc<RwLock<MemorySchemas>>,
 }
 
 #[derive(Debug)]
-struct MemorySchemaInner {
+struct MemorySchemas {
+    schemas: HashMap<String, MemorySchema>,
+}
+
+#[derive(Debug, Default)]
+struct MemorySchema {
     // TODO: OIDs
     // TODO: Seperate maps for funcs/tables
     entries: HashMap<String, CatalogEntry>,
     tables: HashMap<String, MemoryDataTable>,
 }
 
-impl Schema for MemorySchema {
-    fn try_get_entry(&self, _tx: &CatalogTx, name: &str) -> Result<Option<CatalogEntry>> {
-        Ok(self.inner.read().entries.get(name).cloned())
+impl Catalog for MemoryCatalog {
+    fn get_table_ent(
+        &self,
+        _tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> Result<Option<TableEntry>> {
+        let inner = self.inner.read();
+        let schema = inner
+            .schemas
+            .get(schema)
+            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+
+        match schema.entries.get(name) {
+            Some(CatalogEntry::Table(ent)) => Ok(Some(ent.clone())),
+            Some(_) => Err(RayexecError::new("Entry not a table")),
+            None => Ok(None),
+        }
     }
 
-    fn get_data_table(&self, _tx: &CatalogTx, ent: &TableEntry) -> Result<Box<dyn DataTable>> {
-        let table = self
-            .inner
-            .read()
+    fn get_scalar_fn(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
+        unimplemented!()
+    }
+
+    fn get_aggregate_fn(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
+        unimplemented!()
+    }
+
+    fn data_table(
+        &self,
+        _tx: &CatalogTx,
+        schema: &str,
+        ent: &TableEntry,
+    ) -> Result<Box<dyn DataTable>> {
+        let inner = self.inner.read();
+        let schema = inner
+            .schemas
+            .get(schema)
+            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+        let table = schema
             .tables
             .get(&ent.name)
             .cloned()
-            .ok_or_else(|| {
-                RayexecError::new(format!("Missing data table for entry: {}", ent.name))
-            })?;
+            .ok_or_else(|| RayexecError::new(format!("Missing table: {}", ent.name)))?;
 
         Ok(Box::new(table) as _)
     }
 
-    fn get_modifier(&self, _tx: &CatalogTx) -> Result<Box<dyn SchemaModifier>> {
-        Ok(Box::new(MemorySchemaModifer {
-            inner: self.inner.clone(),
-        }) as _)
+    fn catalog_modifier(&self, tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>> {
+        unimplemented!()
     }
 }
 
 #[derive(Debug)]
 pub struct MemorySchemaModifer {
-    inner: Arc<RwLock<MemorySchemaInner>>,
+    inner: Arc<RwLock<MemorySchemas>>,
 }
 
-impl SchemaModifier for MemorySchemaModifer {
-    fn create_table(&self, info: CreateTableInfo) -> Result<Box<dyn CreateFut>> {
+impl CatalogModifier for MemorySchemaModifer {
+    fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut>> {
+        Ok(Box::new(MemoryCreateSchema {
+            schema: name.to_string(),
+            inner: self.inner.clone(),
+        }))
+    }
+
+    fn drop_schema(&self, _name: &str) -> Result<Box<dyn DropFut>> {
+        unimplemented!()
+    }
+
+    fn create_table(&self, schema: &str, info: CreateTableInfo) -> Result<Box<dyn CreateFut>> {
         Ok(Box::new(MemoryCreateTable {
+            schema: schema.to_string(),
             info,
             inner: self.inner.clone(),
         }))
     }
 
-    fn drop_table(&self, _name: &str) -> Result<Box<dyn DropFut>> {
+    fn drop_table(&self, _schema: &str, _name: &str) -> Result<Box<dyn DropFut>> {
         unimplemented!()
     }
 
@@ -102,15 +157,49 @@ impl SchemaModifier for MemorySchemaModifer {
 }
 
 #[derive(Debug)]
+struct MemoryCreateSchema {
+    schema: String,
+    inner: Arc<RwLock<MemorySchemas>>,
+}
+
+impl CreateFut for MemoryCreateSchema {
+    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
+        let mut inner = self.inner.write();
+        if inner.schemas.contains_key(&self.schema) {
+            return Poll::Ready(Err(RayexecError::new(format!(
+                "Schema already exists: {}",
+                self.schema
+            ))));
+        }
+
+        inner
+            .schemas
+            .insert(self.schema.clone(), MemorySchema::default());
+
+        Poll::Ready(Ok(()))
+    }
+}
+
+#[derive(Debug)]
 struct MemoryCreateTable {
+    schema: String,
     info: CreateTableInfo,
-    inner: Arc<RwLock<MemorySchemaInner>>,
+    inner: Arc<RwLock<MemorySchemas>>,
 }
 
 impl CreateFut for MemoryCreateTable {
     fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
         let mut inner = self.inner.write();
-        if inner.entries.contains_key(&self.info.name) {
+        let schema = match inner.schemas.get_mut(&self.schema) {
+            Some(schema) => schema,
+            None => {
+                return Poll::Ready(Err(RayexecError::new(format!(
+                    "Missing schema: {}",
+                    &self.schema
+                ))))
+            }
+        };
+        if schema.entries.contains_key(&self.info.name) {
             match self.info.on_conflict {
                 OnConflict::Ignore => return Poll::Ready(Ok(())),
                 OnConflict::Error => {
@@ -123,7 +212,7 @@ impl CreateFut for MemoryCreateTable {
             }
         }
 
-        inner.entries.insert(
+        schema.entries.insert(
             self.info.name.clone(),
             CatalogEntry::Table(TableEntry {
                 name: self.info.name.clone(),
@@ -131,7 +220,7 @@ impl CreateFut for MemoryCreateTable {
             }),
         );
 
-        inner
+        schema
             .tables
             .insert(self.info.name.clone(), MemoryDataTable::default());
 

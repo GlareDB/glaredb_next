@@ -29,10 +29,10 @@ impl PhysicalInsert {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
-        let data_table = context
-            .get_catalog(&self.catalog)?
-            .get_schema(&tx, &self.schema)?
-            .get_data_table(&tx, &self.table)?;
+        let data_table =
+            context
+                .get_catalog(&self.catalog)?
+                .data_table(&tx, &self.schema, &self.table)?;
 
         // TODO: Pass constraints, on conflict
         let inserts = data_table.insert(num_partitions)?;

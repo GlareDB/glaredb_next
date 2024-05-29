@@ -4,9 +4,13 @@ use std::task::{Context, Poll};
 
 use super::create::{CreateScalarFunctionInfo, CreateTableInfo};
 
-pub trait SchemaModifier: Debug + Sync + Send {
-    fn create_table(&self, info: CreateTableInfo) -> Result<Box<dyn CreateFut>>;
-    fn drop_table(&self, name: &str) -> Result<Box<dyn DropFut>>; // TODO: Info
+/// Primary interface for making modifications to a catalog.
+pub trait CatalogModifier: Debug + Sync + Send {
+    fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut>>; // TODO: Info
+    fn drop_schema(&self, name: &str) -> Result<Box<dyn DropFut>>;
+
+    fn create_table(&self, schema: &str, info: CreateTableInfo) -> Result<Box<dyn CreateFut>>;
+    fn drop_table(&self, schema: &str, name: &str) -> Result<Box<dyn DropFut>>; // TODO: Info
 
     fn create_scalar_function(&self, info: CreateScalarFunctionInfo) -> Result<Box<dyn CreateFut>>;
     fn create_aggregate_function(
@@ -21,22 +25,4 @@ pub trait CreateFut: Debug + Sync + Send {
 
 pub trait DropFut: Debug + Sync + Send {
     fn poll_drop(&mut self, cx: &mut Context) -> Poll<Result<()>>;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct EmptyCreateFut;
-
-impl CreateFut for EmptyCreateFut {
-    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct EmptyDropFut;
-
-impl DropFut for EmptyDropFut {
-    fn poll_drop(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
-    }
 }

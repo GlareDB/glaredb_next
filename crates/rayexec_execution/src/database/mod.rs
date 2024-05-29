@@ -2,16 +2,14 @@ pub mod catalog;
 pub mod create;
 pub mod ddl;
 pub mod entry;
-pub mod schema;
 pub mod storage;
-pub mod system;
 pub mod table;
 
 use catalog::{Catalog, CatalogTx};
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use system::SYSTEM_CATALOG;
+use storage::system::GLOBAL_SYSTEM_CATALOG;
 
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
@@ -31,7 +29,7 @@ impl DatabaseContext {
     pub fn new() -> Self {
         let catalogs = [(
             "system".to_string(),
-            Box::new(&*SYSTEM_CATALOG as &dyn Catalog) as _,
+            Box::new(&*GLOBAL_SYSTEM_CATALOG as &dyn Catalog) as _,
         )]
         .into_iter()
         .collect();
@@ -49,8 +47,7 @@ impl DatabaseContext {
     pub fn get_builtin_scalar(&self, name: &str) -> Result<Option<Box<dyn GenericScalarFunction>>> {
         let tx = &CatalogTx::new();
         self.system_catalog()?
-            .get_schema(tx, "glare_catalog")?
-            .try_get_scalar_function(tx, name)
+            .get_scalar_fn(&tx, "glare_catalog", name)
     }
 
     pub fn get_builtin_aggregate(
@@ -59,8 +56,7 @@ impl DatabaseContext {
     ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
         let tx = &CatalogTx::new();
         self.system_catalog()?
-            .get_schema(tx, "glare_catalog")?
-            .try_get_aggregate_function(tx, name)
+            .get_aggregate_fn(&tx, "glare_catalog", name)
     }
 
     pub fn attach_catalog(
