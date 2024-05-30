@@ -9,11 +9,9 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::engine::{session::Session, Engine};
 use sqllogictest::DefaultColumnType;
 use std::path::Path;
-use tracing::{debug, info};
 
 pub async fn run_test(path: impl AsRef<Path>) -> Result<()> {
     let path = path.as_ref();
-    debug!(?path, "running slt file");
     let mut runner = sqllogictest::Runner::new(|| async { TestSession::try_new() });
     runner
         .run_file_async(path)
@@ -46,8 +44,6 @@ impl sqllogictest::AsyncDB for TestSession {
         &mut self,
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
-        info!(%sql, "running query");
-
         let mut rows = Vec::new();
         let mut results = self.session.simple(sql)?;
         if results.len() != 1 {

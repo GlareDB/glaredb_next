@@ -4,7 +4,7 @@ pub mod query;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::fmt;
 use std::sync::Arc;
-use tracing::info;
+use tracing::debug;
 
 use crate::execution::pipeline::PartitionPipeline;
 use crate::execution::query_graph::QueryGraph;
@@ -50,7 +50,7 @@ impl Scheduler {
     /// Each partition pipeline in the query graph will be independently
     /// executed.
     pub fn spawn_query_graph(&self, query_graph: QueryGraph) {
-        info!("spawning execution of query graph");
+        debug!("spawning execution of query graph");
         for partition_pipeline in query_graph.into_partition_pipeline_iter() {
             self.spawn_partition_pipeline(partition_pipeline);
         }

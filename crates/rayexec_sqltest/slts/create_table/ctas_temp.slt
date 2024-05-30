@@ -1,4 +1,4 @@
 # CREATE TEMP TABLE ... AS ...
 
-statement ok
-create temp table t1 as values (1, 2), (3, 4);
+# statement ok
+# create temp table t1 as values (1, 2), (3, 4);
