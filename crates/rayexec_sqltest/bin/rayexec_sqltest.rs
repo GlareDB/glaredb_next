@@ -1,7 +1,8 @@
 //! Bin for running the SLTs.
 
+use clap::Parser;
 use rayexec_error::{Result, ResultExt};
-use rayexec_sqltest::run_tests;
+use rayexec_sqltest::run_test;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing_subscriber::filter::EnvFilter;
@@ -10,8 +11,30 @@ use tracing_subscriber::FmtSubscriber;
 /// Path to slts directory relative to this crate's root.
 const SLTS_PATH: &str = "slts/";
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Arguments {
+    /// Only test files that contain this filter string are run.
+    // Positional
+    #[clap(value_name = "FILTER")]
+    pub filter: Option<String>,
+}
+
+impl Arguments {
+    /// Filter file paths based on the filter provided as an argument.
+    fn filter_paths(&self, mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
+        paths.retain(|path| match self.filter.as_ref() {
+            Some(filter) => path.to_string_lossy().contains(filter),
+            None => true,
+        });
+        paths
+    }
+}
+
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
+    let args = Arguments::parse();
+
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::INFO.into())
         .from_env_lossy()
@@ -37,10 +60,18 @@ pub async fn main() {
     let mut paths = Vec::new();
     find_files(Path::new(SLTS_PATH), &mut paths).unwrap();
 
-    if let Err(e) = run_tests(paths).await {
-        println!("---- FAIL ----");
-        println!("{e}");
-        std::process::exit(1);
+    paths = args.filter_paths(paths);
+
+    for path in paths {
+        if let Err(e) = run_test(&path).await {
+            println!("---- FAIL ----");
+            println!("{e}");
+            println!(
+                "Rerun this SLT with '-p rayexec_sqltest {}'",
+                path.to_string_lossy()
+            );
+            std::process::exit(1);
+        }
     }
 }
 

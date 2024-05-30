@@ -8,17 +8,11 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::engine::{session::Session, Engine};
 use sqllogictest::DefaultColumnType;
-use std::path::PathBuf;
+use std::path::Path;
 use tracing::{debug, info};
 
-pub async fn run_tests(paths: Vec<PathBuf>) -> Result<()> {
-    for path in paths {
-        run_test(path).await?;
-    }
-    Ok(())
-}
-
-async fn run_test(path: PathBuf) -> Result<()> {
+pub async fn run_test(path: impl AsRef<Path>) -> Result<()> {
+    let path = path.as_ref();
     debug!(?path, "running slt file");
     let mut runner = sqllogictest::Runner::new(|| async { TestSession::try_new() });
     runner
