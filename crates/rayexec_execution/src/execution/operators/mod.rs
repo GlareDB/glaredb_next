@@ -13,6 +13,7 @@ pub mod repartition;
 pub mod scan;
 pub mod simple;
 pub mod sort;
+pub mod table_function;
 pub mod values;
 
 mod util;
@@ -27,6 +28,7 @@ use rayexec_error::Result;
 use scan::ScanPartitionState;
 use std::fmt::Debug;
 use std::task::Context;
+use table_function::TableFunctionPartitionState;
 
 use crate::planner::explainable::Explainable;
 
@@ -72,6 +74,7 @@ pub enum PartitionState {
     Limit(LimitPartitionState),
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
+    TableFunction(TableFunctionPartitionState),
     Insert(InsertPartitionState),
     CreateTable(CreateTablePartitionState),
     Empty(EmptyPartitionState),

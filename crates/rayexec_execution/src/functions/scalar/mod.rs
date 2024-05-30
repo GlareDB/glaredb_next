@@ -66,7 +66,7 @@ pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
     /// Get the return type for this function.
     ///
     /// This is expected to be overridden by functions that return a dynamic
-    /// type based on input. The defualt implementation can only determine the
+    /// type based on input. The default implementation can only determine the
     /// output if it can be statically determined.
     fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
         let sig = self
