@@ -67,7 +67,7 @@ pub async fn main() {
             println!("---- FAIL ----");
             println!("{e}");
             println!(
-                "Rerun this SLT with '-p rayexec_sqltest {}'",
+                "Rerun this SLT with 'cargo test -p rayexec_sqltest {}'",
                 path.to_string_lossy()
             );
             std::process::exit(1);
