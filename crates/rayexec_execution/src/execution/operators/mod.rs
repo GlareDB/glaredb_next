@@ -2,6 +2,7 @@
 
 pub mod aggregate;
 pub mod create_table;
+pub mod create_table_as;
 pub mod empty;
 pub mod filter;
 pub mod insert;
@@ -22,6 +23,7 @@ mod util;
 mod test_util;
 
 use create_table::CreateTablePartitionState;
+use create_table_as::{CreateTableAsOperatorState, CreateTableAsPartitionState};
 use insert::InsertPartitionState;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
@@ -77,6 +79,7 @@ pub enum PartitionState {
     TableFunction(TableFunctionPartitionState),
     Insert(InsertPartitionState),
     CreateTable(CreateTablePartitionState),
+    CreateTableAs(CreateTableAsPartitionState),
     Empty(EmptyPartitionState),
     None,
 }
@@ -91,6 +94,7 @@ pub enum OperatorState {
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
     MergeSorted(MergeSortedOperatorState),
+    CreateTableAs(CreateTableAsOperatorState),
     None,
 }
 

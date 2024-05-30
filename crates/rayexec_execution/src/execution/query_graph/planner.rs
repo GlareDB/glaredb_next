@@ -274,6 +274,12 @@ impl BuildState {
         conf: &BuildConfig,
         create: operator::CreateTable,
     ) -> Result<()> {
+        if create.input.is_some() {
+            return Err(RayexecError::new(
+                "Create table with source not yet supported",
+            ));
+        }
+
         if self.in_progress.is_some() {
             // Well... for CREATE TABLE AS it could be some
             return Err(RayexecError::new("Expected in progress to be None"));

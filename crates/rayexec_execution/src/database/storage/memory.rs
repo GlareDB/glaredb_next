@@ -132,7 +132,7 @@ pub struct MemoryCatalogModifier {
 }
 
 impl CatalogModifier for MemoryCatalogModifier {
-    fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut>> {
+    fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut<Output = ()>>> {
         Ok(Box::new(MemoryCreateSchema {
             schema: name.to_string(),
             inner: self.inner.clone(),
@@ -143,7 +143,11 @@ impl CatalogModifier for MemoryCatalogModifier {
         unimplemented!()
     }
 
-    fn create_table(&self, schema: &str, info: CreateTableInfo) -> Result<Box<dyn CreateFut>> {
+    fn create_table(
+        &self,
+        schema: &str,
+        info: CreateTableInfo,
+    ) -> Result<Box<dyn CreateFut<Output = Box<dyn DataTable>>>> {
         Ok(Box::new(MemoryCreateTable {
             schema: schema.to_string(),
             info,
@@ -158,14 +162,14 @@ impl CatalogModifier for MemoryCatalogModifier {
     fn create_scalar_function(
         &self,
         _info: CreateScalarFunctionInfo,
-    ) -> Result<Box<dyn CreateFut>> {
+    ) -> Result<Box<dyn CreateFut<Output = ()>>> {
         unimplemented!()
     }
 
     fn create_aggregate_function(
         &self,
         _info: CreateScalarFunctionInfo,
-    ) -> Result<Box<dyn CreateFut>> {
+    ) -> Result<Box<dyn CreateFut<Output = ()>>> {
         unimplemented!()
     }
 }
@@ -177,6 +181,7 @@ struct MemoryCreateSchema {
 }
 
 impl CreateFut for MemoryCreateSchema {
+    type Output = ();
     fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
         let mut inner = self.inner.write();
         if inner.schemas.contains_key(&self.schema) {
@@ -202,7 +207,8 @@ struct MemoryCreateTable {
 }
 
 impl CreateFut for MemoryCreateTable {
-    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
+    type Output = Box<dyn DataTable>;
+    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<Self::Output>> {
         let mut inner = self.inner.write();
         let schema = match inner.schemas.get_mut(&self.schema) {
             Some(schema) => schema,
@@ -215,7 +221,7 @@ impl CreateFut for MemoryCreateTable {
         };
         if schema.entries.contains_key(&self.info.name) {
             match self.info.on_conflict {
-                OnConflict::Ignore => return Poll::Ready(Ok(())),
+                OnConflict::Ignore => unimplemented!(), // TODO: What to do here?
                 OnConflict::Error => {
                     return Poll::Ready(Err(RayexecError::new(format!(
                         "Duplicate table name: {}",
@@ -234,11 +240,10 @@ impl CreateFut for MemoryCreateTable {
             }),
         );
 
-        schema
-            .tables
-            .insert(self.info.name.clone(), MemoryDataTable::default());
+        let table = MemoryDataTable::default();
+        schema.tables.insert(self.info.name.clone(), table.clone());
 
-        Poll::Ready(Ok(()))
+        Poll::Ready(Ok(Box::new(table)))
     }
 }
 
