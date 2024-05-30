@@ -9,7 +9,7 @@ edition.workspace = true
 rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_bullet = { path = '../rayexec_bullet' }
-clap = { version = "4.5.4", features = ["derive"] }
+libtest-mimic = "0.7.3"
 sqllogictest = "0.20.2"
 env_logger = "0.11.3"
 futures = { workspace = true, features = ["executor"] }
