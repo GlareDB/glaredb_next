@@ -17,7 +17,7 @@ pub fn main() {
     let args = Arguments::from_args();
 
     let env_filter = EnvFilter::builder()
-        .with_default_directive(tracing::Level::INFO.into())
+        .with_default_directive(tracing::Level::ERROR.into())
         .from_env_lossy()
         .add_directive("h2=info".parse().unwrap())
         .add_directive("hyper=info".parse().unwrap())

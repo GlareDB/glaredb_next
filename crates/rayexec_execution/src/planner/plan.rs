@@ -153,7 +153,7 @@ impl<'a> PlanContext<'a> {
         let name = create.name.0[0].value.clone();
 
         // TODO: Constraints.
-        let columns: Vec<_> = create
+        let mut columns: Vec<_> = create
             .columns
             .into_iter()
             .map(|col| {
@@ -165,12 +165,52 @@ impl<'a> PlanContext<'a> {
             })
             .collect();
 
+        let input = match create.source {
+            Some(source) => {
+                // If we have an input to the table, adjust the column definitions for the table
+                // to be the output schema of the input.
+
+                // TODO: We could allow this though. We'd just need to do some
+                // projections as necessary.
+                if !columns.is_empty() {
+                    return Err(RayexecError::new(
+                        "Cannot specify columns when running CREATE TABLE ... AS ...",
+                    ));
+                }
+
+                let input = self.plan_query(source)?;
+                let type_schema = input.root.output_schema(&[])?; // Source input to table should not depend on any outer queries.
+
+                if type_schema.types.len() != input.scope.items.len() {
+                    // An "us" bug. These should be the same lengths.
+                    return Err(RayexecError::new(
+                        "Output scope and type schemas differ in lengths",
+                    ));
+                }
+
+                let fields: Vec<_> = input
+                    .scope
+                    .items
+                    .iter()
+                    .zip(type_schema.types)
+                    .map(|(item, typ)| Field::new(&item.column, typ, true))
+                    .collect();
+
+                // Update columns to the fields we've generated from the input.
+                columns = fields;
+
+                Some(Box::new(input.root))
+            }
+            None => None,
+        };
+
         Ok(LogicalQuery {
             root: LogicalOperator::CreateTable(CreateTable {
                 name,
                 temp: create.temp,
                 columns,
                 on_conflict,
+                input,
             }),
             scope: Scope::empty(),
         })

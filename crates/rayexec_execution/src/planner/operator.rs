@@ -414,6 +414,8 @@ pub struct CreateTable {
     pub temp: bool, // TODO: Probably replace this with a schema reference. We need the schema somewhere.
     pub columns: Vec<Field>,
     pub on_conflict: OnConflict,
+    /// Optional input for CREATE TABLE AS
+    pub input: Option<Box<LogicalOperator>>,
 }
 
 impl LogicalNode for CreateTable {
