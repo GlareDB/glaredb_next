@@ -40,6 +40,7 @@ pub enum LogicalOperator {
     Empty,
     SetVar(SetVar),
     ShowVar(ShowVar),
+    CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
     Insert(Insert),
@@ -66,6 +67,7 @@ impl LogicalOperator {
             Self::Empty => Ok(TypeSchema::empty()),
             Self::SetVar(n) => n.output_schema(outer),
             Self::ShowVar(n) => n.output_schema(outer),
+            Self::CreateSchema(n) => n.output_schema(outer),
             Self::CreateTable(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
             Self::Insert(n) => n.output_schema(outer),
@@ -90,6 +92,7 @@ impl Explainable for LogicalOperator {
             Self::Empty => ExplainEntry::new("Empty"),
             Self::SetVar(p) => p.explain_entry(conf),
             Self::ShowVar(p) => p.explain_entry(conf),
+            Self::CreateSchema(p) => p.explain_entry(conf),
             Self::CreateTable(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
             Self::Insert(p) => p.explain_entry(conf),
@@ -405,6 +408,25 @@ impl GroupingExpr {
             Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
             Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateSchema {
+    pub catalog: String,
+    pub name: String,
+    pub on_conflict: OnConflict,
+}
+
+impl LogicalNode for CreateSchema {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for CreateSchema {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateSchema").with_value("name", &self.name)
     }
 }
 

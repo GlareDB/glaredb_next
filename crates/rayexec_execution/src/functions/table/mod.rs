@@ -1,15 +1,13 @@
+pub mod series;
+
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_bullet::{array::Array, field::DataType};
-use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
+use rayexec_error::Result;
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::database::table::DataTableScan;
-
-use super::{ReturnType, Signature};
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> = Lazy::new(|| vec![]);
 
@@ -47,7 +45,10 @@ impl Clone for Box<dyn GenericTableFunction> {
 }
 
 // TODO: Don't think this is amazing yet.
+//
+// This current iteration ot to just get something going so I can generate a
+// bunch of data for testing.
 pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
-    fn load_schema(&mut self) -> Result<Schema>;
+    fn schema(&mut self) -> Result<Schema>;
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>>;
 }

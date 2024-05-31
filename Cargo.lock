@@ -1152,7 +1152,6 @@ dependencies = [
 name = "rayexec_parser"
 version = "0.0.1"
 dependencies = [
- "insta",
  "pretty_assertions",
  "rayexec_error",
  "tracing",

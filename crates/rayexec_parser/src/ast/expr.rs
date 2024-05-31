@@ -185,15 +185,11 @@ impl Expr {
                     Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
                     Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
                     Keyword::NULL => Expr::Literal(Literal::Null),
-                    _ => Expr::Ident(Ident {
-                        value: w.value.clone(),
-                    }),
+                    _ => Expr::Ident(w.clone().into()),
                 },
                 None => {
                     // TODO: Extend, compound idents.
-                    let ident = Ident {
-                        value: w.value.clone(),
-                    };
+                    let ident = Ident::from(w.clone());
 
                     // Function call if left paren.
                     if parser.consume_token(&Token::LeftParen) {

@@ -1,5 +1,7 @@
 pub mod create_table;
 pub use create_table::*;
+pub mod create_schema;
+pub use create_schema::*;
 pub mod datatype;
 pub use datatype::*;
 pub mod expr;
@@ -18,7 +20,7 @@ pub mod insert;
 pub use insert::*;
 
 use crate::parser::Parser;
-use crate::tokens::Token;
+use crate::tokens::{Token, Word};
 use rayexec_error::{RayexecError, Result};
 
 use std::fmt;
@@ -48,12 +50,33 @@ mod testutil {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident {
-    pub value: String,
+    pub(crate) value: String,
+    pub(crate) quoted: bool,
 }
 
 impl Ident {
     pub fn from_string(s: impl Into<String>) -> Self {
-        Ident { value: s.into() }
+        Ident {
+            value: s.into(),
+            quoted: false,
+        }
+    }
+
+    /// Returns the string representation of this ident, taking into account if
+    /// it's quoted.
+    ///
+    /// If an identifier is quoted, its case is preserved. Otherwise it's all
+    /// lowercase.
+    pub fn into_normalized_string(self) -> String {
+        if self.quoted {
+            self.value
+        } else {
+            self.value.to_lowercase()
+        }
+    }
+
+    pub fn as_normalized_string(&self) -> String {
+        self.clone().into_normalized_string()
     }
 }
 
@@ -69,12 +92,19 @@ impl AstParseable for Ident {
         };
 
         match tok {
-            Token::Word(w) => Ok(Ident {
-                value: w.value.clone(),
-            }),
+            Token::Word(w) => Ok(w.clone().into()),
             other => Err(RayexecError::new(format!(
                 "Unexpected token: {other:?}. Expected an identifier.",
             ))),
+        }
+    }
+}
+
+impl From<Word> for Ident {
+    fn from(w: Word) -> Self {
+        Ident {
+            value: w.value,
+            quoted: w.quote == Some('"'),
         }
     }
 }
@@ -98,7 +128,10 @@ impl ObjectReference {
     {
         let mut idents = Vec::new();
         for s in strings {
-            idents.push(Ident { value: s.into() })
+            idents.push(Ident {
+                value: s.into(),
+                quoted: false,
+            })
         }
         ObjectReference(idents)
     }
@@ -116,9 +149,7 @@ impl AstParseable for ObjectReference {
         let mut idents = Vec::new();
         while let Some(tok) = parser.next() {
             let ident = match &tok.token {
-                Token::Word(w) => Ident {
-                    value: w.value.clone(),
-                },
+                Token::Word(w) => w.clone().into(),
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unexpected token: {other:?}. Expected an object reference.",

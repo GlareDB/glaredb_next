@@ -82,20 +82,21 @@ impl<'a> PlanContext<'a> {
             }
             Statement::Query(query) => self.plan_query(query),
             Statement::CreateTable(create) => self.plan_create_table(create),
+            Statement::CreateSchema(create) => self.plan_create_schema(create),
             Statement::Insert(insert) => self.plan_insert(insert),
             Statement::SetVariable { reference, value } => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(value)?;
                 Ok(LogicalQuery {
                     root: LogicalOperator::SetVar(SetVar {
-                        name: reference.0[0].value.clone(), // TODO: Normalize, allow compound references?
+                        name: reference.0[0].as_normalized_string(), // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
                     }),
                     scope: Scope::empty(),
                 })
             }
             Statement::ShowVariable { reference } => {
-                let name = reference.0[0].value.clone(); // TODO: Normalize, allow compound references?
+                let name = reference.0[0].as_normalized_string(); // TODO: Allow compound references?
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 Ok(LogicalQuery {
@@ -136,6 +137,16 @@ impl<'a> PlanContext<'a> {
         })
     }
 
+    fn plan_create_schema(&mut self, create: ast::CreateSchema) -> Result<LogicalQuery> {
+        let on_conflict = if create.if_not_exists {
+            OnConflict::Ignore
+        } else {
+            OnConflict::Error
+        };
+
+        unimplemented!()
+    }
+
     fn plan_create_table(&mut self, create: ast::CreateTable) -> Result<LogicalQuery> {
         let on_conflict = match (create.or_replace, create.if_not_exists) {
             (true, false) => OnConflict::Replace,
@@ -150,7 +161,7 @@ impl<'a> PlanContext<'a> {
 
         // TODO: Better name handling.
         // TODO: Get schema from name or search path.
-        let name = create.name.0[0].value.clone();
+        let name = create.name.0[0].as_normalized_string();
 
         // TODO: Constraints.
         let mut columns: Vec<_> = create
@@ -655,7 +666,7 @@ impl<'a> PlanContext<'a> {
                 let reference = TableReference {
                     database: None,
                     schema: None,
-                    table: alias.value,
+                    table: alias.into_normalized_string(),
                 };
 
                 // Modify all items in the scope to now have the new table
@@ -682,7 +693,7 @@ impl<'a> PlanContext<'a> {
                     }
 
                     for (item, new_alias) in scope.items.iter_mut().zip(columns.into_iter()) {
-                        item.column = new_alias.value;
+                        item.column = new_alias.into_normalized_string();
                     }
                 }
 
@@ -728,7 +739,7 @@ impl<'a> PlanContext<'a> {
         reference: ast::ObjectReference,
     ) -> Result<(TableReference, TableEntry)> {
         // TODO: Better handling, also search path.
-        let name = &reference.0[0].value;
+        let name = &reference.0[0].as_normalized_string();
 
         // Search temp first
         if let Some(ent) = self

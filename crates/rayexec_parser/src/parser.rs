@@ -1,6 +1,7 @@
 use crate::{
     ast::{
-        AstParseable, CreateTable, ExplainNode, Expr, Ident, Insert, ObjectReference, QueryNode,
+        AstParseable, CreateSchema, CreateTable, ExplainNode, Expr, Ident, Insert, ObjectReference,
+        QueryNode,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
@@ -103,8 +104,12 @@ impl Parser {
         let start = self.idx;
 
         self.expect_keyword(Keyword::CREATE)?;
-        let or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
-        let temp = self
+
+        // Skip these keywords to get the actual object being created. We reset
+        // the parser index, so the actual object being parsed can get these
+        // again.
+        let _or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
+        let _temp = self
             .parse_one_of_keywords(&[Keyword::TEMP, Keyword::TEMPORARY])
             .is_some();
 
@@ -112,26 +117,8 @@ impl Parser {
             self.idx = start;
             Ok(Statement::CreateTable(CreateTable::parse(self)?))
         } else if self.parse_keyword(Keyword::SCHEMA) {
-            // Schema
-            if or_replace {
-                return Err(RayexecError::new(
-                    "OR REPLACE not supported when creating a schema",
-                ));
-            }
-            if temp {
-                return Err(RayexecError::new(
-                    "TEMPORARY not supported when creating a schema",
-                ));
-            }
-
-            let if_not_exists =
-                self.parse_keyword_sequence(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-            let reference = ObjectReference::parse(self)?;
-
-            Ok(Statement::CreateSchema {
-                reference,
-                if_not_exists,
-            })
+            self.idx = start;
+            Ok(Statement::CreateSchema(CreateSchema::parse(self)?))
         } else {
             unimplemented!()
         }
@@ -170,22 +157,21 @@ impl Parser {
 
         let ident: Option<Ident> = match tok {
             // Allow any alias if `AS` was explicitly provided.
-            Token::Word(w) if has_as => Some(Ident {
-                value: w.value.clone(),
-            }),
+            Token::Word(w) if has_as => Some(w.clone().into()),
 
             // If `AS` wasn't provided, allow the next word to be used as the
             // alias if it's not a reserved word. Otherwise assume it's not an
             // alias.
             Token::Word(w) => match &w.keyword {
                 Some(kw) if reserved.iter().any(|reserved| reserved == kw) => None,
-                _ => Some(Ident {
-                    value: w.value.clone(),
-                }),
+                _ => Some(w.clone().into()),
             },
 
             // Allow any singly quoted string.
-            Token::SingleQuotedString(s) => Some(Ident { value: s.clone() }),
+            Token::SingleQuotedString(s) => Some(Ident {
+                value: s.clone(),
+                quoted: false,
+            }),
 
             _ => {
                 if has_as {

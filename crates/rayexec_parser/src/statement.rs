@@ -1,4 +1,6 @@
-use crate::ast::{CreateTable, ExplainNode, Expr, Insert, ObjectReference, QueryNode};
+use crate::ast::{
+    CreateSchema, CreateTable, ExplainNode, Expr, Insert, ObjectReference, QueryNode,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
@@ -11,10 +13,7 @@ pub enum Statement {
     Insert(Insert),
 
     /// CREATE SCHEMA ...
-    CreateSchema {
-        reference: ObjectReference,
-        if_not_exists: bool,
-    },
+    CreateSchema(CreateSchema),
 
     /// SET <variable> TO <value>
     SetVariable {
