@@ -1,28 +1,30 @@
 use crate::ast::{
-    CreateSchema, CreateTable, ExplainNode, Expr, Insert, ObjectReference, QueryNode,
+    CreateSchema, CreateTable, ExplainNode, Insert, QueryNode, ResetVariable, SetVariable,
+    ShowVariable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     Explain(ExplainNode),
 
+    /// SELECT/VALUES
     Query(QueryNode),
 
+    /// CREATE TABLE ...
     CreateTable(CreateTable),
 
+    /// INSERT INTO ...
     Insert(Insert),
 
     /// CREATE SCHEMA ...
     CreateSchema(CreateSchema),
 
     /// SET <variable> TO <value>
-    SetVariable {
-        reference: ObjectReference,
-        value: Expr,
-    },
+    SetVariable(SetVariable),
 
     /// SHOW <variable>
-    ShowVariable {
-        reference: ObjectReference,
-    },
+    ShowVariable(ShowVariable),
+
+    /// RESET <variable>
+    ResetVariable(ResetVariable),
 }

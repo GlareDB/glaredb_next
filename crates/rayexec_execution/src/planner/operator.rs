@@ -40,6 +40,7 @@ pub enum LogicalOperator {
     Empty,
     SetVar(SetVar),
     ShowVar(ShowVar),
+    ResetVar(ResetVar),
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
@@ -67,6 +68,7 @@ impl LogicalOperator {
             Self::Empty => Ok(TypeSchema::empty()),
             Self::SetVar(n) => n.output_schema(outer),
             Self::ShowVar(n) => n.output_schema(outer),
+            Self::ResetVar(n) => n.output_schema(outer),
             Self::CreateSchema(n) => n.output_schema(outer),
             Self::CreateTable(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
@@ -92,6 +94,7 @@ impl Explainable for LogicalOperator {
             Self::Empty => ExplainEntry::new("Empty"),
             Self::SetVar(p) => p.explain_entry(conf),
             Self::ShowVar(p) => p.explain_entry(conf),
+            Self::ResetVar(p) => p.explain_entry(conf),
             Self::CreateSchema(p) => p.explain_entry(conf),
             Self::CreateTable(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
@@ -520,6 +523,29 @@ impl LogicalNode for ShowVar {
 impl Explainable for ShowVar {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ShowVar")
+    }
+}
+
+#[derive(Debug)]
+pub enum VariableOrAll {
+    Variable(SessionVar),
+    All,
+}
+
+#[derive(Debug)]
+pub struct ResetVar {
+    pub var: VariableOrAll,
+}
+
+impl LogicalNode for ResetVar {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for ResetVar {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("ResetVar")
     }
 }
 

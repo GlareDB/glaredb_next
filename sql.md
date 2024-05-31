@@ -41,9 +41,69 @@ Catalogs on the "remote" side during distributed or hybrid execution.
 
 ## `CREATE SCHEMA`
 
-**unimplemented**
+Create a schema in the current catalog. **unimplemented**
+
+```sql
+CREATE SCHEMA my_schema;
+```
+
+Create a schema in a specified catalog.
+
+```sql
+CREATE SCHEMA temp.my_schema;
+```
+
+Create a schema if it doens't already exist.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS temp.my_schema;
+```
 
 ## `CREATE TABLE`
+
+### Persistent tables
+
+**unimplemented**
+
+Create a table in the current schema.
+
+```sql
+CREATE TABLE my_table (
+    a INT,
+    b TEXT,
+)
+```
+
+### Temporary tables
+
+Create a temporary table.
+
+```sql
+CREATE TEMP TABLE my_table (
+    a INT,
+    b TEXT,
+)
+```
+
+### `IF NOT EXISTS`
+
+**unimplemented**
+
+### `OR REPLACE`
+
+**unimplemented**
+
+### Column constraints
+
+`CHECK` and `NULL`/`NOT NULL`
+
+**unimplemented**
+
+### Foreign keys
+
+**unimplemented**
+
+### `CREATE TABLE ... AS ...`
 
 **unimplemented**
 
@@ -76,6 +136,30 @@ Catalogs on the "remote" side during distributed or hybrid execution.
 **unimplemented**
 
 ## `SET` / `RESET`
+
+Set a variable local to the session.
+
+```sql
+SET batch_size TO 8096
+```
+
+`=` alternative to `TO`.
+
+```sql
+SET batch_size TO 8096
+```
+
+Reset a variable to its default.
+
+```sql
+RESET batch_size;
+```
+
+Reset all variables to their defaults.
+
+```sql
+RESET ALL;
+```
 
 **unimplemented**
 

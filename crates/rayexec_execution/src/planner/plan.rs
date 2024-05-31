@@ -11,7 +11,8 @@ use crate::{
     engine::vars::SessionVars,
     planner::{
         operator::{
-            CreateSchema, Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar,
+            CreateSchema, Explain, ExplainFormat, ExpressionList, Filter, JoinType, ResetVar,
+            SetVar, ShowVar, VariableOrAll,
         },
         scope::TableReference,
     },
@@ -86,7 +87,7 @@ impl<'a> PlanContext<'a> {
             Statement::CreateTable(create) => self.plan_create_table(create),
             Statement::CreateSchema(create) => self.plan_create_schema(create),
             Statement::Insert(insert) => self.plan_insert(insert),
-            Statement::SetVariable { reference, value } => {
+            Statement::SetVariable(ast::SetVariable { reference, value }) => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(value)?;
                 Ok(LogicalQuery {
@@ -97,13 +98,27 @@ impl<'a> PlanContext<'a> {
                     scope: Scope::empty(),
                 })
             }
-            Statement::ShowVariable { reference } => {
+            Statement::ShowVariable(ast::ShowVariable { reference }) => {
                 let name = reference.0[0].as_normalized_string(); // TODO: Allow compound references?
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 Ok(LogicalQuery {
                     root: LogicalOperator::ShowVar(ShowVar { var: var.clone() }),
                     scope,
+                })
+            }
+            Statement::ResetVariable(ast::ResetVariable { var }) => {
+                let var = match var {
+                    ast::VariableOrAll::Variable(v) => {
+                        let name = v.0[0].as_normalized_string(); // TODO: Allow compound references?
+                        let var = self.vars.get_var(&name)?;
+                        VariableOrAll::Variable(var.clone())
+                    }
+                    ast::VariableOrAll::All => VariableOrAll::All,
+                };
+                Ok(LogicalQuery {
+                    root: LogicalOperator::ResetVar(ResetVar { var }),
+                    scope: Scope::empty(),
                 })
             }
             _ => unimplemented!(),

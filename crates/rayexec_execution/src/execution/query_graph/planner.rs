@@ -175,6 +175,9 @@ impl BuildState {
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
+            LogicalOperator::ResetVar(_) => {
+                Err(RayexecError::new("RESET should be handled in the session"))
+            }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
             LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),

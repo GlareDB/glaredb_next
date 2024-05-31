@@ -112,6 +112,7 @@ define_keywords!(
     RECURSIVE,
     REGEXP,
     REPLACE,
+    RESET,
     RIGHT,
     RLIKE,
     ROLLBACK,

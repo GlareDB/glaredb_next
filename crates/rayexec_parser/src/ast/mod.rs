@@ -18,6 +18,8 @@ pub mod explain;
 pub use explain::*;
 pub mod insert;
 pub use insert::*;
+pub mod variable;
+pub use variable::*;
 
 use crate::parser::Parser;
 use crate::tokens::{Token, Word};

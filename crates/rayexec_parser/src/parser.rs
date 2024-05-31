@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         AstParseable, CreateSchema, CreateTable, ExplainNode, Expr, Ident, Insert, ObjectReference,
-        QueryNode,
+        QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
@@ -81,8 +81,9 @@ impl Parser {
 
                 match keyword {
                     Keyword::CREATE => self.parse_create(),
-                    Keyword::SET => self.parse_set(),
-                    Keyword::SHOW => self.parse_show(),
+                    Keyword::SET => Ok(Statement::SetVariable(SetVariable::parse(self)?)),
+                    Keyword::RESET => Ok(Statement::ResetVariable(ResetVariable::parse(self)?)),
+                    Keyword::SHOW => Ok(Statement::ShowVariable(ShowVariable::parse(self)?)),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(Statement::Query(QueryNode::parse(self)?))
                     }
@@ -122,29 +123,6 @@ impl Parser {
         } else {
             unimplemented!()
         }
-    }
-
-    pub fn parse_set(&mut self) -> Result<Statement> {
-        self.expect_keyword(Keyword::SET)?;
-
-        let name = ObjectReference::parse(self)?;
-        if self.parse_keyword(Keyword::TO) || self.consume_token(&Token::Eq) {
-            let expr = Expr::parse(self)?;
-            return Ok(Statement::SetVariable {
-                reference: name,
-                value: expr,
-            });
-        }
-
-        Err(RayexecError::new(format!(
-            "Expected 'SET {name} TO <value>' or SET {name} = <value>'"
-        )))
-    }
-
-    pub fn parse_show(&mut self) -> Result<Statement> {
-        self.expect_keyword(Keyword::SHOW)?;
-        let name = ObjectReference::parse(self)?;
-        Ok(Statement::ShowVariable { reference: name })
     }
 
     /// Parse an optional alias.
