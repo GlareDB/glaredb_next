@@ -2,12 +2,12 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Poll};
 
-use super::create::{CreateScalarFunctionInfo, CreateTableInfo};
+use super::create::{CreateScalarFunctionInfo, CreateSchemaInfo, CreateTableInfo};
 use super::table::DataTable;
 
 /// Primary interface for making modifications to a catalog.
 pub trait CatalogModifier: Debug + Sync + Send {
-    fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut<Output = ()>>>; // TODO: Info
+    fn create_schema(&self, create: CreateSchemaInfo) -> Result<Box<dyn CreateFut<Output = ()>>>;
     fn drop_schema(&self, name: &str) -> Result<Box<dyn DropFut>>;
 
     fn create_table(

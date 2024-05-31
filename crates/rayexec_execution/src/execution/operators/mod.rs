@@ -1,6 +1,7 @@
 //! Implementations of physical operators in an execution pipeline.
 
 pub mod aggregate;
+pub mod create_schema;
 pub mod create_table;
 pub mod create_table_as;
 pub mod empty;
@@ -22,6 +23,7 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+use create_schema::CreateSchemaPartitionState;
 use create_table::CreateTablePartitionState;
 use create_table_as::{CreateTableAsOperatorState, CreateTableAsPartitionState};
 use insert::InsertPartitionState;
@@ -79,6 +81,7 @@ pub enum PartitionState {
     TableFunction(TableFunctionPartitionState),
     Insert(InsertPartitionState),
     CreateTable(CreateTablePartitionState),
+    CreateSchema(CreateSchemaPartitionState),
     CreateTableAs(CreateTableAsPartitionState),
     Empty(EmptyPartitionState),
     None,

@@ -91,6 +91,10 @@ impl DatabaseContext {
         Ok(())
     }
 
+    pub fn catalog_exists(&self, name: &str) -> bool {
+        self.catalogs.contains_key(name)
+    }
+
     pub fn get_catalog(&self, name: &str) -> Result<&dyn Catalog> {
         self.catalogs
             .get(name)

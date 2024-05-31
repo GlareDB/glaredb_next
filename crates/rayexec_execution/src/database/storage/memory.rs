@@ -6,7 +6,9 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::database::catalog::{Catalog, CatalogTx};
-use crate::database::create::{CreateScalarFunctionInfo, CreateTableInfo, OnConflict};
+use crate::database::create::{
+    CreateScalarFunctionInfo, CreateSchemaInfo, CreateTableInfo, OnConflict,
+};
 use crate::database::ddl::{CatalogModifier, CreateFut, DropFut};
 use crate::database::entry::{CatalogEntry, TableEntry};
 use crate::functions::aggregate::GenericAggregateFunction;
@@ -132,9 +134,10 @@ pub struct MemoryCatalogModifier {
 }
 
 impl CatalogModifier for MemoryCatalogModifier {
-    fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut<Output = ()>>> {
+    fn create_schema(&self, create: CreateSchemaInfo) -> Result<Box<dyn CreateFut<Output = ()>>> {
+        // TODO: On conflict
         Ok(Box::new(MemoryCreateSchema {
-            schema: name.to_string(),
+            schema: create.name.to_string(),
             inner: self.inner.clone(),
         }))
     }

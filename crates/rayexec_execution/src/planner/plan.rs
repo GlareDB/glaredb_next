@@ -10,7 +10,9 @@ use crate::{
     database::{catalog::CatalogTx, create::OnConflict, entry::TableEntry, DatabaseContext},
     engine::vars::SessionVars,
     planner::{
-        operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
+        operator::{
+            CreateSchema, Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar,
+        },
         scope::TableReference,
     },
 };
@@ -144,7 +146,32 @@ impl<'a> PlanContext<'a> {
             OnConflict::Error
         };
 
-        unimplemented!()
+        if create.if_not_exists {
+            unimplemented!()
+        }
+
+        // TODO: Get 'default' catalog
+        if create.name.0.len() != 2 {
+            return Err(RayexecError::new(
+                "Only qualified schemas can be create right now",
+            ));
+        }
+
+        let catalog = create.name.0[0].as_normalized_string();
+        if !self.resolver.catalog_exists(&catalog) {
+            return Err(RayexecError::new(format!("Missing catalog: {catalog}")));
+        }
+
+        let name = create.name.0[1].as_normalized_string();
+
+        Ok(LogicalQuery {
+            root: LogicalOperator::CreateSchema(CreateSchema {
+                catalog,
+                name,
+                on_conflict,
+            }),
+            scope: Scope::empty(),
+        })
     }
 
     fn plan_create_table(&mut self, create: ast::CreateTable) -> Result<LogicalQuery> {

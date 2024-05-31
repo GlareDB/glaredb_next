@@ -1,4 +1,5 @@
 # CREATE SCHEMA inside temp catalog
 
-# statement ok
-# create schema temp.my_schema;
+statement ok
+create schema temp.my_schema;
+

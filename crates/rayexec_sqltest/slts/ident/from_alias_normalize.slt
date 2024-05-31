@@ -36,14 +36,14 @@ select "A" from (values (1), (2)) as t("A");
 1
 2
 
-statement error
+statement error Missing column for reference: A
 select "A" from (values (1), (2)) as t(a);
 
-statement error
+statement error Missing column for reference: A
 select "A" from (values (1), (2)) as t("a");
 
-statement error
+statement error Missing column for reference: a
 select "a" from (values (1), (2)) as t("A");
 
-statement error
+statement error Missing column for reference: a
 select a from (values (1), (2)) as t("A");

@@ -1,5 +1,8 @@
 use crate::{
-    database::{create::CreateTableInfo, DatabaseContext},
+    database::{
+        create::{CreateSchemaInfo, CreateTableInfo},
+        DatabaseContext,
+    },
     engine::vars::SessionVars,
     execution::{
         operators::{
@@ -7,6 +10,7 @@ use crate::{
                 grouping_set::GroupingSets,
                 hash_aggregate::{HashAggregateColumnOutput, PhysicalHashAggregate},
             },
+            create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
@@ -173,6 +177,7 @@ impl BuildState {
             }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
+            LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),
             LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
             other => unimplemented!("other: {other:?}"),
@@ -265,6 +270,35 @@ impl BuildState {
 
         // TODO: If we don't get the desired number of partitions, we should
         // push a repartition here.
+
+        Ok(())
+    }
+
+    fn push_create_schema(
+        &mut self,
+        conf: &BuildConfig,
+        create: operator::CreateSchema,
+    ) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalCreateSchema::new(
+            create.catalog,
+            CreateSchemaInfo {
+                name: create.name,
+                on_conflict: create.on_conflict,
+            },
+        ));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = vec![PartitionState::CreateSchema(
+            physical.try_create_state(conf.db_context)?,
+        )];
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }

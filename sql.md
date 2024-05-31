@@ -116,3 +116,11 @@ Catalogs on the "remote" side during distributed or hybrid execution.
 | `REAL`, `FLOAT`, `FLOAT4`   | Float32             |
 | `DOUBLE`, `FLOAT8`          | Float64             |
 | `BOOL`, `BOOLEAN`           | Bool                |
+
+---
+
+# Identifiers
+
+Identifiers are case-insenstive unless quoted with `"`.
+
+
