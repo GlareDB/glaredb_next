@@ -54,7 +54,8 @@ impl sqllogictest::AsyncDB for TestSession {
         }
 
         let typs = schema_to_types(&results[0].output_schema);
-        while let Some(batch) = results[0].stream.next().await {
+        while let Some(result) = results[0].stream.next().await {
+            let batch = result?;
             rows.extend(batch_to_rows(batch)?);
         }
 

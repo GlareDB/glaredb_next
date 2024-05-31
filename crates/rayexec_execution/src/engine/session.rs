@@ -137,7 +137,8 @@ impl Session {
             root => planner.create_graph(root, query_sink)?,
         };
 
-        self.scheduler.spawn_query_graph(query_graph);
+        self.scheduler
+            .spawn_query_graph(query_graph, result_stream.errors_send_channel());
 
         Ok(ExecutionResult {
             output_schema: Schema::empty(), // TODO

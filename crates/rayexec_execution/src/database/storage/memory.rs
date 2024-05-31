@@ -135,9 +135,9 @@ pub struct MemoryCatalogModifier {
 
 impl CatalogModifier for MemoryCatalogModifier {
     fn create_schema(&self, create: CreateSchemaInfo) -> Result<Box<dyn CreateFut<Output = ()>>> {
-        // TODO: On conflict
         Ok(Box::new(MemoryCreateSchema {
             schema: create.name.to_string(),
+            on_conflict: create.on_conflict,
             inner: self.inner.clone(),
         }))
     }
@@ -180,6 +180,7 @@ impl CatalogModifier for MemoryCatalogModifier {
 #[derive(Debug)]
 struct MemoryCreateSchema {
     schema: String,
+    on_conflict: OnConflict,
     inner: Arc<RwLock<MemorySchemas>>,
 }
 
@@ -187,11 +188,20 @@ impl CreateFut for MemoryCreateSchema {
     type Output = ();
     fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
         let mut inner = self.inner.write();
-        if inner.schemas.contains_key(&self.schema) {
-            return Poll::Ready(Err(RayexecError::new(format!(
-                "Schema already exists: {}",
-                self.schema
-            ))));
+
+        let schema_exists = inner.schemas.contains_key(&self.schema);
+        match self.on_conflict {
+            OnConflict::Ignore if schema_exists => return Poll::Ready(Ok(())),
+            OnConflict::Error if schema_exists => {
+                return Poll::Ready(Err(RayexecError::new(format!(
+                    "Schema already exists: {}",
+                    self.schema
+                ))))
+            }
+            OnConflict::Replace => {
+                return Poll::Ready(Err(RayexecError::new("Cannot replace schema")))
+            }
+            _ => (), // Otherwise continue with the create.
         }
 
         inner

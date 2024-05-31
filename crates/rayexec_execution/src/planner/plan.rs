@@ -146,10 +146,6 @@ impl<'a> PlanContext<'a> {
             OnConflict::Error
         };
 
-        if create.if_not_exists {
-            unimplemented!()
-        }
-
         // TODO: Get 'default' catalog
         if create.name.0.len() != 2 {
             return Err(RayexecError::new(

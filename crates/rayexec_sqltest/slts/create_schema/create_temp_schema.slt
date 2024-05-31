@@ -3,3 +3,5 @@
 statement ok
 create schema temp.my_schema;
 
+statement error Schema already exists
+create schema temp.my_schema;
