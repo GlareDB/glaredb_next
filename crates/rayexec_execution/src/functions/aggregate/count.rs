@@ -1,7 +1,7 @@
 use rayexec_bullet::{
     array::{Array, PrimitiveArrayBuilder, UnitArrayAccessor},
     bitmap::Bitmap,
-    executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryUpdater},
+    executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
     field::DataType,
 };
 use rayexec_error::{RayexecError, Result};
@@ -46,7 +46,7 @@ impl SpecializedAggregateFunction for CountNonNull {
                          mapping: &[usize],
                          states: &mut [CountNonNullState]| {
             let unit_arr = UnitArrayAccessor::new(&arrays[0]);
-            UnaryUpdater::update(row_selection, unit_arr, mapping, states)
+            UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
         };
 
         let finalize_fn = |states: vec::Drain<'_, _>| {

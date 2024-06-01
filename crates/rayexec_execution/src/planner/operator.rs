@@ -387,7 +387,14 @@ impl LogicalNode for Aggregate {
 
 impl Explainable for Aggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Aggregate")
+        let mut ent = ExplainEntry::new("Aggregate").with_values("outputs", &self.exprs);
+        match &self.grouping_expr {
+            GroupingExpr::GroupBy(exprs) => ent = ent.with_values("GROUP BY", exprs),
+            GroupingExpr::Rollup(exprs) => ent = ent.with_values("ROLLUP", exprs),
+            GroupingExpr::Cube(exprs) => ent = ent.with_values("CUBE", exprs),
+            GroupingExpr::None => (),
+        }
+        ent
     }
 }
 
@@ -677,13 +684,40 @@ impl fmt::Display for LogicalExpression {
             Self::Unary { op, expr } => write!(f, "{op}{expr}"),
             Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
             Self::Variadic { .. } => write!(f, "VARIADIC TODO"),
-            Self::Aggregate { .. } => write!(f, "AGG TODO"),
+            Self::Aggregate {
+                agg,
+                inputs,
+                filter,
+            } => {
+                write!(
+                    f,
+                    "{}({})",
+                    agg.name(),
+                    inputs
+                        .iter()
+                        .map(|input| input.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )?;
+                if let Some(filter) = filter {
+                    write!(f, " FILTER ({filter})")?;
+                }
+                Ok(())
+            }
             Self::Case { .. } => write!(f, "CASE TODO"),
         }
     }
 }
 
 impl LogicalExpression {
+    /// Create a new uncorrelated column reference.
+    pub fn new_column(col: usize) -> Self {
+        LogicalExpression::ColumnRef(ColumnRef {
+            scope_level: 0,
+            item_idx: col,
+        })
+    }
+
     /// Get the output data type of this expression.
     ///
     /// Since we're working with possibly correlated columns, both the schema of

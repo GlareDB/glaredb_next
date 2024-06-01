@@ -532,13 +532,20 @@ impl BuildState {
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
+        // Compute the grouping sets based on the grouping expression. It's
+        // expected that this plan only has uncorrelated column references as
+        // expressions.
+        let grouping_sets = GroupingSets::try_from_grouping_expr(agg.grouping_expr)?;
+
         let mut agg_exprs = Vec::new();
         let mut projection = Vec::new();
         for expr in agg.exprs.into_iter() {
             match expr {
                 operator::LogicalExpression::ColumnRef(col) => {
                     let col = col.try_as_uncorrelated()?;
-                    projection.push(HashAggregateColumnOutput::GroupingColumn(col));
+                    projection.push(HashAggregateColumnOutput::GroupingColumn(
+                        col - agg_exprs.len(),
+                    ));
                 }
                 other => {
                     let agg_expr = PhysicalAggregateExpression::try_from_logical_expression(
@@ -552,63 +559,6 @@ impl BuildState {
                 }
             }
         }
-
-        // Compute the grouping sets based on the grouping expression. It's
-        // expected that this plan only has uncorrelated column references as
-        // expressions.
-        let grouping_sets = match agg.grouping_expr {
-            operator::GroupingExpr::None => {
-                // TODO: We'd actually use a different (ungrouped) operator if
-                // not provided any grouping sets.
-                //
-                // This just works because all hashes are initialized to zero,
-                // and so everything does map to the same thing. Def not
-                // something we should rely on.
-                GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])?
-            }
-            operator::GroupingExpr::GroupBy(cols_exprs) => {
-                let cols = cols_exprs
-                    .into_iter()
-                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
-                    .collect::<Result<Vec<_>>>()?;
-                let null_masks = vec![Bitmap::new_with_val(false, cols.len())];
-                GroupingSets::try_new(cols, null_masks)?
-            }
-            operator::GroupingExpr::Rollup(cols_exprs) => {
-                let cols = cols_exprs
-                    .into_iter()
-                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
-                    .collect::<Result<Vec<_>>>()?;
-
-                // Generate all null masks.
-                //
-                // E.g. for rollup on 4 columns:
-                // [
-                //   0000,
-                //   0001,
-                //   0011,
-                //   0111,
-                //   1111,
-                // ]
-                let mut null_masks = Vec::with_capacity(cols.len() + 1);
-                for num_null_cols in 0..cols.len() {
-                    let iter = std::iter::repeat(false)
-                        .take(cols.len() - num_null_cols)
-                        .chain(std::iter::repeat(true).take(num_null_cols));
-                    let null_mask = Bitmap::from_iter(iter);
-                    null_masks.push(null_mask);
-                }
-
-                // Append null mask with all columns marked as null (the final
-                // rollup).
-                null_masks.push(Bitmap::all_true(cols.len()));
-
-                GroupingSets::try_new(cols, null_masks)?
-            }
-            operator::GroupingExpr::Cube(_) => {
-                unimplemented!("https://github.com/GlareDB/rayexec/issues/38")
-            }
-        };
 
         let group_types: Vec<_> = grouping_sets
             .columns()

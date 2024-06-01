@@ -136,8 +136,8 @@ impl Array {
 
     pub fn validity(&self) -> Option<&Bitmap> {
         match self {
-            Self::Null(_) => unimplemented!(),
-            Self::Boolean(_arr) => unimplemented!(),
+            Self::Null(arr) => Some(arr.validity()),
+            Self::Boolean(arr) => arr.validity(),
             Self::Float32(arr) => arr.validity(),
             Self::Float64(arr) => arr.validity(),
             Self::Int8(arr) => arr.validity(),

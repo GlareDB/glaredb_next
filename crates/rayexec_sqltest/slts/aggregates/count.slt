@@ -1,0 +1,50 @@
+# COUNT
+
+statement ok
+create temp table t1 (c1 text, c2 int);
+
+statement ok
+insert into t1 values ('a', 1), ('b', 2), ('a', 3);
+
+query I
+select count(c1) from t1;
+----
+3
+
+query I
+select count(true) from t1;
+----
+3
+
+query I rowsort
+select c1, count(true) from t1 group by c1;
+----
+a  2
+b  1
+
+query I rowsort
+select count(true), c1 from t1 group by c1;
+----
+1  b
+2  a
+
+query TT
+explain select c1, count(true), c1, count(true) from t1 group by c1;
+----
+
+query I rowsort
+select c1, count(true), c1, count(true) from t1 group by c1;
+----
+a  2  a  2
+b  1  b  1
+
+
+query T
+select count(null) from t1;
+----
+0
+
+query TT
+select count(null), count(true) from t1;
+----
+0  3
