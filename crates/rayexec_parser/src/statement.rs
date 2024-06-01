@@ -1,6 +1,6 @@
 use crate::ast::{
-    CreateSchema, CreateTable, ExplainNode, Insert, QueryNode, ResetVariable, SetVariable,
-    ShowVariable,
+    CreateSchema, CreateTable, DropStatement, ExplainNode, Insert, QueryNode, ResetVariable,
+    SetVariable, ShowVariable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,6 +12,9 @@ pub enum Statement {
 
     /// CREATE TABLE ...
     CreateTable(CreateTable),
+
+    /// DROP ...
+    Drop(DropStatement),
 
     /// INSERT INTO ...
     Insert(Insert),

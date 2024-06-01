@@ -10,6 +10,7 @@ use crate::database::create::{
     CreateScalarFunctionInfo, CreateSchemaInfo, CreateTableInfo, OnConflict,
 };
 use crate::database::ddl::{CatalogModifier, CreateFut, DropFut};
+use crate::database::drop::{DropInfo, DropObject};
 use crate::database::entry::{CatalogEntry, TableEntry};
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
@@ -142,10 +143,6 @@ impl CatalogModifier for MemoryCatalogModifier {
         }))
     }
 
-    fn drop_schema(&self, _name: &str) -> Result<Box<dyn DropFut>> {
-        unimplemented!()
-    }
-
     fn create_table(
         &self,
         schema: &str,
@@ -156,10 +153,6 @@ impl CatalogModifier for MemoryCatalogModifier {
             info,
             inner: self.inner.clone(),
         }))
-    }
-
-    fn drop_table(&self, _schema: &str, _name: &str) -> Result<Box<dyn DropFut>> {
-        unimplemented!()
     }
 
     fn create_scalar_function(
@@ -174,6 +167,13 @@ impl CatalogModifier for MemoryCatalogModifier {
         _info: CreateScalarFunctionInfo,
     ) -> Result<Box<dyn CreateFut<Output = ()>>> {
         unimplemented!()
+    }
+
+    fn drop_entry(&self, drop: DropInfo) -> Result<Box<dyn DropFut>> {
+        Ok(Box::new(MemoryDrop {
+            info: drop,
+            inner: self.inner.clone(),
+        }))
     }
 }
 
@@ -209,6 +209,40 @@ impl CreateFut for MemoryCreateSchema {
             .insert(self.schema.clone(), MemorySchema::default());
 
         Poll::Ready(Ok(()))
+    }
+}
+
+#[derive(Debug)]
+struct MemoryDrop {
+    info: DropInfo,
+    inner: Arc<RwLock<MemorySchemas>>,
+}
+
+impl DropFut for MemoryDrop {
+    fn poll_drop(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
+        let mut inner = self.inner.write();
+
+        if self.info.cascade {
+            return Poll::Ready(Err(RayexecError::new("DROP CASCADE not implemented")));
+        }
+
+        match &self.info.object {
+            DropObject::Schema => {
+                if !self.info.if_exists && !inner.schemas.contains_key(&self.info.schema) {
+                    return Poll::Ready(Err(RayexecError::new(format!(
+                        "Missing schema: {}",
+                        self.info.schema
+                    ))));
+                }
+
+                inner.schemas.remove(&self.info.schema);
+
+                Poll::Ready(Ok(()))
+            }
+            other => Poll::Ready(Err(RayexecError::new(format!(
+                "Drop unimplemted for object: {other:?}"
+            )))),
+        }
     }
 }
 

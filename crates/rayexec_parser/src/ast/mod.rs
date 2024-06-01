@@ -20,6 +20,10 @@ pub mod insert;
 pub use insert::*;
 pub mod variable;
 pub use variable::*;
+pub mod cte;
+pub use cte::*;
+pub mod drop;
+pub use drop::*;
 
 use crate::parser::Parser;
 use crate::tokens::{Token, Word};

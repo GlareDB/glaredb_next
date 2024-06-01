@@ -1,13 +1,19 @@
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{
-        Aggregate, AnyJoin, CreateTable, CrossJoin, GroupingExpr, Insert, Limit, LogicalExpression,
-        LogicalOperator, Order, OrderByExpr, Projection, Scan,
+        Aggregate, AnyJoin, CreateTable, CrossJoin, DropEntry, GroupingExpr, Insert, Limit,
+        LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, Scan,
     },
     scope::{ColumnRef, Scope},
 };
 use crate::{
-    database::{catalog::CatalogTx, create::OnConflict, entry::TableEntry, DatabaseContext},
+    database::{
+        catalog::CatalogTx,
+        create::OnConflict,
+        drop::{DropInfo, DropObject},
+        entry::TableEntry,
+        DatabaseContext,
+    },
     engine::vars::SessionVars,
     planner::{
         operator::{
@@ -86,6 +92,7 @@ impl<'a> PlanContext<'a> {
             Statement::Query(query) => self.plan_query(query),
             Statement::CreateTable(create) => self.plan_create_table(create),
             Statement::CreateSchema(create) => self.plan_create_schema(create),
+            Statement::Drop(drop) => self.plan_drop(drop),
             Statement::Insert(insert) => self.plan_insert(insert),
             Statement::SetVariable(ast::SetVariable { reference, value }) => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
@@ -152,6 +159,45 @@ impl<'a> PlanContext<'a> {
             }),
             scope: Scope::empty(),
         })
+    }
+
+    fn plan_drop(&mut self, drop: ast::DropStatement) -> Result<LogicalQuery> {
+        if drop.if_exists {
+            unimplemented!()
+        }
+        if ast::DropDependents::Cascade == drop.deps {
+            unimplemented!()
+        }
+
+        match drop.drop_type {
+            ast::DropType::Schema => {
+                // TODO: Get 'default' catalog.
+                if drop.name.0.len() != 2 {
+                    return Err(RayexecError::new(
+                        "Only qualified schemas can be dropped right now",
+                    ));
+                }
+
+                let catalog = drop.name.0[0].as_normalized_string();
+                let schema = drop.name.0[1].as_normalized_string();
+
+                let plan = LogicalOperator::Drop(DropEntry {
+                    info: DropInfo {
+                        catalog,
+                        schema,
+                        object: DropObject::Schema,
+                        cascade: ast::DropDependents::Cascade == drop.deps,
+                        if_exists: drop.if_exists,
+                    },
+                });
+
+                Ok(LogicalQuery {
+                    root: plan,
+                    scope: Scope::empty(),
+                })
+            }
+            _other => unimplemented!(),
+        }
     }
 
     fn plan_create_schema(&mut self, create: ast::CreateSchema) -> Result<LogicalQuery> {

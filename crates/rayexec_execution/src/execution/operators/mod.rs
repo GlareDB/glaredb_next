@@ -4,6 +4,7 @@ pub mod aggregate;
 pub mod create_schema;
 pub mod create_table;
 pub mod create_table_as;
+pub mod drop;
 pub mod empty;
 pub mod filter;
 pub mod insert;
@@ -26,6 +27,7 @@ mod test_util;
 use create_schema::CreateSchemaPartitionState;
 use create_table::CreateTablePartitionState;
 use create_table_as::{CreateTableAsOperatorState, CreateTableAsPartitionState};
+use drop::DropPartitionState;
 use insert::InsertPartitionState;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
@@ -83,6 +85,7 @@ pub enum PartitionState {
     CreateTable(CreateTablePartitionState),
     CreateSchema(CreateSchemaPartitionState),
     CreateTableAs(CreateTableAsPartitionState),
+    Drop(DropPartitionState),
     Empty(EmptyPartitionState),
     None,
 }

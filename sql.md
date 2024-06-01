@@ -103,6 +103,10 @@ CREATE TEMP TABLE my_table (
 
 **unimplemented**
 
+### Generated columns
+
+**unimplemented**
+
 ### `CREATE TABLE ... AS ...`
 
 **unimplemented**

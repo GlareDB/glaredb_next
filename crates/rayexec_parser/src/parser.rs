@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        AstParseable, CreateSchema, CreateTable, ExplainNode, Expr, Ident, Insert, ObjectReference,
-        QueryNode, ResetVariable, SetVariable, ShowVariable,
+        AstParseable, CreateSchema, CreateTable, DropStatement, ExplainNode, Expr, Ident, Insert,
+        ObjectReference, QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
@@ -81,6 +81,7 @@ impl Parser {
 
                 match keyword {
                     Keyword::CREATE => self.parse_create(),
+                    Keyword::DROP => Ok(Statement::Drop(DropStatement::parse(self)?)),
                     Keyword::SET => Ok(Statement::SetVariable(SetVariable::parse(self)?)),
                     Keyword::RESET => Ok(Statement::ResetVariable(ResetVariable::parse(self)?)),
                     Keyword::SHOW => Ok(Statement::ShowVariable(ShowVariable::parse(self)?)),
@@ -321,6 +322,38 @@ impl Parser {
             return true;
         }
         false
+    }
+
+    /// Get the next keyword, erroring if the next token is not a keyword, or
+    /// we've reach the end of a statement.
+    ///
+    /// This will consume the keyword.
+    pub(crate) fn next_keyword(&mut self) -> Result<Keyword> {
+        let tok = match self.peek() {
+            Some(tok) => tok,
+            None => return Err(RayexecError::new("Expected keyword, got end of statement")),
+        };
+
+        match &tok.token {
+            Token::Word(word) => {
+                let keyword = match word.keyword {
+                    Some(k) => k,
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "Expected a keyword, got {}",
+                            word.value,
+                        )))
+                    }
+                };
+
+                let _ = self.next(); // Consume
+
+                Ok(keyword)
+            }
+            other => Err(RayexecError::new(format!(
+                "Expected a keyword: got {other:?}"
+            ))),
+        }
     }
 
     /// Get the next token.

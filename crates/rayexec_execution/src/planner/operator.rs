@@ -1,6 +1,7 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
 use crate::database::create::OnConflict;
+use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
@@ -44,6 +45,7 @@ pub enum LogicalOperator {
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
+    Drop(DropEntry),
     Insert(Insert),
     Explain(Explain),
 }
@@ -72,6 +74,7 @@ impl LogicalOperator {
             Self::CreateSchema(n) => n.output_schema(outer),
             Self::CreateTable(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
+            Self::Drop(n) => n.output_schema(outer),
             Self::Insert(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
         }
@@ -98,6 +101,7 @@ impl Explainable for LogicalOperator {
             Self::CreateSchema(p) => p.explain_entry(conf),
             Self::CreateTable(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
+            Self::Drop(p) => p.explain_entry(conf),
             Self::Insert(p) => p.explain_entry(conf),
             Self::Explain(p) => p.explain_entry(conf),
         }
@@ -466,6 +470,23 @@ pub struct CreateTableAs {
 impl Explainable for CreateTableAs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTableAs")
+    }
+}
+
+#[derive(Debug)]
+pub struct DropEntry {
+    pub info: DropInfo,
+}
+
+impl LogicalNode for DropEntry {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for DropEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Drop")
     }
 }
 

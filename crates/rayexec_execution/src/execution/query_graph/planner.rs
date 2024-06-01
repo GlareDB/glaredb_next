@@ -12,6 +12,7 @@ use crate::{
             },
             create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
+            drop::PhysicalDrop,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
             insert::PhysicalInsert,
@@ -181,6 +182,7 @@ impl BuildState {
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
             LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),
+            LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
             LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
             other => unimplemented!("other: {other:?}"),
@@ -231,6 +233,25 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_drop(&mut self, conf: &BuildConfig, drop: operator::DropEntry) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalDrop::new(drop.info));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = vec![PartitionState::Drop(
+            physical.try_create_state(conf.db_context)?,
+        )];
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }
