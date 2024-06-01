@@ -121,7 +121,17 @@ CREATE TEMP TABLE my_table (
 
 ## `DROP SCHEMA`
 
-**unimplemented**
+Drop a schema.
+
+```sql
+DROP SCHEMA temp.my_schema
+```
+
+Drop a schema if it exists
+
+```sql
+DROP SCHEMA IF EXISTS temp.my_schema
+```
 
 ## `DROP TABLE`
 
@@ -136,6 +146,23 @@ CREATE TEMP TABLE my_table (
 **unimplemented**
 
 ## `SELECT`
+
+Syntax
+
+```sql
+SELECT <select_list>
+FROM <tables⟩
+WHERE <condition>
+GROUP BY <groups>
+HAVING <group_filter<
+    WINDOW <window_expression>
+    QUALIFY <qualify_filter>
+ORDER BY <order_expression>
+LIMIT <n>
+OFFSET <n>;
+```
+
+
 
 **unimplemented**
 

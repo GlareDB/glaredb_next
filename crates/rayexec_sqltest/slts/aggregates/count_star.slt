@@ -1,0 +1,13 @@
+# COUNT(*)
+
+statement ok
+create temp table t1 (c1 text, c2 int);
+
+statement ok
+insert into t1 values ('a', 1), ('b', 2), ('a', 3);
+
+query I
+select count(true) from t1;
+----
+3
+

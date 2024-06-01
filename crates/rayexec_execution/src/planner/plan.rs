@@ -162,13 +162,6 @@ impl<'a> PlanContext<'a> {
     }
 
     fn plan_drop(&mut self, drop: ast::DropStatement) -> Result<LogicalQuery> {
-        if drop.if_exists {
-            unimplemented!()
-        }
-        if ast::DropDependents::Cascade == drop.deps {
-            unimplemented!()
-        }
-
         match drop.drop_type {
             ast::DropType::Schema => {
                 // TODO: Get 'default' catalog.
