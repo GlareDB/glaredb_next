@@ -461,19 +461,39 @@ impl<'a> PlanContext<'a> {
                     // Group by has access to everything we've planned so far.
                     let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
 
+                    let plan_exprs = |exprs: Vec<ast::Expr>| {
+                        exprs
+                            .into_iter()
+                            .map(|e| expr_ctx.plan_expression(e))
+                            .collect::<Result<Vec<_>>>()
+                    };
+
                     match expr {
                         ast::GroupByExpr::Expr(exprs) => {
-                            let exprs = exprs
-                                .into_iter()
-                                .map(|e| expr_ctx.plan_expression(e))
-                                .collect::<Result<Vec<_>>>()?;
+                            let exprs = plan_exprs(exprs)?;
                             Some(GroupingExpr::GroupBy(Self::extract_group_by_exprs(
                                 &mut select_exprs,
                                 exprs,
                                 aggregates.len(),
                             )?))
                         }
-                        _ => unimplemented!(),
+                        ast::GroupByExpr::Rollup(exprs) => {
+                            let exprs = plan_exprs(exprs)?;
+                            Some(GroupingExpr::Rollup(Self::extract_group_by_exprs(
+                                &mut select_exprs,
+                                exprs,
+                                aggregates.len(),
+                            )?))
+                        }
+                        ast::GroupByExpr::Cube(exprs) => {
+                            let exprs = plan_exprs(exprs)?;
+                            Some(GroupingExpr::Cube(Self::extract_group_by_exprs(
+                                &mut select_exprs,
+                                exprs,
+                                aggregates.len(),
+                            )?))
+                        }
+                        ast::GroupByExpr::GroupingSets(_) => unimplemented!("grouping sets"),
                     }
                 }
             },
