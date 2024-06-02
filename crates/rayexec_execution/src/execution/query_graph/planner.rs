@@ -548,39 +548,11 @@ impl BuildState {
             }
         };
 
-        let group_cols = grouping_sets.columns();
-
-        let mut agg_exprs = Vec::new();
-        let mut projection = Vec::new();
+        let mut agg_exprs = Vec::with_capacity(agg.exprs.len());
         for expr in agg.exprs.into_iter() {
-            match expr {
-                operator::LogicalExpression::ColumnRef(col) => {
-                    let col = col.try_as_uncorrelated()?;
-                    // TODO: Handle a reference to a column in the GROUP BY that might be
-                    // part of a larger expression.
-                    //
-                    // SELECT c1, count(*) FROM t1 GROUP BY c1 + 1;
-                    let col_idx = group_cols
-                        .iter()
-                        .position(|group_col| group_col == &col)
-                        .ok_or_else(|| {
-                            RayexecError::new(format!(
-                                "Column referecence {col} is not part of the grouping set: {group_cols:?}",
-                            ))
-                        })?;
-                    projection.push(HashAggregateColumnOutput::GroupingColumn(col_idx));
-                }
-                other => {
-                    let agg_expr = PhysicalAggregateExpression::try_from_logical_expression(
-                        other,
-                        &input_schema,
-                    )?;
-                    agg_exprs.push(agg_expr);
-                    projection.push(HashAggregateColumnOutput::AggregateResult(
-                        agg_exprs.len() - 1,
-                    ));
-                }
-            }
+            let agg_expr =
+                PhysicalAggregateExpression::try_from_logical_expression(expr, &input_schema)?;
+            agg_exprs.push(agg_expr);
         }
 
         let group_types: Vec<_> = grouping_sets
@@ -594,7 +566,6 @@ impl BuildState {
             group_types,
             grouping_sets,
             agg_exprs,
-            projection,
         )?;
 
         let operator = Arc::new(operator);
