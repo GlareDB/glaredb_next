@@ -535,7 +535,20 @@ impl BuildState {
         // Compute the grouping sets based on the grouping expression. It's
         // expected that this plan only has uncorrelated column references as
         // expressions.
-        let grouping_sets = GroupingSets::try_from_grouping_expr(agg.grouping_expr)?;
+        let grouping_sets = match agg.grouping_expr {
+            Some(expr) => GroupingSets::try_from_grouping_expr(expr)?,
+            None => {
+                // TODO: We'd actually use a different (ungrouped) operator if
+                // not provided any grouping sets.
+                //
+                // This just works because all hashes are initialized to zero,
+                // and so everything does map to the same thing. Def not
+                // something we should rely on.
+                GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])?
+            }
+        };
+
+        let group_cols = grouping_sets.columns();
 
         let mut agg_exprs = Vec::new();
         let mut projection = Vec::new();
@@ -543,9 +556,19 @@ impl BuildState {
             match expr {
                 operator::LogicalExpression::ColumnRef(col) => {
                     let col = col.try_as_uncorrelated()?;
-                    projection.push(HashAggregateColumnOutput::GroupingColumn(
-                        col - agg_exprs.len(),
-                    ));
+                    // TODO: Handle a reference to a column in the GROUP BY that might be
+                    // part of a larger expression.
+                    //
+                    // SELECT c1, count(*) FROM t1 GROUP BY c1 + 1;
+                    let col_idx = group_cols
+                        .iter()
+                        .position(|group_col| group_col == &col)
+                        .ok_or_else(|| {
+                            RayexecError::new(format!(
+                                "Column referecence {col} is not part of the grouping set: {group_cols:?}",
+                            ))
+                        })?;
+                    projection.push(HashAggregateColumnOutput::GroupingColumn(col_idx));
                 }
                 other => {
                     let agg_expr = PhysicalAggregateExpression::try_from_logical_expression(

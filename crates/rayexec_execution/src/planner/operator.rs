@@ -369,7 +369,7 @@ impl Explainable for ExpressionList {
 #[derive(Debug)]
 pub struct Aggregate {
     pub exprs: Vec<LogicalExpression>,
-    pub grouping_expr: GroupingExpr,
+    pub grouping_expr: Option<GroupingExpr>,
     pub input: Box<LogicalOperator>,
 }
 
@@ -388,11 +388,11 @@ impl LogicalNode for Aggregate {
 impl Explainable for Aggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         let mut ent = ExplainEntry::new("Aggregate").with_values("outputs", &self.exprs);
-        match &self.grouping_expr {
-            GroupingExpr::GroupBy(exprs) => ent = ent.with_values("GROUP BY", exprs),
-            GroupingExpr::Rollup(exprs) => ent = ent.with_values("ROLLUP", exprs),
-            GroupingExpr::Cube(exprs) => ent = ent.with_values("CUBE", exprs),
-            GroupingExpr::None => (),
+        match self.grouping_expr.as_ref() {
+            Some(GroupingExpr::GroupBy(exprs)) => ent = ent.with_values("GROUP BY", exprs),
+            Some(GroupingExpr::Rollup(exprs)) => ent = ent.with_values("ROLLUP", exprs),
+            Some(GroupingExpr::Cube(exprs)) => ent = ent.with_values("CUBE", exprs),
+            None => (),
         }
         ent
     }
@@ -400,8 +400,6 @@ impl Explainable for Aggregate {
 
 #[derive(Debug)]
 pub enum GroupingExpr {
-    /// No grouping expression.
-    None,
     /// Group by a single set of columns.
     GroupBy(Vec<LogicalExpression>),
     /// Group by a column rollup.
@@ -417,7 +415,6 @@ impl GroupingExpr {
     /// pre-projection into the aggregate.
     pub fn expressions_mut(&mut self) -> &mut [LogicalExpression] {
         match self {
-            Self::None => &mut [],
             Self::GroupBy(ref mut exprs) => exprs.as_mut_slice(),
             Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
             Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
@@ -604,7 +601,7 @@ impl Explainable for Explain {
 }
 
 /// An expression that can exist in a logical plan.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LogicalExpression {
     /// Reference to a column.
     ///
@@ -792,6 +789,74 @@ impl LogicalExpression {
             }
             _ => unimplemented!(),
         })
+    }
+
+    pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalExpression) -> Result<()>,
+    {
+        self.walk_mut(pre, &mut |_| Ok(()))
+    }
+
+    pub fn walk_mut_post<F>(&mut self, post: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalExpression) -> Result<()>,
+    {
+        self.walk_mut(&mut |_| Ok(()), post)
+    }
+
+    /// Walk the plan depth first.
+    ///
+    /// `pre` provides access to children on the way down, and `post` on the way
+    /// up.
+    pub fn walk_mut<F1, F2>(&mut self, pre: &mut F1, post: &mut F2) -> Result<()>
+    where
+        F1: FnMut(&mut LogicalExpression) -> Result<()>,
+        F2: FnMut(&mut LogicalExpression) -> Result<()>,
+    {
+        pre(self)?;
+        match self {
+            LogicalExpression::Unary { expr, .. } => {
+                pre(expr)?;
+                expr.walk_mut(pre, post)?;
+                post(expr)?;
+            }
+            Self::Binary { left, right, .. } => {
+                pre(left)?;
+                left.walk_mut(pre, post)?;
+                post(left)?;
+
+                pre(right)?;
+                right.walk_mut(pre, post)?;
+                post(right)?;
+            }
+            Self::Variadic { exprs, .. } => {
+                for expr in exprs.iter_mut() {
+                    pre(expr)?;
+                    expr.walk_mut(pre, post)?;
+                    post(expr)?;
+                }
+            }
+            Self::ScalarFunction { inputs, .. } => {
+                for input in inputs.iter_mut() {
+                    pre(input)?;
+                    input.walk_mut(pre, post)?;
+                    post(input)?;
+                }
+            }
+            Self::Aggregate { inputs, .. } => {
+                for input in inputs.iter_mut() {
+                    pre(input)?;
+                    input.walk_mut(pre, post)?;
+                    post(input)?;
+                }
+            }
+            Self::ColumnRef(_) | Self::Literal(_) => (),
+            Self::Case { .. } => unimplemented!(),
+        }
+        post(self)?;
+
+        Ok(())
     }
 
     /// Check if this expression is an aggregate.

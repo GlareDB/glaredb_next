@@ -90,6 +90,18 @@ impl Clone for Box<dyn GenericScalarFunction> {
     }
 }
 
+impl PartialEq<dyn GenericScalarFunction> for Box<dyn GenericScalarFunction + '_> {
+    fn eq(&self, other: &dyn GenericScalarFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn GenericScalarFunction + '_ {
+    fn eq(&self, other: &dyn GenericScalarFunction) -> bool {
+        self.name() == other.name() && self.signatures() == other.signatures()
+    }
+}
+
 /// A specialized scalar function.
 ///
 /// We're using a trait instead of returning the function pointer directly from
@@ -136,4 +148,19 @@ pub(crate) fn specialize_invalid_input_type(
         got_types,
         scalar.name()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanity_eq_check() {
+        let fn1 = Box::new(arith::Add) as Box<dyn GenericScalarFunction>;
+        let fn2 = Box::new(arith::Sub) as Box<dyn GenericScalarFunction>;
+        let fn3 = Box::new(arith::Sub) as Box<dyn GenericScalarFunction>;
+
+        assert_ne!(fn1, fn2);
+        assert_eq!(fn2, fn3);
+    }
 }

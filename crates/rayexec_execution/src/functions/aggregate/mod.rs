@@ -52,6 +52,18 @@ impl Clone for Box<dyn GenericAggregateFunction> {
     }
 }
 
+impl PartialEq<dyn GenericAggregateFunction> for Box<dyn GenericAggregateFunction + '_> {
+    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn GenericAggregateFunction + '_ {
+    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
+        self.name() == other.name() && self.signatures() == other.signatures()
+    }
+}
+
 pub trait SpecializedAggregateFunction: Debug + Sync + Send + DynClone {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
 }

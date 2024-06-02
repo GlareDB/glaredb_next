@@ -103,15 +103,6 @@ impl GroupingSets {
     /// Create a new grouping sets from a logical grouping expression.
     pub fn try_from_grouping_expr(expr: operator::GroupingExpr) -> Result<Self> {
         match expr {
-            operator::GroupingExpr::None => {
-                // TODO: We'd actually use a different (ungrouped) operator if
-                // not provided any grouping sets.
-                //
-                // This just works because all hashes are initialized to zero,
-                // and so everything does map to the same thing. Def not
-                // something we should rely on.
-                GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])
-            }
             operator::GroupingExpr::GroupBy(cols_exprs) => {
                 let cols = cols_exprs
                     .into_iter()
