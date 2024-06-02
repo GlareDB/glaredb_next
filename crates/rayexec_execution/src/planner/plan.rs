@@ -308,44 +308,7 @@ impl<'a> PlanContext<'a> {
         // TODO: CTEs
 
         let mut planned = match query.body {
-            ast::QueryNodeBody::Select(select) => {
-                let mut plan = self.plan_select(*select)?;
-                // TODO: I'd like to do this in plan select since it's allow for
-                // reducing the number of expressions we're adding to the plan.
-                //
-                // Set expressions need this too, so some care needs to be taken
-                // around that.
-                if !query.order_by.is_empty() {
-                    let input_schema = plan.root.output_schema(&[])?;
-                    let expr_ctx = ExpressionContext::new(self, &plan.scope, &input_schema);
-
-                    let mut exprs = Vec::with_capacity(query.order_by.len());
-                    for order_by in query.order_by {
-                        let expr = expr_ctx.plan_expression(order_by.expr)?;
-                        let order_expr = OrderByExpr {
-                            expr,
-                            desc: matches!(
-                                order_by.typ.unwrap_or(OrderByType::Desc),
-                                OrderByType::Desc
-                            ),
-                            nulls_first: matches!(
-                                order_by.nulls.unwrap_or(OrderByNulls::First),
-                                OrderByNulls::First
-                            ),
-                        };
-
-                        exprs.push(order_expr);
-                    }
-
-                    // Wrap plan in an order operator. Does not change scope.
-                    plan.root = LogicalOperator::Order(Order {
-                        exprs,
-                        input: Box::new(plan.root),
-                    })
-                }
-
-                plan
-            }
+            ast::QueryNodeBody::Select(select) => self.plan_select(*select, query.order_by)?,
 
             ast::QueryNodeBody::Set {
                 left: _,
@@ -381,7 +344,11 @@ impl<'a> PlanContext<'a> {
         Ok(planned)
     }
 
-    fn plan_select(&mut self, select: ast::SelectNode) -> Result<LogicalQuery> {
+    fn plan_select(
+        &mut self,
+        select: ast::SelectNode,
+        order_by: Vec<ast::OrderByNode>,
+    ) -> Result<LogicalQuery> {
         // Handle FROM
         let mut plan = match select.from {
             Some(from) => self.plan_from_node(from, Scope::empty())?,
@@ -439,6 +406,29 @@ impl<'a> PlanContext<'a> {
             }
         }
 
+        // Plan and extract order by expressions.
+        //
+        // This may result in new expressions that need to be added to the
+        // select expressions. However, this should modify the final query
+        // projection.
+        let mut order_by_exprs = order_by
+            .into_iter()
+            .map(|order_by| {
+                let expr = expr_ctx.plan_expression(order_by.expr)?;
+                Ok(OrderByExpr {
+                    expr,
+                    desc: matches!(order_by.typ.unwrap_or(OrderByType::Asc), OrderByType::Desc),
+                    nulls_first: matches!(
+                        order_by.nulls.unwrap_or(OrderByNulls::First),
+                        OrderByNulls::First
+                    ),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut new_exprs = Self::extract_order_by_exprs(&select_exprs, &mut order_by_exprs)?;
+        let num_hidden_order_by = new_exprs.len();
+        select_exprs.append(&mut new_exprs);
+
         // Convert select expressions into (expression, modified) pairs. This
         // let's us skip trying to modify expressions in
         // `extract_group_by_exprs` if it's been modified by
@@ -446,6 +436,7 @@ impl<'a> PlanContext<'a> {
         let mut select_exprs: Vec<(LogicalExpression, bool)> =
             select_exprs.into_iter().map(|e| (e, false)).collect();
 
+        // GROUP BY
         let aggregates = Self::extract_aggregates(&mut select_exprs)?;
         let grouping_expr = match select.group_by {
             Some(group_by) => match group_by {
@@ -504,7 +495,25 @@ impl<'a> PlanContext<'a> {
             plan = Self::build_aggregate(aggregates, grouping_expr, plan)?;
         }
 
-        let select_exprs = select_exprs.into_iter().map(|(expr, _)| expr).collect();
+        // Add order by node.
+        if !order_by_exprs.is_empty() {
+            plan = LogicalQuery {
+                root: LogicalOperator::Order(Order {
+                    exprs: order_by_exprs,
+                    input: Box::new(plan.root),
+                }),
+                scope: plan.scope,
+            }
+        }
+
+        // Turn select expressions back into only the expressions for the
+        // output.
+        let output_len = select_exprs.len() - num_hidden_order_by;
+        let select_exprs = select_exprs
+            .into_iter()
+            .take(output_len)
+            .map(|(expr, _)| expr)
+            .collect();
 
         plan = LogicalQuery {
             root: LogicalOperator::Projection(Projection {
@@ -822,7 +831,7 @@ impl<'a> PlanContext<'a> {
                         // existing index, and replace the expression.
                         let group_idx = groups.iter().position(|g| g == expr).unwrap();
                         let column_ref = LogicalExpression::new_column(group_idx + offset);
-                        let _ = std::mem::replace(expr, column_ref);
+                        *expr = column_ref;
                     }
 
                     *modified = true;
@@ -836,6 +845,40 @@ impl<'a> PlanContext<'a> {
         }
 
         Ok(groups)
+    }
+
+    /// Returns new expressions that need to be added to the plan for order by
+    /// expressions. The order by expression will be rewritten to point to the
+    /// new expression, or to an expression already in the select exprs.
+    fn extract_order_by_exprs(
+        select_exprs: &[LogicalExpression],
+        order_by_exprs: &mut [OrderByExpr],
+    ) -> Result<Vec<LogicalExpression>> {
+        let mut new_exprs = Vec::new();
+        for order_by_expr in order_by_exprs.iter_mut() {
+            match select_exprs
+                .iter()
+                .position(|select_expr| select_expr == &order_by_expr.expr)
+            {
+                Some(select_idx) => {
+                    // Expression for the order by already in the select list,
+                    // modify order by to point to it.
+                    let column_ref = LogicalExpression::new_column(select_idx);
+                    order_by_expr.expr = column_ref;
+                }
+                None => {
+                    // Expression not in select list, needs to be added to the
+                    // plan.
+                    //
+                    // The column reference will point to this new expression.
+                    let column_ref = LogicalExpression::new_column(new_exprs.len());
+                    let orig = std::mem::replace(&mut order_by_expr.expr, column_ref);
+                    new_exprs.push(orig);
+                }
+            }
+        }
+
+        Ok(new_exprs)
     }
 
     fn resolve_table(
