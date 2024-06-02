@@ -37,6 +37,12 @@ a  2
 b  1
 
 query I rowsort
+select c1, count(true) from t1 group by t1.c1;
+----
+a  2
+b  1
+
+query I rowsort
 select count(true), c1 from t1 group by c1;
 ----
 1  b
