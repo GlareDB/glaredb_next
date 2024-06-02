@@ -4,3 +4,34 @@ query I
 select * from (select 23);
 ----
 23
+
+# query TT
+# explain select * from (select 23);
+# ----
+
+query I
+select a from (select 23 as a);
+----
+23
+
+statement error Missing column for reference: b
+select b from (select 23 as a);
+
+query I
+select a from (select 23) as s(a);
+----
+23
+
+query I
+select s.a from (select 23) as s(a);
+----
+23
+
+query I
+select s.a from (select 23 as b) as s(a);
+----
+23
+
+statement error Missing column for reference: b
+select b from (select 23 as b) as s(a);
+
