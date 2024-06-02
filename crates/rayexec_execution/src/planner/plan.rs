@@ -406,11 +406,21 @@ impl<'a> PlanContext<'a> {
             }
         }
 
-        // Plan and extract order by expressions.
+        // Plan and append HAVING and ORDER BY expressions.
         //
         // This may result in new expressions that need to be added to the
-        // select expressions. However, this should modify the final query
+        // select expressions. However, this should not modify the final query
         // projection.
+        let mut num_appended = 0;
+        let having_expr = match select.having {
+            Some(expr) => {
+                let mut expr = expr_ctx.plan_expression(expr)?;
+                num_appended += Self::append_hidden(&mut select_exprs, &mut expr)?;
+                Some(expr)
+            }
+            None => None,
+        };
+
         let mut order_by_exprs = order_by
             .into_iter()
             .map(|order_by| {
@@ -425,9 +435,8 @@ impl<'a> PlanContext<'a> {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let mut new_exprs = Self::extract_order_by_exprs(&select_exprs, &mut order_by_exprs)?;
-        let num_hidden_order_by = new_exprs.len();
-        select_exprs.append(&mut new_exprs);
+
+        num_appended += Self::append_order_by_exprs(&mut select_exprs, &mut order_by_exprs)?;
 
         // Convert select expressions into (expression, modified) pairs. This
         // let's us skip trying to modify expressions in
@@ -495,6 +504,27 @@ impl<'a> PlanContext<'a> {
             plan = Self::build_aggregate(aggregates, grouping_expr, plan)?;
         }
 
+        // Project the full select list.
+        let select_exprs: Vec<_> = select_exprs.into_iter().map(|(expr, _)| expr).collect();
+        plan = LogicalQuery {
+            root: LogicalOperator::Projection(Projection {
+                exprs: select_exprs.clone(),
+                input: Box::new(plan.root),
+            }),
+            scope: plan.scope,
+        };
+
+        // Add filter for HAVING.
+        if let Some(expr) = having_expr {
+            plan = LogicalQuery {
+                root: LogicalOperator::Filter(Filter {
+                    predicate: expr,
+                    input: Box::new(plan.root),
+                }),
+                scope: plan.scope,
+            }
+        }
+
         // Add order by node.
         if !order_by_exprs.is_empty() {
             plan = LogicalQuery {
@@ -508,22 +538,24 @@ impl<'a> PlanContext<'a> {
 
         // Turn select expressions back into only the expressions for the
         // output.
-        let output_len = select_exprs.len() - num_hidden_order_by;
-        let select_exprs = select_exprs
-            .into_iter()
-            .take(output_len)
-            .map(|(expr, _)| expr)
-            .collect();
+        if num_appended > 0 {
+            let output_len = select_exprs.len() - num_appended;
 
-        plan = LogicalQuery {
-            root: LogicalOperator::Projection(Projection {
-                exprs: select_exprs,
-                input: Box::new(plan.root),
-            }),
-            // Cleaned scope containing only output columns in the
-            // projection.
-            scope: Scope::with_columns(None, names),
-        };
+            let projections = (0..output_len)
+                .map(|idx| LogicalExpression::new_column(idx))
+                .collect();
+
+            plan = LogicalQuery {
+                root: LogicalOperator::Projection(Projection {
+                    exprs: projections,
+                    input: Box::new(plan.root),
+                }),
+                scope: plan.scope,
+            };
+        }
+
+        // Cleaned scope containing only output columns in the final output.
+        plan.scope = Scope::with_columns(None, names);
 
         Ok(plan)
     }
@@ -847,38 +879,69 @@ impl<'a> PlanContext<'a> {
         Ok(groups)
     }
 
-    /// Returns new expressions that need to be added to the plan for order by
+    /// Appends new expressions that need to be added to the plan for order by
     /// expressions. The order by expression will be rewritten to point to the
     /// new expression, or to an expression already in the select exprs.
-    fn extract_order_by_exprs(
-        select_exprs: &[LogicalExpression],
+    fn append_order_by_exprs(
+        select_exprs: &mut Vec<LogicalExpression>,
         order_by_exprs: &mut [OrderByExpr],
-    ) -> Result<Vec<LogicalExpression>> {
-        let mut new_exprs = Vec::new();
+    ) -> Result<usize> {
+        let mut num_appended = 0;
         for order_by_expr in order_by_exprs.iter_mut() {
-            match select_exprs
-                .iter()
-                .position(|select_expr| select_expr == &order_by_expr.expr)
-            {
-                Some(select_idx) => {
-                    // Expression for the order by already in the select list,
-                    // modify order by to point to it.
-                    let column_ref = LogicalExpression::new_column(select_idx);
-                    order_by_expr.expr = column_ref;
-                }
-                None => {
-                    // Expression not in select list, needs to be added to the
-                    // plan.
-                    //
-                    // The column reference will point to this new expression.
-                    let column_ref = LogicalExpression::new_column(new_exprs.len());
-                    let orig = std::mem::replace(&mut order_by_expr.expr, column_ref);
-                    new_exprs.push(orig);
-                }
+            num_appended += Self::append_hidden(select_exprs, &mut order_by_expr.expr)?;
+        }
+
+        Ok(num_appended)
+    }
+
+    fn append_hidden(
+        select_exprs: &mut Vec<LogicalExpression>,
+        expr: &mut LogicalExpression,
+    ) -> Result<usize> {
+        // Check to see if our expression matches anything already in the select
+        // list. If it does, replace our expression with a reference to it.
+        for (select_idx, select_expr) in select_exprs.iter().enumerate() {
+            if expr == select_expr {
+                *expr = LogicalExpression::new_column(select_idx);
+                return Ok(0);
             }
         }
 
-        Ok(new_exprs)
+        // Otherwise need to put the expression into the select list, and
+        // replace it with a reference.
+        let col_ref = LogicalExpression::new_column(select_exprs.len());
+        let orig = std::mem::replace(expr, col_ref);
+
+        select_exprs.push(orig);
+
+        Ok(1)
+    }
+
+    /// Returns a new expression that needs to be added to the plan for an
+    /// expression in HAVING.
+    ///
+    /// The provided HAVING expression will be updated to point to the new
+    /// expression.
+    fn extract_having_expr(
+        select_exprs: &[LogicalExpression],
+        having_expr: &mut LogicalExpression,
+        offset: usize,
+    ) -> Result<Option<LogicalExpression>> {
+        match select_exprs
+            .iter()
+            .position(|select_expr| select_expr == having_expr)
+        {
+            Some(select_idx) => {
+                // Select list already has this expression, just reference it.
+                let column_ref = LogicalExpression::new_column(select_idx);
+                *having_expr = column_ref;
+                Ok(None)
+            }
+            None => {
+                // Expression not in select list, need to append it to the plan.
+                unimplemented!()
+            }
+        }
     }
 
     fn resolve_table(

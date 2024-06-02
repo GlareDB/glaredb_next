@@ -1,7 +1,7 @@
 use crate::{
     array::{
-        Array, ArrayBuilder, NullArray, OffsetIndex, PrimitiveArray, PrimitiveArrayBuilder,
-        VarlenArray, VarlenType,
+        Array, ArrayBuilder, BooleanArray, BooleanArrayBuilder, NullArray, OffsetIndex,
+        PrimitiveArray, PrimitiveArrayBuilder, VarlenArray, VarlenType,
     },
     bitmap::Bitmap,
     compute::macros::collect_arrays_of_type,
@@ -21,8 +21,8 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             Ok(Array::Null(NullArray::new(indices.len())))
         }
         DataType::Boolean => {
-            let _arrs = collect_arrays_of_type!(arrays, Boolean, datatype)?;
-            unimplemented!()
+            let arrs = collect_arrays_of_type!(arrays, Boolean, datatype)?;
+            Ok(Array::Boolean(interleave_boolean(&arrs, indices)?))
         }
         DataType::Int8 => {
             let arrs = collect_arrays_of_type!(arrays, Int8, datatype)?;
@@ -82,6 +82,24 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
         }
         _ => unimplemented!(),
     }
+}
+
+pub fn interleave_boolean(
+    arrays: &[&BooleanArray],
+    indices: &[(usize, usize)],
+) -> Result<BooleanArray> {
+    let mut builder = BooleanArrayBuilder::new();
+    for (arr_idx, row_idx) in indices {
+        let v = arrays[*arr_idx].value(*row_idx).expect("row to exist");
+        builder.push_value(v);
+    }
+
+    let validities: Vec<_> = arrays.iter().map(|arr| arr.validity()).collect();
+    if let Some(validity) = interleave_validities(&validities, indices) {
+        builder.put_validity(validity);
+    }
+
+    Ok(builder.into_typed_array())
 }
 
 pub fn interleave_primitive<T: Copy>(
