@@ -840,3 +840,79 @@ impl<'a> PlanContext<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::functions::aggregate::numeric::Sum;
+
+    use super::*;
+
+    #[test]
+    fn extract_aggregates_only_aggregate() {
+        let mut selects = vec![LogicalExpression::Aggregate {
+            agg: Box::new(Sum),
+            inputs: vec![LogicalExpression::new_column(0)],
+            filter: None,
+        }];
+
+        let out = PlanContext::extract_aggregates(&mut selects).unwrap();
+
+        let expect_aggs = vec![LogicalExpression::Aggregate {
+            agg: Box::new(Sum),
+            inputs: vec![LogicalExpression::new_column(0)],
+            filter: None,
+        }];
+        assert_eq!(expect_aggs, out);
+
+        let expected_selects = vec![LogicalExpression::new_column(0)];
+        assert_eq!(expected_selects, selects);
+    }
+
+    #[test]
+    fn extract_aggregates_with_other_expressions() {
+        let mut selects = vec![
+            LogicalExpression::new_column(1),
+            LogicalExpression::Aggregate {
+                agg: Box::new(Sum),
+                inputs: vec![LogicalExpression::new_column(0)],
+                filter: None,
+            },
+        ];
+
+        let out = PlanContext::extract_aggregates(&mut selects).unwrap();
+
+        let expect_aggs = vec![LogicalExpression::Aggregate {
+            agg: Box::new(Sum),
+            inputs: vec![LogicalExpression::new_column(0)],
+            filter: None,
+        }];
+        assert_eq!(expect_aggs, out);
+
+        let expected_selects = vec![
+            LogicalExpression::new_column(1),
+            LogicalExpression::new_column(0),
+        ];
+        assert_eq!(expected_selects, selects);
+    }
+
+    #[test]
+    fn extract_group_by_single() {
+        let mut selects = vec![
+            LogicalExpression::new_column(1),
+            LogicalExpression::new_column(0),
+        ];
+
+        let group_by = vec![LogicalExpression::new_column(0)];
+
+        let out = PlanContext::extract_group_by_exprs(&mut selects, group_by, 2).unwrap();
+
+        let expected_group_by = vec![LogicalExpression::new_column(0)];
+        assert_eq!(expected_group_by, out);
+
+        let expected_selects = vec![
+            LogicalExpression::new_column(1),
+            LogicalExpression::new_column(2),
+        ];
+        assert_eq!(expected_selects, selects);
+    }
+}

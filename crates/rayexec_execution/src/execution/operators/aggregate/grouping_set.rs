@@ -156,21 +156,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn from_grouping_expr_none() {
-        // SELECT count(*) FROM t1;
-
-        let expr = operator::GroupingExpr::None;
-        let got = GroupingSets::try_from_grouping_expr(expr).unwrap();
-
-        let expected = GroupingSets {
-            columns: Vec::new(),
-            null_masks: vec![Bitmap::default()],
-        };
-
-        assert_eq!(expected, got)
-    }
-
-    #[test]
     fn from_grouping_expr_group_by_first() {
         // t1(a, b, c)
         //

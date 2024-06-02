@@ -3,6 +3,7 @@ use super::scope::ColumnRef;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
+use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
 use crate::{
@@ -78,6 +79,12 @@ impl LogicalOperator {
             Self::Insert(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
         }
+    }
+
+    /// Return the explain string for a plan. Useful for println debugging.
+    #[allow(dead_code)]
+    pub(crate) fn debug_explain(&self) -> String {
+        format_logical_plan_for_explain(self, ExplainFormat::Text, true).unwrap()
     }
 }
 
@@ -376,18 +383,35 @@ pub struct Aggregate {
 impl LogicalNode for Aggregate {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let current = self.input.output_schema(outer)?;
-        let types = self
+        let mut types = self
             .exprs
             .iter()
             .map(|expr| expr.datatype(&current, outer))
             .collect::<Result<Vec<_>>>()?;
+
+        let mut grouping_types = match &self.grouping_expr {
+            Some(grouping) => grouping
+                .expressions()
+                .iter()
+                .map(|expr| expr.datatype(&current, outer))
+                .collect::<Result<Vec<_>>>()?,
+            None => Vec::new(),
+        };
+
+        types.append(&mut grouping_types);
+
         Ok(TypeSchema::new(types))
     }
 }
 
 impl Explainable for Aggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Aggregate").with_values("outputs", &self.exprs);
+        let mut outputs = self.exprs.clone();
+        if let Some(grouping) = &self.grouping_expr {
+            outputs.extend(grouping.expressions().iter().cloned());
+        }
+
+        let mut ent = ExplainEntry::new("Aggregate").with_values("outputs", &outputs);
         match self.grouping_expr.as_ref() {
             Some(GroupingExpr::GroupBy(exprs)) => ent = ent.with_values("GROUP BY", exprs),
             Some(GroupingExpr::Rollup(exprs)) => ent = ent.with_values("ROLLUP", exprs),
@@ -418,6 +442,14 @@ impl GroupingExpr {
             Self::GroupBy(ref mut exprs) => exprs.as_mut_slice(),
             Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
             Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
+        }
+    }
+
+    pub fn expressions(&self) -> &[LogicalExpression] {
+        match self {
+            Self::GroupBy(ref exprs) => exprs.as_slice(),
+            Self::Rollup(ref exprs) => exprs.as_slice(),
+            Self::Cube(ref exprs) => exprs.as_slice(),
         }
     }
 }
