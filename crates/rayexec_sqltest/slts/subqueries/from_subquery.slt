@@ -1,0 +1,6 @@
+# Subquery in FROM
+
+query I
+select * from (select 23);
+----
+23
