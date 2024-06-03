@@ -45,7 +45,7 @@ impl SpecializedAggregateFunction for CountNonNull {
                          arrays: &[&Array],
                          mapping: &[usize],
                          states: &mut [CountNonNullState]| {
-            let unit_arr = UnitArrayAccessor::new(&arrays[0]);
+            let unit_arr = UnitArrayAccessor::new(arrays[0]);
             UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
         };
 
@@ -74,7 +74,7 @@ impl AggregateState<(), i64> for CountNonNullState {
         Ok(())
     }
 
-    fn update(&mut self, input: ()) -> Result<()> {
+    fn update(&mut self, _input: ()) -> Result<()> {
         self.count += 1;
         Ok(())
     }

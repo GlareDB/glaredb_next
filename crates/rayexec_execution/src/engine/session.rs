@@ -140,7 +140,7 @@ impl Session {
             LogicalOperator::ResetVar(ResetVar { var }) => {
                 // Same TODO as above.
                 match var {
-                    VariableOrAll::Variable(v) => self.vars.reset_var(&v.name)?,
+                    VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
                 planner.create_graph(LogicalOperator::Empty, query_sink)?

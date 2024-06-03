@@ -9,7 +9,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use crate::database::table::DataTableScan;
 
-pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> = Lazy::new(|| vec![]);
+pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> = Lazy::new(Vec::new);
 
 #[derive(Debug)]
 pub struct TableFunctionArgs {

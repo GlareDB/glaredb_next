@@ -1,7 +1,7 @@
-use crate::{keywords::Keyword, parser::Parser, tokens::Token};
+use crate::{keywords::Keyword, parser::Parser};
 use rayexec_error::Result;
 
-use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
+use super::{AstParseable, ObjectReference};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateSchema {

@@ -24,7 +24,7 @@ pub struct DropStatement {
     pub drop_type: DropType,
     pub if_exists: bool,
     pub name: ObjectReference,
-    pub deps: DropDependents,
+    pub deps: Option<DropDependents>,
 }
 
 impl AstParseable for DropStatement {
@@ -48,11 +48,11 @@ impl AstParseable for DropStatement {
         let name = ObjectReference::parse(parser)?;
 
         let deps = if parser.parse_keyword(Keyword::CASCADE) {
-            DropDependents::Cascade
+            Some(DropDependents::Cascade)
         } else if parser.parse_keyword(Keyword::RESTRICT) {
-            DropDependents::Restrict
+            Some(DropDependents::Restrict)
         } else {
-            DropDependents::Restrict
+            None
         };
 
         Ok(DropStatement {
@@ -77,7 +77,7 @@ mod tests {
             drop_type: DropType::Schema,
             if_exists: false,
             name: ObjectReference::from_strings(["my_schema"]),
-            deps: DropDependents::Restrict,
+            deps: None,
         };
         assert_eq!(expected, got);
     }
@@ -89,7 +89,7 @@ mod tests {
             drop_type: DropType::Table,
             if_exists: false,
             name: ObjectReference::from_strings(["my_schema", "t1"]),
-            deps: DropDependents::Cascade,
+            deps: Some(DropDependents::Cascade),
         };
         assert_eq!(expected, got);
     }

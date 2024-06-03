@@ -128,7 +128,6 @@ impl<'a> PlanContext<'a> {
                     scope: Scope::empty(),
                 })
             }
-            _ => unimplemented!(),
         }
     }
 
@@ -173,13 +172,15 @@ impl<'a> PlanContext<'a> {
 
                 let catalog = drop.name.0[0].as_normalized_string();
                 let schema = drop.name.0[1].as_normalized_string();
+                // Dropping defaults to restricting (erroring) on dependencies.
+                let deps = drop.deps.unwrap_or(ast::DropDependents::Restrict);
 
                 let plan = LogicalOperator::Drop(DropEntry {
                     info: DropInfo {
                         catalog,
                         schema,
                         object: DropObject::Schema,
-                        cascade: ast::DropDependents::Cascade == drop.deps,
+                        cascade: ast::DropDependents::Cascade == deps,
                         if_exists: drop.if_exists,
                     },
                 });
@@ -541,9 +542,7 @@ impl<'a> PlanContext<'a> {
         if num_appended > 0 {
             let output_len = select_exprs.len() - num_appended;
 
-            let projections = (0..output_len)
-                .map(|idx| LogicalExpression::new_column(idx))
-                .collect();
+            let projections = (0..output_len).map(LogicalExpression::new_column).collect();
 
             plan = LogicalQuery {
                 root: LogicalOperator::Projection(Projection {
@@ -894,6 +893,14 @@ impl<'a> PlanContext<'a> {
         Ok(num_appended)
     }
 
+    /// Appends hidden columns (columns that aren't referenced in the outer
+    /// plan's scope) to the select expressions if the provided expression is
+    /// not already included in the select expressions.
+    ///
+    /// This is needed for the pre-projection into ORDER BY and HAVING, where
+    /// the expressions in those clauses may not actually exist in the output.
+    ///
+    /// Returns the number of appended expressions.
     fn append_hidden(
         select_exprs: &mut Vec<LogicalExpression>,
         expr: &mut LogicalExpression,
@@ -907,6 +914,9 @@ impl<'a> PlanContext<'a> {
             }
         }
 
+        // TODO: Check if `expr` is already a column ref pointing to a select
+        // expr.
+
         // Otherwise need to put the expression into the select list, and
         // replace it with a reference.
         let col_ref = LogicalExpression::new_column(select_exprs.len());
@@ -915,33 +925,6 @@ impl<'a> PlanContext<'a> {
         select_exprs.push(orig);
 
         Ok(1)
-    }
-
-    /// Returns a new expression that needs to be added to the plan for an
-    /// expression in HAVING.
-    ///
-    /// The provided HAVING expression will be updated to point to the new
-    /// expression.
-    fn extract_having_expr(
-        select_exprs: &[LogicalExpression],
-        having_expr: &mut LogicalExpression,
-        offset: usize,
-    ) -> Result<Option<LogicalExpression>> {
-        match select_exprs
-            .iter()
-            .position(|select_expr| select_expr == having_expr)
-        {
-            Some(select_idx) => {
-                // Select list already has this expression, just reference it.
-                let column_ref = LogicalExpression::new_column(select_idx);
-                *having_expr = column_ref;
-                Ok(None)
-            }
-            None => {
-                // Expression not in select list, need to append it to the plan.
-                unimplemented!()
-            }
-        }
     }
 
     fn resolve_table(

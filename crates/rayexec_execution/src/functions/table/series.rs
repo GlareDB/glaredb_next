@@ -1,5 +1,4 @@
-use rayexec_bullet::field::DataType;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::{GenericTableFunction, SpecializedTableFunction, TableFunctionArgs};
 
@@ -11,7 +10,7 @@ impl GenericTableFunction for GenerateSeries {
         "generate_series"
     }
 
-    fn specialize(&self, args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+    fn specialize(&self, _args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
         unimplemented!()
     }
 }

@@ -8,10 +8,8 @@ use rayexec_bullet::{
     row::{OwnedScalarRow, ScalarRow},
 };
 use rayexec_error::{RayexecError, Result};
+use std::fmt;
 use std::sync::Arc;
-use std::{collections::VecDeque, fmt};
-
-use super::hash_aggregate::HashAggregateColumnOutput;
 
 /// States for a single aggregation.
 #[derive(Debug)]

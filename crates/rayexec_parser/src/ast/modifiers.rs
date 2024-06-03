@@ -80,9 +80,3 @@ pub enum DistinctModifier {
     On(Vec<Expr>),
     All,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::testutil::parse_ast;
-}

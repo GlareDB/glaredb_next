@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        AstParseable, CreateSchema, CreateTable, DropStatement, ExplainNode, Expr, Ident, Insert,
-        ObjectReference, QueryNode, ResetVariable, SetVariable, ShowVariable,
+        AstParseable, CreateSchema, CreateTable, DropStatement, ExplainNode, Ident, Insert,
+        QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,

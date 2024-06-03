@@ -1,5 +1,5 @@
 use crate::{
-    database::{catalog::CatalogTx, entry::TableEntry, table::DataTableScan, DatabaseContext},
+    database::{table::DataTableScan, DatabaseContext},
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use rayexec_bullet::batch::Batch;
@@ -19,8 +19,8 @@ pub struct PhysicalTableFunction {}
 impl PhysicalTableFunction {
     pub fn try_create_states(
         &self,
-        context: &DatabaseContext, // unknown
-        num_partitions: usize,     // yes
+        _context: &DatabaseContext, // unknown
+        _num_partitions: usize,     // yes
     ) -> Result<Vec<TableFunctionPartitionState>> {
         unimplemented!()
         // // TODO: Placeholder for now. Transaction info should probably go on the

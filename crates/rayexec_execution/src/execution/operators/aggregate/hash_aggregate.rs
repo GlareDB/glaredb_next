@@ -19,22 +19,6 @@ use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use super::aggregate_hash_table::{AggregateHashTableDrain, PartitionAggregateHashTable};
 use super::grouping_set::GroupingSets;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HashAggregateProjectionMapping {
-    /// Projection indices, may include include columns produced by the
-    /// aggregate, or columns that are being grouped in.
-    ///
-    /// Column indices less than `num_aggs` are outputs produced by the
-    /// aggregate.
-    ///
-    /// Column indices greater or equal to `num_aggs` are grouping columns we
-    /// can reference.
-    pub projection: Vec<usize>,
-
-    /// Number of aggregates we're computing.
-    pub num_aggs: usize,
-}
-
 /// Used to specify the output of an aggregate operator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashAggregateColumnOutput {

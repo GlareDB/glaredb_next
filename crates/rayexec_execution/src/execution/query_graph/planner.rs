@@ -6,10 +6,7 @@ use crate::{
     engine::vars::SessionVars,
     execution::{
         operators::{
-            aggregate::{
-                grouping_set::GroupingSets,
-                hash_aggregate::{HashAggregateColumnOutput, PhysicalHashAggregate},
-            },
+            aggregate::{grouping_set::GroupingSets, hash_aggregate::PhysicalHashAggregate},
             create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
             drop::PhysicalDrop,
