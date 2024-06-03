@@ -4,30 +4,30 @@ use rayexec_error::Result;
 use super::{AstParseable, Ident, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CteDefs {
+pub struct CommonTableExprDefs {
     pub recursive: bool,
-    pub ctes: Vec<Cte>,
+    pub ctes: Vec<CommonTableExpr>,
 }
 
-impl AstParseable for CteDefs {
+impl AstParseable for CommonTableExprDefs {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let recursive = parser.parse_keyword(Keyword::RECURSIVE);
-        Ok(CteDefs {
+        Ok(CommonTableExprDefs {
             recursive,
-            ctes: parser.parse_comma_separated(Cte::parse)?,
+            ctes: parser.parse_comma_separated(CommonTableExpr::parse)?,
         })
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cte {
+pub struct CommonTableExpr {
     pub alias: Ident,
     pub column_aliases: Option<Vec<Ident>>,
     pub materialized: bool,
     pub body: Box<QueryNode>,
 }
 
-impl AstParseable for Cte {
+impl AstParseable for CommonTableExpr {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let alias = Ident::parse(parser)?;
 
@@ -54,7 +54,7 @@ impl AstParseable for Cte {
         let body = QueryNode::parse(parser)?;
         parser.expect_token(&Token::RightParen)?;
 
-        Ok(Cte {
+        Ok(CommonTableExpr {
             alias,
             column_aliases,
             materialized,

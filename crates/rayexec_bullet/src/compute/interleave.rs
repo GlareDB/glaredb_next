@@ -9,6 +9,12 @@ use crate::{
 };
 use rayexec_error::{RayexecError, Result};
 
+/// Interleave multiple arrays into a single array.
+///
+/// The provided indices should be (array, row) pairs which are used to build
+/// the final array. (array, row) pairs may be provided more than once.
+///
+/// Errors if no arrays are provided, or if not all arrays are of the same type.
 pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array> {
     let datatype = match arrays.first() {
         Some(arr) => arr.datatype(),

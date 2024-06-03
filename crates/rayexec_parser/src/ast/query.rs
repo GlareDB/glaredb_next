@@ -1,11 +1,11 @@
 use crate::{keywords::Keyword, parser::Parser, tokens::Token};
 use rayexec_error::{RayexecError, Result};
 
-use super::{AstParseable, CteDefs, Expr, LimitModifier, OrderByNode, SelectNode};
+use super::{AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByNode, SelectNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryNode {
-    pub ctes: Option<CteDefs>,
+    pub ctes: Option<CommonTableExprDefs>,
     pub body: QueryNodeBody,
     pub order_by: Vec<OrderByNode>,
     pub limit: LimitModifier,
@@ -14,7 +14,7 @@ pub struct QueryNode {
 impl AstParseable for QueryNode {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let ctes = if parser.parse_keyword(Keyword::WITH) {
-            Some(CteDefs::parse(parser)?)
+            Some(CommonTableExprDefs::parse(parser)?)
         } else {
             None
         };
