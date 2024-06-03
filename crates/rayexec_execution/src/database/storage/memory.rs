@@ -54,7 +54,7 @@ struct MemorySchema {
 
 impl MemoryCatalog {
     /// Creates a new memory catalog with a single named schema.
-    pub fn new_with_temp_schema(schema: &str) -> Self {
+    pub fn new_with_schema(schema: &str) -> Self {
         let mut schemas = HashMap::new();
         schemas.insert(schema.to_string(), MemorySchema::default());
 

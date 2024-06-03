@@ -1,10 +1,13 @@
 use crate::ast::{
-    CreateSchema, CreateTable, DropStatement, ExplainNode, Insert, QueryNode, ResetVariable,
-    SetVariable, ShowVariable,
+    Attach, CreateSchema, CreateTable, Detach, DropStatement, ExplainNode, Insert, QueryNode,
+    ResetVariable, SetVariable, ShowVariable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
+    Attach(Attach),
+    Detach(Detach),
+
     Explain(ExplainNode),
 
     /// SELECT/VALUES

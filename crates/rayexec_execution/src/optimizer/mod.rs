@@ -134,6 +134,8 @@ where
         | plan @ LogicalOperator::ResetVar(_)
         | plan @ LogicalOperator::CreateTable(_)
         | plan @ LogicalOperator::CreateSchema(_)
+        | plan @ LogicalOperator::AttachDatabase(_)
+        | plan @ LogicalOperator::DetachDatabase(_)
         | plan @ LogicalOperator::Drop(_)
         | plan @ LogicalOperator::Scan(_) => plan,
     };

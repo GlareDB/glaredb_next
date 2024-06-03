@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{
-        Aggregate, AnyJoin, CreateTable, CrossJoin, DropEntry, GroupingExpr, Insert, Limit,
-        LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, Scan,
+        Aggregate, AnyJoin, AttachDatabase, CreateTable, CrossJoin, DetachDatabase, DropEntry,
+        GroupingExpr, Insert, Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr,
+        Projection, Scan,
     },
     scope::{ColumnRef, Scope},
 };
@@ -128,6 +131,8 @@ impl<'a> PlanContext<'a> {
                     scope: Scope::empty(),
                 })
             }
+            Statement::Attach(attach) => self.plan_attach(attach),
+            Statement::Detach(detach) => self.plan_detach(detach),
         }
     }
 
@@ -140,6 +145,72 @@ impl<'a> PlanContext<'a> {
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
                 .collect(),
+        }
+    }
+
+    fn plan_attach(&mut self, attach: ast::Attach) -> Result<LogicalQuery> {
+        match attach.attach_type {
+            ast::AttachType::Database => {
+                let mut options = HashMap::new();
+                let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
+
+                for (k, v) in attach.options {
+                    let k = k.into_normalized_string();
+                    let v = match expr_ctx.plan_expression(v)? {
+                        LogicalExpression::Literal(v) => v,
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Non-literal expression provided as value: {other:?}"
+                            )))
+                        }
+                    };
+                    if options.contains_key(&k) {
+                        return Err(RayexecError::new(format!(
+                            "Option '{k}' provided more than once"
+                        )));
+                    }
+                    options.insert(k, v);
+                }
+
+                if attach.alias.0.len() != 1 {
+                    return Err(RayexecError::new(format!(
+                        "Expected a single identifier, got '{}'",
+                        attach.alias
+                    )));
+                }
+                let name = attach.alias.0[0].as_normalized_string();
+                let datasource = attach.datasource_name.into_normalized_string();
+
+                Ok(LogicalQuery {
+                    root: LogicalOperator::AttachDatabase(AttachDatabase {
+                        datasource,
+                        name,
+                        options,
+                    }),
+                    scope: Scope::empty(),
+                })
+            }
+            ast::AttachType::Table => Err(RayexecError::new("Attach tables not yet supported")),
+        }
+    }
+
+    fn plan_detach(&mut self, detach: ast::Detach) -> Result<LogicalQuery> {
+        match detach.attach_type {
+            ast::AttachType::Database => {
+                if detach.alias.0.len() != 1 {
+                    return Err(RayexecError::new(format!(
+                        "Expected a single identifier, got '{}'",
+                        detach.alias
+                    )));
+                }
+                let name = detach.alias.0[0].as_normalized_string();
+
+                Ok(LogicalQuery {
+                    root: LogicalOperator::DetachDatabase(DetachDatabase { name }),
+                    scope: Scope::empty(),
+                })
+            }
+            ast::AttachType::Table => Err(RayexecError::new("Detach tables not yet supported")),
         }
     }
 

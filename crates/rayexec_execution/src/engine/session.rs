@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
@@ -21,6 +23,7 @@ use crate::{
 use super::{
     result_stream::ResultStream,
     vars::{SessionVars, VarAccessor},
+    DataSourceRegistry,
 };
 
 #[derive(Debug)]
@@ -34,16 +37,18 @@ pub struct Session {
     context: DatabaseContext,
     vars: SessionVars,
     scheduler: Scheduler,
+    registry: Arc<DataSourceRegistry>,
 
     prepared: HashMap<String, PreparedStatement>,
     portals: HashMap<String, Portal>,
 }
 
 impl Session {
-    pub fn new(scheduler: Scheduler) -> Self {
+    pub fn new(scheduler: Scheduler, registry: Arc<DataSourceRegistry>) -> Self {
         Session {
             context: DatabaseContext::new_with_temp(),
             scheduler,
+            registry,
             vars: SessionVars::new_local(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
@@ -120,6 +125,21 @@ impl Session {
         let query_sink = QuerySink::new([result_sink]);
 
         let query_graph = match logical.root {
+            LogicalOperator::AttachDatabase(attach) => {
+                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
+
+                // TODO: No clue if we want to do this here. What happens during
+                // hybrid exec?
+                let datasource = self.registry.get_datasource(&attach.datasource)?;
+                let catalog = datasource.create_catalog(attach.options)?;
+                self.context.attach_catalog(attach.name, catalog)?;
+                empty
+            }
+            LogicalOperator::DetachDatabase(detach) => {
+                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
+                self.context.detach_catalog(&detach.name)?;
+                empty
+            }
             LogicalOperator::SetVar(set_var) => {
                 // TODO: Do we want this logic to exist here?
                 //

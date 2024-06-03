@@ -170,18 +170,21 @@ impl BuildState {
             LogicalOperator::Limit(limit) => self.push_limit(conf, limit),
             LogicalOperator::Order(order) => self.push_global_sort(conf, order),
             LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, show_var),
-            LogicalOperator::SetVar(_) => {
-                Err(RayexecError::new("SET should be handled in the session"))
-            }
-            LogicalOperator::ResetVar(_) => {
-                Err(RayexecError::new("RESET should be handled in the session"))
-            }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
             LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),
             LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
             LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
+            LogicalOperator::SetVar(_) => {
+                Err(RayexecError::new("SET should be handled in the session"))
+            }
+            LogicalOperator::ResetVar(_) => {
+                Err(RayexecError::new("RESET should be handled in the session"))
+            }
+            LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
+                RayexecError::new("ATTACH/DETACH should be handled in the session"),
+            ),
             other => unimplemented!("other: {other:?}"),
         }
     }

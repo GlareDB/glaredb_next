@@ -36,7 +36,7 @@ impl DatabaseContext {
             ),
             (
                 "temp".to_string(),
-                Box::new(MemoryCatalog::new_with_temp_schema("temp")) as _,
+                Box::new(MemoryCatalog::new_with_schema("temp")) as _,
             ),
         ]
         .into_iter()

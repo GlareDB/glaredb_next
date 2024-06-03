@@ -15,7 +15,7 @@ pub enum AttachType {
 pub struct Attach {
     pub datasource_name: Ident,
     pub attach_type: AttachType,
-    pub dest: ObjectReference,
+    pub alias: ObjectReference,
     pub options: HashMap<Ident, Expr>,
 }
 
@@ -34,7 +34,8 @@ impl AstParseable for Attach {
             }
         };
 
-        let dest = ObjectReference::parse(parser)?;
+        parser.expect_keyword(Keyword::AS)?;
+        let alias = ObjectReference::parse(parser)?;
 
         let mut options = HashMap::new();
         loop {
@@ -56,9 +57,34 @@ impl AstParseable for Attach {
         Ok(Attach {
             datasource_name,
             attach_type,
-            dest,
+            alias,
             options,
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Detach {
+    pub attach_type: AttachType,
+    pub alias: ObjectReference,
+}
+
+impl AstParseable for Detach {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        parser.expect_keyword(Keyword::DETACH)?;
+        let attach_type = match parser.next_keyword()? {
+            Keyword::DATABASE => AttachType::Database,
+            Keyword::TABLE => AttachType::Table,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Expected DATABASE or TABLE for attach type, got '{other}'"
+                )))
+            }
+        };
+
+        let alias = ObjectReference::parse(parser)?;
+
+        Ok(Detach { alias, attach_type })
     }
 }
 
@@ -71,11 +97,11 @@ mod tests {
 
     #[test]
     fn attach_pg_database() {
-        let got = parse_ast::<Attach>("ATTACH POSTGRES DATABASE my_pg CONNECTION_STRING = 'postgres://sean:pass@localhost/db'").unwrap();
+        let got = parse_ast::<Attach>("ATTACH POSTGRES DATABASE AS my_pg CONNECTION_STRING = 'postgres://sean:pass@localhost/db'").unwrap();
         let expected = Attach {
             datasource_name: Ident::from_string("POSTGRES"),
             attach_type: AttachType::Database,
-            dest: ObjectReference::from_strings(["my_pg"]),
+            alias: ObjectReference::from_strings(["my_pg"]),
             options: [(
                 Ident::from_string("CONNECTION_STRING"),
                 Expr::Literal(Literal::SingleQuotedString(
@@ -91,11 +117,11 @@ mod tests {
 
     #[test]
     fn attach_pg_table() {
-        let got = parse_ast::<Attach>("ATTACH POSTGRES TABLE my_pg_table CONNECTION_STRING = 'postgres://sean:pass@localhost/db', SCHEMA = 'public', TABLE = 'users'").unwrap();
+        let got = parse_ast::<Attach>("ATTACH POSTGRES TABLE AS my_pg_table CONNECTION_STRING = 'postgres://sean:pass@localhost/db', SCHEMA = 'public', TABLE = 'users'").unwrap();
         let expected = Attach {
             datasource_name: Ident::from_string("POSTGRES"),
             attach_type: AttachType::Table,
-            dest: ObjectReference::from_strings(["my_pg_table"]),
+            alias: ObjectReference::from_strings(["my_pg_table"]),
             options: [
                 (
                     Ident::from_string("CONNECTION_STRING"),
@@ -116,6 +142,16 @@ mod tests {
             .collect(),
         };
 
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn detach_db() {
+        let got = parse_ast::<Detach>("detach database my_pg").unwrap();
+        let expected = Detach {
+            attach_type: AttachType::Database,
+            alias: ObjectReference::from_strings(["my_pg"]),
+        };
         assert_eq!(expected, got);
     }
 }
