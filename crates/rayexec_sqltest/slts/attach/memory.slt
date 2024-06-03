@@ -1,0 +1,4 @@
+# ATTACH MEMORY ...
+
+statement ok
+attach memory database as my_db;
