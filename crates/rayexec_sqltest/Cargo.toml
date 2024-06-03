@@ -20,5 +20,5 @@ tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-fi
 
 [[test]]
 harness = false
-name = "rayexec_sqltest"
-path = "bin/rayexec_sqltest.rs"
+name = "rayexec_sqltest_standard"
+path = "bin/rayexec_sqltest_standard.rs"
