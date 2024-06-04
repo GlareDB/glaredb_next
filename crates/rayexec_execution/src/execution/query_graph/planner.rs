@@ -33,7 +33,7 @@ use crate::{
         pipeline::{Pipeline, PipelineId},
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
-    planner::operator::{self, LogicalOperator},
+    logical::operator::{self, LogicalOperator},
 };
 use rayexec_bullet::{
     array::{Array, Utf8Array},

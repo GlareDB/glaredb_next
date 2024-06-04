@@ -1,6 +1,6 @@
 use crate::{
     execution::pipeline::Pipeline,
-    planner::{
+    logical::{
         explainable::{ExplainConfig, ExplainEntry, Explainable},
         operator::{ExplainFormat, LogicalOperator},
     },

@@ -5,7 +5,7 @@ use crate::{
         table::{DataTable, DataTableInsert},
         DatabaseContext,
     },
-    planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;

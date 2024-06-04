@@ -18,7 +18,7 @@ use crate::{
         DatabaseContext,
     },
     engine::vars::SessionVars,
-    planner::{
+    logical::{
         operator::{
             CreateSchema, Explain, ExplainFormat, ExpressionList, Filter, JoinType, ResetVar,
             SetVar, ShowVar, VariableOrAll,

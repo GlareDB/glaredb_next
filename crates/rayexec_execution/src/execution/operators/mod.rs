@@ -36,7 +36,7 @@ use std::fmt::Debug;
 use std::task::Context;
 use table_function::TableFunctionPartitionState;
 
-use crate::planner::explainable::Explainable;
+use crate::logical::explainable::Explainable;
 
 use self::aggregate::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::empty::EmptyPartitionState;

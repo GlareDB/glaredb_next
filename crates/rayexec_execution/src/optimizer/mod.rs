@@ -1,6 +1,6 @@
 pub mod join_order;
 
-use crate::{optimizer::join_order::JoinOrderRule, planner::operator::LogicalOperator};
+use crate::{logical::operator::LogicalOperator, optimizer::join_order::JoinOrderRule};
 use rayexec_error::Result;
 
 #[derive(Debug)]

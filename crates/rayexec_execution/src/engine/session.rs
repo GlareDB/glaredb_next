@@ -12,11 +12,11 @@ use crate::{
         planner::{QueryGraphDebugConfig, QueryGraphPlanner},
         sink::QuerySink,
     },
-    optimizer::Optimizer,
-    planner::{
+    logical::{
         operator::{LogicalOperator, ResetVar, VariableOrAll},
         plan::PlanContext,
     },
+    optimizer::Optimizer,
     scheduler::Scheduler,
 };
 

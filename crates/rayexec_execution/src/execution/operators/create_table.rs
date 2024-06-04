@@ -3,7 +3,7 @@ use crate::{
         catalog::CatalogTx, create::CreateTableInfo, ddl::CreateFut, table::DataTable,
         DatabaseContext,
     },
-    planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
