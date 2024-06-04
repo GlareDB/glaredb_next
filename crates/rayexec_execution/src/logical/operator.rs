@@ -1,5 +1,5 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
-use super::scope::ColumnRef;
+use super::sql::scope::ColumnRef;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;

@@ -3,10 +3,10 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::functions::scalar::GenericScalarFunction;
+use crate::logical::operator::LogicalExpression;
 
 use super::{
-    operator::LogicalExpression,
-    plan::PlanContext,
+    planner::PlanContext,
     scope::{Scope, TableReference},
 };
 

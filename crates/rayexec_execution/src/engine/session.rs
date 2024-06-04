@@ -14,7 +14,7 @@ use crate::{
     },
     logical::{
         operator::{LogicalOperator, ResetVar, VariableOrAll},
-        plan::PlanContext,
+        sql::planner::PlanContext,
     },
     optimizer::Optimizer,
     scheduler::Scheduler,

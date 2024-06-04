@@ -2,12 +2,7 @@ use std::collections::HashMap;
 
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
-    operator::{
-        Aggregate, AnyJoin, AttachDatabase, CreateTable, CrossJoin, DetachDatabase, DropEntry,
-        GroupingExpr, Insert, Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr,
-        Projection, Scan,
-    },
-    scope::{ColumnRef, Scope},
+    scope::{ColumnRef, Scope, TableReference},
 };
 use crate::{
     database::{
@@ -18,12 +13,11 @@ use crate::{
         DatabaseContext,
     },
     engine::vars::SessionVars,
-    logical::{
-        operator::{
-            CreateSchema, Explain, ExplainFormat, ExpressionList, Filter, JoinType, ResetVar,
-            SetVar, ShowVar, VariableOrAll,
-        },
-        scope::TableReference,
+    logical::operator::{
+        Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, DetachDatabase,
+        DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr, Insert, JoinType,
+        Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan,
+        SetVar, ShowVar, VariableOrAll,
     },
 };
 use rayexec_bullet::field::{DataType, Field, TypeSchema};
