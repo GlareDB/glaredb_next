@@ -1,3 +1,4 @@
+use futures::future::{BoxFuture, FutureExt};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
@@ -33,8 +34,8 @@ pub trait Catalog: Debug + Sync + Send {
         _tx: &CatalogTx,
         _schema: &str,
         _name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
-        Err(RayexecError::new("Cannot get scalar function from catalog"))
+    ) -> BoxFuture<Result<Option<Box<dyn GenericScalarFunction>>>> {
+        Box::pin(async { Err(RayexecError::new("Cannot get scalar function from catalog")) })
     }
 
     fn get_aggregate_fn(
@@ -42,10 +43,12 @@ pub trait Catalog: Debug + Sync + Send {
         _tx: &CatalogTx,
         _schema: &str,
         _name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
-        Err(RayexecError::new(
-            "Cannot get aggregate function from catalog",
-        ))
+    ) -> BoxFuture<Result<Option<Box<dyn GenericAggregateFunction>>>> {
+        Box::pin(async {
+            Err(RayexecError::new(
+                "Cannot get aggregate function from catalog",
+            ))
+        })
     }
 
     fn data_table(
@@ -80,7 +83,7 @@ impl Catalog for &dyn Catalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
+    ) -> BoxFuture<Result<Option<Box<dyn GenericScalarFunction>>>> {
         (*self).get_scalar_fn(tx, schema, name)
     }
 
@@ -89,7 +92,7 @@ impl Catalog for &dyn Catalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
+    ) -> BoxFuture<Result<Option<Box<dyn GenericAggregateFunction>>>> {
         (*self).get_aggregate_fn(tx, schema, name)
     }
 

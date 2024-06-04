@@ -84,24 +84,6 @@ impl Catalog for MemoryCatalog {
         }
     }
 
-    fn get_scalar_fn(
-        &self,
-        _tx: &CatalogTx,
-        _schema: &str,
-        _name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
-        unimplemented!()
-    }
-
-    fn get_aggregate_fn(
-        &self,
-        _tx: &CatalogTx,
-        _schema: &str,
-        _name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
-        unimplemented!()
-    }
-
     fn data_table(
         &self,
         _tx: &CatalogTx,

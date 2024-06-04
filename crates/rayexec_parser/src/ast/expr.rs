@@ -84,7 +84,7 @@ pub enum Literal<T: AstMeta> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function<T: AstMeta> {
-    pub name: T::ItemReference,
+    pub reference: T::FunctionReference,
     pub args: Vec<FunctionArg<T>>,
     /// Filter part of `COUNT(col) FILTER (WHERE col > 5)`
     pub filter: Option<Box<Expr<T>>>,
@@ -418,7 +418,7 @@ impl Expr<Raw> {
             // TODO: Windows
 
             Ok(Expr::Function(Function {
-                name: ObjectReference(idents),
+                reference: ObjectReference(idents),
                 args,
                 filter,
             }))
@@ -492,7 +492,7 @@ mod tests {
     fn function_call_simple() {
         let expr: Expr<_> = parse_ast("sum(my_col)").unwrap();
         let expected = Expr::Function(Function {
-            name: ObjectReference(vec![Ident::from_string("sum")]),
+            reference: ObjectReference(vec![Ident::from_string("sum")]),
             args: vec![FunctionArg::Unnamed {
                 arg: Expr::Ident(Ident::from_string("my_col")),
             }],
@@ -505,7 +505,7 @@ mod tests {
     fn function_call_with_over() {
         let expr: Expr<_> = parse_ast("count(x) filter (where x > 5)").unwrap();
         let expected = Expr::Function(Function {
-            name: ObjectReference(vec![Ident::from_string("count")]),
+            reference: ObjectReference(vec![Ident::from_string("count")]),
             args: vec![FunctionArg::Unnamed {
                 arg: Expr::Ident(Ident::from_string("x")),
             }],

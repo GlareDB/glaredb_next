@@ -129,12 +129,12 @@ impl<'a> ExpressionContext<'a> {
             }),
             ast::Expr::Function(func) => {
                 // TODO: Search path (with system being the first to check)
-                if func.name.0.len() != 1 {
+                if func.reference.0.len() != 1 {
                     return Err(RayexecError::new(
                         "Qualified function names not yet supported",
                     ));
                 }
-                let func_name = &func.name.0[0].as_normalized_string();
+                let func_name = &func.reference.0[0].as_normalized_string();
 
                 // Check scalars first.
                 if let Some(scalar_func) =
@@ -229,7 +229,7 @@ impl<'a> ExpressionContext<'a> {
 
                 Err(RayexecError::new(format!(
                     "Cannot resolve function with name {}",
-                    func.name
+                    func.reference
                 )))
             }
             _ => unimplemented!(),

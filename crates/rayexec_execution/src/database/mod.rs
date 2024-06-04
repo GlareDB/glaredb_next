@@ -54,8 +54,9 @@ impl DatabaseContext {
 
     pub fn get_builtin_scalar(&self, name: &str) -> Result<Option<Box<dyn GenericScalarFunction>>> {
         let tx = &CatalogTx::new();
-        self.system_catalog()?
-            .get_scalar_fn(tx, "glare_catalog", name)
+        unimplemented!()
+        // self.system_catalog()?
+        //     .get_scalar_fn(tx, "glare_catalog", name)
     }
 
     pub fn get_builtin_aggregate(
@@ -63,8 +64,9 @@ impl DatabaseContext {
         name: &str,
     ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
         let tx = &CatalogTx::new();
-        self.system_catalog()?
-            .get_aggregate_fn(tx, "glare_catalog", name)
+        unimplemented!()
+        // self.system_catalog()?
+        //     .get_aggregate_fn(tx, "glare_catalog", name)
     }
 
     pub fn attach_catalog(

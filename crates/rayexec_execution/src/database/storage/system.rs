@@ -98,43 +98,43 @@ impl Catalog for SystemCatalog {
         ))
     }
 
-    fn get_scalar_fn(
-        &self,
-        _tx: &CatalogTx,
-        schema: &str,
-        name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
-        let schema = self
-            .schemas
-            .get(schema)
-            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
-        match schema.get(name) {
-            Some(CatalogEntry::Function(ent)) => match &ent.implementation {
-                FunctionImpl::Scalar(scalar) => Ok(Some(scalar.clone())),
-                _ => Ok(None),
-            },
-            _ => Ok(None),
-        }
-    }
+    // fn get_scalar_fn(
+    //     &self,
+    //     _tx: &CatalogTx,
+    //     schema: &str,
+    //     name: &str,
+    // ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
+    //     let schema = self
+    //         .schemas
+    //         .get(schema)
+    //         .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+    //     match schema.get(name) {
+    //         Some(CatalogEntry::Function(ent)) => match &ent.implementation {
+    //             FunctionImpl::Scalar(scalar) => Ok(Some(scalar.clone())),
+    //             _ => Ok(None),
+    //         },
+    //         _ => Ok(None),
+    //     }
+    // }
 
-    fn get_aggregate_fn(
-        &self,
-        _tx: &CatalogTx,
-        schema: &str,
-        name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
-        let schema = self
-            .schemas
-            .get(schema)
-            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
-        match schema.get(name) {
-            Some(CatalogEntry::Function(ent)) => match &ent.implementation {
-                FunctionImpl::Aggregate(agg) => Ok(Some(agg.clone())),
-                _ => Ok(None),
-            },
-            _ => Ok(None),
-        }
-    }
+    // fn get_aggregate_fn(
+    //     &self,
+    //     _tx: &CatalogTx,
+    //     schema: &str,
+    //     name: &str,
+    // ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
+    //     let schema = self
+    //         .schemas
+    //         .get(schema)
+    //         .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+    //     match schema.get(name) {
+    //         Some(CatalogEntry::Function(ent)) => match &ent.implementation {
+    //             FunctionImpl::Aggregate(agg) => Ok(Some(agg.clone())),
+    //             _ => Ok(None),
+    //         },
+    //         _ => Ok(None),
+    //     }
+    // }
 
     fn data_table(
         &self,
