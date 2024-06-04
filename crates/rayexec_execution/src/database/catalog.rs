@@ -27,7 +27,7 @@ pub trait Catalog: Debug + Sync + Send {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<TableEntry>>;
+    ) -> BoxFuture<Result<Option<TableEntry>>>;
 
     fn get_scalar_fn(
         &self,
@@ -74,7 +74,7 @@ impl Catalog for &dyn Catalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<TableEntry>> {
+    ) -> BoxFuture<Result<Option<TableEntry>>> {
         (*self).get_table_entry(tx, schema, name)
     }
 

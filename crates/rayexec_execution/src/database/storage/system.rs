@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
@@ -91,11 +92,13 @@ impl Catalog for SystemCatalog {
         _tx: &CatalogTx,
         _schema: &str,
         _name: &str,
-    ) -> Result<Option<TableEntry>> {
+    ) -> BoxFuture<Result<Option<TableEntry>>> {
         // TODO: It will at some point (and views).
-        Err(RayexecError::new(
-            "System catalog contains no table entries",
-        ))
+        Box::pin(async {
+            Err(RayexecError::new(
+                "System catalog contains no table entries",
+            ))
+        })
     }
 
     // fn get_scalar_fn(

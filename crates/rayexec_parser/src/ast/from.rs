@@ -218,7 +218,7 @@ pub enum FromNodeBody<T: AstMeta> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FromBaseTable<T: AstMeta> {
-    pub reference: T::ItemReference,
+    pub reference: T::TableReference,
 }
 
 #[derive(Debug, Clone, PartialEq)]

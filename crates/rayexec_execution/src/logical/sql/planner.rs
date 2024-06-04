@@ -448,9 +448,6 @@ impl<'a> PlanContext<'a> {
             projections.append(&mut expanded);
         }
 
-        // TODO:
-        // - HAVING
-
         // Add projections to plan using previously expanded select items.
         let mut select_exprs = Vec::with_capacity(projections.len());
         let mut names = Vec::with_capacity(projections.len());
@@ -1004,27 +1001,28 @@ impl<'a> PlanContext<'a> {
         // TODO: Better handling, also search path.
         let name = &reference.0[0].as_normalized_string();
 
-        // Search temp first
-        if let Some(ent) = self
-            .resolver
-            .get_catalog("temp")?
-            .get_table_entry(self.tx, "temp", name)?
-        {
-            let reference = TableReference {
-                database: None,
-                schema: None,
-                table: name.clone(),
-            };
+        unimplemented!()
+        // // Search temp first
+        // if let Some(ent) = self
+        //     .resolver
+        //     .get_catalog("temp")?
+        //     .get_table_entry(self.tx, "temp", name)?
+        // {
+        //     let reference = TableReference {
+        //         database: None,
+        //         schema: None,
+        //         table: name.clone(),
+        //     };
 
-            Ok((reference, ent))
-        } else {
-            // Search other catalogs/schemas in the search path (once we
-            // have them).
+        //     Ok((reference, ent))
+        // } else {
+        //     // Search other catalogs/schemas in the search path (once we
+        //     // have them).
 
-            Err(RayexecError::new(format!(
-                "Unable to find entry for '{name}'"
-            )))
-        }
+        //     Err(RayexecError::new(format!(
+        //         "Unable to find entry for '{name}'"
+        //     )))
+        // }
     }
 
     fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {

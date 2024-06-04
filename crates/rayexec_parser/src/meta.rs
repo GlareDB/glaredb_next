@@ -15,8 +15,9 @@ pub trait AstMeta: Clone {
     /// Name of a data source for ATTACH.
     type DataSourceName: Debug + Clone + PartialEq;
 
-    /// Reference to a table, view, schema, etc.
     type ItemReference: Debug + Clone + PartialEq;
+
+    type TableReference: Debug + Clone + PartialEq;
 
     /// Reference to a scalar or aggregate function.
     type FunctionReference: Debug + Clone + PartialEq;
@@ -35,6 +36,7 @@ pub struct Raw;
 impl AstMeta for Raw {
     type DataSourceName = Ident;
     type ItemReference = ObjectReference;
+    type TableReference = ObjectReference;
     type FunctionReference = ObjectReference;
     type ColumnReference = Ident;
     type DataType = DataType;

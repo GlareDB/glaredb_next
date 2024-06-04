@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use parking_lot::{Mutex, RwLock};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
@@ -62,10 +63,8 @@ impl MemoryCatalog {
             inner: Arc::new(RwLock::new(MemorySchemas { schemas })),
         }
     }
-}
 
-impl Catalog for MemoryCatalog {
-    fn get_table_entry(
+    fn get_table_entry_inner(
         &self,
         _tx: &CatalogTx,
         schema: &str,
@@ -82,6 +81,18 @@ impl Catalog for MemoryCatalog {
             Some(_) => Err(RayexecError::new("Entry not a table")),
             None => Ok(None),
         }
+    }
+}
+
+impl Catalog for MemoryCatalog {
+    fn get_table_entry(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> BoxFuture<Result<Option<TableEntry>>> {
+        let result = self.get_table_entry_inner(tx, schema, name);
+        Box::pin(async { result })
     }
 
     fn data_table(
