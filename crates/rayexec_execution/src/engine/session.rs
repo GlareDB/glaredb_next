@@ -3,7 +3,7 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::{parser, statement::Statement};
+use rayexec_parser::{parser, statement::RawStatement};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -79,11 +79,11 @@ impl Session {
         Ok(results)
     }
 
-    pub fn parse(&self, sql: &str) -> Result<Vec<Statement>> {
+    pub fn parse(&self, sql: &str) -> Result<Vec<RawStatement>> {
         parser::parse(sql)
     }
 
-    pub fn prepare(&mut self, name: impl Into<String>, stmt: Statement) -> Result<()> {
+    pub fn prepare(&mut self, name: impl Into<String>, stmt: RawStatement) -> Result<()> {
         self.prepared
             .insert(name.into(), PreparedStatement { statement: stmt });
         Ok(())
@@ -180,10 +180,10 @@ impl Session {
 
 #[derive(Debug)]
 struct PreparedStatement {
-    statement: Statement,
+    statement: RawStatement,
 }
 
 #[derive(Debug)]
 struct Portal {
-    statement: Statement,
+    statement: RawStatement,
 }

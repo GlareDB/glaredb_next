@@ -1,6 +1,6 @@
 use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use rayexec_parser::{ast, meta::Raw};
 
 use crate::functions::scalar::GenericScalarFunction;
 use crate::logical::operator::LogicalExpression;
@@ -11,14 +11,15 @@ use super::{
 };
 
 /// An expanded select expression.
+// TODO: What does the below TODO mean?
 // TODO: Expand wildcard.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExpandedSelectExpr {
     /// A typical expression. Can be a reference to a column, or a more complex
     /// expression.
     Expr {
         /// The original expression.
-        expr: ast::Expr,
+        expr: ast::Expr<Raw>,
         /// Either an alias provided by the user or a name we generate for the
         /// expression. If this references a column, then the name will just
         /// match that column.
@@ -64,7 +65,10 @@ impl<'a> ExpressionContext<'a> {
         }
     }
 
-    pub fn expand_select_expr(&self, expr: ast::SelectExpr) -> Result<Vec<ExpandedSelectExpr>> {
+    pub fn expand_select_expr(
+        &self,
+        expr: ast::SelectExpr<Raw>,
+    ) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
             ast::SelectExpr::Expr(expr) => vec![ExpandedSelectExpr::Expr {
                 expr,
@@ -113,7 +117,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     /// Converts an AST expression to a logical expression.
-    pub fn plan_expression(&self, expr: ast::Expr) -> Result<LogicalExpression> {
+    pub fn plan_expression(&self, expr: ast::Expr<Raw>) -> Result<LogicalExpression> {
         match expr {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
@@ -233,7 +237,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     /// Plan a sql literal
-    fn plan_literal(&self, literal: ast::Literal) -> Result<LogicalExpression> {
+    fn plan_literal(&self, literal: ast::Literal<Raw>) -> Result<LogicalExpression> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i64>() {

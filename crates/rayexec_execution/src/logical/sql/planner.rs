@@ -24,6 +24,7 @@ use rayexec_bullet::field::{DataType, Field, TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
+    meta::Raw,
     statement::Statement,
 };
 use tracing::trace;
@@ -64,7 +65,7 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    pub fn plan_statement(mut self, stmt: Statement) -> Result<LogicalQuery> {
+    pub fn plan_statement(mut self, stmt: Statement<Raw>) -> Result<LogicalQuery> {
         trace!("planning statement");
         match stmt {
             Statement::Explain(explain) => {
@@ -142,7 +143,7 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_attach(&mut self, attach: ast::Attach) -> Result<LogicalQuery> {
+    fn plan_attach(&mut self, attach: ast::Attach<Raw>) -> Result<LogicalQuery> {
         match attach.attach_type {
             ast::AttachType::Database => {
                 let mut options = HashMap::new();
@@ -188,7 +189,7 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_detach(&mut self, detach: ast::Detach) -> Result<LogicalQuery> {
+    fn plan_detach(&mut self, detach: ast::Detach<Raw>) -> Result<LogicalQuery> {
         match detach.attach_type {
             ast::AttachType::Database => {
                 if detach.alias.0.len() != 1 {
@@ -208,7 +209,7 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_insert(&mut self, insert: ast::Insert) -> Result<LogicalQuery> {
+    fn plan_insert(&mut self, insert: ast::Insert<Raw>) -> Result<LogicalQuery> {
         let (_reference, ent) = self.resolve_table(insert.table)?;
 
         let source = self.plan_query(insert.source)?;
@@ -225,7 +226,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_drop(&mut self, drop: ast::DropStatement) -> Result<LogicalQuery> {
+    fn plan_drop(&mut self, drop: ast::DropStatement<Raw>) -> Result<LogicalQuery> {
         match drop.drop_type {
             ast::DropType::Schema => {
                 // TODO: Get 'default' catalog.
@@ -259,7 +260,7 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_create_schema(&mut self, create: ast::CreateSchema) -> Result<LogicalQuery> {
+    fn plan_create_schema(&mut self, create: ast::CreateSchema<Raw>) -> Result<LogicalQuery> {
         let on_conflict = if create.if_not_exists {
             OnConflict::Ignore
         } else {
@@ -290,7 +291,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_create_table(&mut self, create: ast::CreateTable) -> Result<LogicalQuery> {
+    fn plan_create_table(&mut self, create: ast::CreateTable<Raw>) -> Result<LogicalQuery> {
         let on_conflict = match (create.or_replace, create.if_not_exists) {
             (true, false) => OnConflict::Replace,
             (false, true) => OnConflict::Ignore,
@@ -370,7 +371,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_query(&mut self, query: ast::QueryNode) -> Result<LogicalQuery> {
+    fn plan_query(&mut self, query: ast::QueryNode<Raw>) -> Result<LogicalQuery> {
         // TODO: CTEs
 
         let mut planned = match query.body {
@@ -412,8 +413,8 @@ impl<'a> PlanContext<'a> {
 
     fn plan_select(
         &mut self,
-        select: ast::SelectNode,
-        order_by: Vec<ast::OrderByNode>,
+        select: ast::SelectNode<Raw>,
+        order_by: Vec<ast::OrderByNode<Raw>>,
     ) -> Result<LogicalQuery> {
         // Handle FROM
         let mut plan = match select.from {
@@ -527,7 +528,7 @@ impl<'a> PlanContext<'a> {
                     // Group by has access to everything we've planned so far.
                     let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
 
-                    let plan_exprs = |exprs: Vec<ast::Expr>| {
+                    let plan_exprs = |exprs: Vec<ast::Expr<Raw>>| {
                         exprs
                             .into_iter()
                             .map(|e| expr_ctx.plan_expression(e))
@@ -624,7 +625,11 @@ impl<'a> PlanContext<'a> {
         Ok(plan)
     }
 
-    fn plan_from_node(&self, from: ast::FromNode, current_scope: Scope) -> Result<LogicalQuery> {
+    fn plan_from_node(
+        &self,
+        from: ast::FromNode<Raw>,
+        current_scope: Scope,
+    ) -> Result<LogicalQuery> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
@@ -778,7 +783,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_values(&self, values: ast::Values) -> Result<LogicalQuery> {
+    fn plan_values(&self, values: ast::Values<Raw>) -> Result<LogicalQuery> {
         if values.rows.is_empty() {
             return Err(RayexecError::new("Empty VALUES expression"));
         }
