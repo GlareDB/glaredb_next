@@ -1,0 +1,17 @@
+# ATTACH POSTGRES
+
+# Missing arg
+statement error Missing required option 'connection_string'
+attach postgres database as my_pg;
+
+# Invalid arg type
+# TODO: Could be more informative
+statement error Not a string
+attach postgres database as my_pg connection_string = 1;
+
+# Too many options
+statement error Unexpected extra arguments: 'extra_arg'
+attach postgres database as my_pg connection_string = 'postgres://localhost/db', extra_arg = 'extra';
+
+statement ok
+attach postgres database as my_pg connection_string = 'host=localhost port=5433 user=glaredb password=password dbname=glaredb_test sslmode=disable';

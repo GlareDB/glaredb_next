@@ -43,6 +43,32 @@ impl DataSourceRegistry {
     }
 }
 
+/// Take an option from the options map, returning an error if it doesn't exist.
+pub fn take_option(
+    name: &str,
+    options: &mut HashMap<String, OwnedScalarValue>,
+) -> Result<OwnedScalarValue> {
+    options
+        .remove(name)
+        .ok_or_else(|| RayexecError::new(format!("Missing required option '{name}'")))
+}
+
+/// Check that options is empty, erroring if it isn't.
+pub fn check_options_empty(options: &HashMap<String, OwnedScalarValue>) -> Result<()> {
+    if options.is_empty() {
+        return Ok(());
+    }
+    let extras = options
+        .iter()
+        .map(|(k, _)| format!("'{k}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    Err(RayexecError::new(format!(
+        "Unexpected extra arguments: {extras}"
+    )))
+}
+
 #[derive(Debug)]
 pub struct MemoryDataSource;
 
