@@ -2,6 +2,7 @@ pub mod future;
 pub mod query;
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use std::future::Future;
 use std::sync::Arc;
 use std::{fmt, sync::mpsc};
 use tracing::debug;
@@ -10,6 +11,7 @@ use crate::execution::pipeline::PartitionPipeline;
 use crate::execution::query_graph::QueryGraph;
 use rayexec_error::{RayexecError, Result};
 
+use self::future::FutureTask;
 use self::query::PartitionPipelineTask;
 
 /// Scheduler for executing queries and other tasks.
@@ -58,5 +60,42 @@ impl Scheduler {
         for partition_pipeline in query_graph.into_partition_pipeline_iter() {
             self.spawn_partition_pipeline(partition_pipeline, errors.clone());
         }
+    }
+
+    /// Spawn a future on the scheduler.
+    ///
+    /// The future will immediately start executing.
+    // TODO: Return handle for cancel/result.
+    pub fn spawn_future<F>(&self, fut: F)
+    where
+        F: Future + Sync + Send + Unpin + 'static,
+        F::Output: Send,
+    {
+        let task = Arc::new(FutureTask::new(Box::pin(fut)));
+        let pool = self.pool.clone();
+        self.pool.spawn(|| task.execute(pool));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use super::*;
+
+    #[test]
+    fn spawn_basic_future() {
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_c = completed.clone();
+        let fut = async move {
+            // Do some work ...
+            completed_c.store(true, Ordering::SeqCst);
+        };
+        let task = Arc::new(FutureTask::new(Box::pin(fut)));
+
+        let scheduler = Scheduler::try_new().unwrap();
+        task.execute(scheduler.pool.clone());
+
+        assert!(completed.load(Ordering::SeqCst));
     }
 }
