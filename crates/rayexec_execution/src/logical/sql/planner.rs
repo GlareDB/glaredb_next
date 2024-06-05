@@ -256,13 +256,12 @@ impl<'a> PlanContext<'a> {
             OnConflict::Error
         };
 
-        let name = create.name.pop().expect("name to exist");
-        let catalog = create.name.pop().expect("catalog to exist");
+        let [catalog, schema] = create.name.pop_2()?;
 
         Ok(LogicalQuery {
             root: LogicalOperator::CreateSchema(CreateSchema {
                 catalog,
-                name,
+                name: schema,
                 on_conflict,
             }),
             scope: Scope::empty(),
