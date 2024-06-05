@@ -7,7 +7,7 @@ use crate::{
     tokens::{Token, Word},
 };
 
-use super::{AstParseable, Ident, ObjectReference};
+use super::{AstParseable, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -145,6 +145,16 @@ pub enum Expr<T: AstMeta> {
     },
     /// A function call.
     Function(Function<T>),
+    /// Scalar subquery.
+    Subquery(Box<QueryNode<T>>),
+    /// Nested expression wrapped in parenthesis.
+    ///
+    /// (1 + 2)
+    Nested(Box<Expr<T>>),
+    /// Tuple of expressions.
+    ///
+    /// (1, 2)
+    Tupe(Vec<Expr<T>>),
     /// A colation.
     ///
     /// `<expr> COLLATE <collation>`
@@ -200,6 +210,21 @@ impl Expr<Raw> {
             },
             Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s.clone())),
             Token::Number(s) => Expr::Literal(Literal::Number(s.clone())),
+            Token::LeftParen => {
+                let expr = if QueryNode::is_query_node_start(parser) {
+                    let subquery = QueryNode::parse(parser)?;
+                    Expr::Subquery(Box::new(subquery))
+                } else {
+                    let mut exprs = parser.parse_comma_separated(Expr::parse)?;
+                    match exprs.len() {
+                        0 => return Err(RayexecError::new("No expressions")),
+                        1 => Expr::Nested(Box::new(exprs.pop().unwrap())),
+                        _ => Expr::Tupe(exprs),
+                    }
+                };
+                parser.expect_token(&Token::RightParen)?;
+                expr
+            }
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected token '{other:?}'. Expected expression."
@@ -515,6 +540,17 @@ mod tests {
                 right: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
             })),
         });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn nested_expr() {
+        let expr: Expr<_> = parse_ast("(1 + 2)").unwrap();
+        let expected = Expr::Nested(Box::new(Expr::BinaryExpr {
+            left: Box::new(Expr::Literal(Literal::Number("1".to_string()))),
+            op: BinaryOperator::Plus,
+            right: Box::new(Expr::Literal(Literal::Number("2".to_string()))),
+        }));
         assert_eq!(expected, expr);
     }
 }

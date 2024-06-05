@@ -115,22 +115,15 @@ pub struct BindData {}
 pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
-    data: BindData,
 }
 
 impl<'a> Binder<'a> {
     pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
-        Binder {
-            tx,
-            context,
-            data: BindData {},
-        }
+        Binder { tx, context }
     }
 
-    pub async fn bind_statement(
-        mut self,
-        stmt: RawStatement,
-    ) -> Result<(BoundStatement, BindData)> {
+    pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindData)> {
+        let bind_data = BindData {};
         let bound = match stmt {
             Statement::Explain(explain) => {
                 let body = match explain.body {
@@ -175,10 +168,10 @@ impl<'a> Binder<'a> {
             Statement::Detach(detach) => Statement::Detach(self.bind_detach(detach).await?),
         };
 
-        Ok((bound, self.data))
+        Ok((bound, bind_data))
     }
 
-    async fn bind_attach(&mut self, attach: ast::Attach<Raw>) -> Result<ast::Attach<Bound>> {
+    async fn bind_attach(&self, attach: ast::Attach<Raw>) -> Result<ast::Attach<Bound>> {
         let mut options = HashMap::new();
         for (k, v) in attach.options {
             let v = ExpressionBinder::new(self).bind_expression(v).await?;
@@ -193,7 +186,7 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_detach(&mut self, detach: ast::Detach<Raw>) -> Result<ast::Detach<Bound>> {
+    async fn bind_detach(&self, detach: ast::Detach<Raw>) -> Result<ast::Detach<Bound>> {
         // TODO: Replace 'ItemReference' with actual catalog reference. Similar
         // things will happen with Drop.
         Ok(ast::Detach {
@@ -202,10 +195,7 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_drop(
-        &mut self,
-        drop: ast::DropStatement<Raw>,
-    ) -> Result<ast::DropStatement<Bound>> {
+    async fn bind_drop(&self, drop: ast::DropStatement<Raw>) -> Result<ast::DropStatement<Bound>> {
         // TODO: Use search path.
         let mut name: BoundItemReference = Self::reference_to_strings(drop.name).into();
         match drop.drop_type {
@@ -234,7 +224,7 @@ impl<'a> Binder<'a> {
     }
 
     async fn bind_create_schema(
-        &mut self,
+        &self,
         create: ast::CreateSchema<Raw>,
     ) -> Result<ast::CreateSchema<Bound>> {
         // TODO: Search path.
@@ -250,7 +240,7 @@ impl<'a> Binder<'a> {
     }
 
     async fn bind_create_table(
-        &mut self,
+        &self,
         create: ast::CreateTable<Raw>,
     ) -> Result<ast::CreateTable<Bound>> {
         // TODO: Search path
@@ -291,7 +281,7 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_insert(&mut self, insert: ast::Insert<Raw>) -> Result<ast::Insert<Bound>> {
+    async fn bind_insert(&self, insert: ast::Insert<Raw>) -> Result<ast::Insert<Bound>> {
         let table = self.resolve_table(insert.table).await?;
         let source = self.bind_query(insert.source).await?;
         Ok(ast::Insert {
@@ -301,7 +291,7 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_query(&mut self, query: ast::QueryNode<Raw>) -> Result<ast::QueryNode<Bound>> {
+    async fn bind_query(&self, query: ast::QueryNode<Raw>) -> Result<ast::QueryNode<Bound>> {
         let ctes = match query.ctes {
             Some(ctes) => Some(self.bind_ctes(ctes).await?),
             None => None,
@@ -342,16 +332,13 @@ impl<'a> Binder<'a> {
     }
 
     async fn bind_ctes(
-        &mut self,
+        &self,
         _ctes: ast::CommonTableExprDefs<Raw>,
     ) -> Result<ast::CommonTableExprDefs<Bound>> {
         unimplemented!()
     }
 
-    async fn bind_select(
-        &mut self,
-        select: ast::SelectNode<Raw>,
-    ) -> Result<ast::SelectNode<Bound>> {
+    async fn bind_select(&self, select: ast::SelectNode<Raw>) -> Result<ast::SelectNode<Bound>> {
         // Bind DISTINCT
         let distinct = match select.distinct {
             Some(distinct) => Some(match distinct {
@@ -420,7 +407,7 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_values(&mut self, values: ast::Values<Raw>) -> Result<ast::Values<Bound>> {
+    async fn bind_values(&self, values: ast::Values<Raw>) -> Result<ast::Values<Bound>> {
         let mut bound = Vec::with_capacity(values.rows.len());
         for row in values.rows {
             bound.push(ExpressionBinder::new(self).bind_expressions(row).await?);
@@ -429,7 +416,7 @@ impl<'a> Binder<'a> {
     }
 
     async fn bind_order_by(
-        &mut self,
+        &self,
         order_by: ast::OrderByNode<Raw>,
     ) -> Result<ast::OrderByNode<Bound>> {
         let expr = ExpressionBinder::new(self)
@@ -442,7 +429,7 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_from(&mut self, from: ast::FromNode<Raw>) -> Result<ast::FromNode<Bound>> {
+    async fn bind_from(&self, from: ast::FromNode<Raw>) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable {
@@ -492,7 +479,7 @@ impl<'a> Binder<'a> {
     }
 
     async fn resolve_table(
-        &mut self,
+        &self,
         mut reference: ast::ObjectReference,
     ) -> Result<BoundTableOrCteReference> {
         // TODO: If len == 1, search in CTE map in bind data.
@@ -727,6 +714,10 @@ impl<'a> ExpressionBinder<'a> {
                     "Cannot resolve function with name {}",
                     func.reference
                 )))
+            }
+            ast::Expr::Subquery(subquery) => {
+                let bound = Box::pin(self.binder.bind_query(*subquery)).await?;
+                Ok(ast::Expr::Subquery(Box::new(bound)))
             }
             _ => unimplemented!(),
         }

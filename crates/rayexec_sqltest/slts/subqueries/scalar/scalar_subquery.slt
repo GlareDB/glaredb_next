@@ -1,0 +1,6 @@
+# Basic scalar subqueries
+
+query I
+select (select 1);
+----
+1
