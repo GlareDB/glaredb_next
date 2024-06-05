@@ -1,4 +1,3 @@
-use futures::FutureExt;
 use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
@@ -60,11 +59,62 @@ impl<'a> Binder<'a> {
         unimplemented!()
     }
 
-    pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindData)> {
-        unimplemented!()
+    pub async fn bind_statement(
+        mut self,
+        stmt: RawStatement,
+    ) -> Result<(BoundStatement, BindData)> {
+        let bound = match stmt {
+            Statement::Query(query) => Statement::Query(self.bind_query(query).await?),
+            _ => unimplemented!(),
+        };
+
+        Ok((bound, self.data))
     }
 
     async fn bind_query(&mut self, query: ast::QueryNode<Raw>) -> Result<ast::QueryNode<Bound>> {
+        let ctes = match query.ctes {
+            Some(ctes) => Some(self.bind_ctes(ctes).await?),
+            None => None,
+        };
+
+        let body = match query.body {
+            ast::QueryNodeBody::Select(select) => {
+                ast::QueryNodeBody::Select(Box::new(self.bind_select(*select).await?))
+            }
+            ast::QueryNodeBody::Values(values) => {
+                ast::QueryNodeBody::Values(self.bind_values(values).await?)
+            }
+            ast::QueryNodeBody::Set { .. } => unimplemented!(),
+        };
+
+        // Bind ORDER BY
+        let mut order_by = Vec::with_capacity(query.order_by.len());
+        for expr in query.order_by {
+            order_by.push(self.bind_order_by(expr).await?);
+        }
+
+        // Bind LIMIT/OFFSET
+        let limit = match query.limit.limit {
+            Some(expr) => Some(ExpressionBinder::new(self).bind_expression(expr).await?),
+            None => None,
+        };
+        let offset = match query.limit.offset {
+            Some(expr) => Some(ExpressionBinder::new(self).bind_expression(expr).await?),
+            None => None,
+        };
+
+        Ok(ast::QueryNode {
+            ctes,
+            body,
+            order_by,
+            limit: ast::LimitModifier { limit, offset },
+        })
+    }
+
+    async fn bind_ctes(
+        &mut self,
+        ctes: ast::CommonTableExprDefs<Raw>,
+    ) -> Result<ast::CommonTableExprDefs<Bound>> {
         unimplemented!()
     }
 
@@ -137,6 +187,28 @@ impl<'a> Binder<'a> {
             where_expr,
             group_by,
             having,
+        })
+    }
+
+    async fn bind_values(&mut self, values: ast::Values<Raw>) -> Result<ast::Values<Bound>> {
+        let mut bound = Vec::with_capacity(values.rows.len());
+        for row in values.rows {
+            bound.push(ExpressionBinder::new(self).bind_expressions(row).await?);
+        }
+        Ok(ast::Values { rows: bound })
+    }
+
+    async fn bind_order_by(
+        &mut self,
+        order_by: ast::OrderByNode<Raw>,
+    ) -> Result<ast::OrderByNode<Bound>> {
+        let expr = ExpressionBinder::new(self)
+            .bind_expression(order_by.expr)
+            .await?;
+        Ok(ast::OrderByNode {
+            typ: order_by.typ,
+            nulls: order_by.nulls,
+            expr,
         })
     }
 
