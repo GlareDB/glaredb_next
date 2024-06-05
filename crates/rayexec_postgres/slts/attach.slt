@@ -16,7 +16,17 @@ attach postgres database as my_pg connection_string = 'postgres://localhost/db',
 statement ok
 attach postgres database as my_pg connection_string = 'host=localhost port=5433 user=glaredb password=password dbname=glaredb_test sslmode=disable';
 
-# query II
-# select * from my_pg.public.t1;
-# ----
-# 23  45
+query II
+select * from my_pg.public.t1;
+----
+23  45
+
+query I
+select a from my_pg.public.t1;
+----
+23
+
+query II
+select b, a from my_pg.public.t1;
+----
+45  23

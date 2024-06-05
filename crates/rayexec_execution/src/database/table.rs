@@ -36,7 +36,7 @@ pub trait DataTableScan: Debug + Send {
 pub struct EmptyTableScan;
 
 impl DataTableScan for EmptyTableScan {
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
+    fn poll_pull(&mut self, _cx: &mut Context) -> Result<PollPull> {
         Ok(PollPull::Exhausted)
     }
 }

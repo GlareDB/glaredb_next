@@ -17,7 +17,6 @@ use crate::{
         sql::{binder::Binder, planner::PlanContext},
     },
     optimizer::Optimizer,
-    scheduler::ComputeScheduler,
 };
 
 use super::{

@@ -1,4 +1,4 @@
-use futures::{future::BoxFuture, stream::BoxStream, FutureExt, StreamExt, TryFutureExt};
+use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
     array::{Array, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array},
     batch::Batch,
@@ -215,9 +215,16 @@ struct PostgresClient {
 
 impl PostgresClient {
     async fn connect(conn_str: &str, runtime: &EngineRuntime) -> Result<Self> {
-        let (client, connection) = tokio_postgres::connect(&conn_str, NoTls)
+        let conn_str = conn_str.to_string();
+        let (client, connection) = runtime
+            .tokio
+            .spawn(async move {
+                let (client, connection) = tokio_postgres::connect(&conn_str, NoTls).await?;
+                Ok::<_, tokio_postgres::Error>((client, connection))
+            })
             .await
-            .context("Failed to connect to Postgres instance")?;
+            .context("Join error")?
+            .context("Failed to connect to postgres instance")?;
 
         // TODO: Currently this future is not cancellable.
         runtime.scheduler.spawn_future(async move {

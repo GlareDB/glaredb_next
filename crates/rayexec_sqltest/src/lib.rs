@@ -11,7 +11,6 @@ use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
 use sqllogictest::DefaultColumnType;
 use std::path::{Path, PathBuf};
 use std::{fs, sync::Arc};
-use tokio::runtime::Builder;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 /// Run all SLTs from the provided paths.
