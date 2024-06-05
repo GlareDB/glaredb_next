@@ -7,11 +7,8 @@ use super::{
 };
 use crate::{
     database::{
-        catalog::CatalogTx,
         create::OnConflict,
         drop::{DropInfo, DropObject},
-        entry::TableEntry,
-        DatabaseContext,
     },
     engine::vars::SessionVars,
     logical::operator::{
@@ -21,7 +18,7 @@ use crate::{
         SetVar, ShowVar, VariableOrAll,
     },
 };
-use rayexec_bullet::field::{DataType, Field, TypeSchema};
+use rayexec_bullet::field::{Field, TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -980,49 +977,6 @@ impl<'a> PlanContext<'a> {
         select_exprs.push(orig);
 
         Ok(1)
-    }
-
-    fn resolve_table(
-        &self,
-        reference: ast::ObjectReference,
-    ) -> Result<(TableReference, TableEntry)> {
-        // TODO: Better handling, also search path.
-        let name = &reference.0[0].as_normalized_string();
-
-        unimplemented!()
-        // // Search temp first
-        // if let Some(ent) = self
-        //     .resolver
-        //     .get_catalog("temp")?
-        //     .get_table_entry(self.tx, "temp", name)?
-        // {
-        //     let reference = TableReference {
-        //         database: None,
-        //         schema: None,
-        //         table: name.clone(),
-        //     };
-
-        //     Ok((reference, ent))
-        // } else {
-        //     // Search other catalogs/schemas in the search path (once we
-        //     // have them).
-
-        //     Err(RayexecError::new(format!(
-        //         "Unable to find entry for '{name}'"
-        //     )))
-        // }
-    }
-
-    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {
-        match datatype {
-            ast::DataType::Varchar(_) => DataType::Utf8,
-            ast::DataType::SmallInt => DataType::Int16,
-            ast::DataType::Integer => DataType::Int32,
-            ast::DataType::BigInt => DataType::Int64,
-            ast::DataType::Real => DataType::Float32,
-            ast::DataType::Double => DataType::Float64,
-            ast::DataType::Bool => DataType::Boolean,
-        }
     }
 }
 

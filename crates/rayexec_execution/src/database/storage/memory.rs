@@ -13,8 +13,6 @@ use crate::database::create::{
 use crate::database::ddl::{CatalogModifier, CreateFut, DropFut};
 use crate::database::drop::{DropInfo, DropObject};
 use crate::database::entry::{CatalogEntry, TableEntry};
-use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::GenericScalarFunction;
 use crate::{
     database::table::{DataTable, DataTableInsert, DataTableScan},
     execution::operators::{PollPull, PollPush},

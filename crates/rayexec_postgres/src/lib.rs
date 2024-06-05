@@ -1,6 +1,6 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{Result, ResultExt};
+use rayexec_error::Result;
 use rayexec_execution::{
     database::{
         catalog::{Catalog, CatalogTx},
@@ -26,31 +26,33 @@ impl DataSource for PostgresDataSource {
         // let _client =
         //     Client::connect(&conn_str, NoTls).context("Failed to connect to postgres instance")?;
 
-        Ok(Box::new(PostgresCatalog { conn_str }))
+        Ok(Box::new(PostgresCatalog {
+            _conn_str: conn_str,
+        }))
     }
 }
 
 #[derive(Debug)]
 pub struct PostgresCatalog {
     // TODO: Connection pooling.
-    conn_str: String,
+    _conn_str: String,
 }
 
 impl Catalog for PostgresCatalog {
     fn get_table_entry(
         &self,
-        tx: &CatalogTx,
-        schema: &str,
-        name: &str,
+        _tx: &CatalogTx,
+        _schema: &str,
+        _name: &str,
     ) -> BoxFuture<Result<Option<TableEntry>>> {
         unimplemented!()
     }
 
     fn data_table(
         &self,
-        tx: &CatalogTx,
-        schema: &str,
-        ent: &TableEntry,
+        _tx: &CatalogTx,
+        _schema: &str,
+        _ent: &TableEntry,
     ) -> Result<Box<dyn DataTable>> {
         unimplemented!()
     }
@@ -60,7 +62,7 @@ impl Catalog for PostgresCatalog {
 pub struct PostgresDataTable {}
 
 impl DataTable for PostgresDataTable {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(&self, _num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
         unimplemented!()
     }
 }

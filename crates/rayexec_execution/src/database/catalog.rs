@@ -1,4 +1,4 @@
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 

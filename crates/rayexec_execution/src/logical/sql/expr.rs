@@ -1,6 +1,6 @@
 use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::{ast, meta::Raw};
+use rayexec_parser::ast;
 
 use crate::functions::scalar::GenericScalarFunction;
 use crate::logical::operator::LogicalExpression;
@@ -35,15 +35,6 @@ pub enum ExpandedSelectExpr {
         /// Name of the column.
         name: String,
     },
-}
-
-impl ExpandedSelectExpr {
-    pub fn column_name(&self) -> &str {
-        match self {
-            ExpandedSelectExpr::Expr { name, .. } => name,
-            Self::Column { name, .. } => name,
-        }
-    }
 }
 
 /// Context for planning expressions.
