@@ -206,11 +206,29 @@ impl<'a> Binder<'a> {
         &mut self,
         drop: ast::DropStatement<Raw>,
     ) -> Result<ast::DropStatement<Bound>> {
-        // TODO: Expand name.
+        // TODO: Use search path.
+        let mut name: BoundItemReference = Self::reference_to_strings(drop.name).into();
+        match drop.drop_type {
+            ast::DropType::Schema => {
+                if name.0.len() == 1 {
+                    name.0.insert(0, "temp".to_string()); // Catalog
+                }
+            }
+            _ => {
+                if name.0.len() == 1 {
+                    name.0.insert(0, "temp".to_string()); // Schema
+                    name.0.insert(0, "temp".to_string()); // Catalog
+                }
+                if name.0.len() == 2 {
+                    name.0.insert(0, "temp".to_string()); // Catalog
+                }
+            }
+        }
+
         Ok(ast::DropStatement {
             drop_type: drop.drop_type,
             if_exists: drop.if_exists,
-            name: Self::reference_to_strings(drop.name).into(),
+            name,
             deps: drop.deps,
         })
     }
@@ -219,10 +237,15 @@ impl<'a> Binder<'a> {
         &mut self,
         create: ast::CreateSchema<Raw>,
     ) -> Result<ast::CreateSchema<Bound>> {
-        // TODO: Expand name.
+        // TODO: Search path.
+        let mut name: BoundItemReference = Self::reference_to_strings(create.name).into();
+        if name.0.len() == 1 {
+            name.0.insert(0, "temp".to_string()); // Catalog
+        }
+
         Ok(ast::CreateSchema {
             if_not_exists: create.if_not_exists,
-            name: Self::reference_to_strings(create.name).into(),
+            name,
         })
     }
 
@@ -230,7 +253,18 @@ impl<'a> Binder<'a> {
         &mut self,
         create: ast::CreateTable<Raw>,
     ) -> Result<ast::CreateTable<Bound>> {
-        let name = Self::reference_to_strings(create.name).into();
+        // TODO: Search path
+        let mut name: BoundItemReference = Self::reference_to_strings(create.name).into();
+        if create.temp {
+            if name.0.len() == 1 {
+                name.0.insert(0, "temp".to_string()); // Schema
+                name.0.insert(0, "temp".to_string()); // Catalog
+            }
+            if name.0.len() == 2 {
+                name.0.insert(0, "temp".to_string()); // Catalog
+            }
+        }
+
         let columns: Vec<_> = create
             .columns
             .into_iter()
