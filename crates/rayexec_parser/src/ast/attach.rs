@@ -5,7 +5,6 @@ use crate::{
     keywords::Keyword,
     meta::{AstMeta, Raw},
     parser::Parser,
-    tokens::Token,
 };
 
 use super::{AstParseable, Expr, Ident, ObjectReference};
@@ -49,14 +48,8 @@ impl AstParseable for Attach<Raw> {
                 Err(_) => break,
             };
 
-            parser.expect_token(&Token::Eq)?;
-
             let val = Expr::parse(parser)?;
             options.insert(key, val);
-
-            if !parser.consume_token(&Token::Comma) {
-                break;
-            }
         }
 
         Ok(Attach {
@@ -102,7 +95,7 @@ mod tests {
 
     #[test]
     fn attach_pg_database() {
-        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES DATABASE AS my_pg CONNECTION_STRING = 'postgres://sean:pass@localhost/db'").unwrap();
+        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES DATABASE AS my_pg CONNECTION_STRING 'postgres://sean:pass@localhost/db'").unwrap();
         let expected = Attach {
             datasource_name: Ident::from_string("POSTGRES"),
             attach_type: AttachType::Database,
@@ -122,7 +115,7 @@ mod tests {
 
     #[test]
     fn attach_pg_table() {
-        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES TABLE AS my_pg_table CONNECTION_STRING = 'postgres://sean:pass@localhost/db', SCHEMA = 'public', TABLE = 'users'").unwrap();
+        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES TABLE AS my_pg_table CONNECTION_STRING 'postgres://sean:pass@localhost/db' SCHEMA 'public' TABLE 'users'").unwrap();
         let expected = Attach {
             datasource_name: Ident::from_string("POSTGRES"),
             attach_type: AttachType::Table,

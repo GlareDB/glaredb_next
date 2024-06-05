@@ -24,7 +24,7 @@ use tokio_postgres::{
     types::Type as PostgresType,
 };
 use tokio_postgres::{types::FromSql, NoTls};
-use tracing::error;
+use tracing::debug;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PostgresDataSource;
@@ -229,7 +229,7 @@ impl PostgresClient {
         // TODO: Currently this future is not cancellable.
         runtime.scheduler.spawn_future(async move {
             if let Err(e) = connection.await {
-                error!(%e, "postgres connection errored");
+                debug!(%e, "postgres connection errored");
             }
         });
 
