@@ -162,60 +162,65 @@ where
 
 #[cfg(test)]
 mod tests {
+    use rayexec_bullet::scalar::OwnedScalarValue;
 
-    // #[test]
-    // fn walk_plan_pre_post() {
-    //     let plan = LogicalOperator::Projection(Projection {
-    //         exprs: Vec::new(),
-    //         input: Box::new(LogicalOperator::Filter(Filter {
-    //             predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
-    //             input: Box::new(LogicalOperator::Empty),
-    //         })),
-    //     });
+    use crate::logical::operator::{Filter, LogicalExpression, LogicalOperator, Projection};
 
-    //     let plan = walk_plan(
-    //         plan,
-    //         &mut |child| {
-    //             match child {
-    //                 LogicalOperator::Projection(proj) => proj
-    //                     .exprs
-    //                     .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
-    //                 LogicalOperator::Filter(_) => {}
-    //                 LogicalOperator::Empty => {}
-    //                 other => panic!("unexpected child {other:?}"),
-    //             }
-    //             Ok(())
-    //         },
-    //         &mut |child| {
-    //             match child {
-    //                 LogicalOperator::Projection(proj) => {
-    //                     assert_eq!(
-    //                         vec![LogicalExpression::Literal(OwnedScalarValue::Int8(1))],
-    //                         proj.exprs
-    //                     );
-    //                     proj.exprs
-    //                         .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
-    //                 }
-    //                 LogicalOperator::Filter(_) => {}
-    //                 LogicalOperator::Empty => {}
-    //                 other => panic!("unexpected child {other:?}"),
-    //             }
-    //             Ok(())
-    //         },
-    //     )
-    //     .unwrap();
+    use super::*;
 
-    //     match plan {
-    //         LogicalOperator::Projection(proj) => {
-    //             assert_eq!(
-    //                 vec![
-    //                     LogicalExpression::Literal(OwnedScalarValue::Int8(1)),
-    //                     LogicalExpression::Literal(OwnedScalarValue::Int8(2)),
-    //                 ],
-    //                 proj.exprs
-    //             );
-    //         }
-    //         other => panic!("unexpected root {other:?}"),
-    //     }
-    // }
+    #[test]
+    fn walk_plan_pre_post() {
+        let plan = LogicalOperator::Projection(Projection {
+            exprs: Vec::new(),
+            input: Box::new(LogicalOperator::Filter(Filter {
+                predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
+                input: Box::new(LogicalOperator::Empty),
+            })),
+        });
+
+        let plan = walk_plan(
+            plan,
+            &mut |child| {
+                match child {
+                    LogicalOperator::Projection(proj) => proj
+                        .exprs
+                        .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
+                    LogicalOperator::Filter(_) => {}
+                    LogicalOperator::Empty => {}
+                    other => panic!("unexpected child {other:?}"),
+                }
+                Ok(())
+            },
+            &mut |child| {
+                match child {
+                    LogicalOperator::Projection(proj) => {
+                        assert_eq!(
+                            vec![LogicalExpression::Literal(OwnedScalarValue::Int8(1))],
+                            proj.exprs
+                        );
+                        proj.exprs
+                            .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
+                    }
+                    LogicalOperator::Filter(_) => {}
+                    LogicalOperator::Empty => {}
+                    other => panic!("unexpected child {other:?}"),
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+
+        match plan {
+            LogicalOperator::Projection(proj) => {
+                assert_eq!(
+                    vec![
+                        LogicalExpression::Literal(OwnedScalarValue::Int8(1)),
+                        LogicalExpression::Literal(OwnedScalarValue::Int8(2)),
+                    ],
+                    proj.exprs
+                );
+            }
+            other => panic!("unexpected root {other:?}"),
+        }
+    }
 }
