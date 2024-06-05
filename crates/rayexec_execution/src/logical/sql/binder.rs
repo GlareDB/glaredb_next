@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
@@ -33,17 +34,73 @@ pub struct BoundCteReference {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundTableOrCteReference {
-    Table(TableEntry),
+    Table {
+        catalog: String,
+        schema: String,
+        entry: TableEntry,
+    },
     Cte(BoundCteReference),
+}
+
+// TODO: Figure out how we want to represent things like tables in a CREATE
+// TABLE. We don't want to resolve, so a vec of strings works for now.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundItemReference(pub Vec<String>);
+
+impl BoundItemReference {
+    pub fn pop(&mut self) -> Result<String> {
+        // TODO: Could be more informative with this error.
+        self.0
+            .pop()
+            .ok_or_else(|| RayexecError::new("End of reference"))
+    }
+
+    pub fn pop_2(&mut self) -> Result<[String; 2]> {
+        let a = self
+            .0
+            .pop()
+            .ok_or_else(|| RayexecError::new("Expected 2 identifiers, got 0"))?;
+        let b = self
+            .0
+            .pop()
+            .ok_or_else(|| RayexecError::new("Expected 2 identifiers, got 1"))?;
+        Ok([b, a])
+    }
+
+    pub fn pop_3(&mut self) -> Result<[String; 3]> {
+        let a = self
+            .0
+            .pop()
+            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 0"))?;
+        let b = self
+            .0
+            .pop()
+            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 1"))?;
+        let c = self
+            .0
+            .pop()
+            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 2"))?;
+        Ok([c, b, a])
+    }
+}
+
+impl From<Vec<String>> for BoundItemReference {
+    fn from(value: Vec<String>) -> Self {
+        BoundItemReference(value)
+    }
+}
+
+impl fmt::Display for BoundItemReference {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.join(","))
+    }
 }
 
 // TODO: Table function associated type (separate from above). Will likely be
 // the specialized table function.
 impl AstMeta for Bound {
     type DataSourceName = String;
-    // TODO: Figure out how we want to represent things like tables in a CREATE
-    // TABLE. We don't want to resolve, so a vec of strings works for now.
-    type ItemReference = Vec<String>;
+    type ItemReference = BoundItemReference;
     type TableReference = BoundTableOrCteReference;
     type FunctionReference = BoundFunctionReference;
     type ColumnReference = String;
@@ -98,19 +155,19 @@ impl<'a> Binder<'a> {
             }
             Statement::Drop(drop) => Statement::Drop(self.bind_drop(drop).await?),
             Statement::SetVariable(set) => Statement::SetVariable(ast::SetVariable {
-                reference: Self::reference_to_strings(set.reference),
+                reference: Self::reference_to_strings(set.reference).into(),
                 value: ExpressionBinder::new(&self)
                     .bind_expression(set.value)
                     .await?,
             }),
             Statement::ShowVariable(show) => Statement::ShowVariable(ast::ShowVariable {
-                reference: Self::reference_to_strings(show.reference),
+                reference: Self::reference_to_strings(show.reference).into(),
             }),
             Statement::ResetVariable(reset) => Statement::ResetVariable(ast::ResetVariable {
                 var: match reset.var {
                     ast::VariableOrAll::All => ast::VariableOrAll::All,
                     ast::VariableOrAll::Variable(var) => {
-                        ast::VariableOrAll::Variable(Self::reference_to_strings(var))
+                        ast::VariableOrAll::Variable(Self::reference_to_strings(var).into())
                     }
                 },
             }),
@@ -131,7 +188,7 @@ impl<'a> Binder<'a> {
         Ok(ast::Attach {
             datasource_name: attach.datasource_name.into_normalized_string(),
             attach_type: attach.attach_type,
-            alias: Self::reference_to_strings(attach.alias),
+            alias: Self::reference_to_strings(attach.alias).into(),
             options,
         })
     }
@@ -141,7 +198,7 @@ impl<'a> Binder<'a> {
         // things will happen with Drop.
         Ok(ast::Detach {
             attach_type: detach.attach_type,
-            alias: Self::reference_to_strings(detach.alias),
+            alias: Self::reference_to_strings(detach.alias).into(),
         })
     }
 
@@ -149,10 +206,11 @@ impl<'a> Binder<'a> {
         &mut self,
         drop: ast::DropStatement<Raw>,
     ) -> Result<ast::DropStatement<Bound>> {
+        // TODO: Expand name.
         Ok(ast::DropStatement {
             drop_type: drop.drop_type,
             if_exists: drop.if_exists,
-            name: Self::reference_to_strings(drop.name),
+            name: Self::reference_to_strings(drop.name).into(),
             deps: drop.deps,
         })
     }
@@ -161,9 +219,10 @@ impl<'a> Binder<'a> {
         &mut self,
         create: ast::CreateSchema<Raw>,
     ) -> Result<ast::CreateSchema<Bound>> {
+        // TODO: Expand name.
         Ok(ast::CreateSchema {
             if_not_exists: create.if_not_exists,
-            name: Self::reference_to_strings(create.name),
+            name: Self::reference_to_strings(create.name).into(),
         })
     }
 
@@ -171,7 +230,7 @@ impl<'a> Binder<'a> {
         &mut self,
         create: ast::CreateTable<Raw>,
     ) -> Result<ast::CreateTable<Bound>> {
-        let name = Self::reference_to_strings(create.name);
+        let name = Self::reference_to_strings(create.name).into();
         let columns: Vec<_> = create
             .columns
             .into_iter()
@@ -416,7 +475,11 @@ impl<'a> Binder<'a> {
             .get_table_entry(self.tx, "temp", name)
             .await?
         {
-            Ok(BoundTableOrCteReference::Table(entry))
+            Ok(BoundTableOrCteReference::Table {
+                catalog: "temp".to_string(),
+                schema: "temp".to_string(),
+                entry,
+            })
         } else {
             Err(RayexecError::new(format!(
                 "Unable to find table or view for '{name}'"
@@ -527,6 +590,26 @@ impl<'a> ExpressionBinder<'a> {
     /// Bind an expression.
     async fn bind_expression(&self, expr: ast::Expr<Raw>) -> Result<ast::Expr<Bound>> {
         match expr {
+            ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),
+            ast::Expr::CompoundIdent(idents) => Ok(ast::Expr::CompoundIdent(idents)),
+            ast::Expr::Literal(lit) => Ok(ast::Expr::Literal(match lit {
+                ast::Literal::Number(s) => ast::Literal::Number(s),
+                ast::Literal::SingleQuotedString(s) => ast::Literal::SingleQuotedString(s),
+                ast::Literal::Boolean(b) => ast::Literal::Boolean(b),
+                ast::Literal::Null => ast::Literal::Null,
+                ast::Literal::Struct { keys, values } => {
+                    let bound = Box::pin(self.bind_expressions(values)).await?;
+                    ast::Literal::Struct {
+                        keys,
+                        values: bound,
+                    }
+                }
+            })),
+            ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
+                left: Box::new(Box::pin(self.bind_expression(*left)).await?),
+                op,
+                right: Box::new(Box::pin(self.bind_expression(*right)).await?),
+            }),
             ast::Expr::Function(func) => {
                 // TODO: Search path (with system being the first to check)
                 if func.reference.0.len() != 1 {

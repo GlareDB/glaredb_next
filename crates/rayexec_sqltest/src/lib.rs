@@ -133,7 +133,7 @@ impl sqllogictest::AsyncDB for TestSession {
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
         let mut rows = Vec::new();
-        let mut results = self.session.simple(sql)?;
+        let mut results = self.session.simple(sql).await?;
         if results.len() != 1 {
             return Err(RayexecError::new(format!(
                 "Unexpected number of results for '{sql}': {}",

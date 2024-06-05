@@ -14,7 +14,7 @@ use crate::{
     },
     logical::{
         operator::{LogicalOperator, ResetVar, VariableOrAll},
-        sql::planner::PlanContext,
+        sql::{binder::Binder, planner::PlanContext},
     },
     optimizer::Optimizer,
     scheduler::Scheduler,
@@ -63,7 +63,7 @@ impl Session {
     /// Execution result streams should be read in order.
     ///
     /// Uses the unnamed ("") keys for prepared statements and portals.
-    pub fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
+    pub async fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
         let stmts = self.parse(sql)?;
         let mut results = Vec::with_capacity(stmts.len());
 
@@ -72,7 +72,7 @@ impl Session {
         for stmt in stmts {
             self.prepare(UNNAMED, stmt)?;
             self.bind(UNNAMED, UNNAMED)?;
-            let result = self.execute(UNNAMED)?;
+            let result = self.execute(UNNAMED).await?;
             results.push(result);
         }
 
@@ -102,7 +102,7 @@ impl Session {
         Ok(())
     }
 
-    pub fn execute(&mut self, portal: &str) -> Result<ExecutionResult> {
+    pub async fn execute(&mut self, portal: &str) -> Result<ExecutionResult> {
         let stmt = self
             .portals
             .get(portal)
@@ -110,8 +110,8 @@ impl Session {
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
         let tx = CatalogTx::new();
-        let plan_context = PlanContext::new(&tx, &self.context, &self.vars);
-        let mut logical = plan_context.plan_statement(stmt)?;
+        let (bound_stmt, _) = Binder::new(&tx, &self.context).bind_statement(stmt).await?;
+        let mut logical = PlanContext::new(&self.vars).plan_statement(bound_stmt)?;
 
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;

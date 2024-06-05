@@ -6,6 +6,7 @@ use crate::functions::scalar::GenericScalarFunction;
 use crate::logical::operator::LogicalExpression;
 
 use super::{
+    binder::{Bound, BoundFunctionReference},
     planner::PlanContext,
     scope::{Scope, TableReference},
 };
@@ -19,7 +20,7 @@ pub enum ExpandedSelectExpr {
     /// expression.
     Expr {
         /// The original expression.
-        expr: ast::Expr<Raw>,
+        expr: ast::Expr<Bound>,
         /// Either an alias provided by the user or a name we generate for the
         /// expression. If this references a column, then the name will just
         /// match that column.
@@ -67,7 +68,7 @@ impl<'a> ExpressionContext<'a> {
 
     pub fn expand_select_expr(
         &self,
-        expr: ast::SelectExpr<Raw>,
+        expr: ast::SelectExpr<Bound>,
     ) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
             ast::SelectExpr::Expr(expr) => vec![ExpandedSelectExpr::Expr {
@@ -117,7 +118,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     /// Converts an AST expression to a logical expression.
-    pub fn plan_expression(&self, expr: ast::Expr<Raw>) -> Result<LogicalExpression> {
+    pub fn plan_expression(&self, expr: ast::Expr<Bound>) -> Result<LogicalExpression> {
         match expr {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
@@ -128,116 +129,50 @@ impl<'a> ExpressionContext<'a> {
                 right: Box::new(self.plan_expression(*right)?),
             }),
             ast::Expr::Function(func) => {
-                // TODO: Search path (with system being the first to check)
-                if func.reference.0.len() != 1 {
-                    return Err(RayexecError::new(
-                        "Qualified function names not yet supported",
-                    ));
-                }
-                let func_name = &func.reference.0[0].as_normalized_string();
+                let inputs = func
+                    .args
+                    .into_iter()
+                    .map(|arg| match arg {
+                        ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
+                        ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                            "Named arguments to scalar functions not supported",
+                        )),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
 
-                // Check scalars first.
-                if let Some(scalar_func) =
-                    self.plan_context.resolver.get_builtin_scalar(func_name)?
-                {
-                    let inputs = func
-                        .args
-                        .into_iter()
-                        .map(|arg| match arg {
-                            ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
-                            ast::FunctionArg::Named { .. } => Err(RayexecError::new(
-                                "Named arguments to scalar functions not supported",
-                            )),
+                match func.reference {
+                    BoundFunctionReference::Scalar(scalar) => {
+                        if !self.scalar_function_can_handle_input(scalar.as_ref(), &inputs)? {
+                            // TODO: Do we want to fall through? Is it possible for a
+                            // scalar and aggregate function to have the same name?
+
+                            return Err(RayexecError::new(format!(
+                                "Invalid inputs to '{}'",
+                                scalar.name(),
+                            )));
+                        }
+                        Ok(LogicalExpression::ScalarFunction {
+                            function: scalar,
+                            inputs,
                         })
-                        .collect::<Result<Vec<_>>>()?;
-
-                    if !self.scalar_function_can_handle_input(scalar_func.as_ref(), &inputs)? {
-                        // TODO: Do we want to fall through? Is it possible for a
-                        // scalar and aggregate function to have the same name?
-
-                        return Err(RayexecError::new(format!(
-                            "Invalid inputs to '{}'",
-                            scalar_func.name(),
-                        )));
                     }
+                    BoundFunctionReference::Aggregate(agg) => {
+                        // TODO: Sig check
 
-                    return Ok(LogicalExpression::ScalarFunction {
-                        function: scalar_func.clone(),
-                        inputs,
-                    });
-                }
-
-                if let Some(agg_func) = self
-                    .plan_context
-                    .resolver
-                    .get_builtin_aggregate(func_name)?
-                {
-                    let inputs = func
-                        .args
-                        .into_iter()
-                        .map(|arg| match arg {
-                            ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
-                            ast::FunctionArg::Named { .. } => Err(RayexecError::new(
-                                "Named arguments to aggregate functions not supported",
-                            )),
+                        Ok(LogicalExpression::Aggregate {
+                            agg,
+                            inputs,
+                            filter: None,
                         })
-                        .collect::<Result<Vec<_>>>()?;
-
-                    // TODO: Sig check
-
-                    return Ok(LogicalExpression::Aggregate {
-                        agg: agg_func.clone(),
-                        inputs,
-                        filter: None,
-                    });
+                    }
                 }
-
-                // Check if there exists an aggregate function with this name.
-                // if let Some(agg) = self
-                //     .plan_context
-                //     .resolver
-                //     .resolve_aggregate_function(&func.name)?
-                // {
-                //     // TODO: We'll actually want to pass down additional plans
-                //     // to ensure we're not planning nested
-                //     // aggregates/subqueries.
-                //     //
-                //     // Same thing with the filter.
-                //     let args = func
-                //         .args
-                //         .into_iter()
-                //         .map(|arg| match arg {
-                //             ast::FunctionArg::Unnamed { arg } => {
-                //                 Ok(Box::new(self.plan_expression(arg)?))
-                //             }
-                //             ast::FunctionArg::Named { .. } => Err(RayexecError::new(
-                //                 "Named arguments to aggregate functions not supported",
-                //             )),
-                //         })
-                //         .collect::<Result<Vec<_>>>()?;
-
-                //     let filter = match func.filter {
-                //         Some(filter) => Some(Box::new(self.plan_expression(*filter)?)),
-                //         None => None,
-                //     };
-
-                //     // TODO: agg
-                //     return Ok(LogicalExpression::Aggregate { args, filter });
-                // }
-
-                // TODO: Check normal scalars.
-
-                Err(RayexecError::new(format!(
-                    "Cannot resolve function with name {}",
-                    func.reference
-                )))
             }
             _ => unimplemented!(),
         }
     }
 
     /// Plan a sql literal
-    fn plan_literal(&self, literal: ast::Literal<Raw>) -> Result<LogicalExpression> {
+    fn plan_literal(&self, literal: ast::Literal<Bound>) -> Result<LogicalExpression> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i64>() {

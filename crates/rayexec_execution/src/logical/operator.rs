@@ -482,8 +482,9 @@ impl Explainable for CreateSchema {
 
 #[derive(Debug)]
 pub struct CreateTable {
+    pub catalog: String,
+    pub schema: String,
     pub name: String,
-    pub temp: bool, // TODO: Probably replace this with a schema reference. We need the schema somewhere.
     pub columns: Vec<Field>,
     pub on_conflict: OnConflict,
     /// Optional input for CREATE TABLE AS

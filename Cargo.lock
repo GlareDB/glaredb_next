@@ -1282,6 +1282,7 @@ dependencies = [
 name = "rayexec_postgres"
 version = "0.0.1"
 dependencies = [
+ "futures",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",

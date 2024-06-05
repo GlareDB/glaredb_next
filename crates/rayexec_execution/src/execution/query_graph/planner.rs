@@ -345,19 +345,15 @@ impl BuildState {
 
         // To explain my TODO above, this would be what happens in "planner 1".
         // Just creating the operator, and the planning can happen anywhere.
-        let physical = if create.temp {
-            Arc::new(PhysicalCreateTable::new(
-                "temp",
-                "temp",
-                CreateTableInfo {
-                    name: create.name,
-                    columns: create.columns,
-                    on_conflict: create.on_conflict,
-                },
-            ))
-        } else {
-            return Err(RayexecError::new("Non-temp tables not yet supported"));
-        };
+        let physical = Arc::new(PhysicalCreateTable::new(
+            create.catalog,
+            create.schema,
+            CreateTableInfo {
+                name: create.name,
+                columns: create.columns,
+                on_conflict: create.on_conflict,
+            },
+        ));
 
         // And creating the states would happen in "planner 2". This relies on
         // the database context, and so should happen on the node that will be

@@ -40,7 +40,7 @@ async fn inner() -> Result<()> {
 
     let query = args[1].clone();
 
-    let outputs = session.simple(&query)?;
+    let outputs = session.simple(&query).await?;
 
     for output in outputs {
         let results = output.stream.collect::<Vec<_>>().await;

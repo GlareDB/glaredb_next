@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::{
@@ -41,7 +42,7 @@ impl Catalog for PostgresCatalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<TableEntry>> {
+    ) -> BoxFuture<Result<Option<TableEntry>>> {
         unimplemented!()
     }
 
