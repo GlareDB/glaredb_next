@@ -7,7 +7,7 @@ use rayexec_bullet::{
     format::{FormatOptions, Formatter},
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::engine::{session::Session, Engine};
+use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
 use sqllogictest::DefaultColumnType;
 use std::path::{Path, PathBuf};
 use std::{fs, sync::Arc};
@@ -19,13 +19,13 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 /// This sets up tracing to log only at the ERROR level. RUST_LOG can be used to
 /// print out logs at a lower level.
 ///
-/// For each path, `engine_fn` will be used to create a new engine isolated for
-/// just that file.
+/// For each path, `engine_fn` will be called to create an engine (and
+/// associated session) for just the file. An engine runtime will be provided.
 ///
 /// `kind` should be used to group these SLTs together.
 pub fn run<F>(paths: impl IntoIterator<Item = PathBuf>, engine_fn: F, kind: &str) -> Result<()>
 where
-    F: Fn() -> Result<Engine> + Clone + Send + 'static,
+    F: Fn(Arc<EngineRuntime>) -> Result<Engine> + Clone + Send + 'static,
 {
     let args = Arguments::from_args();
     let env_filter = EnvFilter::builder()
@@ -48,13 +48,7 @@ where
         std::process::abort();
     }));
 
-    let rt = Arc::new(
-        Builder::new_current_thread()
-            .enable_all()
-            .thread_name(format!("rayexec_sqltest_{kind}"))
-            .build()
-            .unwrap(),
-    );
+    let rt = EngineRuntime::try_new_shared()?;
 
     let tests = paths
         .into_iter()
@@ -63,7 +57,7 @@ where
             let rt = rt.clone();
             let engine_fn = engine_fn.clone();
             Trial::test(test_name, move || {
-                match rt.block_on(run_test(path, engine_fn)) {
+                match rt.clone().tokio.block_on(run_test(path, rt, engine_fn)) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
                 }
@@ -101,11 +95,15 @@ pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 /// Run an SLT at path, creating an engine from the provided function.
-async fn run_test(path: impl AsRef<Path>, engine_fn: impl Fn() -> Result<Engine>) -> Result<()> {
+async fn run_test(
+    path: impl AsRef<Path>,
+    rt: Arc<EngineRuntime>,
+    engine_fn: impl Fn(Arc<EngineRuntime>) -> Result<Engine>,
+) -> Result<()> {
     let path = path.as_ref();
 
     let mut runner = sqllogictest::Runner::new(|| async {
-        let engine = engine_fn()?;
+        let engine = engine_fn(rt.clone())?;
         let session = engine.new_session()?;
         Ok(TestSession { session, engine })
     });

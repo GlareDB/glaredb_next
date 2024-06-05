@@ -6,8 +6,9 @@ pub fn main() {
     let paths = rayexec_sqltest::find_files(Path::new("slts/")).unwrap();
     rayexec_sqltest::run(
         paths,
-        || {
-            Engine::try_new_with_registry(
+        |rt| {
+            Engine::new_with_registry(
+                rt,
                 DataSourceRegistry::default()
                     .with_datasource("postgres", Box::new(PostgresDataSource))?,
             )

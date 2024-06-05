@@ -17,13 +17,13 @@ use crate::{
         sql::{binder::Binder, planner::PlanContext},
     },
     optimizer::Optimizer,
-    scheduler::Scheduler,
+    scheduler::ComputeScheduler,
 };
 
 use super::{
     result_stream::ResultStream,
     vars::{SessionVars, VarAccessor},
-    DataSourceRegistry,
+    DataSourceRegistry, EngineRuntime,
 };
 
 #[derive(Debug)]
@@ -36,18 +36,18 @@ pub struct ExecutionResult {
 pub struct Session {
     context: DatabaseContext,
     vars: SessionVars,
-    scheduler: Scheduler,
     registry: Arc<DataSourceRegistry>,
+    runtime: Arc<EngineRuntime>,
 
     prepared: HashMap<String, PreparedStatement>,
     portals: HashMap<String, Portal>,
 }
 
 impl Session {
-    pub fn new(scheduler: Scheduler, registry: Arc<DataSourceRegistry>) -> Self {
+    pub fn new(runtime: Arc<EngineRuntime>, registry: Arc<DataSourceRegistry>) -> Self {
         Session {
             context: DatabaseContext::new_with_temp(),
-            scheduler,
+            runtime,
             registry,
             vars: SessionVars::new_local(),
             prepared: HashMap::new(),
@@ -131,7 +131,9 @@ impl Session {
                 // TODO: No clue if we want to do this here. What happens during
                 // hybrid exec?
                 let datasource = self.registry.get_datasource(&attach.datasource)?;
-                let catalog = datasource.create_catalog(attach.options)?;
+                let catalog = datasource
+                    .create_catalog(&self.runtime, attach.options)
+                    .await?;
                 self.context.attach_catalog(attach.name, catalog)?;
                 empty
             }
@@ -168,7 +170,8 @@ impl Session {
             root => planner.create_graph(root, query_sink)?,
         };
 
-        self.scheduler
+        self.runtime
+            .scheduler
             .spawn_query_graph(query_graph, result_stream.errors_send_channel());
 
         Ok(ExecutionResult {

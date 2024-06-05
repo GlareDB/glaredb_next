@@ -16,11 +16,11 @@ use self::query::PartitionPipelineTask;
 
 /// Scheduler for executing queries and other tasks.
 #[derive(Clone)]
-pub struct Scheduler {
+pub struct ComputeScheduler {
     pool: Arc<ThreadPool>,
 }
 
-impl fmt::Debug for Scheduler {
+impl fmt::Debug for ComputeScheduler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Scheduler")
             .field("num_threads", &self.pool.current_num_threads())
@@ -28,14 +28,14 @@ impl fmt::Debug for Scheduler {
     }
 }
 
-impl Scheduler {
+impl ComputeScheduler {
     pub fn try_new() -> Result<Self> {
         let thread_pool = ThreadPoolBuilder::new()
-            .thread_name(|idx| format!("glaredb-thread-{idx}"))
+            .thread_name(|idx| format!("rayexec_compute_{idx}"))
             .build()
             .map_err(|e| RayexecError::with_source("Failed to build thread pool", Box::new(e)))?;
 
-        Ok(Scheduler {
+        Ok(ComputeScheduler {
             pool: Arc::new(thread_pool),
         })
     }
@@ -68,7 +68,7 @@ impl Scheduler {
     // TODO: Return handle for cancel/result.
     pub fn spawn_future<F>(&self, fut: F)
     where
-        F: Future + Sync + Send + Unpin + 'static,
+        F: Future + Send + 'static,
         F::Output: Send,
     {
         let task = Arc::new(FutureTask::new(Box::pin(fut)));
@@ -93,7 +93,7 @@ mod tests {
         };
         let task = Arc::new(FutureTask::new(Box::pin(fut)));
 
-        let scheduler = Scheduler::try_new().unwrap();
+        let scheduler = ComputeScheduler::try_new().unwrap();
         task.execute(scheduler.pool.clone());
 
         assert!(completed.load(Ordering::SeqCst));

@@ -493,30 +493,49 @@ impl<'a> Binder<'a> {
 
     async fn resolve_table(
         &mut self,
-        reference: ast::ObjectReference,
+        mut reference: ast::ObjectReference,
     ) -> Result<BoundTableOrCteReference> {
-        if reference.0.len() != 1 {
-            return Err(RayexecError::new("Qualified table names not yet supported"));
-        }
-        let name = &reference.0[0].as_normalized_string();
-
         // TODO: If len == 1, search in CTE map in bind data.
 
         // TODO: Seach path.
+        let [catalog, schema, table] = match reference.0.len() {
+            1 => [
+                "temp".to_string(),
+                "temp".to_string(),
+                reference.0.pop().unwrap().into_normalized_string(),
+            ],
+            2 => {
+                let table = reference.0.pop().unwrap().into_normalized_string();
+                let schema = reference.0.pop().unwrap().into_normalized_string();
+                ["temp".to_string(), schema, table]
+            }
+            3 => {
+                let table = reference.0.pop().unwrap().into_normalized_string();
+                let schema = reference.0.pop().unwrap().into_normalized_string();
+                let catalog = reference.0.pop().unwrap().into_normalized_string();
+                [catalog, schema, table]
+            }
+            _ => {
+                return Err(RayexecError::new(
+                    "Unexpected number of identifiers in table reference",
+                ))
+            }
+        };
+
         if let Some(entry) = self
             .context
-            .get_catalog("temp")?
-            .get_table_entry(self.tx, "temp", name)
+            .get_catalog(&catalog)?
+            .get_table_entry(self.tx, &schema, &table)
             .await?
         {
             Ok(BoundTableOrCteReference::Table {
-                catalog: "temp".to_string(),
-                schema: "temp".to_string(),
+                catalog,
+                schema,
                 entry,
             })
         } else {
             Err(RayexecError::new(format!(
-                "Unable to find table or view for '{name}'"
+                "Unable to find table or view for '{catalog}.{schema}.{table}'"
             )))
         }
     }

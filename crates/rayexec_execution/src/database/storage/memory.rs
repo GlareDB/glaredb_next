@@ -80,6 +80,26 @@ impl MemoryCatalog {
             None => Ok(None),
         }
     }
+
+    fn data_table_inner(
+        &self,
+        _tx: &CatalogTx,
+        schema: &str,
+        ent: &TableEntry,
+    ) -> Result<Box<dyn DataTable>> {
+        let inner = self.inner.read();
+        let schema = inner
+            .schemas
+            .get(schema)
+            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+        let table = schema
+            .tables
+            .get(&ent.name)
+            .cloned()
+            .ok_or_else(|| RayexecError::new(format!("Missing table: {}", ent.name)))?;
+
+        Ok(Box::new(table) as _)
+    }
 }
 
 impl Catalog for MemoryCatalog {

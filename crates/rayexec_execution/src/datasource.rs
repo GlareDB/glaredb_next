@@ -1,17 +1,21 @@
+use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
+use crate::engine::EngineRuntime;
 
 pub trait DataSource: Sync + Send + Debug {
     /// Create a new catalog using the provided options.
     fn create_catalog(
         &self,
+        runtime: &Arc<EngineRuntime>,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> Result<Box<dyn Catalog>>;
+    ) -> BoxFuture<Result<Box<dyn Catalog>>>;
 }
 
 #[derive(Debug, Default)]
@@ -75,12 +79,15 @@ pub struct MemoryDataSource;
 impl DataSource for MemoryDataSource {
     fn create_catalog(
         &self,
+        _runtime: &Arc<EngineRuntime>,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> Result<Box<dyn Catalog>> {
-        if !options.is_empty() {
-            return Err(RayexecError::new("Memory data source takes no options"));
-        }
+    ) -> BoxFuture<Result<Box<dyn Catalog>>> {
+        Box::pin(async move {
+            if !options.is_empty() {
+                return Err(RayexecError::new("Memory data source takes no options"));
+            }
 
-        Ok(Box::new(MemoryCatalog::new_with_schema("public")))
+            Ok(Box::new(MemoryCatalog::new_with_schema("public")) as _)
+        })
     }
 }

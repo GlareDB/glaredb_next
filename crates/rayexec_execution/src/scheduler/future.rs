@@ -33,7 +33,7 @@ where
 
 impl<F> FutureTask<F>
 where
-    F: Future + Sync + Send + Unpin + 'static,
+    F: Future + Send + Unpin + 'static,
     F::Output: Send,
 {
     pub fn new(future: F) -> Self {
@@ -102,7 +102,7 @@ where
 
 impl<F> Wake for FutureWaker<F>
 where
-    F: Future + Sync + Send + Unpin + 'static,
+    F: Future + Send + Unpin + 'static,
     F::Output: Send,
 {
     fn wake(self: Arc<Self>) {
