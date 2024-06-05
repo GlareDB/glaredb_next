@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
-    ast::{self, ReplaceColumn},
+    ast::{self, ColumnDef, ObjectReference, ReplaceColumn},
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
@@ -16,6 +18,7 @@ pub type BoundStatement = Statement<Bound>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bound;
 
+// TODO: Table function
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
     Scalar(Box<dyn GenericScalarFunction>),
@@ -34,9 +37,13 @@ pub enum BoundTableOrCteReference {
     Cte(BoundCteReference),
 }
 
+// TODO: Table function associated type (separate from above). Will likely be
+// the specialized table function.
 impl AstMeta for Bound {
     type DataSourceName = String;
-    type ItemReference = String;
+    // TODO: Figure out how we want to represent things like tables in a CREATE
+    // TABLE. We don't want to resolve, so a vec of strings works for now.
+    type ItemReference = Vec<String>;
     type TableReference = BoundTableOrCteReference;
     type FunctionReference = BoundFunctionReference;
     type ColumnReference = String;
@@ -56,7 +63,11 @@ pub struct Binder<'a> {
 
 impl<'a> Binder<'a> {
     pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
-        unimplemented!()
+        Binder {
+            tx,
+            context,
+            data: BindData {},
+        }
     }
 
     pub async fn bind_statement(
@@ -64,11 +75,137 @@ impl<'a> Binder<'a> {
         stmt: RawStatement,
     ) -> Result<(BoundStatement, BindData)> {
         let bound = match stmt {
+            Statement::Explain(explain) => {
+                let body = match explain.body {
+                    ast::ExplainBody::Query(query) => {
+                        ast::ExplainBody::Query(self.bind_query(query).await?)
+                    }
+                };
+                Statement::Explain(ast::ExplainNode {
+                    analyze: explain.analyze,
+                    verbose: explain.verbose,
+                    body,
+                    output: explain.output,
+                })
+            }
             Statement::Query(query) => Statement::Query(self.bind_query(query).await?),
-            _ => unimplemented!(),
+            Statement::Insert(insert) => Statement::Insert(self.bind_insert(insert).await?),
+            Statement::CreateTable(create) => {
+                Statement::CreateTable(self.bind_create_table(create).await?)
+            }
+            Statement::CreateSchema(create) => {
+                Statement::CreateSchema(self.bind_create_schema(create).await?)
+            }
+            Statement::Drop(drop) => Statement::Drop(self.bind_drop(drop).await?),
+            Statement::SetVariable(set) => Statement::SetVariable(ast::SetVariable {
+                reference: Self::reference_to_strings(set.reference),
+                value: ExpressionBinder::new(&self)
+                    .bind_expression(set.value)
+                    .await?,
+            }),
+            Statement::ShowVariable(show) => Statement::ShowVariable(ast::ShowVariable {
+                reference: Self::reference_to_strings(show.reference),
+            }),
+            Statement::ResetVariable(reset) => Statement::ResetVariable(ast::ResetVariable {
+                var: match reset.var {
+                    ast::VariableOrAll::All => ast::VariableOrAll::All,
+                    ast::VariableOrAll::Variable(var) => {
+                        ast::VariableOrAll::Variable(Self::reference_to_strings(var))
+                    }
+                },
+            }),
+            Statement::Attach(attach) => Statement::Attach(self.bind_attach(attach).await?),
+            Statement::Detach(detach) => Statement::Detach(self.bind_detach(detach).await?),
         };
 
         Ok((bound, self.data))
+    }
+
+    async fn bind_attach(&mut self, attach: ast::Attach<Raw>) -> Result<ast::Attach<Bound>> {
+        let mut options = HashMap::new();
+        for (k, v) in attach.options {
+            let v = ExpressionBinder::new(self).bind_expression(v).await?;
+            options.insert(k, v);
+        }
+
+        Ok(ast::Attach {
+            datasource_name: attach.datasource_name.into_normalized_string(),
+            attach_type: attach.attach_type,
+            alias: Self::reference_to_strings(attach.alias),
+            options,
+        })
+    }
+
+    async fn bind_detach(&mut self, detach: ast::Detach<Raw>) -> Result<ast::Detach<Bound>> {
+        // TODO: Replace 'ItemReference' with actual catalog reference. Similar
+        // things will happen with Drop.
+        Ok(ast::Detach {
+            attach_type: detach.attach_type,
+            alias: Self::reference_to_strings(detach.alias),
+        })
+    }
+
+    async fn bind_drop(
+        &mut self,
+        drop: ast::DropStatement<Raw>,
+    ) -> Result<ast::DropStatement<Bound>> {
+        Ok(ast::DropStatement {
+            drop_type: drop.drop_type,
+            if_exists: drop.if_exists,
+            name: Self::reference_to_strings(drop.name),
+            deps: drop.deps,
+        })
+    }
+
+    async fn bind_create_schema(
+        &mut self,
+        create: ast::CreateSchema<Raw>,
+    ) -> Result<ast::CreateSchema<Bound>> {
+        Ok(ast::CreateSchema {
+            if_not_exists: create.if_not_exists,
+            name: Self::reference_to_strings(create.name),
+        })
+    }
+
+    async fn bind_create_table(
+        &mut self,
+        create: ast::CreateTable<Raw>,
+    ) -> Result<ast::CreateTable<Bound>> {
+        let name = Self::reference_to_strings(create.name);
+        let columns: Vec<_> = create
+            .columns
+            .into_iter()
+            .map(|col| ColumnDef::<Bound> {
+                name: col.name.into_normalized_string(),
+                datatype: Self::ast_datatype_to_exec_datatype(col.datatype),
+                opts: col.opts,
+            })
+            .collect();
+
+        let source = match create.source {
+            Some(source) => Some(self.bind_query(source).await?),
+            None => None,
+        };
+
+        Ok(ast::CreateTable {
+            or_replace: create.or_replace,
+            if_not_exists: create.if_not_exists,
+            temp: create.temp,
+            external: create.external,
+            name,
+            columns,
+            source,
+        })
+    }
+
+    async fn bind_insert(&mut self, insert: ast::Insert<Raw>) -> Result<ast::Insert<Bound>> {
+        let table = self.resolve_table(insert.table).await?;
+        let source = self.bind_query(insert.source).await?;
+        Ok(ast::Insert {
+            table,
+            columns: insert.columns,
+            source,
+        })
     }
 
     async fn bind_query(&mut self, query: ast::QueryNode<Raw>) -> Result<ast::QueryNode<Bound>> {
@@ -113,7 +250,7 @@ impl<'a> Binder<'a> {
 
     async fn bind_ctes(
         &mut self,
-        ctes: ast::CommonTableExprDefs<Raw>,
+        _ctes: ast::CommonTableExprDefs<Raw>,
     ) -> Result<ast::CommonTableExprDefs<Bound>> {
         unimplemented!()
     }
@@ -215,28 +352,9 @@ impl<'a> Binder<'a> {
     async fn bind_from(&mut self, from: ast::FromNode<Raw>) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                if reference.0.len() != 1 {
-                    return Err(RayexecError::new("Qualified table names not yet supported"));
-                }
-                let name = &reference.0[0].as_normalized_string();
-
-                // TODO: If len == 1, search in CTE map.
-
-                // TODO: Seach path.
-                if let Some(entry) = self
-                    .context
-                    .get_catalog("temp")?
-                    .get_table_entry(self.tx, "temp", name)
-                    .await?
-                {
-                    ast::FromNodeBody::BaseTable(ast::FromBaseTable {
-                        reference: BoundTableOrCteReference::Table(entry),
-                    })
-                } else {
-                    return Err(RayexecError::new(format!(
-                        "Unable to find table or view for '{name}'"
-                    )));
-                }
+                ast::FromNodeBody::BaseTable(ast::FromBaseTable {
+                    reference: self.resolve_table(reference).await?,
+                })
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
                 ast::FromNodeBody::Subquery(ast::FromSubquery {
@@ -278,6 +396,52 @@ impl<'a> Binder<'a> {
             alias: from.alias,
             body,
         })
+    }
+
+    async fn resolve_table(
+        &mut self,
+        reference: ast::ObjectReference,
+    ) -> Result<BoundTableOrCteReference> {
+        if reference.0.len() != 1 {
+            return Err(RayexecError::new("Qualified table names not yet supported"));
+        }
+        let name = &reference.0[0].as_normalized_string();
+
+        // TODO: If len == 1, search in CTE map in bind data.
+
+        // TODO: Seach path.
+        if let Some(entry) = self
+            .context
+            .get_catalog("temp")?
+            .get_table_entry(self.tx, "temp", name)
+            .await?
+        {
+            Ok(BoundTableOrCteReference::Table(entry))
+        } else {
+            Err(RayexecError::new(format!(
+                "Unable to find table or view for '{name}'"
+            )))
+        }
+    }
+
+    fn reference_to_strings(reference: ObjectReference) -> Vec<String> {
+        reference
+            .0
+            .into_iter()
+            .map(|ident| ident.into_normalized_string())
+            .collect()
+    }
+
+    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {
+        match datatype {
+            ast::DataType::Varchar(_) => DataType::Utf8,
+            ast::DataType::SmallInt => DataType::Int16,
+            ast::DataType::Integer => DataType::Int32,
+            ast::DataType::BigInt => DataType::Int64,
+            ast::DataType::Real => DataType::Float32,
+            ast::DataType::Double => DataType::Float64,
+            ast::DataType::Bool => DataType::Boolean,
+        }
     }
 }
 

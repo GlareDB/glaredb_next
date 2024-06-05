@@ -9,7 +9,7 @@ use rayexec_error::Result;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Insert<T: AstMeta> {
-    pub table: T::ItemReference,
+    pub table: T::TableReference,
     pub columns: Vec<Ident>,
     pub source: QueryNode<T>,
 }
