@@ -95,9 +95,12 @@ pub enum FunctionArg<T: AstMeta> {
     /// A named argument. Allows use of either `=>` or `=` for assignment.
     ///
     /// `ident => <expr>` or `ident = <expr>`
-    Named { name: Ident, arg: Expr<T> },
+    Named {
+        name: Ident,
+        arg: FunctionArgExpr<T>,
+    },
     /// `<expr>`
-    Unnamed { arg: Expr<T> },
+    Unnamed { arg: FunctionArgExpr<T> },
 }
 
 impl AstParseable for FunctionArg<Raw> {
@@ -110,15 +113,33 @@ impl AstParseable for FunctionArg<Raw> {
         if is_named {
             let ident = Ident::parse(parser)?;
             parser.expect_one_of_tokens(&[&Token::RightArrow, &Token::Eq])?;
-            let expr = Expr::parse(parser)?;
+            let expr = FunctionArgExpr::parse(parser)?;
 
             Ok(FunctionArg::Named {
                 name: ident,
                 arg: expr,
             })
         } else {
-            let expr = Expr::parse(parser)?;
+            let expr = FunctionArgExpr::parse(parser)?;
             Ok(FunctionArg::Unnamed { arg: expr })
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FunctionArgExpr<T: AstMeta> {
+    Wildcard,
+    Expr(Expr<T>),
+}
+
+impl AstParseable for FunctionArgExpr<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        match parser.peek() {
+            Some(tok) if tok.token == Token::Mul => {
+                let _ = parser.next(); // Consume.
+                Ok(Self::Wildcard)
+            }
+            _ => Ok(Self::Expr(Expr::parse(parser)?)),
         }
     }
 }
@@ -154,7 +175,7 @@ pub enum Expr<T: AstMeta> {
     /// Tuple of expressions.
     ///
     /// (1, 2)
-    Tupe(Vec<Expr<T>>),
+    Tuple(Vec<Expr<T>>),
     /// A colation.
     ///
     /// `<expr> COLLATE <collation>`
@@ -219,7 +240,7 @@ impl Expr<Raw> {
                     match exprs.len() {
                         0 => return Err(RayexecError::new("No expressions")),
                         1 => Expr::Nested(Box::new(exprs.pop().unwrap())),
-                        _ => Expr::Tupe(exprs),
+                        _ => Expr::Tuple(exprs),
                     }
                 };
                 parser.expect_token(&Token::RightParen)?;
@@ -519,7 +540,7 @@ mod tests {
         let expected = Expr::Function(Function {
             reference: ObjectReference(vec![Ident::from_string("sum")]),
             args: vec![FunctionArg::Unnamed {
-                arg: Expr::Ident(Ident::from_string("my_col")),
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("my_col"))),
             }],
             filter: None,
         });
@@ -532,7 +553,7 @@ mod tests {
         let expected = Expr::Function(Function {
             reference: ObjectReference(vec![Ident::from_string("count")]),
             args: vec![FunctionArg::Unnamed {
-                arg: Expr::Ident(Ident::from_string("x")),
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("x"))),
             }],
             filter: Some(Box::new(Expr::BinaryExpr {
                 left: Box::new(Expr::Ident(Ident::from_string("x"))),
@@ -551,6 +572,53 @@ mod tests {
             op: BinaryOperator::Plus,
             right: Box::new(Expr::Literal(Literal::Number("2".to_string()))),
         }));
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn count_star() {
+        let expr: Expr<_> = parse_ast("count(*)").unwrap();
+        let expected = Expr::Function(Function {
+            reference: ObjectReference::from_strings(["count"]),
+            args: vec![FunctionArg::Unnamed {
+                arg: FunctionArgExpr::Wildcard,
+            }],
+            filter: None,
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn count_star_precedence_before() {
+        let expr: Expr<_> = parse_ast("111 * count(*)").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::Function(Function {
+                reference: ObjectReference::from_strings(["count"]),
+                args: vec![FunctionArg::Unnamed {
+                    arg: FunctionArgExpr::Wildcard,
+                }],
+                filter: None,
+            })),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn count_star_precedence_after() {
+        let expr: Expr<_> = parse_ast("count(*) * 111").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Function(Function {
+                reference: ObjectReference::from_strings(["count"]),
+                args: vec![FunctionArg::Unnamed {
+                    arg: FunctionArgExpr::Wildcard,
+                }],
+                filter: None,
+            })),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
+        };
         assert_eq!(expected, expr);
     }
 }

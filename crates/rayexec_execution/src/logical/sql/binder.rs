@@ -667,14 +667,34 @@ impl<'a> ExpressionBinder<'a> {
                 };
 
                 let mut args = Vec::with_capacity(func.args.len());
+                // TODO: This current rewrites '*' function arguments to 'true'.
+                // This is for 'count(*)'. What we should be doing is rewriting
+                // 'count(*)' to 'count_star()' and have a function
+                // implementation for 'count_star'.
+                //
+                // No other function accepts a '*' (I think).
                 for func_arg in func.args {
                     let func_arg = match func_arg {
                         ast::FunctionArg::Named { name, arg } => ast::FunctionArg::Named {
                             name,
-                            arg: Box::pin(self.bind_expression(arg)).await?,
+                            arg: match arg {
+                                ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
+                                    ast::Expr::Literal(ast::Literal::Boolean(true)),
+                                ),
+                                ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
+                                    Box::pin(self.bind_expression(expr)).await?,
+                                ),
+                            },
                         },
                         ast::FunctionArg::Unnamed { arg } => ast::FunctionArg::Unnamed {
-                            arg: Box::pin(self.bind_expression(arg)).await?,
+                            arg: match arg {
+                                ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
+                                    ast::Expr::Literal(ast::Literal::Boolean(true)),
+                                ),
+                                ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
+                                    Box::pin(self.bind_expression(expr)).await?,
+                                ),
+                            },
                         },
                     };
                     args.push(func_arg);

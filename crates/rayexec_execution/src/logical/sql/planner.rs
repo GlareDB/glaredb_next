@@ -589,8 +589,6 @@ impl<'a> PlanContext<'a> {
         // Flatten subqueries;
         plan.root = Self::flatten_uncorrelated_subqueries(plan.root)?;
 
-        println!("PLAN: {}", plan.root.debug_explain());
-
         // Cleaned scope containing only output columns in the final output.
         plan.scope = Scope::with_columns(None, names);
 
@@ -995,7 +993,6 @@ impl<'a> PlanContext<'a> {
             // TODO: Check if correlated.
             for expr in exprs {
                 let expr = expr.as_mut();
-                println!("CHECKING: {expr:?}");
                 expr.walk_mut_post(&mut |expr| {
                     match expr {
                         expr @ LogicalExpression::Subquery(_) => {

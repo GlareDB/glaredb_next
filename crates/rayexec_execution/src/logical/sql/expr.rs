@@ -124,7 +124,16 @@ impl<'a> ExpressionContext<'a> {
                     .args
                     .into_iter()
                     .map(|arg| match arg {
-                        ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
+                        ast::FunctionArg::Unnamed { arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => Ok(self.plan_expression(expr)?),
+                            ast::FunctionArgExpr::Wildcard => {
+                                // Binder should have handled removing '*' from
+                                // function calls.
+                                return Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ));
+                            }
+                        },
                         ast::FunctionArg::Named { .. } => Err(RayexecError::new(
                             "Named arguments to scalar functions not supported",
                         )),
