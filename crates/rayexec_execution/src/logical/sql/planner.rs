@@ -983,52 +983,77 @@ impl<'a> PlanContext<'a> {
         Ok(1)
     }
 
-    fn flatten_uncorrelated_subqueries(plan: LogicalOperator) -> Result<LogicalOperator> {
-        // TODO: Need to check if correlated, and skip.
-        let plan = match plan {
-            LogicalOperator::Projection(mut p) => {
-                let mut curr_input_cols = p.input.output_schema(&[])?.types.len(); // TODO: Do we need outer?
-                let mut extracted_subqueries = Vec::new();
+    /// Flattens uncorrelated subqueries into the plan.
+    fn flatten_uncorrelated_subqueries(mut plan: LogicalOperator) -> Result<LogicalOperator> {
+        fn flatten_at_node<L: AsMut<LogicalExpression>>(
+            exprs: &mut [L],
+            child: &mut LogicalOperator,
+        ) -> Result<()> {
+            let mut curr_input_cols = child.output_schema(&[])?.types.len(); // TODO: Do we need outer?
+            let mut extracted_subqueries = Vec::new();
 
-                for expr in &mut p.exprs {
-                    expr.walk_mut_post(&mut |expr| {
-                        match expr {
-                            expr @ LogicalExpression::Subquery(_) => {
-                                let column_ref = LogicalExpression::new_column(curr_input_cols);
-                                let orig = std::mem::replace(expr, column_ref);
-                                let subquery = match orig {
-                                    LogicalExpression::Subquery(e) => e,
-                                    _ => unreachable!(),
-                                };
+            // TODO: Check if correlated.
+            for expr in exprs {
+                let expr = expr.as_mut();
+                println!("CHECKING: {expr:?}");
+                expr.walk_mut_post(&mut |expr| {
+                    match expr {
+                        expr @ LogicalExpression::Subquery(_) => {
+                            let column_ref = LogicalExpression::new_column(curr_input_cols);
+                            let orig = std::mem::replace(expr, column_ref);
+                            let subquery = match orig {
+                                LogicalExpression::Subquery(e) => e,
+                                _ => unreachable!(),
+                            };
 
-                                // LIMIT the original subquery to 1
-                                let subquery = LogicalOperator::Limit(Limit {
-                                    offset: None,
-                                    limit: 1,
-                                    input: subquery,
-                                });
+                            // LIMIT the original subquery to 1
+                            let subquery = LogicalOperator::Limit(Limit {
+                                offset: None,
+                                limit: 1,
+                                input: subquery,
+                            });
 
-                                curr_input_cols += subquery.output_schema(&[])?.types.len();
+                            curr_input_cols += subquery.output_schema(&[])?.types.len();
 
-                                extracted_subqueries.push(subquery);
-                            }
-                            _ => (),
+                            extracted_subqueries.push(subquery);
                         }
-                        Ok(())
-                    })?;
-                }
-
-                for extracted in extracted_subqueries {
-                    p.input = Box::new(LogicalOperator::CrossJoin(CrossJoin {
-                        left: p.input,
-                        right: Box::new(extracted),
-                    }))
-                }
-
-                LogicalOperator::Projection(p)
+                        _ => (),
+                    }
+                    Ok(())
+                })?;
             }
-            other => other,
-        };
+
+            // Temporarily replace child while we add all the cross joins.
+            let mut new_child = Box::new(std::mem::replace(child, LogicalOperator::Empty));
+
+            for extracted in extracted_subqueries {
+                new_child = Box::new(LogicalOperator::CrossJoin(CrossJoin {
+                    left: new_child,
+                    right: Box::new(extracted),
+                }))
+            }
+
+            // Put new child back. Now with all the cross joins.
+            *child = *new_child;
+
+            Ok(())
+        }
+
+        plan.walk_mut_post(&mut |plan| {
+            match plan {
+                LogicalOperator::Projection(p) => {
+                    flatten_at_node(&mut p.exprs, &mut p.input)?;
+                }
+                LogicalOperator::Aggregate(p) => {
+                    flatten_at_node(&mut p.exprs, &mut p.input)?;
+                }
+                LogicalOperator::Filter(p) => {
+                    flatten_at_node(&mut [&mut p.predicate], &mut p.input)?;
+                }
+                _other => (),
+            };
+            Ok(())
+        })?;
 
         Ok(plan)
     }

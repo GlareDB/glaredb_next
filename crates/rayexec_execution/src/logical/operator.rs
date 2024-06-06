@@ -1164,6 +1164,12 @@ impl LogicalExpression {
     }
 }
 
+impl AsMut<LogicalExpression> for LogicalExpression {
+    fn as_mut(&mut self) -> &mut LogicalExpression {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rayexec_bullet::scalar::OwnedScalarValue;
