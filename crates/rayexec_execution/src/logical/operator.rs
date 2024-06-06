@@ -980,6 +980,18 @@ impl LogicalExpression {
                         RayexecError::new("Failed to get correct signature for scalar function")
                     })?
             }
+            LogicalExpression::Subquery(subquery) => {
+                // TODO: Do we just need outer, or do we want current + outer?
+                let mut schema = subquery.output_schema(outer)?;
+                match schema.types.len() {
+                    1 => schema.types.pop().unwrap(),
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "Scalar subqueries should return 1 value, got {other}",
+                        )))
+                    }
+                }
+            }
             _ => unimplemented!(),
         })
     }

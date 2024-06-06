@@ -125,7 +125,7 @@ impl<'a> PlanContext<'a> {
     }
 
     /// Create a new nested plan context for planning subqueries.
-    fn nested(&self, outer: Scope) -> Self {
+    pub(crate) fn nested(&self, outer: Scope) -> Self {
         PlanContext {
             vars: self.vars,
             outer_scopes: std::iter::once(outer)
@@ -341,7 +341,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_query(&mut self, query: ast::QueryNode<Bound>) -> Result<LogicalQuery> {
+    pub(crate) fn plan_query(&mut self, query: ast::QueryNode<Bound>) -> Result<LogicalQuery> {
         // TODO: CTEs
 
         let mut planned = match query.body {
@@ -585,6 +585,11 @@ impl<'a> PlanContext<'a> {
                 scope: plan.scope,
             };
         }
+
+        // Flatten subqueries;
+        plan.root = Self::flatten_uncorrelated_subqueries(plan.root)?;
+
+        println!("PLAN: {}", plan.root.debug_explain());
 
         // Cleaned scope containing only output columns in the final output.
         plan.scope = Scope::with_columns(None, names);
@@ -976,6 +981,56 @@ impl<'a> PlanContext<'a> {
         select_exprs.push(orig);
 
         Ok(1)
+    }
+
+    fn flatten_uncorrelated_subqueries(plan: LogicalOperator) -> Result<LogicalOperator> {
+        // TODO: Need to check if correlated, and skip.
+        let plan = match plan {
+            LogicalOperator::Projection(mut p) => {
+                let mut curr_input_cols = p.input.output_schema(&[])?.types.len(); // TODO: Do we need outer?
+                let mut extracted_subqueries = Vec::new();
+
+                for expr in &mut p.exprs {
+                    expr.walk_mut_post(&mut |expr| {
+                        match expr {
+                            expr @ LogicalExpression::Subquery(_) => {
+                                let column_ref = LogicalExpression::new_column(curr_input_cols);
+                                let orig = std::mem::replace(expr, column_ref);
+                                let subquery = match orig {
+                                    LogicalExpression::Subquery(e) => e,
+                                    _ => unreachable!(),
+                                };
+
+                                // LIMIT the original subquery to 1
+                                let subquery = LogicalOperator::Limit(Limit {
+                                    offset: None,
+                                    limit: 1,
+                                    input: subquery,
+                                });
+
+                                curr_input_cols += subquery.output_schema(&[])?.types.len();
+
+                                extracted_subqueries.push(subquery);
+                            }
+                            _ => (),
+                        }
+                        Ok(())
+                    })?;
+                }
+
+                for extracted in extracted_subqueries {
+                    p.input = Box::new(LogicalOperator::CrossJoin(CrossJoin {
+                        left: p.input,
+                        right: Box::new(extracted),
+                    }))
+                }
+
+                LogicalOperator::Projection(p)
+            }
+            other => other,
+        };
+
+        Ok(plan)
     }
 }
 

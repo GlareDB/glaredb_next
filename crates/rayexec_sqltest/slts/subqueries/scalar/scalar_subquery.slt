@@ -1,6 +1,79 @@
 # Basic scalar subqueries
 
+# query TT
+# explain select (select 1);
+
 query I
 select (select 1);
 ----
 1
+
+query I
+select 1 + (select 1);
+----
+2
+
+# TODO: Need to verify subquery returns one column
+# statement error
+# select 1 + (select 1, 2);
+# ----
+
+# Accounts for existing input into the plan.
+query I
+select a, 1 + (select 1) from (values (4,5,6)) v(a,b,c);
+----
+4  2
+
+# Nested
+query I
+select (select (select (select (select 4))));
+----
+4
+
+statement ok
+create temp table t1 (a bigint, b bigint, c bigint);
+
+statement ok
+insert into t1
+    values (111, 222, 333),
+           (444, 555, 666),
+           (777, 888, 999)
+
+# Operate on table inputs
+query I rowsort
+select a * (select 12) from t1;
+----
+1332
+5328
+9324
+
+query II rowsort
+select a, a * (select 12) from t1;
+----
+111  1332
+444  5328
+777  9324
+
+query III rowsort
+select a, a * (select 12), t1.a from t1;
+----
+111  1332  111
+444  5328  444
+777  9324  777
+
+# TODO: Error source: query failed: Column reference points to non-existent schema
+# query I
+# select (select sum(a)) from t1;
+# ----
+# 1332
+
+# TODO: Panic (not implemented), walk entire plan, not just projection
+# query I
+# select sum((select sum(a) from t1));
+# ----
+# 1332
+
+query I
+select (select a from t1 where b = 222);
+----
+111

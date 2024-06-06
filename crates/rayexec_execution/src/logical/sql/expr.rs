@@ -159,7 +159,11 @@ impl<'a> ExpressionContext<'a> {
                 }
             }
             ast::Expr::Subquery(subquery) => {
-                unimplemented!()
+                let mut nested = self.plan_context.nested(self.scope.clone());
+                let subquery = nested.plan_query(*subquery)?;
+                // We can ignore scope, as it's only relevant to planning of the
+                // subquery, which is complete.
+                Ok(LogicalExpression::Subquery(Box::new(subquery.root)))
             }
             _ => unimplemented!(),
         }
