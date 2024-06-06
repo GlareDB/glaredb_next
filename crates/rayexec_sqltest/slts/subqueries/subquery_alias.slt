@@ -49,3 +49,9 @@ select s.*, a from (values (1,2,3)) s(a)
 ----
 1  2  3  1
 
+query IIII
+select s.*, column2 from (values (1,2,3)) s(a)
+----
+1  2  3  2
+
+

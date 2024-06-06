@@ -158,6 +158,9 @@ impl<'a> ExpressionContext<'a> {
                     }
                 }
             }
+            ast::Expr::Subquery(subquery) => {
+                unimplemented!()
+            }
             _ => unimplemented!(),
         }
     }
