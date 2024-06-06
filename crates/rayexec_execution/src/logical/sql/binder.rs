@@ -739,6 +739,16 @@ impl<'a> ExpressionBinder<'a> {
                 let bound = Box::pin(self.binder.bind_query(*subquery)).await?;
                 Ok(ast::Expr::Subquery(Box::new(bound)))
             }
+            ast::Expr::Exists {
+                subquery,
+                not_exists,
+            } => {
+                let bound = Box::pin(self.binder.bind_query(*subquery)).await?;
+                Ok(ast::Expr::Exists {
+                    subquery: Box::new(bound),
+                    not_exists,
+                })
+            }
             _ => unimplemented!(),
         }
     }

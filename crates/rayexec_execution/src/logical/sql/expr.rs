@@ -174,6 +174,18 @@ impl<'a> ExpressionContext<'a> {
                 // subquery, which is complete.
                 Ok(LogicalExpression::Subquery(Box::new(subquery.root)))
             }
+            ast::Expr::Exists {
+                subquery,
+                not_exists,
+            } => {
+                let mut nested = self.plan_context.nested(self.scope.clone());
+                let subquery = nested.plan_query(*subquery)?;
+                Ok(LogicalExpression::Exists {
+                    not_exists,
+                    subquery: Box::new(subquery.root),
+                })
+            }
+
             _ => unimplemented!(),
         }
     }

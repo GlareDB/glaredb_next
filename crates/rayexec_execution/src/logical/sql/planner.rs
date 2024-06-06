@@ -11,6 +11,8 @@ use crate::{
         drop::{DropInfo, DropObject},
     },
     engine::vars::SessionVars,
+    expr::scalar::BinaryOperator,
+    functions::aggregate::count::Count,
     logical::operator::{
         Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, DetachDatabase,
         DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr, Insert, JoinType,
@@ -18,7 +20,10 @@ use crate::{
         SetVar, ShowVar, VariableOrAll,
     },
 };
-use rayexec_bullet::field::{Field, TypeSchema};
+use rayexec_bullet::{
+    field::{Field, TypeSchema},
+    scalar::OwnedScalarValue,
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -1011,7 +1016,64 @@ impl<'a> PlanContext<'a> {
                             });
 
                             curr_input_cols += subquery.output_schema(&[])?.types.len();
+                            extracted_subqueries.push(subquery);
+                        }
+                        expr @ LogicalExpression::Exists { .. } => {
+                            // EXISTS -> COUNT(*) == 1
+                            // NOT EXISTS -> COUNT(*) != 1
 
+                            let (subquery, not_exists) = match expr {
+                                LogicalExpression::Exists {
+                                    not_exists,
+                                    subquery,
+                                } => {
+                                    let subquery = std::mem::replace(
+                                        subquery,
+                                        Box::new(LogicalOperator::Empty),
+                                    );
+                                    (subquery, not_exists)
+                                }
+                                _ => unreachable!("variant checked in outer match"),
+                            };
+
+                            *expr = LogicalExpression::Binary {
+                                op: if *not_exists {
+                                    BinaryOperator::NotEq
+                                } else {
+                                    BinaryOperator::Eq
+                                },
+                                left: Box::new(LogicalExpression::new_column(curr_input_cols)),
+                                right: Box::new(LogicalExpression::Literal(
+                                    OwnedScalarValue::Int64(1),
+                                )),
+                            };
+
+                            // COUNT(*) and LIMIT the original query.
+                            let subquery = LogicalOperator::Aggregate(Aggregate {
+                                // TODO: Replace with CountStar once that's in.
+                                //
+                                // This currently just includes a 'true'
+                                // projection that makes the final aggregate
+                                // represent COUNT(true).
+                                exprs: vec![LogicalExpression::Aggregate {
+                                    agg: Box::new(Count),
+                                    inputs: vec![LogicalExpression::new_column(0)],
+                                    filter: None,
+                                }],
+                                grouping_expr: None,
+                                input: Box::new(LogicalOperator::Limit(Limit {
+                                    offset: None,
+                                    limit: 1,
+                                    input: Box::new(LogicalOperator::Projection(Projection {
+                                        exprs: vec![LogicalExpression::Literal(
+                                            OwnedScalarValue::Boolean(true),
+                                        )],
+                                        input: subquery,
+                                    })),
+                                })),
+                            });
+
+                            curr_input_cols += subquery.output_schema(&[])?.types.len();
                             extracted_subqueries.push(subquery);
                         }
                         _ => (),

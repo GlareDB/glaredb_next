@@ -839,6 +839,12 @@ pub enum LogicalExpression {
     /// A scalar subquery.
     Subquery(Box<LogicalOperator>),
 
+    /// An exists/not exists subquery.
+    Exists {
+        not_exists: bool,
+        subquery: Box<LogicalOperator>,
+    },
+
     /// Case expressions.
     Case {
         input: Box<LogicalExpression>,
@@ -894,6 +900,7 @@ impl fmt::Display for LogicalExpression {
                 Ok(())
             }
             Self::Subquery(_) => write!(f, "SUBQUERY TODO"),
+            Self::Exists { .. } => write!(f, "EXISTS TODO"),
             Self::Case { .. } => write!(f, "CASE TODO"),
         }
     }
@@ -1019,6 +1026,67 @@ impl LogicalExpression {
         F1: FnMut(&mut LogicalExpression) -> Result<()>,
         F2: FnMut(&mut LogicalExpression) -> Result<()>,
     {
+        /// Helper function for walking a subquery in an expression.
+        fn walk_subquery<F1, F2>(
+            plan: &mut LogicalOperator,
+            pre: &mut F1,
+            post: &mut F2,
+        ) -> Result<()>
+        where
+            F1: FnMut(&mut LogicalExpression) -> Result<()>,
+            F2: FnMut(&mut LogicalExpression) -> Result<()>,
+        {
+            match plan {
+                LogicalOperator::Projection(p) => {
+                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?
+                }
+                LogicalOperator::Filter(p) => p.predicate.walk_mut(pre, post)?,
+                LogicalOperator::Aggregate(p) => {
+                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?;
+                    match &mut p.grouping_expr {
+                        Some(GroupingExpr::GroupBy(v)) => {
+                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
+                        }
+                        Some(GroupingExpr::Rollup(v)) => {
+                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
+                        }
+                        Some(GroupingExpr::Cube(v)) => {
+                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
+                        }
+                        _ => (),
+                    }
+                }
+                LogicalOperator::Order(p) => {
+                    for expr in &mut p.exprs {
+                        expr.expr.walk_mut(pre, post)?;
+                    }
+                }
+                LogicalOperator::AnyJoin(p) => p.on.walk_mut(pre, post)?,
+                LogicalOperator::EqualityJoin(_) => (),
+                LogicalOperator::CrossJoin(_) => (),
+                LogicalOperator::Limit(_) => (),
+                LogicalOperator::Scan(_) => (),
+                LogicalOperator::ExpressionList(p) => {
+                    for row in &mut p.rows {
+                        LogicalExpression::walk_mut_many(row, pre, post)?;
+                    }
+                }
+                LogicalOperator::SetVar(_) => (),
+                LogicalOperator::ShowVar(_) => (),
+                LogicalOperator::ResetVar(_) => (),
+                LogicalOperator::Insert(_) => (),
+                LogicalOperator::CreateSchema(_) => (),
+                LogicalOperator::CreateTable(_) => (),
+                LogicalOperator::CreateTableAs(_) => (),
+                LogicalOperator::AttachDatabase(_) => (),
+                LogicalOperator::DetachDatabase(_) => (),
+                LogicalOperator::Explain(_) => (),
+                LogicalOperator::Drop(_) => (),
+                LogicalOperator::Empty => (),
+            }
+            Ok(())
+        }
+
         pre(self)?;
         match self {
             LogicalExpression::Unary { expr, .. } => {
@@ -1057,67 +1125,7 @@ impl LogicalExpression {
                 }
             }
             Self::ColumnRef(_) | Self::Literal(_) => (),
-            Self::Subquery(subquery) => {
-                fn walk_subquery<F1, F2>(
-                    plan: &mut LogicalOperator,
-                    pre: &mut F1,
-                    post: &mut F2,
-                ) -> Result<()>
-                where
-                    F1: FnMut(&mut LogicalExpression) -> Result<()>,
-                    F2: FnMut(&mut LogicalExpression) -> Result<()>,
-                {
-                    match plan {
-                        LogicalOperator::Projection(p) => {
-                            LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?
-                        }
-                        LogicalOperator::Filter(p) => p.predicate.walk_mut(pre, post)?,
-                        LogicalOperator::Aggregate(p) => {
-                            LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?;
-                            match &mut p.grouping_expr {
-                                Some(GroupingExpr::GroupBy(v)) => {
-                                    LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                                }
-                                Some(GroupingExpr::Rollup(v)) => {
-                                    LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                                }
-                                Some(GroupingExpr::Cube(v)) => {
-                                    LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                                }
-                                _ => (),
-                            }
-                        }
-                        LogicalOperator::Order(p) => {
-                            for expr in &mut p.exprs {
-                                expr.expr.walk_mut(pre, post)?;
-                            }
-                        }
-                        LogicalOperator::AnyJoin(p) => p.on.walk_mut(pre, post)?,
-                        LogicalOperator::EqualityJoin(_) => (),
-                        LogicalOperator::CrossJoin(_) => (),
-                        LogicalOperator::Limit(_) => (),
-                        LogicalOperator::Scan(_) => (),
-                        LogicalOperator::ExpressionList(p) => {
-                            for row in &mut p.rows {
-                                LogicalExpression::walk_mut_many(row, pre, post)?;
-                            }
-                        }
-                        LogicalOperator::SetVar(_) => (),
-                        LogicalOperator::ShowVar(_) => (),
-                        LogicalOperator::ResetVar(_) => (),
-                        LogicalOperator::Insert(_) => (),
-                        LogicalOperator::CreateSchema(_) => (),
-                        LogicalOperator::CreateTable(_) => (),
-                        LogicalOperator::CreateTableAs(_) => (),
-                        LogicalOperator::AttachDatabase(_) => (),
-                        LogicalOperator::DetachDatabase(_) => (),
-                        LogicalOperator::Explain(_) => (),
-                        LogicalOperator::Drop(_) => (),
-                        LogicalOperator::Empty => (),
-                    }
-                    Ok(())
-                }
-
+            Self::Subquery(subquery) | Self::Exists { subquery, .. } => {
                 // We only care about the expressions in the plan, so it's
                 // sufficient to walk the operators only once on the way down.
                 subquery.walk_mut_pre(&mut |plan| walk_subquery(plan, pre, post))?;

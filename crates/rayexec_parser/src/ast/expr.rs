@@ -158,6 +158,11 @@ pub enum Expr<T: AstMeta> {
     QualifiedWildcard(Vec<Ident>),
     /// An expression literal,
     Literal(Literal<T>),
+    /// Unary expression.
+    UnaryExpr {
+        op: UnaryOperator,
+        expr: Box<Expr<T>>,
+    },
     /// A binary expression.
     BinaryExpr {
         left: Box<Expr<T>>,
@@ -183,6 +188,11 @@ pub enum Expr<T: AstMeta> {
         expr: Box<Expr<T>>,
         collation: ObjectReference,
     },
+    /// EXISTS/NOT EXISTS
+    Exists {
+        subquery: Box<QueryNode<T>>,
+        not_exists: bool,
+    },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -192,6 +202,22 @@ impl AstParseable for Expr<Raw> {
 }
 
 impl Expr<Raw> {
+    // Precdences, ordered low to high.
+    const PREC_OR: u8 = 10;
+    const PREC_AND: u8 = 20;
+    const PREC_NOT: u8 = 30;
+    const PREC_IS: u8 = 40;
+    const PREC_COMPARISON: u8 = 50; // <=, =, etc
+    const PREC_CONTAINMENT: u8 = 60; // BETWEEN, IN, LIKE, etc
+    const PREC_EVERYTHING_ELSE: u8 = 70; // Anything without a specific precedence.
+    const PREC_ADD_SUB: u8 = 80;
+    const PREC_MUL_DIV_MOD: u8 = 90;
+    const _PREC_EXPONENTIATION: u8 = 100;
+    const _PREC_AT: u8 = 110; // AT TIME ZONE
+    const _PREC_COLLATE: u8 = 120;
+    const PREC_ARRAY_ELEM: u8 = 130; // []
+    const PREC_CAST: u8 = 140; // ::
+
     fn parse_subexpr(parser: &mut Parser, precendence: u8) -> Result<Self> {
         let mut expr = Expr::parse_prefix(parser)?;
 
@@ -225,6 +251,31 @@ impl Expr<Raw> {
                     Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
                     Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
                     Keyword::NULL => Expr::Literal(Literal::Null),
+                    Keyword::EXISTS => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let subquery = QueryNode::parse(parser)?;
+                        parser.expect_token(&Token::RightParen)?;
+                        Expr::Exists {
+                            subquery: Box::new(subquery),
+                            not_exists: false,
+                        }
+                    }
+                    Keyword::NOT => match parser.peek().map(|t| &t.token) {
+                        Some(Token::Word(w)) if w.keyword == Some(Keyword::EXISTS) => {
+                            let _ = parser.expect_keyword(Keyword::EXISTS)?;
+                            parser.expect_token(&Token::LeftParen)?;
+                            let subquery = QueryNode::parse(parser)?;
+                            parser.expect_token(&Token::RightParen)?;
+                            Expr::Exists {
+                                subquery: Box::new(subquery),
+                                not_exists: true,
+                            }
+                        }
+                        _ => Expr::UnaryExpr {
+                            op: UnaryOperator::Not,
+                            expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_NOT)?),
+                        },
+                    },
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
                 },
                 None => Self::parse_ident_expr(w.clone(), parser)?,
@@ -320,30 +371,14 @@ impl Expr<Raw> {
     ///
     /// See <https://www.postgresql.org/docs/16/sql-syntax-lexical.html#SQL-PRECEDENCE>
     fn get_infix_precedence(parser: &mut Parser) -> Result<u8> {
-        // Precdences, ordered low to high.
-        const PREC_OR: u8 = 10;
-        const PREC_AND: u8 = 20;
-        const _PREC_NOT: u8 = 30;
-        const PREC_IS: u8 = 40;
-        const PREC_COMPARISON: u8 = 50; // <=, =, etc
-        const PREC_CONTAINMENT: u8 = 60; // BETWEEN, IN, LIKE, etc
-        const PREC_EVERYTHING_ELSE: u8 = 70; // Anything without a specific precedence.
-        const PREC_ADD_SUB: u8 = 80;
-        const PREC_MUL_DIV_MOD: u8 = 90;
-        const _PREC_EXPONENTIATION: u8 = 100;
-        const _PREC_AT: u8 = 110; // AT TIME ZONE
-        const _PREC_COLLATE: u8 = 120;
-        const PREC_ARRAY_ELEM: u8 = 130; // []
-        const PREC_CAST: u8 = 140; // ::
-
         let tok = match parser.peek() {
             Some(tok) => &tok.token,
             None => return Ok(0),
         };
 
         match tok {
-            Token::Word(w) if w.keyword == Some(Keyword::OR) => Ok(PREC_OR),
-            Token::Word(w) if w.keyword == Some(Keyword::AND) => Ok(PREC_AND),
+            Token::Word(w) if w.keyword == Some(Keyword::OR) => Ok(Self::PREC_OR),
+            Token::Word(w) if w.keyword == Some(Keyword::AND) => Ok(Self::PREC_AND),
 
             Token::Word(w) if w.keyword == Some(Keyword::NOT) => {
                 // Precedence depends on keyword following it.
@@ -356,13 +391,13 @@ impl Expr<Raw> {
                 };
 
                 match next_kw {
-                    Keyword::IN => Ok(PREC_CONTAINMENT),
-                    Keyword::BETWEEN => Ok(PREC_CONTAINMENT),
-                    Keyword::LIKE => Ok(PREC_CONTAINMENT),
-                    Keyword::ILIKE => Ok(PREC_CONTAINMENT),
-                    Keyword::RLIKE => Ok(PREC_CONTAINMENT),
-                    Keyword::REGEXP => Ok(PREC_CONTAINMENT),
-                    Keyword::SIMILAR => Ok(PREC_CONTAINMENT),
+                    Keyword::IN => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::BETWEEN => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::LIKE => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::ILIKE => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::RLIKE => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::REGEXP => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::SIMILAR => Ok(Self::PREC_CONTAINMENT),
                     _ => Ok(0),
                 }
             }
@@ -377,19 +412,19 @@ impl Expr<Raw> {
                 };
 
                 match next_kw {
-                    Keyword::NULL => Ok(PREC_IS),
-                    _ => Ok(PREC_IS),
+                    Keyword::NULL => Ok(Self::PREC_IS),
+                    _ => Ok(Self::PREC_IS),
                 }
             }
-            Token::Word(w) if w.keyword == Some(Keyword::IN) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::BETWEEN) => Ok(PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::IN) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::BETWEEN) => Ok(Self::PREC_CONTAINMENT),
 
             // "LIKE"
-            Token::Word(w) if w.keyword == Some(Keyword::LIKE) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::ILIKE) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::RLIKE) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::REGEXP) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::SIMILAR) => Ok(PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::LIKE) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::ILIKE) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::RLIKE) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::REGEXP) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::SIMILAR) => Ok(Self::PREC_CONTAINMENT),
 
             // Equalities
             Token::Eq
@@ -398,20 +433,20 @@ impl Expr<Raw> {
             | Token::Lt
             | Token::LtEq
             | Token::Gt
-            | Token::GtEq => Ok(PREC_COMPARISON),
+            | Token::GtEq => Ok(Self::PREC_COMPARISON),
 
             // Numeric operators
-            Token::Plus | Token::Minus => Ok(PREC_ADD_SUB),
-            Token::Mul | Token::Div | Token::IntDiv | Token::Mod => Ok(PREC_MUL_DIV_MOD),
+            Token::Plus | Token::Minus => Ok(Self::PREC_ADD_SUB),
+            Token::Mul | Token::Div | Token::IntDiv | Token::Mod => Ok(Self::PREC_MUL_DIV_MOD),
 
             // Cast
-            Token::DoubleColon => Ok(PREC_CAST),
+            Token::DoubleColon => Ok(Self::PREC_CAST),
 
             // Concat
-            Token::Concat => Ok(PREC_EVERYTHING_ELSE),
+            Token::Concat => Ok(Self::PREC_EVERYTHING_ELSE),
 
             // Array, struct literals
-            Token::LeftBrace | Token::LeftBracket => Ok(PREC_ARRAY_ELEM),
+            Token::LeftBrace | Token::LeftBracket => Ok(Self::PREC_ARRAY_ELEM),
 
             _ => Ok(0),
         }
