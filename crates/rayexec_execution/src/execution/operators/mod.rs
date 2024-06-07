@@ -1,11 +1,11 @@
 //! Implementations of physical operators in an execution pipeline.
 
-pub mod aggregate;
 pub mod create_schema;
 pub mod create_table;
 pub mod drop;
 pub mod empty;
 pub mod filter;
+pub mod hash_aggregate;
 pub mod insert;
 pub mod join;
 pub mod limit;
@@ -36,8 +36,8 @@ use table_function::TableFunctionPartitionState;
 
 use crate::logical::explainable::Explainable;
 
-use self::aggregate::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::empty::EmptyPartitionState;
+use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::join::hash_join::{
     HashJoinBuildPartitionState, HashJoinOperatorState, HashJoinProbePartitionState,
 };

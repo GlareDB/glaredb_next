@@ -6,12 +6,12 @@ use crate::{
     engine::vars::SessionVars,
     execution::{
         operators::{
-            aggregate::{grouping_set::GroupingSets, hash_aggregate::PhysicalHashAggregate},
             create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
             drop::PhysicalDrop,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
+            hash_aggregate::{grouping_set::GroupingSets, PhysicalHashAggregate},
             insert::PhysicalInsert,
             join::{
                 hash_join::PhysicalHashJoin,
