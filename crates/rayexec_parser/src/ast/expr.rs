@@ -262,7 +262,7 @@ impl Expr<Raw> {
                     }
                     Keyword::NOT => match parser.peek().map(|t| &t.token) {
                         Some(Token::Word(w)) if w.keyword == Some(Keyword::EXISTS) => {
-                            let _ = parser.expect_keyword(Keyword::EXISTS)?;
+                            parser.expect_keyword(Keyword::EXISTS)?;
                             parser.expect_token(&Token::LeftParen)?;
                             let subquery = QueryNode::parse(parser)?;
                             parser.expect_token(&Token::RightParen)?;

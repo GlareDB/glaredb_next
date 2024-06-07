@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    binder::{Bound, BoundTableOrCteReference},
+    binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
     expr::{ExpandedSelectExpr, ExpressionContext},
     scope::{ColumnRef, Scope, TableReference},
 };
@@ -50,13 +50,16 @@ pub struct PlanContext<'a> {
 
     /// Scopes outside this context.
     pub outer_scopes: Vec<Scope>,
+
+    pub bind_data: &'a BindData,
 }
 
 impl<'a> PlanContext<'a> {
-    pub fn new(vars: &'a SessionVars) -> Self {
+    pub fn new(vars: &'a SessionVars, bind_data: &'a BindData) -> Self {
         PlanContext {
             vars,
             outer_scopes: Vec::new(),
+            bind_data,
         }
     }
 
@@ -136,6 +139,7 @@ impl<'a> PlanContext<'a> {
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
                 .collect(),
+            bind_data: self.bind_data,
         }
     }
 
@@ -351,7 +355,6 @@ impl<'a> PlanContext<'a> {
 
         let mut planned = match query.body {
             ast::QueryNodeBody::Select(select) => self.plan_select(*select, query.order_by)?,
-
             ast::QueryNodeBody::Set {
                 left: _,
                 right: _,
@@ -636,7 +639,55 @@ impl<'a> PlanContext<'a> {
                             scope,
                         }
                     }
-                    BoundTableOrCteReference::Cte(_) => unimplemented!(),
+                    BoundTableOrCteReference::Cte(BoundCteReference { idx }) => {
+                        let cte = self.bind_data.ctes.get(idx).ok_or_else(|| {
+                            RayexecError::new(format!("Missing bound CTE at index {idx}"))
+                        })?;
+
+                        if cte.materialized {
+                            // Will probably just be a variant of our recursive
+                            // CTE support with a "materialized" operator.
+                            return Err(RayexecError::new(
+                                "Materialized CTEs not currently supported",
+                            ));
+                        }
+
+                        let scope_reference = TableReference {
+                            database: None,
+                            schema: None,
+                            table: cte.name.clone(),
+                        };
+
+                        // TODO: Unsure how we want to set the scope for recursive yet.
+
+                        // Plan CTE body...
+                        let mut nested = self.nested(current_scope);
+                        let mut query = nested.plan_query(cte.body.clone())?;
+
+                        // Update resulting scope items with new cte reference.
+                        query
+                            .scope
+                            .iter_mut()
+                            .for_each(|item| item.alias = Some(scope_reference.clone()));
+
+                        // Apply user provided aliases.
+                        if let Some(aliases) = cte.column_aliases.as_ref() {
+                            if aliases.len() > query.scope.items.len() {
+                                return Err(RayexecError::new(format!(
+                                    "Expected at most {} column aliases, received {}",
+                                    query.scope.items.len(),
+                                    aliases.len()
+                                )))?;
+                            }
+
+                            for (item, alias) in query.scope.iter_mut().zip(aliases.iter()) {
+                                item.column = alias.as_normalized_string();
+                            }
+                        }
+
+                        // And return it. It's now usable elsewhere in the plan.
+                        query
+                    }
                 }
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {

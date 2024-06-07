@@ -341,7 +341,7 @@ impl PhysicalOperator for PhysicalHashAggregate {
                 //
                 // TODO: This logic should be removed when the ungrouped
                 // operator is created.
-                let ungrouped = self.grouping_sets.columns().len() == 0;
+                let ungrouped = self.grouping_sets.columns().is_empty();
                 if ungrouped {
                     let partition = partition_for_hash(0, partition_hashtables.len());
                     let ht = &mut partition_hashtables[partition];

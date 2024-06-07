@@ -81,7 +81,7 @@ impl AstParseable for QueryNodeBody<Raw> {
         } else if parser.parse_keyword(Keyword::VALUES) {
             Ok(QueryNodeBody::Values(Values::parse(parser)?))
         } else {
-            return Err(RayexecError::new("Exepected SELECT or VALUES"));
+            return Err(RayexecError::new("Expected SELECT, or VALUES"));
         }
     }
 }

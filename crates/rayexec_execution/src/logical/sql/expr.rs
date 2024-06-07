@@ -129,9 +129,9 @@ impl<'a> ExpressionContext<'a> {
                             ast::FunctionArgExpr::Wildcard => {
                                 // Binder should have handled removing '*' from
                                 // function calls.
-                                return Err(RayexecError::new(
+                                Err(RayexecError::new(
                                     "Cannot plan a function with '*' as an argument",
-                                ));
+                                ))
                             }
                         },
                         ast::FunctionArg::Named { .. } => Err(RayexecError::new(
