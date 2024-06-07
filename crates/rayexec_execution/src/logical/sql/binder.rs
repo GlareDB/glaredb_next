@@ -953,7 +953,7 @@ impl<'a> ExpressionBinder<'a> {
                     not_exists,
                 })
             }
-            _ => unimplemented!(),
+            other => unimplemented!("{other:?}"),
         }
     }
 }

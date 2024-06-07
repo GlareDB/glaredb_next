@@ -15,6 +15,17 @@ with cte1 as (select 4 as a) select a from cte1;
 ----
 4
 
+query I
+with cte1 as (select * from (select 2 as b)) select b from cte1;
+----
+2
+
+query I rowsort
+with cte1 as (select * from (values (1, 2), (3, 4)) v(a, b)) select b from cte1;
+----
+2
+4
+
 # TODO: Error source: query failed: Expected LeftParen, got Some(TokenWithLocation { token: Word(Word { value: "b", quote: None, keyword: None }), line: 0, col: 0 })
 # query I
 # with cte1(b) as (select 4 as a) select b from cte1;
