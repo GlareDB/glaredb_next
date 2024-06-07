@@ -107,8 +107,84 @@ impl AstMeta for Bound {
     type DataType = DataType;
 }
 
-#[derive(Debug)]
-pub struct BindData {}
+// TODO: This might need some scoping information.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BoundCte {
+    /// Normalized name for the CTE.
+    pub name: String,
+
+    /// Depth this CTE was found at.
+    pub depth: usize,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct BindData {
+    /// How "deep" in the plan are we.
+    ///
+    /// Incremented everytime we dive into a subquery.
+    ///
+    /// This provides a primitive form of scoping for CTE resolution.
+    pub current_depth: usize,
+
+    /// CTEs are appended to the vec as they're encountered.
+    ///
+    /// When search for a CTE, the vec should be iterated from right to left to
+    /// try to get the "closest" CTE to the reference.
+    pub ctes: Vec<BoundCte>,
+}
+
+impl BindData {
+    /// Try to find a CTE by its normalized name.
+    ///
+    /// This will iterate the cte vec right to left to find best cte that
+    /// matches this name.
+    ///
+    /// The current depth will be used to determine if a CTE is valid to
+    /// reference or not. What this means is as we iterate, we can go "up" in
+    /// depth, but never back down, as going back down would mean we're
+    /// attempting to resolve a cte from a "sibling" subquery.
+    // TODO: This doesn't account for CTEs defined in sibling subqueries yet
+    // that happen to have the same name and depths _and_ there's no CTEs in the
+    // parent.
+    fn find_cte(&self, name: &str) -> Option<BoundCteReference> {
+        let mut search_depth = self.current_depth;
+
+        for (idx, cte) in self.ctes.iter().rev().enumerate() {
+            if cte.depth > search_depth {
+                // We're looking another subquery's CTEs.
+                return None;
+            }
+
+            if cte.name == name {
+                // We found a good reference.
+                return Some(BoundCteReference {
+                    idx: (self.ctes.len() - 1) - idx, // Since we're iterating backwards.
+                });
+            }
+
+            // Otherwise keep searching, even if the cte is up a level.
+            search_depth = cte.depth;
+        }
+
+        // No CTE found.
+        None
+    }
+
+    fn inc_depth(&mut self) {
+        self.current_depth += 1
+    }
+
+    fn dec_depth(&mut self) {
+        self.current_depth -= 1;
+    }
+
+    fn push_cte(&mut self, name: impl Into<String>) {
+        self.ctes.push(BoundCte {
+            name: name.into(),
+            depth: self.current_depth,
+        })
+    }
+}
 
 /// Binds a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
@@ -123,12 +199,12 @@ impl<'a> Binder<'a> {
     }
 
     pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindData)> {
-        let bind_data = BindData {};
+        let mut bind_data = BindData::default();
         let bound = match stmt {
             Statement::Explain(explain) => {
                 let body = match explain.body {
                     ast::ExplainBody::Query(query) => {
-                        ast::ExplainBody::Query(self.bind_query(query).await?)
+                        ast::ExplainBody::Query(self.bind_query(query, &mut bind_data).await?)
                     }
                 };
                 Statement::Explain(ast::ExplainNode {
@@ -138,10 +214,14 @@ impl<'a> Binder<'a> {
                     output: explain.output,
                 })
             }
-            Statement::Query(query) => Statement::Query(self.bind_query(query).await?),
-            Statement::Insert(insert) => Statement::Insert(self.bind_insert(insert).await?),
+            Statement::Query(query) => {
+                Statement::Query(self.bind_query(query, &mut bind_data).await?)
+            }
+            Statement::Insert(insert) => {
+                Statement::Insert(self.bind_insert(insert, &mut bind_data).await?)
+            }
             Statement::CreateTable(create) => {
-                Statement::CreateTable(self.bind_create_table(create).await?)
+                Statement::CreateTable(self.bind_create_table(create, &mut bind_data).await?)
             }
             Statement::CreateSchema(create) => {
                 Statement::CreateSchema(self.bind_create_schema(create).await?)
@@ -150,7 +230,7 @@ impl<'a> Binder<'a> {
             Statement::SetVariable(set) => Statement::SetVariable(ast::SetVariable {
                 reference: Self::reference_to_strings(set.reference).into(),
                 value: ExpressionBinder::new(&self)
-                    .bind_expression(set.value)
+                    .bind_expression(set.value, &mut bind_data)
                     .await?,
             }),
             Statement::ShowVariable(show) => Statement::ShowVariable(ast::ShowVariable {
@@ -164,17 +244,25 @@ impl<'a> Binder<'a> {
                     }
                 },
             }),
-            Statement::Attach(attach) => Statement::Attach(self.bind_attach(attach).await?),
+            Statement::Attach(attach) => {
+                Statement::Attach(self.bind_attach(attach, &mut bind_data).await?)
+            }
             Statement::Detach(detach) => Statement::Detach(self.bind_detach(detach).await?),
         };
 
         Ok((bound, bind_data))
     }
 
-    async fn bind_attach(&self, attach: ast::Attach<Raw>) -> Result<ast::Attach<Bound>> {
+    async fn bind_attach(
+        &self,
+        attach: ast::Attach<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::Attach<Bound>> {
         let mut options = HashMap::new();
         for (k, v) in attach.options {
-            let v = ExpressionBinder::new(self).bind_expression(v).await?;
+            let v = ExpressionBinder::new(self)
+                .bind_expression(v, bind_data)
+                .await?;
             options.insert(k, v);
         }
 
@@ -242,6 +330,7 @@ impl<'a> Binder<'a> {
     async fn bind_create_table(
         &self,
         create: ast::CreateTable<Raw>,
+        bind_data: &mut BindData,
     ) -> Result<ast::CreateTable<Bound>> {
         // TODO: Search path
         let mut name: BoundItemReference = Self::reference_to_strings(create.name).into();
@@ -266,7 +355,7 @@ impl<'a> Binder<'a> {
             .collect();
 
         let source = match create.source {
-            Some(source) => Some(self.bind_query(source).await?),
+            Some(source) => Some(self.bind_query(source, bind_data).await?),
             None => None,
         };
 
@@ -281,9 +370,13 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_insert(&self, insert: ast::Insert<Raw>) -> Result<ast::Insert<Bound>> {
-        let table = self.resolve_table(insert.table).await?;
-        let source = self.bind_query(insert.source).await?;
+    async fn bind_insert(
+        &self,
+        insert: ast::Insert<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::Insert<Bound>> {
+        let table = self.resolve_table_or_cte(insert.table, bind_data).await?;
+        let source = self.bind_query(insert.source, bind_data).await?;
         Ok(ast::Insert {
             table,
             columns: insert.columns,
@@ -291,61 +384,116 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_query(&self, query: ast::QueryNode<Raw>) -> Result<ast::QueryNode<Bound>> {
-        let ctes = match query.ctes {
-            Some(ctes) => Some(self.bind_ctes(ctes).await?),
-            None => None,
-        };
+    async fn bind_query(
+        &self,
+        query: ast::QueryNode<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::QueryNode<Bound>> {
+        /// Helper containing the actual logic for the bind.
+        ///
+        /// Pulled out so we can accurately set the bind data depth before and
+        /// after this.
+        async fn bind_query_inner(
+            binder: &Binder<'_>,
+            query: ast::QueryNode<Raw>,
+            bind_data: &mut BindData,
+        ) -> Result<ast::QueryNode<Bound>> {
+            let ctes = match query.ctes {
+                Some(ctes) => Some(binder.bind_ctes(ctes, bind_data).await?),
+                None => None,
+            };
 
-        let body = match query.body {
-            ast::QueryNodeBody::Select(select) => {
-                ast::QueryNodeBody::Select(Box::new(self.bind_select(*select).await?))
-            }
-            ast::QueryNodeBody::Values(values) => {
-                ast::QueryNodeBody::Values(self.bind_values(values).await?)
-            }
-            ast::QueryNodeBody::Set { .. } => unimplemented!(),
-        };
+            let body = match query.body {
+                ast::QueryNodeBody::Select(select) => ast::QueryNodeBody::Select(Box::new(
+                    binder.bind_select(*select, bind_data).await?,
+                )),
+                ast::QueryNodeBody::Values(values) => {
+                    ast::QueryNodeBody::Values(binder.bind_values(values, bind_data).await?)
+                }
+                ast::QueryNodeBody::Set { .. } => unimplemented!(),
+            };
 
-        // Bind ORDER BY
-        let mut order_by = Vec::with_capacity(query.order_by.len());
-        for expr in query.order_by {
-            order_by.push(self.bind_order_by(expr).await?);
+            // Bind ORDER BY
+            let mut order_by = Vec::with_capacity(query.order_by.len());
+            for expr in query.order_by {
+                order_by.push(binder.bind_order_by(expr, bind_data).await?);
+            }
+
+            // Bind LIMIT/OFFSET
+            let limit = match query.limit.limit {
+                Some(expr) => Some(
+                    ExpressionBinder::new(binder)
+                        .bind_expression(expr, bind_data)
+                        .await?,
+                ),
+                None => None,
+            };
+            let offset = match query.limit.offset {
+                Some(expr) => Some(
+                    ExpressionBinder::new(binder)
+                        .bind_expression(expr, bind_data)
+                        .await?,
+                ),
+                None => None,
+            };
+
+            Ok(ast::QueryNode {
+                ctes,
+                body,
+                order_by,
+                limit: ast::LimitModifier { limit, offset },
+            })
         }
 
-        // Bind LIMIT/OFFSET
-        let limit = match query.limit.limit {
-            Some(expr) => Some(ExpressionBinder::new(self).bind_expression(expr).await?),
-            None => None,
-        };
-        let offset = match query.limit.offset {
-            Some(expr) => Some(ExpressionBinder::new(self).bind_expression(expr).await?),
-            None => None,
-        };
+        bind_data.inc_depth();
+        let result = bind_query_inner(self, query, bind_data).await;
+        bind_data.dec_depth();
 
-        Ok(ast::QueryNode {
-            ctes,
-            body,
-            order_by,
-            limit: ast::LimitModifier { limit, offset },
-        })
+        result
     }
 
     async fn bind_ctes(
         &self,
-        _ctes: ast::CommonTableExprDefs<Raw>,
+        ctes: ast::CommonTableExprDefs<Raw>,
+        bind_data: &mut BindData,
     ) -> Result<ast::CommonTableExprDefs<Bound>> {
-        unimplemented!()
+        let mut bound_ctes = Vec::with_capacity(ctes.ctes.len());
+        for cte in ctes.ctes.into_iter() {
+            let name = cte.alias.as_normalized_string();
+            bind_data.push_cte(name);
+
+            let bound_body = Box::new(Box::pin(self.bind_query(*cte.body, bind_data)).await?);
+
+            bound_ctes.push(ast::CommonTableExpr {
+                alias: cte.alias,
+                column_aliases: cte.column_aliases,
+                materialized: cte.materialized,
+                body: bound_body,
+            });
+        }
+
+        Ok(ast::CommonTableExprDefs {
+            recursive: ctes.recursive,
+            ctes: bound_ctes,
+        })
     }
 
-    async fn bind_select(&self, select: ast::SelectNode<Raw>) -> Result<ast::SelectNode<Bound>> {
+    async fn bind_select(
+        &self,
+        select: ast::SelectNode<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::SelectNode<Bound>> {
         // Bind DISTINCT
         let distinct = match select.distinct {
             Some(distinct) => Some(match distinct {
                 ast::DistinctModifier::On(exprs) => {
                     let mut bound = Vec::with_capacity(exprs.len());
                     for expr in exprs {
-                        bound.push(ExpressionBinder::new(self).bind_expression(expr).await?);
+                        bound.push(
+                            ExpressionBinder::new(self)
+                                .bind_expression(expr, bind_data)
+                                .await?,
+                        );
                     }
                     ast::DistinctModifier::On(bound)
                 }
@@ -356,13 +504,17 @@ impl<'a> Binder<'a> {
 
         // Bind FROM
         let from = match select.from {
-            Some(from) => Some(self.bind_from(from).await?),
+            Some(from) => Some(self.bind_from(from, bind_data).await?),
             None => None,
         };
 
         // Bind WHERE
         let where_expr = match select.where_expr {
-            Some(expr) => Some(ExpressionBinder::new(self).bind_expression(expr).await?),
+            Some(expr) => Some(
+                ExpressionBinder::new(self)
+                    .bind_expression(expr, bind_data)
+                    .await?,
+            ),
             None => None,
         };
 
@@ -371,7 +523,7 @@ impl<'a> Binder<'a> {
         for projection in select.projections {
             projections.push(
                 ExpressionBinder::new(self)
-                    .bind_select_expr(projection)
+                    .bind_select_expr(projection, bind_data)
                     .await?,
             );
         }
@@ -383,7 +535,11 @@ impl<'a> Binder<'a> {
                 ast::GroupByNode::Exprs { exprs } => {
                     let mut bound = Vec::with_capacity(exprs.len());
                     for expr in exprs {
-                        bound.push(ExpressionBinder::new(self).bind_group_by_expr(expr).await?);
+                        bound.push(
+                            ExpressionBinder::new(self)
+                                .bind_group_by_expr(expr, bind_data)
+                                .await?,
+                        );
                     }
                     ast::GroupByNode::Exprs { exprs: bound }
                 }
@@ -393,7 +549,11 @@ impl<'a> Binder<'a> {
 
         // Bind HAVING
         let having = match select.having {
-            Some(expr) => Some(ExpressionBinder::new(self).bind_expression(expr).await?),
+            Some(expr) => Some(
+                ExpressionBinder::new(self)
+                    .bind_expression(expr, bind_data)
+                    .await?,
+            ),
             None => None,
         };
 
@@ -407,10 +567,18 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_values(&self, values: ast::Values<Raw>) -> Result<ast::Values<Bound>> {
+    async fn bind_values(
+        &self,
+        values: ast::Values<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::Values<Bound>> {
         let mut bound = Vec::with_capacity(values.rows.len());
         for row in values.rows {
-            bound.push(ExpressionBinder::new(self).bind_expressions(row).await?);
+            bound.push(
+                ExpressionBinder::new(self)
+                    .bind_expressions(row, bind_data)
+                    .await?,
+            );
         }
         Ok(ast::Values { rows: bound })
     }
@@ -418,9 +586,10 @@ impl<'a> Binder<'a> {
     async fn bind_order_by(
         &self,
         order_by: ast::OrderByNode<Raw>,
+        bind_data: &mut BindData,
     ) -> Result<ast::OrderByNode<Bound>> {
         let expr = ExpressionBinder::new(self)
-            .bind_expression(order_by.expr)
+            .bind_expression(order_by.expr, bind_data)
             .await?;
         Ok(ast::OrderByNode {
             typ: order_by.typ,
@@ -429,16 +598,20 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn bind_from(&self, from: ast::FromNode<Raw>) -> Result<ast::FromNode<Bound>> {
+    async fn bind_from(
+        &self,
+        from: ast::FromNode<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable {
-                    reference: self.resolve_table(reference).await?,
+                    reference: self.resolve_table_or_cte(reference, bind_data).await?,
                 })
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
                 ast::FromNodeBody::Subquery(ast::FromSubquery {
-                    query: Box::pin(self.bind_query(query)).await?,
+                    query: Box::pin(self.bind_query(query, bind_data)).await?,
                 })
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { .. }) => {
@@ -450,12 +623,14 @@ impl<'a> Binder<'a> {
                 join_type,
                 join_condition,
             }) => {
-                let left = Box::pin(self.bind_from(*left)).await?;
-                let right = Box::pin(self.bind_from(*right)).await?;
+                let left = Box::pin(self.bind_from(*left, bind_data)).await?;
+                let right = Box::pin(self.bind_from(*right, bind_data)).await?;
 
                 let join_condition = match join_condition {
                     ast::JoinCondition::On(expr) => {
-                        let expr = ExpressionBinder::new(self).bind_expression(expr).await?;
+                        let expr = ExpressionBinder::new(self)
+                            .bind_expression(expr, bind_data)
+                            .await?;
                         ast::JoinCondition::On(expr)
                     }
                     ast::JoinCondition::Using(idents) => ast::JoinCondition::Using(idents),
@@ -478,19 +653,24 @@ impl<'a> Binder<'a> {
         })
     }
 
-    async fn resolve_table(
+    async fn resolve_table_or_cte(
         &self,
         mut reference: ast::ObjectReference,
+        bind_data: &BindData,
     ) -> Result<BoundTableOrCteReference> {
-        // TODO: If len == 1, search in CTE map in bind data.
-
         // TODO: Seach path.
         let [catalog, schema, table] = match reference.0.len() {
-            1 => [
-                "temp".to_string(),
-                "temp".to_string(),
-                reference.0.pop().unwrap().into_normalized_string(),
-            ],
+            1 => {
+                let name = reference.0.pop().unwrap().into_normalized_string();
+
+                // Check bind data for cte that would satisfy this reference.
+                if let Some(cte) = bind_data.find_cte(&name) {
+                    return Ok(BoundTableOrCteReference::Cte(cte));
+                }
+
+                // Other wise continue with trying to resolve from the catalogs.
+                ["temp".to_string(), "temp".to_string(), name]
+            }
             2 => {
                 let table = reference.0.pop().unwrap().into_normalized_string();
                 let schema = reference.0.pop().unwrap().into_normalized_string();
@@ -560,33 +740,38 @@ impl<'a> ExpressionBinder<'a> {
     async fn bind_select_expr(
         &self,
         select_expr: ast::SelectExpr<Raw>,
+        bind_data: &mut BindData,
     ) -> Result<ast::SelectExpr<Bound>> {
         match select_expr {
-            ast::SelectExpr::Expr(expr) => {
-                Ok(ast::SelectExpr::Expr(self.bind_expression(expr).await?))
-            }
+            ast::SelectExpr::Expr(expr) => Ok(ast::SelectExpr::Expr(
+                self.bind_expression(expr, bind_data).await?,
+            )),
             ast::SelectExpr::AliasedExpr(expr, alias) => Ok(ast::SelectExpr::AliasedExpr(
-                self.bind_expression(expr).await?,
+                self.bind_expression(expr, bind_data).await?,
                 alias,
             )),
             ast::SelectExpr::QualifiedWildcard(object_name, wildcard) => {
                 Ok(ast::SelectExpr::QualifiedWildcard(
                     object_name,
-                    self.bind_wildcard(wildcard).await?,
+                    self.bind_wildcard(wildcard, bind_data).await?,
                 ))
             }
             ast::SelectExpr::Wildcard(wildcard) => Ok(ast::SelectExpr::Wildcard(
-                self.bind_wildcard(wildcard).await?,
+                self.bind_wildcard(wildcard, bind_data).await?,
             )),
         }
     }
 
-    async fn bind_wildcard(&self, wildcard: ast::Wildcard<Raw>) -> Result<ast::Wildcard<Bound>> {
+    async fn bind_wildcard(
+        &self,
+        wildcard: ast::Wildcard<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::Wildcard<Bound>> {
         let mut replace_cols = Vec::with_capacity(wildcard.replace_cols.len());
         for replace in wildcard.replace_cols {
             replace_cols.push(ReplaceColumn {
                 col: replace.col,
-                expr: self.bind_expression(replace.expr).await?,
+                expr: self.bind_expression(replace.expr, bind_data).await?,
             });
         }
 
@@ -599,19 +784,20 @@ impl<'a> ExpressionBinder<'a> {
     async fn bind_group_by_expr(
         &self,
         expr: ast::GroupByExpr<Raw>,
+        bind_data: &mut BindData,
     ) -> Result<ast::GroupByExpr<Bound>> {
         Ok(match expr {
             ast::GroupByExpr::Expr(exprs) => {
-                ast::GroupByExpr::Expr(self.bind_expressions(exprs).await?)
+                ast::GroupByExpr::Expr(self.bind_expressions(exprs, bind_data).await?)
             }
             ast::GroupByExpr::Cube(exprs) => {
-                ast::GroupByExpr::Cube(self.bind_expressions(exprs).await?)
+                ast::GroupByExpr::Cube(self.bind_expressions(exprs, bind_data).await?)
             }
             ast::GroupByExpr::Rollup(exprs) => {
-                ast::GroupByExpr::Rollup(self.bind_expressions(exprs).await?)
+                ast::GroupByExpr::Rollup(self.bind_expressions(exprs, bind_data).await?)
             }
             ast::GroupByExpr::GroupingSets(exprs) => {
-                ast::GroupByExpr::GroupingSets(self.bind_expressions(exprs).await?)
+                ast::GroupByExpr::GroupingSets(self.bind_expressions(exprs, bind_data).await?)
             }
         })
     }
@@ -619,16 +805,21 @@ impl<'a> ExpressionBinder<'a> {
     async fn bind_expressions(
         &self,
         exprs: impl IntoIterator<Item = ast::Expr<Raw>>,
+        bind_data: &mut BindData,
     ) -> Result<Vec<ast::Expr<Bound>>> {
         let mut bound = Vec::new();
         for expr in exprs {
-            bound.push(self.bind_expression(expr).await?);
+            bound.push(self.bind_expression(expr, bind_data).await?);
         }
         Ok(bound)
     }
 
     /// Bind an expression.
-    async fn bind_expression(&self, expr: ast::Expr<Raw>) -> Result<ast::Expr<Bound>> {
+    async fn bind_expression(
+        &self,
+        expr: ast::Expr<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::Expr<Bound>> {
         match expr {
             ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),
             ast::Expr::CompoundIdent(idents) => Ok(ast::Expr::CompoundIdent(idents)),
@@ -638,7 +829,7 @@ impl<'a> ExpressionBinder<'a> {
                 ast::Literal::Boolean(b) => ast::Literal::Boolean(b),
                 ast::Literal::Null => ast::Literal::Null,
                 ast::Literal::Struct { keys, values } => {
-                    let bound = Box::pin(self.bind_expressions(values)).await?;
+                    let bound = Box::pin(self.bind_expressions(values, bind_data)).await?;
                     ast::Literal::Struct {
                         keys,
                         values: bound,
@@ -646,9 +837,9 @@ impl<'a> ExpressionBinder<'a> {
                 }
             })),
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
-                left: Box::new(Box::pin(self.bind_expression(*left)).await?),
+                left: Box::new(Box::pin(self.bind_expression(*left, bind_data)).await?),
                 op,
-                right: Box::new(Box::pin(self.bind_expression(*right)).await?),
+                right: Box::new(Box::pin(self.bind_expression(*right, bind_data)).await?),
             }),
             ast::Expr::Function(func) => {
                 // TODO: Search path (with system being the first to check)
@@ -662,7 +853,9 @@ impl<'a> ExpressionBinder<'a> {
                 let schema = "glare_catalog";
 
                 let filter = match func.filter {
-                    Some(filter) => Some(Box::new(Box::pin(self.bind_expression(*filter)).await?)),
+                    Some(filter) => Some(Box::new(
+                        Box::pin(self.bind_expression(*filter, bind_data)).await?,
+                    )),
                     None => None,
                 };
 
@@ -682,7 +875,7 @@ impl<'a> ExpressionBinder<'a> {
                                     ast::Expr::Literal(ast::Literal::Boolean(true)),
                                 ),
                                 ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                                    Box::pin(self.bind_expression(expr)).await?,
+                                    Box::pin(self.bind_expression(expr, bind_data)).await?,
                                 ),
                             },
                         },
@@ -692,7 +885,7 @@ impl<'a> ExpressionBinder<'a> {
                                     ast::Expr::Literal(ast::Literal::Boolean(true)),
                                 ),
                                 ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                                    Box::pin(self.bind_expression(expr)).await?,
+                                    Box::pin(self.bind_expression(expr, bind_data)).await?,
                                 ),
                             },
                         },
@@ -736,14 +929,14 @@ impl<'a> ExpressionBinder<'a> {
                 )))
             }
             ast::Expr::Subquery(subquery) => {
-                let bound = Box::pin(self.binder.bind_query(*subquery)).await?;
+                let bound = Box::pin(self.binder.bind_query(*subquery, bind_data)).await?;
                 Ok(ast::Expr::Subquery(Box::new(bound)))
             }
             ast::Expr::Exists {
                 subquery,
                 not_exists,
             } => {
-                let bound = Box::pin(self.binder.bind_query(*subquery)).await?;
+                let bound = Box::pin(self.binder.bind_query(*subquery, bind_data)).await?;
                 Ok(ast::Expr::Exists {
                     subquery: Box::new(bound),
                     not_exists,
@@ -751,5 +944,75 @@ impl<'a> ExpressionBinder<'a> {
             }
             _ => unimplemented!(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bind_data_cte_basic() {
+        let mut bind_data = BindData::default();
+
+        bind_data.push_cte("cte1");
+        bind_data.push_cte("cte2");
+
+        assert_eq!(
+            Some(BoundCteReference { idx: 1 }),
+            bind_data.find_cte("cte2")
+        );
+        assert_eq!(
+            Some(BoundCteReference { idx: 0 }),
+            bind_data.find_cte("cte1")
+        );
+        assert_eq!(None, bind_data.find_cte("cte3"));
+    }
+
+    #[test]
+    fn bind_data_cte_reference_from_parent() {
+        // with cte1 as
+        //     (select 1)
+        // select *
+        //     from (select * from cte1);
+
+        let mut bind_data = BindData::default();
+        bind_data.push_cte("cte1");
+
+        // Dive into subquery.
+        bind_data.inc_depth();
+        assert_eq!(
+            Some(BoundCteReference { idx: 0 }),
+            bind_data.find_cte("cte1")
+        );
+    }
+
+    #[test]
+    #[ignore] // Highlights the TODO in `find_cte`
+    fn bind_data_cte_reference_from_parent_not_sibling() {
+        // with cte1 as
+        //     (select 1)
+        // select *
+        //   from (with cte1 as (select 2) select * from cte1)
+        //        cross join
+        //        (select * from cte1);
+        //
+        // Right side of cross join should reference the top-level CTE (at index
+        // 0)
+
+        let mut bind_data = BindData::default();
+        bind_data.push_cte("cte1");
+
+        // Dive into first subquery.
+        bind_data.inc_depth();
+        bind_data.push_cte("cte1");
+        bind_data.dec_depth();
+
+        // Dive into second subquery, get CTE reference.
+        bind_data.inc_depth();
+        assert_eq!(
+            Some(BoundCteReference { idx: 0 }),
+            bind_data.find_cte("cte1")
+        );
     }
 }

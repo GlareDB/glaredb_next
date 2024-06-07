@@ -1,0 +1,6 @@
+# Non-recursive, non-materialized CTE tests
+
+query I
+with cte1 as (select 4) select * from cte1;
+----
+4
