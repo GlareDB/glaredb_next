@@ -18,11 +18,7 @@
 [package]
 name = "parquet"
 version = { workspace = true }
-license = { workspace = true }
 description = "Apache Parquet implementation in Rust"
-homepage = { workspace = true }
-repository = { workspace = true }
-authors = { workspace = true }
 keywords = ["arrow", "parquet", "hadoop"]
 readme = "README.md"
 edition = { workspace = true }
@@ -35,14 +31,14 @@ ahash = { version = "0.8", default-features = false, features = ["compile-time-r
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
 
 [dependencies]
-arrow-array = { workspace = true, optional = true }
-arrow-buffer = { workspace = true, optional = true }
-arrow-cast = { workspace = true, optional = true }
-arrow-csv = { workspace = true, optional = true }
-arrow-data = { workspace = true, optional = true }
-arrow-schema = { workspace = true, optional = true }
-arrow-select = { workspace = true, optional = true }
-arrow-ipc = { workspace = true, optional = true }
+arrow-array = { version = "52.0", optional = true }
+arrow-buffer = { version = "52.0", optional = true }
+arrow-cast = { version = "52.0", optional = true }
+arrow-csv = { version = "52.0", optional = true }
+arrow-data = { version = "52.0", optional = true }
+arrow-schema = { version = "52.0", optional = true }
+arrow-select = { version = "52.0", optional = true }
+arrow-ipc = { version = "52.0", optional = true }
 # Intentionally not a path dependency as object_store is released separately
 object_store = { version = "0.10.0", default-features = false, optional = true }
 
@@ -78,7 +74,7 @@ flate2 = { version = "1.0", default-features = false, features = ["rust_backend"
 lz4_flex = { version = "0.11", default-features = false, features = ["std", "frame"] }
 zstd = { version = "0.13", default-features = false }
 serde_json = { version = "1.0", features = ["std"], default-features = false }
-arrow = { workspace = true, features = ["ipc", "test_utils", "prettyprint", "json"] }
+arrow = { version = "52.0", features = ["ipc", "test_utils", "prettyprint", "json"] }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt", "io-util", "fs"] }
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 object_store = { version = "0.10.0", default-features = false, features = ["azure"] }
