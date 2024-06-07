@@ -16,6 +16,7 @@ pub mod scan;
 pub mod simple;
 pub mod sort;
 pub mod table_function;
+pub mod ungrouped_aggregate;
 pub mod values;
 
 mod util;
@@ -33,6 +34,7 @@ use scan::ScanPartitionState;
 use std::fmt::Debug;
 use std::task::Context;
 use table_function::TableFunctionPartitionState;
+use ungrouped_aggregate::{UngroupedAggregateOperatorState, UngroupedAggregatePartitionState};
 
 use crate::logical::explainable::Explainable;
 
@@ -63,6 +65,7 @@ use self::values::ValuesPartitionState;
 #[derive(Debug)]
 pub enum PartitionState {
     HashAggregate(HashAggregatePartitionState),
+    UngroupedAggregate(UngroupedAggregatePartitionState),
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
     NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
     HashJoinBuild(HashJoinBuildPartitionState),
@@ -92,6 +95,7 @@ pub enum PartitionState {
 #[derive(Debug)]
 pub enum OperatorState {
     HashAggregate(HashAggregateOperatorState),
+    UngroupedAggregate(UngroupedAggregateOperatorState),
     NestedLoopJoin(NestedLoopJoinOperatorState),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
