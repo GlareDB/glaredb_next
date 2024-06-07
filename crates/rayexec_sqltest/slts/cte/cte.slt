@@ -50,9 +50,31 @@ with cte1 as (select 4 as a) select c + d from cte1 as t1(c), cte1 as t2(d);
 8
 
 query I
+with cte1 as (select 4 as a) select a + d from cte1 as t1, cte1 as t2(d);
+----
+8
+
+query I
+with cte1 as (select 4 as a) select t1.a + d from cte1 as t1, cte1 as t2(d);
+----
+8
+
+query I
+with cte1 as (select 4 as a) select t1.a + d, a from cte1 as t1, cte1 as t2(d);
+----
+8  4
+
+query I
 with cte1 as (select 4 as a),
      cte2 as (select 5 as b)
 select b, a from cte1, cte2;
+----
+5  4
+
+query I
+with cte1 as (select 4 as a),
+     cte2 as (select 5 as b)
+select b, a from cte1, cte2 where (select a = 4 from cte1 where a = 4);
 ----
 5  4
 
@@ -66,3 +88,8 @@ select b, a from cte1, cte2;
 #        (select * from cte1);
 # ----
 # 2  1
+
+query I
+with cte1 as (values (1), (2), (3))
+    select * from cte1 limit 0 offset 1
+----
