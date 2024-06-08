@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
 use crate::engine::EngineRuntime;
+use crate::functions::table::GenericTableFunction;
 
 /// An implementation of `DataSource` describes a data source type that we can
 /// read from.
@@ -16,6 +17,19 @@ use crate::engine::EngineRuntime;
 /// logic for creating data source specific catalogs from a set of options. It's
 /// these catalogs that contain state (list of tables, external connections,
 /// etc). Catalogs are always scoped to single session.
+///
+/// Rules for writing a data source:
+///
+/// - Do not use tokio's fs module. Use std::fs. Tokio internally uses std::fs,
+///   and just sends it to a blocking thread. We don't want that, as it limits
+///   our control on how things get read (e.g. we might want to have our own
+///   blocking io threads).
+/// - Prefer to the ComputeScheduler for async tasks that do heavy computation
+///   (e.g. decompressing a zstd stream).
+/// - Use the tokio runtime if required, but keep the scope small. For example,
+///   the postgres data source will initialize the connection on the tokio
+///   runtime, but them move the actual streaming of data to the
+///   ComputeScheduler.
 pub trait DataSource: Sync + Send + Debug {
     /// Create a new catalog using the provided options.
     fn create_catalog(
@@ -23,6 +37,12 @@ pub trait DataSource: Sync + Send + Debug {
         runtime: &Arc<EngineRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>>;
+
+    /// Initialize a list of table functions that this data source provides.
+    ///
+    /// Note that these functions should be stateless, as they are registered
+    /// into the system catalog at startup.
+    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>>;
 }
 
 #[derive(Debug, Default)]
@@ -51,6 +71,11 @@ impl DataSourceRegistry {
             .get(name)
             .map(|d| d.as_ref())
             .ok_or_else(|| RayexecError::new(format!("Missing data source: {name}")))
+    }
+
+    /// Iterate all data sources.
+    pub fn iter(&self) -> impl Iterator<Item = &dyn DataSource> {
+        self.datasources.values().map(|d| d.as_ref())
     }
 }
 
@@ -96,5 +121,9 @@ impl DataSource for MemoryDataSource {
 
             Ok(Box::new(MemoryCatalog::new_with_schema("public")) as _)
         })
+    }
+
+    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>> {
+        Vec::new()
     }
 }
