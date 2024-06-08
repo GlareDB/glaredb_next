@@ -2032,6 +2032,8 @@ dependencies = [
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_parquet",
+ "rayexec_postgres",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2078,6 +2080,19 @@ dependencies = [
  "rayon",
  "smallvec",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "rayexec_parquet"
+version = "0.0.1"
+dependencies = [
+ "futures",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_sqltest",
+ "tokio-postgres",
  "tracing",
 ]
 
