@@ -1,26 +1,26 @@
 use futures::future::BoxFuture;
-use once_cell::sync::Lazy;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::database::catalog::{Catalog, CatalogTx};
 use crate::database::ddl::CatalogModifier;
 use crate::database::entry::{CatalogEntry, FunctionEntry, FunctionImpl, TableEntry};
 use crate::database::table::DataTable;
+use crate::datasource::DataSourceRegistry;
+use crate::engine::EngineRuntime;
 use crate::functions::aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
 use crate::functions::scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
 use crate::functions::table::{GenericTableFunction, BUILTIN_TABLE_FUNCTIONS};
 
-pub static GLOBAL_SYSTEM_CATALOG: Lazy<SystemCatalog> = Lazy::new(SystemCatalog::new);
-
 /// Read-only system catalog that cannot be modified once constructed.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SystemCatalog {
-    schemas: HashMap<&'static str, HashMap<&'static str, CatalogEntry>>,
+    schemas: Arc<HashMap<&'static str, HashMap<&'static str, CatalogEntry>>>,
 }
 
 impl SystemCatalog {
-    pub fn new() -> Self {
+    pub fn new(registry: &DataSourceRegistry, runtime: &Arc<EngineRuntime>) -> Self {
         let mut glare_catalog = HashMap::new();
 
         // Add builtin scalars.
@@ -74,6 +74,26 @@ impl SystemCatalog {
             }
         }
 
+        // Add table functions from registered data sources.
+        for datasource in registry.iter() {
+            let funcs = datasource.initialize_table_functions(runtime);
+            for func in funcs {
+                let ent = CatalogEntry::Function(FunctionEntry {
+                    name: func.name().to_string(),
+                    implementation: FunctionImpl::Table(func.clone()),
+                });
+                glare_catalog.insert(func.name(), ent);
+
+                for alias in func.aliases() {
+                    let ent = CatalogEntry::Function(FunctionEntry {
+                        name: alias.to_string(),
+                        implementation: FunctionImpl::Table(func.clone()),
+                    });
+                    glare_catalog.insert(alias, ent);
+                }
+            }
+        }
+
         let schemas: HashMap<_, _> = [
             ("glare_catalog", glare_catalog),
             ("pg_catalog", HashMap::new()),
@@ -82,7 +102,9 @@ impl SystemCatalog {
         .into_iter()
         .collect();
 
-        SystemCatalog { schemas }
+        SystemCatalog {
+            schemas: Arc::new(schemas),
+        }
     }
 
     fn get_scalar_fn_inner(
@@ -201,11 +223,5 @@ impl Catalog for SystemCatalog {
 
     fn catalog_modifier(&self, _tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>> {
         Err(RayexecError::new("Cannot modify the system catalog"))
-    }
-}
-
-impl Default for SystemCatalog {
-    fn default() -> Self {
-        Self::new()
     }
 }

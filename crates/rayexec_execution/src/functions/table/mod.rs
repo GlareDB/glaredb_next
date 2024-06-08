@@ -28,10 +28,10 @@ pub struct TableFunctionArgs {
 /// The specialized variant should be determined by function argument inputs.
 pub trait GenericTableFunction: Debug + Sync + Send + DynClone {
     /// Name of the function.
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
 
     /// Optional aliases for this function.
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &[]
     }
 

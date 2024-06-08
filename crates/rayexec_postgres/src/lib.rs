@@ -43,7 +43,7 @@ impl DataSource for PostgresDataSource {
         &self,
         runtime: &Arc<EngineRuntime>,
     ) -> Vec<Box<dyn GenericTableFunction>> {
-        unimplemented!()
+        Vec::new()
     }
 }
 

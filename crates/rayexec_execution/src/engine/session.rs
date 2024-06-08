@@ -43,9 +43,13 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(runtime: Arc<EngineRuntime>, registry: Arc<DataSourceRegistry>) -> Self {
+    pub fn new(
+        context: DatabaseContext,
+        runtime: Arc<EngineRuntime>,
+        registry: Arc<DataSourceRegistry>,
+    ) -> Self {
         Session {
-            context: DatabaseContext::new_with_temp(),
+            context,
             runtime,
             registry,
             vars: SessionVars::new_local(),

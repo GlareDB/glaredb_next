@@ -76,6 +76,11 @@ impl DataSourceRegistry {
             .map(|d| d.as_ref())
             .ok_or_else(|| RayexecError::new(format!("Missing data source: {name}")))
     }
+
+    /// Iterate all data sources.
+    pub fn iter(&self) -> impl Iterator<Item = &dyn DataSource> {
+        self.datasources.iter().map(|(_, d)| d.as_ref())
+    }
 }
 
 /// Take an option from the options map, returning an error if it doesn't exist.
