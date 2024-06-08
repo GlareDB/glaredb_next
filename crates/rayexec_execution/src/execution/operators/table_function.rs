@@ -1,5 +1,6 @@
 use crate::{
-    database::{table::DataTableScan, DatabaseContext},
+    database::table::DataTableScan,
+    functions::table::{GenericTableFunction, TableFunctionArgs},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use rayexec_bullet::batch::Batch;
@@ -10,37 +11,36 @@ use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush}
 
 #[derive(Debug)]
 pub struct TableFunctionPartitionState {
-    scan: Box<dyn DataTableScan>, // yes
+    scan: Box<dyn DataTableScan>,
 }
 
 #[derive(Debug)]
-pub struct PhysicalTableFunction {}
+pub struct PhysicalTableFunction {
+    function: Box<dyn GenericTableFunction>,
+    args: TableFunctionArgs,
+}
 
 impl PhysicalTableFunction {
+    pub fn new(function: Box<dyn GenericTableFunction>, args: TableFunctionArgs) -> Self {
+        PhysicalTableFunction { function, args }
+    }
+
     pub fn try_create_states(
         &self,
-        _context: &DatabaseContext, // unknown
-        _num_partitions: usize,     // yes
+        num_partitions: usize, // yes
     ) -> Result<Vec<TableFunctionPartitionState>> {
-        unimplemented!()
-        // // TODO: Placeholder for now. Transaction info should probably go on the
-        // // operator.
-        // let tx = CatalogTx::new();
+        let mut specialized = self.function.specialize(&self.args)?;
+        let data_table = specialized.datatable()?;
 
-        // let data_table =
-        //     context
-        //         .get_catalog(&self.catalog)?
-        //         .data_table(&tx, &self.schema, &self.table)?;
+        // TODO: Pushdown projections, filters
+        let scans = data_table.scan(num_partitions)?;
 
-        // // TODO: Pushdown projections, filters
-        // let scans = data_table.scan(num_partitions)?;
+        let states = scans
+            .into_iter()
+            .map(|scan| TableFunctionPartitionState { scan })
+            .collect();
 
-        // let states = scans
-        //     .into_iter()
-        //     .map(|scan| TableFunctionPartitionState { scan })
-        //     .collect();
-
-        // Ok(states)
+        Ok(states)
     }
 }
 

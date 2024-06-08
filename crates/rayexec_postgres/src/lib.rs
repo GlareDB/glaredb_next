@@ -1,3 +1,5 @@
+pub mod read_postgres;
+
 use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
     array::{Array, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array},
@@ -17,6 +19,7 @@ use rayexec_execution::{
     execution::operators::PollPull,
     functions::table::GenericTableFunction,
 };
+use read_postgres::ReadPostgres;
 use std::fmt;
 use std::task::Poll;
 use std::{collections::HashMap, sync::Arc, task::Context};
@@ -43,7 +46,9 @@ impl DataSource for PostgresDataSource {
         &self,
         runtime: &Arc<EngineRuntime>,
     ) -> Vec<Box<dyn GenericTableFunction>> {
-        Vec::new()
+        vec![Box::new(ReadPostgres {
+            runtime: runtime.clone(),
+        })]
     }
 }
 
@@ -110,55 +115,49 @@ impl Catalog for PostgresCatalog {
             runtime: self.runtime.clone(),
             conn_str: self.conn_str.clone(),
             schema: schema.to_string(),
-            ent: ent.clone(),
+            table: ent.name.clone(),
         }))
     }
 }
 
 #[derive(Debug)]
 pub struct PostgresDataTable {
-    runtime: Arc<EngineRuntime>,
-    conn_str: String,
-    schema: String,
-    ent: TableEntry,
+    pub(crate) runtime: Arc<EngineRuntime>,
+    pub(crate) conn_str: String,
+    pub(crate) schema: String,
+    pub(crate) table: String,
 }
 
 impl DataTable for PostgresDataTable {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let projection_string = self
-            .ent
-            .columns
-            .iter()
-            .map(|col| col.name.clone())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let query = format!(
-            "COPY (SELECT {} FROM {}.{}) TO STDOUT (FORMAT binary)",
-            projection_string, // SELECT <str>
-            self.schema,       // FROM <schema>
-            self.ent.name,     // .<table>
-        );
-
         let runtime = self.runtime.clone();
         let conn_str = self.conn_str.clone();
         let schema = self.schema.clone();
-        let name = self.ent.name.clone();
-        let data_types: Vec<_> = self
-            .ent
-            .columns
-            .iter()
-            .map(|f| f.datatype.clone())
-            .collect();
+        let table = self.table.clone();
 
         let binary_copy_open = async move {
             let client = PostgresClient::connect(&conn_str, &runtime).await?;
 
             // TODO: Remove this, we should already have the types.
-            let typs = match client.get_fields_and_types(&schema, &name).await? {
-                Some((_fields, typs)) => typs,
+            let (fields, typs) = match client.get_fields_and_types(&schema, &table).await? {
+                Some((fields, typs)) => (fields, typs),
                 None => return Err(RayexecError::new("Missing table")),
             };
+
+            let projection_string = fields
+                .iter()
+                .map(|field| field.name.clone())
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            let data_types: Vec<_> = fields.into_iter().map(|field| field.datatype).collect();
+
+            let query = format!(
+                "COPY (SELECT {} FROM {}.{}) TO STDOUT (FORMAT binary)",
+                projection_string, // SELECT <str>
+                schema,            // FROM <schema>
+                table,             // .<table>
+            );
 
             let copy_stream = client
                 .client

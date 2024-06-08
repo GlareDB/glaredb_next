@@ -27,6 +27,7 @@ use crate::{
             scan::PhysicalScan,
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
+            table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
             values::PhysicalValues,
             OperatorState, PartitionState,
@@ -176,6 +177,9 @@ impl BuildState {
             LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
             LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
+            LogicalOperator::TableFunction(table_func) => {
+                self.push_table_function(conf, table_func)
+            }
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
@@ -270,6 +274,34 @@ impl BuildState {
 
         let pipeline = self.in_progress_pipeline_mut()?;
         pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        Ok(())
+    }
+
+    fn push_table_function(
+        &mut self,
+        conf: &BuildConfig,
+        table_func: operator::TableFunction,
+    ) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalTableFunction::new(
+            table_func.function,
+            table_func.args,
+        ));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_states(conf.target_partitions)?
+            .into_iter()
+            .map(PartitionState::TableFunction)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }

@@ -59,7 +59,7 @@ impl PartialEq for dyn GenericTableFunction + '_ {
 
 pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
     /// Get the schema for the function output.
-    fn schema(&mut self) -> BoxFuture<'static, Result<Schema>>;
+    fn schema(&mut self) -> BoxFuture<Result<Schema>>;
 
     /// Return a data table representing the function output.
     fn datatable(&mut self) -> Result<Box<dyn DataTable>>;
