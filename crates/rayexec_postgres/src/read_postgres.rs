@@ -10,10 +10,8 @@ use std::sync::Arc;
 
 use crate::{PostgresClient, PostgresDataTable};
 
-#[derive(Debug, Clone)]
-pub struct ReadPostgres {
-    pub(crate) runtime: Arc<EngineRuntime>,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadPostgres;
 
 impl GenericTableFunction for ReadPostgres {
     fn name(&self) -> &'static str {
@@ -36,7 +34,6 @@ impl GenericTableFunction for ReadPostgres {
         let conn_str = args.positional.pop().unwrap().try_into_string()?;
 
         Ok(Box::new(ReadPostgresImpl {
-            runtime: self.runtime.clone(),
             conn_str,
             schema,
             table,
@@ -46,15 +43,14 @@ impl GenericTableFunction for ReadPostgres {
 
 #[derive(Debug, Clone)]
 pub struct ReadPostgresImpl {
-    runtime: Arc<EngineRuntime>,
     conn_str: String,
     schema: String,
     table: String,
 }
 
 impl SpecializedTableFunction for ReadPostgresImpl {
-    fn schema(&mut self) -> BoxFuture<Result<Schema>> {
-        let client = PostgresClient::connect(&self.conn_str, &self.runtime);
+    fn schema<'a>(&'a mut self, runtime: &'a EngineRuntime) -> BoxFuture<Result<Schema>> {
+        let client = PostgresClient::connect(&self.conn_str, runtime);
         Box::pin(async {
             let client = client.await?;
             let fields = match client
@@ -69,9 +65,9 @@ impl SpecializedTableFunction for ReadPostgresImpl {
         })
     }
 
-    fn datatable(&mut self) -> Result<Box<dyn DataTable>> {
+    fn datatable(&mut self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(PostgresDataTable {
-            runtime: self.runtime.clone(),
+            runtime: runtime.clone(),
             conn_str: self.conn_str.clone(),
             schema: self.schema.clone(),
             table: self.table.clone(),

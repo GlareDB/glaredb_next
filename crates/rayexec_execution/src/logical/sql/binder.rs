@@ -11,6 +11,7 @@ use rayexec_parser::{
 
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, DatabaseContext},
+    engine::EngineRuntime,
     functions::{
         aggregate::GenericAggregateFunction,
         scalar::GenericScalarFunction,
@@ -213,11 +214,20 @@ impl BindData {
 pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
+    runtime: &'a EngineRuntime,
 }
 
 impl<'a> Binder<'a> {
-    pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
-        Binder { tx, context }
+    pub fn new(
+        tx: &'a CatalogTx,
+        context: &'a DatabaseContext,
+        runtime: &'a EngineRuntime,
+    ) -> Self {
+        Binder {
+            tx,
+            context,
+            runtime,
+        }
     }
 
     pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindData)> {
@@ -654,7 +664,7 @@ impl<'a> Binder<'a> {
                 // and "specialized" function that keeps easy serialization and
                 // equality checking while also holding optional state.
                 let mut specialized = table_fn.specialize(&args)?;
-                let schema = specialized.schema().await?;
+                let schema = specialized.schema(&self.runtime).await?;
 
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                     reference: BoundTableFunctionReference {

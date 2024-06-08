@@ -42,13 +42,8 @@ impl DataSource for PostgresDataSource {
         Box::pin(self.create_catalog_inner(runtime.clone(), options))
     }
 
-    fn initialize_table_functions(
-        &self,
-        runtime: &Arc<EngineRuntime>,
-    ) -> Vec<Box<dyn GenericTableFunction>> {
-        vec![Box::new(ReadPostgres {
-            runtime: runtime.clone(),
-        })]
+    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>> {
+        vec![Box::new(ReadPostgres)]
     }
 }
 

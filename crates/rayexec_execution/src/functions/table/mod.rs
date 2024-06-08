@@ -6,9 +6,10 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
+use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::database::table::DataTable;
+use crate::{database::table::DataTable, engine::EngineRuntime};
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> = Lazy::new(Vec::new);
 
@@ -59,8 +60,15 @@ impl PartialEq for dyn GenericTableFunction + '_ {
 
 pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
     /// Get the schema for the function output.
-    fn schema(&mut self) -> BoxFuture<Result<Schema>>;
+    ///
+    /// Admittedly passing a runtime here feels a bit weird, but I don't think
+    /// is a terrible solution. This might change as we implement more data
+    /// sources.
+    fn schema<'a>(&'a mut self, runtime: &'a EngineRuntime) -> BoxFuture<Result<Schema>>;
 
     /// Return a data table representing the function output.
-    fn datatable(&mut self) -> Result<Box<dyn DataTable>>;
+    ///
+    /// An engine runtime is provided for table funcs that return truly async
+    /// data tables.
+    fn datatable(&mut self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>>;
 }

@@ -60,7 +60,7 @@ impl Engine {
     }
 
     pub fn new_with_registry(rt: Arc<EngineRuntime>, registry: DataSourceRegistry) -> Result<Self> {
-        let system_catalog = SystemCatalog::new(&registry, &rt);
+        let system_catalog = SystemCatalog::new(&registry);
 
         Ok(Engine {
             rt,

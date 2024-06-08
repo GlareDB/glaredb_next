@@ -41,12 +41,8 @@ pub trait DataSource: Sync + Send + Debug {
     /// Initialize a list of table functions that this data source provides.
     ///
     /// Note that these functions should be stateless, as they are registered
-    /// into the system catalog at startup. Functions that require a runtime
-    /// should clone the provided reference.
-    fn initialize_table_functions(
-        &self,
-        runtime: &Arc<EngineRuntime>,
-    ) -> Vec<Box<dyn GenericTableFunction>>;
+    /// into the system catalog at startup.
+    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>>;
 }
 
 #[derive(Debug, Default)]
@@ -127,10 +123,7 @@ impl DataSource for MemoryDataSource {
         })
     }
 
-    fn initialize_table_functions(
-        &self,
-        runtime: &Arc<EngineRuntime>,
-    ) -> Vec<Box<dyn GenericTableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>> {
         Vec::new()
     }
 }

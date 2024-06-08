@@ -20,7 +20,7 @@ pub struct SystemCatalog {
 }
 
 impl SystemCatalog {
-    pub fn new(registry: &DataSourceRegistry, runtime: &Arc<EngineRuntime>) -> Self {
+    pub fn new(registry: &DataSourceRegistry) -> Self {
         let mut glare_catalog = HashMap::new();
 
         // Add builtin scalars.
@@ -76,7 +76,7 @@ impl SystemCatalog {
 
         // Add table functions from registered data sources.
         for datasource in registry.iter() {
-            let funcs = datasource.initialize_table_functions(runtime);
+            let funcs = datasource.initialize_table_functions();
             for func in funcs {
                 let ent = CatalogEntry::Function(FunctionEntry {
                     name: func.name().to_string(),
