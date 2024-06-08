@@ -9,7 +9,7 @@ use crate::database::entry::{CatalogEntry, FunctionEntry, FunctionImpl, TableEnt
 use crate::database::table::DataTable;
 use crate::functions::aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
 use crate::functions::scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
-use crate::functions::table::BUILTIN_TABLE_FUNCTIONS;
+use crate::functions::table::{GenericTableFunction, BUILTIN_TABLE_FUNCTIONS};
 
 pub static GLOBAL_SYSTEM_CATALOG: Lazy<SystemCatalog> = Lazy::new(SystemCatalog::new);
 
@@ -122,6 +122,25 @@ impl SystemCatalog {
             _ => Ok(None),
         }
     }
+
+    fn get_table_fn_inner(
+        &self,
+        _tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> Result<Option<Box<dyn GenericTableFunction>>> {
+        let schema = self
+            .schemas
+            .get(schema)
+            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+        match schema.get(name) {
+            Some(CatalogEntry::Function(ent)) => match &ent.implementation {
+                FunctionImpl::Table(table) => Ok(Some(table.clone())),
+                _ => Ok(None),
+            },
+            _ => Ok(None),
+        }
+    }
 }
 
 impl Catalog for SystemCatalog {
@@ -156,6 +175,16 @@ impl Catalog for SystemCatalog {
         name: &str,
     ) -> BoxFuture<Result<Option<Box<dyn GenericAggregateFunction>>>> {
         let result = self.get_aggregate_fn_inner(tx, schema, name);
+        Box::pin(async { result })
+    }
+
+    fn get_table_fn(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> BoxFuture<Result<Option<Box<dyn GenericTableFunction>>>> {
+        let result = self.get_table_fn_inner(tx, schema, name);
         Box::pin(async { result })
     }
 

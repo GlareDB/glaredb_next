@@ -15,6 +15,7 @@ use rayexec_execution::{
     datasource::{check_options_empty, take_option, DataSource},
     engine::EngineRuntime,
     execution::operators::PollPull,
+    functions::table::GenericTableFunction,
 };
 use std::fmt;
 use std::task::Poll;
@@ -36,6 +37,13 @@ impl DataSource for PostgresDataSource {
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(self.create_catalog_inner(runtime.clone(), options))
+    }
+
+    fn initialize_table_functions(
+        &self,
+        runtime: &Arc<EngineRuntime>,
+    ) -> Vec<Box<dyn GenericTableFunction>> {
+        unimplemented!()
     }
 }
 

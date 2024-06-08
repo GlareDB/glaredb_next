@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
 use crate::engine::EngineRuntime;
+use crate::functions::table::GenericTableFunction;
 
 /// An implementation of `DataSource` describes a data source type that we can
 /// read from.
@@ -36,6 +37,16 @@ pub trait DataSource: Sync + Send + Debug {
         runtime: &Arc<EngineRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>>;
+
+    /// Initialize a list of table functions that this data source provides.
+    ///
+    /// Note that these functions should be stateless, as they are registered
+    /// into the system catalog at startup. Functions that require a runtime
+    /// should clone the provided reference.
+    fn initialize_table_functions(
+        &self,
+        runtime: &Arc<EngineRuntime>,
+    ) -> Vec<Box<dyn GenericTableFunction>>;
 }
 
 #[derive(Debug, Default)]
@@ -109,5 +120,12 @@ impl DataSource for MemoryDataSource {
 
             Ok(Box::new(MemoryCatalog::new_with_schema("public")) as _)
         })
+    }
+
+    fn initialize_table_functions(
+        &self,
+        runtime: &Arc<EngineRuntime>,
+    ) -> Vec<Box<dyn GenericTableFunction>> {
+        Vec::new()
     }
 }

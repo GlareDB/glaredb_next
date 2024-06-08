@@ -1,17 +1,18 @@
 pub mod series;
 
 use dyn_clone::DynClone;
+use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::database::table::DataTableScan;
+use crate::database::table::DataTable;
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> = Lazy::new(Vec::new);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TableFunctionArgs {
     pub named: HashMap<String, OwnedScalarValue>,
     pub positional: Vec<OwnedScalarValue>,
@@ -44,11 +45,22 @@ impl Clone for Box<dyn GenericTableFunction> {
     }
 }
 
-// TODO: Don't think this is amazing yet.
-//
-// This current iteration ot to just get something going so I can generate a
-// bunch of data for testing.
+impl PartialEq<dyn GenericTableFunction> for Box<dyn GenericTableFunction + '_> {
+    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn GenericTableFunction + '_ {
+    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+        self.name() == other.name()
+    }
+}
+
 pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
-    fn schema(&mut self) -> Result<Schema>;
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>>;
+    /// Get the schema for the function output.
+    fn schema(&mut self) -> BoxFuture<'static, Result<Schema>>;
+
+    /// Return a data table representing the function output.
+    fn datatable(&mut self) -> Result<Box<dyn DataTable>>;
 }
