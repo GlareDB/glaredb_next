@@ -75,7 +75,7 @@ impl DataSourceRegistry {
 
     /// Iterate all data sources.
     pub fn iter(&self) -> impl Iterator<Item = &dyn DataSource> {
-        self.datasources.iter().map(|(_, d)| d.as_ref())
+        self.datasources.values().map(|d| d.as_ref())
     }
 }
 

@@ -8,7 +8,6 @@ use crate::database::ddl::CatalogModifier;
 use crate::database::entry::{CatalogEntry, FunctionEntry, FunctionImpl, TableEntry};
 use crate::database::table::DataTable;
 use crate::datasource::DataSourceRegistry;
-use crate::engine::EngineRuntime;
 use crate::functions::aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
 use crate::functions::scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
 use crate::functions::table::{GenericTableFunction, BUILTIN_TABLE_FUNCTIONS};

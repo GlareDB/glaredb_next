@@ -6,12 +6,14 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
+use series::GenerateSeries;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::{database::table::DataTable, engine::EngineRuntime};
 
-pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> = Lazy::new(Vec::new);
+pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
+    Lazy::new(|| vec![Box::new(GenerateSeries)]);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableFunctionArgs {

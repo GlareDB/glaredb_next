@@ -664,7 +664,7 @@ impl<'a> Binder<'a> {
                 // and "specialized" function that keeps easy serialization and
                 // equality checking while also holding optional state.
                 let mut specialized = table_fn.specialize(&args)?;
-                let schema = specialized.schema(&self.runtime).await?;
+                let schema = specialized.schema(self.runtime).await?;
 
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                     reference: BoundTableFunctionReference {
