@@ -125,8 +125,6 @@ pub mod data_type;
 pub use self::encodings::{decoding, encoding};
 
 experimental!(#[macro_use] mod util);
-#[cfg(feature = "arrow")]
-pub mod arrow;
 pub mod column;
 experimental!(mod compression);
 experimental!(mod encodings);

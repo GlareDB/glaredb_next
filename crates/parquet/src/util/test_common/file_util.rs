@@ -15,14 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{env, fs, path::PathBuf};
+
+fn get_parquet_data_dir() -> PathBuf {
+    // Try env var first.
+    if let Ok(dir) = env::var("PARQUET_TEST_DATA") {
+        let path = PathBuf::from(dir);
+        return path;
+    }
+
+    // Otherwise fall back to the default.
+    const MANIFEST_DIR: &'static str = std::env!("CARGO_MANIFEST_DIR"); // Points to root of parquet crate.
+    PathBuf::from(MANIFEST_DIR).join("../../submodules/parquet-testing/data")
+}
 
 /// Returns path to the test parquet file in 'data' directory
 pub fn get_test_path(file_name: &str) -> PathBuf {
-    let mut pathbuf =
-        PathBuf::from_str(&arrow::util::test_util::parquet_test_data()).unwrap();
-    pathbuf.push(file_name);
-    pathbuf
+    get_parquet_data_dir().join(file_name)
 }
 
 /// Returns file handle for a test parquet file from 'data' directory
