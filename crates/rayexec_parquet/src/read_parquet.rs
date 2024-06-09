@@ -15,7 +15,7 @@ impl GenericTableFunction for ReadParquet {
         &["parquet_scan"]
     }
 
-    fn specialize(&self, args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+    fn specialize(&self, _args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
         unimplemented!()
     }
 }

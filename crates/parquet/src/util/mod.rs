@@ -23,6 +23,4 @@ pub(crate) mod interner;
 pub(crate) mod test_common;
 
 #[cfg(any(test, feature = "test_common"))]
-pub use self::test_common::page_util::{
-    DataPageBuilder, DataPageBuilderImpl, InMemoryPageIterator,
-};
+pub use self::test_common::page_util::{DataPageBuilder, DataPageBuilderImpl};

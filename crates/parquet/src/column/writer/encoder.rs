@@ -36,13 +36,6 @@ pub trait ColumnValues {
     fn len(&self) -> usize;
 }
 
-#[cfg(feature = "arrow")]
-impl ColumnValues for dyn arrow_array::Array {
-    fn len(&self) -> usize {
-        arrow_array::Array::len(self)
-    }
-}
-
 impl<T: ParquetValueType> ColumnValues for [T] {
     fn len(&self) -> usize {
         self.len()

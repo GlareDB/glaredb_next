@@ -166,18 +166,6 @@ impl ParquetMetaData {
     pub fn offset_index(&self) -> Option<&ParquetOffsetIndex> {
         self.offset_index.as_ref()
     }
-
-    /// Override the column index
-    #[cfg(feature = "arrow")]
-    pub(crate) fn set_column_index(&mut self, index: Option<ParquetColumnIndex>) {
-        self.column_index = index;
-    }
-
-    /// Override the offset index
-    #[cfg(feature = "arrow")]
-    pub(crate) fn set_offset_index(&mut self, index: Option<ParquetOffsetIndex>) {
-        self.offset_index = index;
-    }
 }
 
 pub type KeyValue = crate::format::KeyValue;

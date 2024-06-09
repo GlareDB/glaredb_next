@@ -216,6 +216,7 @@ pub struct InMemoryPageIterator<I: Iterator<Item = Vec<Page>>> {
 }
 
 impl<I: Iterator<Item = Vec<Page>>> InMemoryPageIterator<I> {
+    #[allow(dead_code)]
     pub fn new(pages: impl IntoIterator<Item = Vec<Page>, IntoIter = I>) -> Self {
         Self {
             page_reader_iter: pages.into_iter(),
