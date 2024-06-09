@@ -22,7 +22,7 @@ use parquet::file::serialized_reader::ReadOptionsBuilder;
 
 fn criterion_benchmark(c: &mut Criterion) {
     // Read file into memory to isolate filesystem performance
-    let file = "../parquet-testing/data/alltypes_tiny_pages.parquet";
+    let file = "../../submodules/parquet-testing/data/alltypes_tiny_pages.parquet";
     let data = std::fs::read(file).unwrap();
     let data = Bytes::from(data);
 
