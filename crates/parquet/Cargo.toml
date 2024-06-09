@@ -89,8 +89,6 @@ json = ["serde_json", "base64"]
 experimental = []
 # Enable async APIs
 async = ["futures", "tokio"]
-# Enable object_store integration
-object_store = ["dep:object_store", "async"]
 # Group Zstd dependencies
 zstd = ["dep:zstd", "zstd-sys"]
 
