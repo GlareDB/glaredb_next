@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use rayexec_bullet::field::{DataType, Schema};
+use rayexec_bullet::{
+    field::{DataType, Schema},
+    scalar::OwnedScalarValue,
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
@@ -11,6 +14,7 @@ use rayexec_parser::{
 
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, DatabaseContext},
+    datasource::FileHandlers,
     engine::EngineRuntime,
     functions::{
         aggregate::GenericAggregateFunction,
@@ -214,6 +218,7 @@ impl BindData {
 pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
+    file_handlers: &'a FileHandlers,
     runtime: &'a EngineRuntime,
 }
 
@@ -221,11 +226,13 @@ impl<'a> Binder<'a> {
     pub fn new(
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
+        file_handlers: &'a FileHandlers,
         runtime: &'a EngineRuntime,
     ) -> Self {
         Binder {
             tx,
             context,
+            file_handlers,
             runtime,
         }
     }
@@ -647,6 +654,30 @@ impl<'a> Binder<'a> {
                 ast::FromNodeBody::Subquery(ast::FromSubquery {
                     query: Box::pin(self.bind_query(query, bind_data)).await?,
                 })
+            }
+            ast::FromNodeBody::File(ast::FromFilePath { path }) => {
+                match self.file_handlers.find_match(&path) {
+                    Some(func) => {
+                        let args = TableFunctionArgs {
+                            named: HashMap::new(),
+                            positional: vec![OwnedScalarValue::Utf8(path.into())],
+                        };
+
+                        // See TODO in the table function branch.
+                        let mut specialized = func.specialize(&args)?;
+                        let schema = specialized.schema(self.runtime).await?;
+
+                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                            reference: BoundTableFunctionReference { func, schema },
+                            args,
+                        })
+                    }
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "No suitable file handlers found for '{path}'"
+                        )))
+                    }
+                }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
                 let table_fn = self.resolve_table_function(reference).await?;

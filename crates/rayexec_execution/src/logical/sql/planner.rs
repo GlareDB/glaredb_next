@@ -780,6 +780,11 @@ impl<'a> PlanContext<'a> {
                     _ => unimplemented!(),
                 }
             }
+            ast::FromNodeBody::File(_) => {
+                return Err(RayexecError::new(
+                    "Binder should have replace file path with a table function",
+                ))
+            }
         };
 
         // Apply aliases if provided.
