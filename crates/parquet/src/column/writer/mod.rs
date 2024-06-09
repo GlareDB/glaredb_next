@@ -1274,7 +1274,7 @@ mod tests {
 
     use crate::column::{
         page::PageReader,
-        reader::{get_column_reader, get_typed_column_reader, ColumnReaderImpl},
+        reader::{get_column_reader, get_typed_column_reader, GenericColumnReader},
     };
     use crate::file::writer::TrackedWrite;
     use crate::file::{
@@ -3351,7 +3351,7 @@ mod tests {
         page_reader: Box<dyn PageReader>,
         max_def_level: i16,
         max_rep_level: i16,
-    ) -> ColumnReaderImpl<T> {
+    ) -> GenericColumnReader<T> {
         let descr = Arc::new(get_test_column_descr::<T>(max_def_level, max_rep_level));
         let column_reader = get_column_reader(descr, page_reader);
         get_typed_column_reader::<T>(column_reader)

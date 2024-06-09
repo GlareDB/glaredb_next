@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::basic::Type as PhysicalType;
-use crate::column::reader::{get_typed_column_reader, ColumnReader, ColumnReaderImpl};
+use crate::column::reader::{get_typed_column_reader, ColumnReader, GenericColumnReader};
 use crate::data_type::*;
 use crate::errors::{ParquetError, Result};
 use crate::record::api::Field;
@@ -172,7 +172,7 @@ impl TripletIter {
 /// Internal typed triplet iterator as a wrapper for column reader
 /// (primitive leaf column), provides per-element access.
 pub struct TypedTripletIter<T: DataType> {
-    reader: ColumnReaderImpl<T>,
+    reader: GenericColumnReader<T>,
     column_descr: ColumnDescPtr,
     batch_size: usize,
     // type properties
