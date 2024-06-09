@@ -22,8 +22,7 @@ use bytes::Bytes;
 use super::page::{Page, PageReader};
 use crate::basic::*;
 use crate::column::reader::decoder::{
-    ColumnLevelDecoder, ColumnValueDecoder, ColumnValueDecoderImpl, DefinitionLevelDecoder,
-    DefinitionLevelDecoderImpl, RepetitionLevelDecoder, RepetitionLevelDecoderImpl,
+    ColumnLevelDecoder, ColumnValueDecoder, DefinitionLevelDecoder, RepetitionLevelDecoder,
 };
 use crate::data_type::*;
 use crate::errors::{ParquetError, Result};
@@ -111,13 +110,13 @@ pub struct GenericColumnReader<T: DataType> {
     has_record_delimiter: bool,
 
     /// The decoder for the definition levels if any
-    def_level_decoder: Option<DefinitionLevelDecoderImpl>,
+    def_level_decoder: Option<DefinitionLevelDecoder>,
 
     /// The decoder for the repetition levels if any
-    rep_level_decoder: Option<RepetitionLevelDecoderImpl>,
+    rep_level_decoder: Option<RepetitionLevelDecoder>,
 
     /// The decoder for the values
-    values_decoder: ColumnValueDecoderImpl<T>,
+    values_decoder: ColumnValueDecoder<T>,
 }
 
 impl<T> GenericColumnReader<T>
@@ -126,13 +125,13 @@ where
 {
     /// Creates new column reader based on column descriptor and page reader.
     pub fn new(descr: ColumnDescPtr, page_reader: Box<dyn PageReader>) -> Self {
-        let values_decoder = ColumnValueDecoderImpl::new(&descr);
+        let values_decoder = ColumnValueDecoder::new(&descr);
 
         let def_level_decoder = (descr.max_def_level() != 0)
-            .then(|| DefinitionLevelDecoderImpl::new(descr.max_def_level()));
+            .then(|| DefinitionLevelDecoder::new(descr.max_def_level()));
 
         let rep_level_decoder = (descr.max_rep_level() != 0)
-            .then(|| RepetitionLevelDecoderImpl::new(descr.max_rep_level()));
+            .then(|| RepetitionLevelDecoder::new(descr.max_rep_level()));
 
         Self::new_with_decoders(
             descr,
@@ -151,9 +150,9 @@ where
     pub(crate) fn new_with_decoders(
         descr: ColumnDescPtr,
         page_reader: Box<dyn PageReader>,
-        values_decoder: ColumnValueDecoderImpl<T>,
-        def_level_decoder: Option<DefinitionLevelDecoderImpl>,
-        rep_level_decoder: Option<RepetitionLevelDecoderImpl>,
+        values_decoder: ColumnValueDecoder<T>,
+        def_level_decoder: Option<DefinitionLevelDecoder>,
+        rep_level_decoder: Option<RepetitionLevelDecoder>,
     ) -> Self {
         Self {
             descr,
