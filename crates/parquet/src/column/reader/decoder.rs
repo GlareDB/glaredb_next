@@ -38,6 +38,7 @@ pub trait ColumnLevelDecoder {
 }
 
 /// Decodes value data.
+#[derive(Debug)]
 pub struct ColumnValueDecoder<T: DataType> {
     descr: ColumnDescPtr,
     current_encoding: Option<Encoding>,
@@ -174,6 +175,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
 
 const SKIP_BUFFER_SIZE: usize = 1024;
 
+#[derive(Debug)]
 enum LevelDecoder {
     Packed(BitReader, u8),
     Rle(RleDecoder),
@@ -204,6 +206,7 @@ impl LevelDecoder {
 }
 
 /// An implementation of [`DefinitionLevelDecoder`] for `[i16]`
+#[derive(Debug)]
 pub struct DefinitionLevelDecoder {
     decoder: Option<LevelDecoder>,
     bit_width: u8,
@@ -280,6 +283,7 @@ impl ColumnLevelDecoder for DefinitionLevelDecoder {
 pub(crate) const REPETITION_LEVELS_BATCH_SIZE: usize = 1024;
 
 /// An implementation of [`RepetitionLevelDecoder`] for `[i16]`
+#[derive(Debug)]
 pub struct RepetitionLevelDecoder {
     decoder: Option<LevelDecoder>,
     bit_width: u8,

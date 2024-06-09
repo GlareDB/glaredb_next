@@ -1,5 +1,5 @@
+pub mod array;
 pub mod datatable;
-pub mod column;
 pub mod read_parquet;
 pub mod schema;
 

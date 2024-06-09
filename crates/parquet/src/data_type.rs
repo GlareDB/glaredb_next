@@ -1060,7 +1060,7 @@ pub(crate) mod private {
 
 /// Contains the Parquet physical type information as well as the Rust primitive type
 /// presentation.
-pub trait DataType: 'static + Send {
+pub trait DataType: 'static + Send + fmt::Debug {
     type T: private::ParquetValueType;
 
     /// Returns Parquet physical type.
@@ -1110,7 +1110,7 @@ where
 
 macro_rules! make_type {
     ($name:ident, $reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
-        #[derive(Clone)]
+        #[derive(Debug, Clone)]
         pub struct $name {}
 
         impl DataType for $name {

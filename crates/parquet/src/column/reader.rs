@@ -17,6 +17,8 @@
 
 //! Contains column reader API.
 
+pub mod decoder;
+
 use bytes::Bytes;
 
 use super::page::{Page, PageReader};
@@ -28,8 +30,6 @@ use crate::data_type::*;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
-
-pub(crate) mod decoder;
 
 /// Column reader for a Parquet type.
 pub enum ColumnReader<P: PageReader> {
@@ -96,6 +96,7 @@ pub fn get_typed_column_reader<T: DataType, P: PageReader>(
 /// Reads data for a given column chunk, using the provided decoders:
 ///
 /// - T: Parquet data type
+#[derive(Debug)]
 pub struct GenericColumnReader<T: DataType, P: PageReader> {
     descr: ColumnDescPtr,
 
@@ -518,7 +519,7 @@ where
     /// If the current page is fully decoded, this will load the next page
     /// (if it exists) into the buffer
     #[inline]
-    pub(crate) fn has_next(&mut self) -> Result<bool> {
+    pub fn has_next(&mut self) -> Result<bool> {
         if self.num_buffered_values == 0 || self.num_buffered_values == self.num_decoded_values {
             // TODO: should we return false if read_new_page() = true and
             // num_buffered_values = 0?
