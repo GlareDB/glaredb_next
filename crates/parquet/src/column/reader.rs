@@ -32,23 +32,23 @@ use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 pub(crate) mod decoder;
 
 /// Column reader for a Parquet type.
-pub enum ColumnReader {
-    BoolColumnReader(GenericColumnReader<BoolType>),
-    Int32ColumnReader(GenericColumnReader<Int32Type>),
-    Int64ColumnReader(GenericColumnReader<Int64Type>),
-    Int96ColumnReader(GenericColumnReader<Int96Type>),
-    FloatColumnReader(GenericColumnReader<FloatType>),
-    DoubleColumnReader(GenericColumnReader<DoubleType>),
-    ByteArrayColumnReader(GenericColumnReader<ByteArrayType>),
-    FixedLenByteArrayColumnReader(GenericColumnReader<FixedLenByteArrayType>),
+pub enum ColumnReader<P: PageReader> {
+    BoolColumnReader(GenericColumnReader<BoolType, P>),
+    Int32ColumnReader(GenericColumnReader<Int32Type, P>),
+    Int64ColumnReader(GenericColumnReader<Int64Type, P>),
+    Int96ColumnReader(GenericColumnReader<Int96Type, P>),
+    FloatColumnReader(GenericColumnReader<FloatType, P>),
+    DoubleColumnReader(GenericColumnReader<DoubleType, P>),
+    ByteArrayColumnReader(GenericColumnReader<ByteArrayType, P>),
+    FixedLenByteArrayColumnReader(GenericColumnReader<FixedLenByteArrayType, P>),
 }
 
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
 /// column reader will read from pages in `col_page_reader`.
-pub fn get_column_reader(
+pub fn get_column_reader<P: PageReader>(
     col_descr: ColumnDescPtr,
-    col_page_reader: Box<dyn PageReader>,
-) -> ColumnReader {
+    col_page_reader: P,
+) -> ColumnReader<P> {
     match col_descr.physical_type() {
         Type::BOOLEAN => {
             ColumnReader::BoolColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
@@ -82,7 +82,9 @@ pub fn get_column_reader(
 /// non-generic type to a generic column reader type `ColumnReaderImpl`.
 ///
 /// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub fn get_typed_column_reader<T: DataType>(col_reader: ColumnReader) -> GenericColumnReader<T> {
+pub fn get_typed_column_reader<T: DataType, P: PageReader>(
+    col_reader: ColumnReader<P>,
+) -> GenericColumnReader<T, P> {
     T::get_column_reader(col_reader).unwrap_or_else(|| {
         panic!(
             "Failed to convert column reader into a typed column reader for `{}` type",
@@ -94,10 +96,10 @@ pub fn get_typed_column_reader<T: DataType>(col_reader: ColumnReader) -> Generic
 /// Reads data for a given column chunk, using the provided decoders:
 ///
 /// - T: Parquet data type
-pub struct GenericColumnReader<T: DataType> {
+pub struct GenericColumnReader<T: DataType, P: PageReader> {
     descr: ColumnDescPtr,
 
-    page_reader: Box<dyn PageReader>,
+    page_reader: P,
 
     /// The total number of values stored in the data page.
     num_buffered_values: usize,
@@ -119,12 +121,13 @@ pub struct GenericColumnReader<T: DataType> {
     values_decoder: ColumnValueDecoder<T>,
 }
 
-impl<T> GenericColumnReader<T>
+impl<T, P> GenericColumnReader<T, P>
 where
     T: DataType,
+    P: PageReader,
 {
     /// Creates new column reader based on column descriptor and page reader.
-    pub fn new(descr: ColumnDescPtr, page_reader: Box<dyn PageReader>) -> Self {
+    pub fn new(descr: ColumnDescPtr, page_reader: P) -> Self {
         let values_decoder = ColumnValueDecoder::new(&descr);
 
         let def_level_decoder = (descr.max_def_level() != 0)
@@ -143,13 +146,14 @@ where
     }
 }
 
-impl<T> GenericColumnReader<T>
+impl<T, P> GenericColumnReader<T, P>
 where
     T: DataType,
+    P: PageReader,
 {
     pub(crate) fn new_with_decoders(
         descr: ColumnDescPtr,
-        page_reader: Box<dyn PageReader>,
+        page_reader: P,
         values_decoder: ColumnValueDecoder<T>,
         def_level_decoder: Option<DefinitionLevelDecoder>,
         rep_level_decoder: Option<RepetitionLevelDecoder>,
@@ -1257,8 +1261,8 @@ mod tests {
             let max_def_level = desc.max_def_level();
             let max_rep_level = desc.max_rep_level();
             let page_reader = InMemoryPageReader::new(pages);
-            let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
-            let mut typed_column_reader = get_typed_column_reader::<T>(column_reader);
+            let column_reader: ColumnReader<_> = get_column_reader(desc, page_reader);
+            let mut typed_column_reader = get_typed_column_reader::<T, _>(column_reader);
 
             let mut values = Vec::new();
             let mut def_levels = Vec::new();

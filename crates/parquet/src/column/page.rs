@@ -361,9 +361,6 @@ pub trait PageWriter: Send {
     fn close(&mut self) -> Result<()>;
 }
 
-/// An iterator over pages of one specific column in a parquet file.
-pub trait PageIterator: Iterator<Item = Result<Box<dyn PageReader>>> + Send {}
-
 #[cfg(test)]
 mod tests {
     use super::*;

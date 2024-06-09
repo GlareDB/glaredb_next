@@ -26,6 +26,7 @@ use std::ops::{Deref, DerefMut};
 use std::str::from_utf8;
 
 use crate::basic::Type;
+use crate::column::page::PageReader;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, ColumnWriterImpl};
 use crate::errors::{ParquetError, Result};
@@ -1070,7 +1071,9 @@ pub trait DataType: 'static + Send {
     /// Returns size in bytes for Rust representation of the physical type.
     fn get_type_size() -> usize;
 
-    fn get_column_reader(column_writer: ColumnReader) -> Option<GenericColumnReader<Self>>
+    fn get_column_reader<P: PageReader>(
+        column_writer: ColumnReader<P>,
+    ) -> Option<GenericColumnReader<Self, P>>
     where
         Self: Sized;
 
@@ -1117,7 +1120,9 @@ macro_rules! make_type {
                 $size
             }
 
-            fn get_column_reader(column_reader: ColumnReader) -> Option<GenericColumnReader<Self>> {
+            fn get_column_reader<P: PageReader>(
+                column_reader: ColumnReader<P>,
+            ) -> Option<GenericColumnReader<Self, P>> {
                 match column_reader {
                     ColumnReader::$reader_ident(w) => Some(w),
                     _ => None,
