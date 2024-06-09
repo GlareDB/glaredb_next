@@ -1,6 +1,8 @@
-use rayexec_error::Result;
+use std::path::PathBuf;
+
+use rayexec_error::{RayexecError, Result};
 use rayexec_execution::functions::table::{
-    GenericTableFunction, SpecializedTableFunction, TableFunctionArgs,
+    check_named_args_is_empty, GenericTableFunction, SpecializedTableFunction, TableFunctionArgs,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,7 +17,21 @@ impl GenericTableFunction for ReadParquet {
         &["parquet_scan"]
     }
 
-    fn specialize(&self, _args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+    fn specialize(&self, args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+        check_named_args_is_empty(self, args)?;
+
+        // Will be more once the http/object storage stuff is added.
+        if args.positional.len() != 1 {
+            return Err(RayexecError::new(format!(
+                "'{}' expected one argument",
+                self.name()
+            )));
+        }
+
+        // TODO: Globbing
+
+        let path = PathBuf::from(args.positional[0].try_as_str()?);
+
         unimplemented!()
     }
 }

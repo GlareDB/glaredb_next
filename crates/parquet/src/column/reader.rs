@@ -22,8 +22,8 @@ use bytes::Bytes;
 use super::page::{Page, PageReader};
 use crate::basic::*;
 use crate::column::reader::decoder::{
-    ColumnValueDecoder, ColumnValueDecoderImpl, DefinitionLevelDecoder, DefinitionLevelDecoderImpl,
-    RepetitionLevelDecoder, RepetitionLevelDecoderImpl,
+    ColumnLevelDecoder, ColumnValueDecoder, ColumnValueDecoderImpl, DefinitionLevelDecoder,
+    DefinitionLevelDecoderImpl, RepetitionLevelDecoder, RepetitionLevelDecoderImpl,
 };
 use crate::data_type::*;
 use crate::errors::{ParquetError, Result};
@@ -92,18 +92,12 @@ pub fn get_typed_column_reader<T: DataType>(col_reader: ColumnReader) -> ColumnR
 }
 
 /// Typed value reader for a particular primitive column.
-pub type ColumnReaderImpl<T> = GenericColumnReader<
-    RepetitionLevelDecoderImpl,
-    DefinitionLevelDecoderImpl,
-    ColumnValueDecoderImpl<T>,
->;
+pub type ColumnReaderImpl<T> = GenericColumnReader<ColumnValueDecoderImpl<T>>;
 
 /// Reads data for a given column chunk, using the provided decoders:
 ///
-/// - R: `ColumnLevelDecoder` used to decode repetition levels
-/// - D: `ColumnLevelDecoder` used to decode definition levels
 /// - V: `ColumnValueDecoder` used to decode value data
-pub struct GenericColumnReader<R, D, V> {
+pub struct GenericColumnReader<V> {
     descr: ColumnDescPtr,
 
     page_reader: Box<dyn PageReader>,
@@ -119,16 +113,16 @@ pub struct GenericColumnReader<R, D, V> {
     has_record_delimiter: bool,
 
     /// The decoder for the definition levels if any
-    def_level_decoder: Option<D>,
+    def_level_decoder: Option<DefinitionLevelDecoderImpl>,
 
     /// The decoder for the repetition levels if any
-    rep_level_decoder: Option<R>,
+    rep_level_decoder: Option<RepetitionLevelDecoderImpl>,
 
     /// The decoder for the values
     values_decoder: V,
 }
 
-impl<V> GenericColumnReader<RepetitionLevelDecoderImpl, DefinitionLevelDecoderImpl, V>
+impl<V> GenericColumnReader<V>
 where
     V: ColumnValueDecoder,
 {
@@ -152,18 +146,16 @@ where
     }
 }
 
-impl<R, D, V> GenericColumnReader<R, D, V>
+impl<V> GenericColumnReader<V>
 where
-    R: RepetitionLevelDecoder,
-    D: DefinitionLevelDecoder,
     V: ColumnValueDecoder,
 {
     pub(crate) fn new_with_decoders(
         descr: ColumnDescPtr,
         page_reader: Box<dyn PageReader>,
         values_decoder: V,
-        def_level_decoder: Option<D>,
-        rep_level_decoder: Option<R>,
+        def_level_decoder: Option<DefinitionLevelDecoderImpl>,
+        rep_level_decoder: Option<RepetitionLevelDecoderImpl>,
     ) -> Self {
         Self {
             descr,
@@ -175,31 +167,6 @@ where
             values_decoder,
             has_record_delimiter: false,
         }
-    }
-
-    /// Reads a batch of values of at most `batch_size`, returning a tuple containing the
-    /// actual number of non-null values read, followed by the corresponding number of levels,
-    /// i.e, the total number of values including nulls, empty lists, etc...
-    ///
-    /// If the max definition level is 0, `def_levels` will be ignored, otherwise it will be
-    /// populated with the number of levels read, with an error returned if it is `None`.
-    ///
-    /// If the max repetition level is 0, `rep_levels` will be ignored, otherwise it will be
-    /// populated with the number of levels read, with an error returned if it is `None`.
-    ///
-    /// `values` will be contiguously populated with the non-null values. Note that if the column
-    /// is not required, this may be less than either `batch_size` or the number of levels read
-    #[deprecated(note = "Use read_records")]
-    pub fn read_batch(
-        &mut self,
-        batch_size: usize,
-        def_levels: Option<&mut D::Buffer>,
-        rep_levels: Option<&mut R::Buffer>,
-        values: &mut V::Buffer,
-    ) -> Result<(usize, usize)> {
-        let (_, values, levels) = self.read_records(batch_size, def_levels, rep_levels, values)?;
-
-        Ok((values, levels))
     }
 
     /// Read up to `max_records` whole records, returning the number of complete
@@ -219,8 +186,8 @@ where
     pub fn read_records(
         &mut self,
         max_records: usize,
-        mut def_levels: Option<&mut D::Buffer>,
-        mut rep_levels: Option<&mut R::Buffer>,
+        mut def_levels: Option<&mut Vec<i16>>,
+        mut rep_levels: Option<&mut Vec<i16>>,
         values: &mut V::Buffer,
     ) -> Result<(usize, usize, usize)> {
         let mut total_records_read = 0;

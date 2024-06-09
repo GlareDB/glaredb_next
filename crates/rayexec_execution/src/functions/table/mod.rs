@@ -5,7 +5,7 @@ use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use series::GenerateSeries;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
@@ -17,7 +17,10 @@ pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableFunctionArgs {
+    /// Named arguments to a table function.
     pub named: HashMap<String, OwnedScalarValue>,
+
+    /// Positional arguments to a table function.
     pub positional: Vec<OwnedScalarValue>,
 }
 
@@ -60,6 +63,7 @@ impl PartialEq for dyn GenericTableFunction + '_ {
     }
 }
 
+// TODO: Do we want/need clone?
 pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
     /// Get the schema for the function output.
     ///
@@ -73,4 +77,17 @@ pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
     /// An engine runtime is provided for table funcs that return truly async
     /// data tables.
     fn datatable(&mut self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>>;
+}
+
+pub fn check_named_args_is_empty(
+    func: &dyn GenericTableFunction,
+    args: &TableFunctionArgs,
+) -> Result<()> {
+    if !args.named.is_empty() {
+        return Err(RayexecError::new(format!(
+            "'{}' does not take named arguments",
+            func.name()
+        )));
+    }
+    Ok(())
 }

@@ -1,4 +1,9 @@
+pub mod datatable;
+pub mod column;
 pub mod read_parquet;
+pub mod schema;
+
+mod read_parquet_local;
 
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
