@@ -1,4 +1,5 @@
 pub mod primitive;
+pub mod varlen;
 
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;

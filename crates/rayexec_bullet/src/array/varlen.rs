@@ -110,6 +110,20 @@ impl OffsetIndex for i64 {
 }
 
 #[derive(Debug)]
+pub struct VarlenBuffer<O: OffsetIndex> {
+    pub offsets: Vec<O>,
+    pub data: Vec<u8>,
+}
+
+impl<O: OffsetIndex> Default for VarlenBuffer<O> {
+    fn default() -> Self {
+        let offsets: Vec<O> = vec![O::from_usize(0)];
+        let data: Vec<u8> = Vec::new();
+        VarlenBuffer { offsets, data }
+    }
+}
+
+#[derive(Debug)]
 pub struct VarlenArray<T: VarlenType + ?Sized, O: OffsetIndex> {
     /// Value validities.
     validity: Option<Bitmap>,
