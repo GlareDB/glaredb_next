@@ -4,7 +4,7 @@ use std::fs::File;
 use std::future::{self, Future};
 use std::io::{Read, Seek, SeekFrom};
 
-pub trait AsyncReadAt: Debug {
+pub trait AsyncReadAt: Send + Debug {
     /// Read an exact range of bytes starting at `start` from the source into
     /// `buf`.
     ///

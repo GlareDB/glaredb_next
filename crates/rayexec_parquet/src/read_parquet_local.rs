@@ -1,5 +1,5 @@
-use futures::future::BoxFuture;
-use rayexec_bullet::field::Schema;
+use futures::{future::BoxFuture, stream::BoxStream, StreamExt};
+use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
@@ -9,14 +9,15 @@ use rayexec_execution::{
 };
 use std::{
     collections::VecDeque,
+    fmt,
     fs::{File, OpenOptions},
     os::unix::fs::MetadataExt,
     path::PathBuf,
     sync::Arc,
-    task::Context,
+    task::{Context, Poll},
 };
 
-use crate::{metadata::Metadata, schema::convert_schema};
+use crate::{array::AsyncBatchReader, metadata::Metadata, schema::convert_schema};
 
 #[derive(Debug, Clone)]
 pub struct ReadParquetLocal {
@@ -84,32 +85,77 @@ impl InitializedTableFunction for ReadParquetLocalRowGroupPartitioned {
     }
 
     fn datatable(&self, _runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
-        unimplemented!()
+        Ok(Box::new(RowGroupPartitionedDataTable {
+            specialized: self.specialized.clone(),
+            metadata: self.metadata.clone(),
+            schema: self.schema.clone(),
+        }))
     }
 }
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
 #[derive(Debug)]
-struct RowGroupPartitionedDataTable {}
+struct RowGroupPartitionedDataTable {
+    specialized: ReadParquetLocal,
+    metadata: Arc<Metadata>,
+    schema: Schema,
+}
 
 impl DataTable for RowGroupPartitionedDataTable {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
-        unimplemented!()
+        let mut partitioned_row_groups = vec![VecDeque::new(); num_partitions];
+
+        // Split row groups into individual partitions.
+        for row_group in 0..self.metadata.parquet_metadata.row_groups().len() {
+            partitioned_row_groups[row_group % num_partitions].push_back(row_group);
+        }
+
+        let readers = partitioned_row_groups
+            .into_iter()
+            .map(|row_groups| {
+                let file = self.specialized.open_file()?;
+                const BATCH_SIZE: usize = 2048; // TODO
+                AsyncBatchReader::try_new(
+                    file,
+                    row_groups,
+                    self.metadata.clone(),
+                    &self.schema,
+                    BATCH_SIZE,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let scans: Vec<Box<dyn DataTableScan>> = readers
+            .into_iter()
+            .map(|reader| {
+                Box::new(RowGroupsScan {
+                    stream: reader.into_stream(),
+                }) as _
+            })
+            .collect();
+
+        Ok(scans)
     }
 }
 
-#[derive(Debug)]
 struct RowGroupsScan {
-    /// Independent file handle.
-    file: File,
-
-    /// Row groups this scan is responsible for.
-    row_groups: VecDeque<usize>,
+    stream: BoxStream<'static, Result<Batch>>,
 }
 
 impl DataTableScan for RowGroupsScan {
     fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
-        unimplemented!()
+        match self.stream.poll_next_unpin(cx) {
+            Poll::Ready(Some(Ok(batch))) => Ok(PollPull::Batch(batch)),
+            Poll::Ready(Some(Err(e))) => Err(e),
+            Poll::Ready(None) => Ok(PollPull::Exhausted),
+            Poll::Pending => Ok(PollPull::Pending),
+        }
+    }
+}
+
+impl fmt::Debug for RowGroupsScan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RowGroupsScan").finish_non_exhaustive()
     }
 }

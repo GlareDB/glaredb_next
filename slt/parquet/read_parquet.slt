@@ -1,4 +1,5 @@
+# read_parquet tests
+
 query I
-select 1;
+select * from read_parquet('../testdata/parquet/userdata0.parquet');
 ----
-1

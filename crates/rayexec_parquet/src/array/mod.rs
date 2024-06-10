@@ -2,6 +2,8 @@ pub mod primitive;
 pub mod varlen;
 
 use bytes::Bytes;
+use futures::stream::{self, BoxStream, Unfold};
+use futures::{Stream, StreamExt};
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
@@ -16,7 +18,7 @@ use rayexec_bullet::field::{DataType, Schema};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReadAt;
 use std::collections::VecDeque;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 
 use crate::metadata::Metadata;
@@ -67,14 +69,13 @@ pub struct AsyncBatchReader<R: AsyncReadAt> {
     /// Reader we're reading from.
     reader: R,
 
-    /// If we need to do the first fetch.
-    needs_first_fetch: bool,
-
     /// Row groups we'll be reading for.
     row_groups: VecDeque<usize>,
 
     /// Row group we're currently working.
-    current_row_group: usize,
+    ///
+    /// Initialized to None
+    current_row_group: Option<usize>,
 
     /// Parquet metadata.
     metadata: Arc<Metadata>,
@@ -89,41 +90,30 @@ pub struct AsyncBatchReader<R: AsyncReadAt> {
     column_chunks: Vec<Vec<u8>>,
 }
 
-impl<R: AsyncReadAt> AsyncBatchReader<R> {
+impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
     pub fn try_new(
         reader: R,
-        mut row_groups: VecDeque<usize>,
+        row_groups: VecDeque<usize>,
         metadata: Arc<Metadata>,
         schema: &Schema,
         batch_size: usize,
     ) -> Result<Self> {
-        let current_row_group = match row_groups.pop_front() {
-            Some(group) => group,
-            None => {
-                return Err(RayexecError::new(
-                    "Cannot create an async batch reader with no row groups",
-                ))
-            }
-        };
-
         let column_chunks = vec![Vec::new(); schema.fields.len()];
         let mut builders = Vec::with_capacity(schema.fields.len());
 
-        for (datatype, column_chunk_meta) in schema.iter().map(|f| f.datatype.clone()).zip(
-            metadata
-                .parquet_metadata
-                .row_group(current_row_group)
-                .columns(),
-        ) {
+        for (datatype, column_chunk_meta) in schema
+            .iter()
+            .map(|f| f.datatype.clone())
+            .zip(metadata.parquet_metadata.row_group(0).columns())
+        {
             let builder = builder_for_type(datatype, column_chunk_meta.column_descr_ptr())?;
             builders.push(builder)
         }
 
         Ok(AsyncBatchReader {
             reader,
-            needs_first_fetch: true,
             row_groups,
-            current_row_group,
+            current_row_group: None,
             metadata,
             batch_size,
             column_chunks,
@@ -131,22 +121,26 @@ impl<R: AsyncReadAt> AsyncBatchReader<R> {
         })
     }
 
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
-        // Do first fetch if needed.
-        if self.needs_first_fetch {
-            self.fetch_column_chunks().await?;
-            self.set_page_readers()?;
-            self.needs_first_fetch = false;
-        }
+    pub fn into_stream(self) -> BoxStream<'static, Result<Batch>> {
+        let stream = stream::try_unfold(self, |mut reader| async move {
+            match reader.read_next().await {
+                Ok(Some(batch)) => Ok(Some((batch, reader))),
+                Ok(None) => Ok(None),
+                Err(e) => Err(e),
+            }
+        });
+        stream.boxed()
+    }
 
+    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
         loop {
             match self.maybe_read_batch()? {
                 Some(batch) => return Ok(Some(batch)),
                 None => {
-                    self.current_row_group = match self.row_groups.pop_front() {
+                    self.current_row_group = Some(match self.row_groups.pop_front() {
                         Some(group) => group,
                         None => return Ok(None),
-                    };
+                    });
 
                     // Need to read the next set of column chunks.
                     self.fetch_column_chunks().await?;
@@ -196,7 +190,7 @@ impl<R: AsyncReadAt> AsyncBatchReader<R> {
             let col = self
                 .metadata
                 .parquet_metadata
-                .row_group(self.current_row_group)
+                .row_group(self.current_row_group.expect("current row group to be set"))
                 .column(idx);
             let (start, len) = col.byte_range();
 
@@ -210,16 +204,14 @@ impl<R: AsyncReadAt> AsyncBatchReader<R> {
 
     /// Take the underlying buffer for a column and convert into a page reader.
     fn take_serialized_page_reader(&mut self, col: usize) -> Result<SerializedPageReader<Bytes>> {
+        let row_group = self.current_row_group.expect("current row group to be set");
         let locations = self
             .metadata
             .parquet_metadata
             .offset_index()
-            .map(|row_groups| row_groups[self.current_row_group][col].clone());
+            .map(|row_groups| row_groups[row_group][col].clone());
 
-        let row_group_meta = self
-            .metadata
-            .parquet_metadata
-            .row_group(self.current_row_group);
+        let row_group_meta = self.metadata.parquet_metadata.row_group(row_group);
 
         let chunk = std::mem::take(&mut self.column_chunks[col]);
         let chunk_reader = Arc::new(Bytes::from(chunk));
@@ -233,6 +225,15 @@ impl<R: AsyncReadAt> AsyncBatchReader<R> {
         .context("failed to create serialize page reader")?;
 
         Ok(page_reader)
+    }
+}
+
+impl<R: AsyncReadAt> fmt::Debug for AsyncBatchReader<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AsyncBatchReader")
+            .field("row_groups", &self.row_groups)
+            .field("current_row_group", &self.current_row_group)
+            .finish_non_exhaustive()
     }
 }
 
