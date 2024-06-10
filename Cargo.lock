@@ -1492,6 +1492,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_io"
+version = "0.0.1"
+dependencies = [
+ "futures",
+ "rayexec_error",
+ "tracing",
+]
+
+[[package]]
 name = "rayexec_parquet"
 version = "0.0.1"
 dependencies = [
@@ -1500,6 +1509,7 @@ dependencies = [
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_io",
  "regex",
  "tracing",
 ]
