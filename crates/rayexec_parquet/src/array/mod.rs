@@ -7,14 +7,14 @@ use futures::{Stream, StreamExt};
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
-    BoolType, DataType as ParquetDataType, DoubleType, FloatType, Int32Type, Int64Type,
+    BoolType, DataType as ParquetDataType, DoubleType, FloatType, Int32Type, Int64Type, Int96Type,
 };
 use parquet::file::reader::SerializedPageReader;
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::{DataType, Schema};
+use rayexec_bullet::field::{DataType, Schema, TimeUnit};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReadAt;
 use std::collections::VecDeque;
@@ -53,6 +53,10 @@ where
         DataType::Int64 => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
             datatype, desc,
         ))),
+        DataType::Timestamp(TimeUnit::Nanosecond) => Ok(Box::new(PrimitiveArrayReader::<
+            Int96Type,
+            P,
+        >::new(datatype, desc))),
         DataType::Float32 => Ok(Box::new(PrimitiveArrayReader::<FloatType, P>::new(
             datatype, desc,
         ))),

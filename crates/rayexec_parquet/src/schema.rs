@@ -1,8 +1,8 @@
 use parquet::{
-    basic::{ConvertedType, LogicalType, TimeUnit},
+    basic::{ConvertedType, LogicalType, TimeUnit as ParquetTimeUnit},
     schema::types::{BasicTypeInfo, SchemaDescriptor, Type},
 };
-use rayexec_bullet::field::{DataType, Field, Schema};
+use rayexec_bullet::field::{DataType, Field, Schema, TimeUnit};
 use rayexec_error::{RayexecError, Result};
 
 /// Converts a parquet schema to a bullet schema.
@@ -71,7 +71,7 @@ fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
             parquet::basic::Type::BOOLEAN => Ok(DataType::Boolean),
             parquet::basic::Type::INT32 => from_int32(basic_info, *scale, *precision),
             parquet::basic::Type::INT64 => from_int64(basic_info, *scale, *precision),
-            parquet::basic::Type::INT96 => unimplemented!(),
+            parquet::basic::Type::INT96 => Ok(DataType::Timestamp(TimeUnit::Nanosecond)),
             parquet::basic::Type::FLOAT => Ok(DataType::Float32),
             parquet::basic::Type::DOUBLE => Ok(DataType::Float64),
             parquet::basic::Type::BYTE_ARRAY => from_byte_array(basic_info, *precision, *scale),
@@ -107,7 +107,7 @@ fn from_int32(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataTy
         (Some(LogicalType::Decimal { scale, precision }), _) => unimplemented!(),
         (Some(LogicalType::Date), _) => unimplemented!(),
         (Some(LogicalType::Time { unit, .. }), _) => match unit {
-            TimeUnit::MILLIS(_) => unimplemented!(),
+            ParquetTimeUnit::MILLIS(_) => unimplemented!(),
             _ => Err(RayexecError::new(format!(
                 "Cannot create INT32 physical type from {:?}",
                 unit
@@ -145,11 +145,11 @@ fn from_int64(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataTy
             false => Ok(DataType::UInt64),
         },
         (Some(LogicalType::Time { unit, .. }), _) => match unit {
-            TimeUnit::MILLIS(_) => Err(RayexecError::new(
+            ParquetTimeUnit::MILLIS(_) => Err(RayexecError::new(
                 "Cannot create INT64 from MILLIS time unit",
             )),
-            TimeUnit::MICROS(_) => unimplemented!(),
-            TimeUnit::NANOS(_) => unimplemented!(),
+            ParquetTimeUnit::MICROS(_) => unimplemented!(),
+            ParquetTimeUnit::NANOS(_) => unimplemented!(),
         },
         (
             Some(LogicalType::Timestamp {

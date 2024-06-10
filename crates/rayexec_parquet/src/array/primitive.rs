@@ -1,8 +1,10 @@
 use bytes::Bytes;
 use parquet::column::page::PageReader;
-use parquet::data_type::DataType as ParquetDataType;
+use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use parquet::{basic::Type as PhysicalType, file::reader::SerializedPageReader};
+use rayexec_bullet::array::TimestampArray;
+use rayexec_bullet::field::TimeUnit;
 use rayexec_bullet::{
     array::{
         Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
@@ -49,6 +51,7 @@ where
             (PhysicalType::BOOLEAN, DataType::Boolean) => data.into_array(),
             (PhysicalType::INT32, DataType::Int32) => data.into_array(),
             (PhysicalType::INT64, DataType::Int64) => data.into_array(),
+            (PhysicalType::INT96, DataType::Timestamp(TimeUnit::Nanosecond)) => data.into_array(),
             (PhysicalType::FLOAT, DataType::Float32) => data.into_array(),
             (PhysicalType::DOUBLE, DataType::Float64) => data.into_array(),
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parqet: {p_other}, bullet: {d_other}")))
@@ -84,6 +87,13 @@ pub trait IntoArray {
 impl IntoArray for Vec<bool> {
     fn into_array(self) -> Array {
         Array::Boolean(BooleanArray::from_iter(self))
+    }
+}
+
+impl IntoArray for Vec<Int96> {
+    fn into_array(self) -> Array {
+        let vals = self.into_iter().map(|v| v.to_nanos());
+        Array::Timestamp(TimeUnit::Nanosecond, TimestampArray::from_iter(vals))
     }
 }
 
