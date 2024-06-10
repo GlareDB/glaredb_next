@@ -3,6 +3,7 @@ pub mod datatable;
 pub mod read_parquet;
 pub mod schema;
 
+mod metadata;
 mod read_parquet_local;
 
 use futures::future::BoxFuture;

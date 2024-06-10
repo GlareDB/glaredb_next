@@ -8,7 +8,6 @@ rayexec_execution = { path = '../rayexec_execution' }
 rayexec_bullet = { path = '../rayexec_bullet' }
 rayexec_error = { path = '../rayexec_error' }
 parquet = { path = '../parquet' }
-tokio-postgres = { version = "0.7.10" }
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }

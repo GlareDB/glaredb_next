@@ -1501,7 +1501,6 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "regex",
- "tokio-postgres",
  "tracing",
 ]
 
