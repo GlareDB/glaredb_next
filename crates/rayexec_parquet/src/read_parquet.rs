@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
@@ -9,6 +7,9 @@ use rayexec_execution::{
         SpecializedTableFunction, TableFunctionArgs,
     },
 };
+use std::path::PathBuf;
+
+use crate::read_parquet_local::ReadParquetLocal;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadParquet;
@@ -22,7 +23,16 @@ impl GenericTableFunction for ReadParquet {
         &["parquet_scan"]
     }
 
-    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
-        unimplemented!()
+    fn specialize(&self, mut args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+        check_named_args_is_empty(self, &args)?;
+        if args.positional.len() != 1 {
+            return Err(RayexecError::new("Expected one argument"));
+        }
+
+        // TODO: Glob, dispatch to object storage/http impls
+
+        let path = PathBuf::from(args.positional.pop().unwrap().try_into_string()?);
+
+        Ok(Box::new(ReadParquetLocal { path }))
     }
 }

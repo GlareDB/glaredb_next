@@ -1,6 +1,8 @@
-use parquet::basic::Type as PhysicalType;
+use bytes::Bytes;
 use parquet::column::page::PageReader;
 use parquet::data_type::DataType as ParquetDataType;
+use parquet::schema::types::ColumnDescPtr;
+use parquet::{basic::Type as PhysicalType, file::reader::SerializedPageReader};
 use rayexec_bullet::{
     array::{
         Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
@@ -10,12 +12,25 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 
-use super::ValuesReader;
+use super::{ArrayBuilder, ValuesReader};
 
-#[derive(Debug)]
 pub struct PrimitiveArrayReader<T: ParquetDataType, P: PageReader> {
     datatype: DataType,
     values_reader: ValuesReader<T, P>,
+}
+
+impl<T, P> PrimitiveArrayReader<T, P>
+where
+    T: ParquetDataType,
+    P: PageReader,
+    Vec<T::T>: IntoArray,
+{
+    pub fn new(datatype: DataType, desc: ColumnDescPtr) -> Self {
+        PrimitiveArrayReader {
+            datatype,
+            values_reader: ValuesReader::new(desc),
+        }
+    }
 }
 
 impl<T, P> PrimitiveArrayReader<T, P>
@@ -40,6 +55,25 @@ where
         };
 
         Ok(arr)
+    }
+}
+
+impl<T, P> ArrayBuilder<P> for PrimitiveArrayReader<T, P>
+where
+    T: ParquetDataType,
+    P: PageReader,
+    Vec<T::T>: IntoArray,
+{
+    fn build(&mut self) -> Result<Array> {
+        self.take_array()
+    }
+
+    fn set_page_reader(&mut self, page_reader: P) -> Result<()> {
+        self.values_reader.set_page_reader(page_reader)
+    }
+
+    fn read_rows(&mut self, n: usize) -> Result<usize> {
+        self.values_reader.read_records(n)
     }
 }
 

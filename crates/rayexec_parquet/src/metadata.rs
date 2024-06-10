@@ -5,14 +5,14 @@ use parquet::file::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReadAt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Metadata {
     pub parquet_metadata: ParquetMetaData,
 }
 
 impl Metadata {
     /// Loads parquet metadata from an async source.
-    pub async fn load_from<R>(mut reader: impl AsyncReadAt, size: usize) -> Result<Self> {
+    pub async fn load_from(mut reader: impl AsyncReadAt, size: usize) -> Result<Self> {
         if size < 8 {
             return Err(RayexecError::new("File size is too small"));
         }

@@ -1,10 +1,9 @@
 pub mod array;
-pub mod datatable;
 pub mod read_parquet;
-pub mod schema;
 
 mod metadata;
 mod read_parquet_local;
+mod schema;
 
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
