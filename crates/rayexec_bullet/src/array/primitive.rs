@@ -141,6 +141,7 @@ pub type Int8Array = PrimitiveArray<i8>;
 pub type Int16Array = PrimitiveArray<i16>;
 pub type Int32Array = PrimitiveArray<i32>;
 pub type Int64Array = PrimitiveArray<i64>;
+pub type Int128Array = PrimitiveArray<i128>;
 pub type UInt8Array = PrimitiveArray<u8>;
 pub type UInt16Array = PrimitiveArray<u16>;
 pub type UInt32Array = PrimitiveArray<u32>;
@@ -332,5 +333,39 @@ impl<T> ArrayBuilder<T> for PrimitiveArrayBuilder<T> {
 
     fn put_validity(&mut self, validity: Bitmap) {
         self.validity = Some(validity);
+    }
+}
+
+/// Wrapper around a primitive array for storing the precision+scale for a
+/// decimal type.
+#[derive(Debug, PartialEq)]
+pub struct DecimalArray<T> {
+    precision: u8,
+    scale: i8,
+    array: PrimitiveArray<T>,
+}
+
+pub type Decimal64Array = DecimalArray<i64>;
+pub type Decimal128Array = DecimalArray<i128>;
+
+impl<T> DecimalArray<T> {
+    pub fn new(precision: u8, scale: i8, array: PrimitiveArray<T>) -> Self {
+        DecimalArray {
+            precision,
+            scale,
+            array,
+        }
+    }
+
+    pub fn get_primitive(&self) -> &PrimitiveArray<T> {
+        &self.array
+    }
+
+    pub fn precision(&self) -> u8 {
+        self.precision
+    }
+
+    pub fn scale(&self) -> i8 {
+        self.scale
     }
 }

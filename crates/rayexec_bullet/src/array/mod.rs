@@ -10,7 +10,7 @@ pub mod varlen;
 pub use varlen::*;
 
 use crate::field::{DataType, IntervalUnit};
-use crate::scalar::ScalarValue;
+use crate::scalar::{DecimalScalar, ScalarValue};
 use crate::{bitmap::Bitmap, field::TimeUnit};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -29,6 +29,8 @@ pub enum Array {
     UInt16(UInt16Array),
     UInt32(UInt32Array),
     UInt64(UInt64Array),
+    Decimal64(Decimal64Array),
+    Decimal128(Decimal128Array),
     Date32(Date32Array),
     Date64(Date64Array),
     Timestamp(TimeUnit, TimestampArray),
@@ -56,6 +58,8 @@ impl Array {
             Array::UInt16(_) => DataType::UInt16,
             Array::UInt32(_) => DataType::UInt32,
             Array::UInt64(_) => DataType::UInt64,
+            Self::Decimal64(arr) => DataType::Decimal64(arr.precision(), arr.scale()),
+            Self::Decimal128(arr) => DataType::Decimal64(arr.precision(), arr.scale()),
             Array::Date32(_) => DataType::Date32,
             Array::Date64(_) => DataType::Date64,
             Array::Timestamp(unit, _) => DataType::Timestamp(*unit),
@@ -88,6 +92,16 @@ impl Array {
             Self::UInt16(arr) => ScalarValue::UInt16(*arr.value(idx)?),
             Self::UInt32(arr) => ScalarValue::UInt32(*arr.value(idx)?),
             Self::UInt64(arr) => ScalarValue::UInt64(*arr.value(idx)?),
+            Self::Decimal64(arr) => ScalarValue::Decimal64(DecimalScalar {
+                precision: arr.precision(),
+                scale: arr.scale(),
+                value: *arr.get_primitive().value(idx)?,
+            }),
+            Self::Decimal128(arr) => ScalarValue::Decimal128(DecimalScalar {
+                precision: arr.precision(),
+                scale: arr.scale(),
+                value: *arr.get_primitive().value(idx)?,
+            }),
             Self::Date32(arr) => ScalarValue::Date32(*arr.value(idx)?),
             Self::Date64(arr) => ScalarValue::Date64(*arr.value(idx)?),
             Self::Timestamp(unit, arr) => ScalarValue::Timestamp(*unit, *arr.value(idx)?),
@@ -115,6 +129,8 @@ impl Array {
             Self::UInt16(arr) => arr.is_valid(idx),
             Self::UInt32(arr) => arr.is_valid(idx),
             Self::UInt64(arr) => arr.is_valid(idx),
+            Self::Decimal64(arr) => arr.get_primitive().is_valid(idx),
+            Self::Decimal128(arr) => arr.get_primitive().is_valid(idx),
             Self::Date32(arr) => arr.is_valid(idx),
             Self::Date64(arr) => arr.is_valid(idx),
             Self::Timestamp(_, arr) => arr.is_valid(idx),
@@ -142,6 +158,8 @@ impl Array {
             Self::UInt16(arr) => arr.len(),
             Self::UInt32(arr) => arr.len(),
             Self::UInt64(arr) => arr.len(),
+            Self::Decimal64(arr) => arr.get_primitive().len(),
+            Self::Decimal128(arr) => arr.get_primitive().len(),
             Self::Date32(arr) => arr.len(),
             Self::Date64(arr) => arr.len(),
             Self::Timestamp(_, arr) => arr.len(),
@@ -173,6 +191,8 @@ impl Array {
             Self::UInt16(arr) => arr.validity(),
             Self::UInt32(arr) => arr.validity(),
             Self::UInt64(arr) => arr.validity(),
+            Self::Decimal64(arr) => arr.get_primitive().validity(),
+            Self::Decimal128(arr) => arr.get_primitive().validity(),
             Self::Date32(arr) => arr.validity(),
             Self::Date64(arr) => arr.validity(),
             Self::Timestamp(_, arr) => arr.validity(),
@@ -275,6 +295,12 @@ impl Array {
             }
             DataType::UInt64 => {
                 iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt64)
+            }
+            DataType::Decimal64(_p, _s) => {
+                unimplemented!()
+            }
+            DataType::Decimal128(_p, _s) => {
+                unimplemented!()
             }
             DataType::Date32 => {
                 iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Date32)

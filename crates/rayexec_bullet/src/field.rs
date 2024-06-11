@@ -16,6 +16,11 @@ pub enum DataType {
     UInt16,
     UInt32,
     UInt64,
+    /// 64-bit decimal.
+    Decimal64(u8, i8),
+    /// 128-bit decimal.
+    Decimal128(u8, i8),
+    /// Timestamp at a specific time.
     Timestamp(TimeUnit),
     /// Days since epoch.
     Date32,
@@ -123,6 +128,8 @@ impl fmt::Display for DataType {
             Self::UInt16 => write!(f, "UInt16"),
             Self::UInt32 => write!(f, "UInt32"),
             Self::UInt64 => write!(f, "UInt64"),
+            Self::Decimal64(p, s) => write!(f, "Decimal64({p}, {s})"),
+            Self::Decimal128(p, s) => write!(f, "Decimal128({p}, {s})"),
             Self::Timestamp(unit) => write!(f, "Timestamp({unit})"),
             Self::Date32 => write!(f, "Date32"),
             Self::Date64 => write!(f, "Date64"),

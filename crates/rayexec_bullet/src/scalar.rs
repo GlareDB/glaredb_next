@@ -1,8 +1,9 @@
 use crate::array::{
-    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array,
-    Int16Array, Int32Array, Int64Array, Int8Array, IntervalDayTime, IntervalDayTimeArray,
-    IntervalYearMonth, IntervalYearMonthArray, LargeBinaryArray, LargeUtf8Array, NullArray,
-    TimestampArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
+    Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
+    IntervalDayTime, IntervalDayTimeArray, IntervalYearMonth, IntervalYearMonthArray,
+    LargeBinaryArray, LargeUtf8Array, NullArray, TimestampArray, UInt16Array, UInt32Array,
+    UInt64Array, UInt8Array, Utf8Array,
 };
 use crate::field::{DataType, IntervalUnit, TimeUnit};
 use rayexec_error::{RayexecError, Result};
@@ -47,6 +48,9 @@ pub enum ScalarValue<'a> {
 
     /// Unsigned 64bit int
     UInt64(u64),
+
+    Decimal64(DecimalScalar<i64>),
+    Decimal128(DecimalScalar<i128>),
 
     /// A Date32 value.
     Date32(i32),
@@ -96,6 +100,8 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::UInt16(_) => DataType::UInt16,
             ScalarValue::UInt32(_) => DataType::UInt32,
             ScalarValue::UInt64(_) => DataType::UInt64,
+            ScalarValue::Decimal64(v) => DataType::Decimal64(v.precision, v.scale),
+            ScalarValue::Decimal128(v) => DataType::Decimal64(v.precision, v.scale),
             ScalarValue::Date32(_) => DataType::Date32,
             ScalarValue::Date64(_) => DataType::Date64,
             ScalarValue::Timestamp(unit, _) => DataType::Timestamp(*unit),
@@ -125,6 +131,8 @@ impl<'a> ScalarValue<'a> {
             Self::UInt16(v) => OwnedScalarValue::UInt16(v),
             Self::UInt32(v) => OwnedScalarValue::UInt32(v),
             Self::UInt64(v) => OwnedScalarValue::UInt64(v),
+            Self::Decimal64(v) => OwnedScalarValue::Decimal64(v),
+            Self::Decimal128(v) => OwnedScalarValue::Decimal128(v),
             Self::Date32(v) => OwnedScalarValue::Date32(v),
             Self::Date64(v) => OwnedScalarValue::Date64(v),
             Self::Timestamp(unit, v) => OwnedScalarValue::Timestamp(unit, v),
@@ -161,6 +169,14 @@ impl<'a> ScalarValue<'a> {
             Self::UInt16(v) => Array::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt32(v) => Array::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt64(v) => Array::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Decimal64(v) => {
+                let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
+                Array::Decimal64(Decimal64Array::new(v.precision, v.scale, primitive))
+            }
+            Self::Decimal128(v) => {
+                let primitive = Int128Array::from_iter(std::iter::repeat(v.value).take(n));
+                Array::Decimal128(Decimal128Array::new(v.precision, v.scale, primitive))
+            }
             Self::Date32(v) => Array::Date32(Date32Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::Date64(v) => Array::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::Timestamp(unit, v) => Array::Timestamp(
@@ -292,8 +308,10 @@ impl fmt::Display for ScalarValue<'_> {
             Self::UInt16(v) => write!(f, "{}", v),
             Self::UInt32(v) => write!(f, "{}", v),
             Self::UInt64(v) => write!(f, "{}", v),
-            Self::Date32(v) => write!(f, "{}", v), // TODO
-            Self::Date64(v) => write!(f, "{}", v), // TODO
+            Self::Decimal64(v) => write!(f, "{}", v.value), // TODO
+            Self::Decimal128(v) => write!(f, "{}", v.value), // TODO
+            Self::Date32(v) => write!(f, "{}", v),          // TODO
+            Self::Date64(v) => write!(f, "{}", v),          // TODO
             Self::Timestamp(unit, v) => write!(f, "{v} {unit}"), // TODO: Definitely wrong
             Self::IntervalYearMonth(v) => write!(f, "{} months", v.months), // TODO
             Self::IntervalDayTime(v) => write!(f, "{} day {} ms", v.days, v.milliseconds), // TODO
@@ -312,6 +330,13 @@ impl fmt::Display for ScalarValue<'_> {
             ),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DecimalScalar<T: Copy> {
+    pub precision: u8,
+    pub scale: i8,
+    pub value: T,
 }
 
 impl<'a> From<bool> for ScalarValue<'a> {

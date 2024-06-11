@@ -1,5 +1,6 @@
 use crate::array::{
-    Array, BooleanArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
+    Array, BooleanArray, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray,
+    VarlenType,
 };
 use crate::field::{DataType, IntervalUnit};
 use rayexec_error::{RayexecError, Result};
@@ -68,6 +69,24 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
             Ok(Array::UInt64(concat_primitive(arrs.as_slice())))
         }
+        DataType::Decimal64(p, s) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal64, datatype)?;
+            let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            Ok(Array::Decimal64(DecimalArray::new(
+                p,
+                s,
+                concat_primitive(arrs.as_slice()),
+            )))
+        }
+        DataType::Decimal128(p, s) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal128, datatype)?;
+            let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            Ok(Array::Decimal128(DecimalArray::new(
+                p,
+                s,
+                concat_primitive(arrs.as_slice()),
+            )))
+        }
         DataType::Date32 => {
             let arrs = collect_arrays_of_type!(arrays, Date32, datatype)?;
             Ok(Array::Date32(concat_primitive(arrs.as_slice())))
@@ -76,7 +95,6 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
             Ok(Array::Date64(concat_primitive(arrs.as_slice())))
         }
-
         DataType::Timestamp(unit) => {
             // TODO: Need to worry about unit?
             let arrs = arrays
