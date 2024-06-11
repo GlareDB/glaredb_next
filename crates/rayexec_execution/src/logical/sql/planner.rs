@@ -702,7 +702,7 @@ impl<'a> PlanContext<'a> {
                 };
                 let scope = Scope::with_columns(
                     Some(scope_reference),
-                    reference.func.schema().iter().map(|f| f.name.clone()),
+                    reference.func.schema().fields.into_iter().map(|f| f.name),
                 );
 
                 let operator = LogicalOperator::TableFunction(TableFunction {
