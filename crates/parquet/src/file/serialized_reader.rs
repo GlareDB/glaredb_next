@@ -253,12 +253,12 @@ impl<R: 'static + ChunkReader> FileReader<SerializedPageReader<R>, SerializedRow
 
     fn get_row_group(&self, i: usize) -> Result<SerializedRowGroupReader<R>> {
         // Row groups should be processed sequentially.
-        Ok(SerializedRowGroupReader::new(
+        SerializedRowGroupReader::new(
             i,
             self.chunk_reader.clone(),
             self.metadata.clone(),
             self.props.clone(),
-        )?)
+        )
     }
 }
 
@@ -322,13 +322,13 @@ impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
     fn get_column_page_reader(&self, i: usize) -> Result<SerializedPageReader<R>> {
         let col = self.metadata().column(i);
 
-        Ok(SerializedPageReader::new_with_properties(
+        SerializedPageReader::new_with_properties(
             Arc::clone(&self.chunk_reader),
             col,
             self.metadata().num_rows() as usize,
             self.column_page_locations(i),
             self.props.clone(),
-        )?)
+        )
     }
 
     /// get bloom filter for the `i`th column

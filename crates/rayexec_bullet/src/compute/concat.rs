@@ -74,13 +74,11 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
                 .iter()
                 .map(|arr| match arr {
                     Array::Timestamp(_, arr) => Ok(arr),
-                    other => {
-                        return Err(RayexecError::new(format!(
-                            "Array is not of the expected type. Expected {}, got {}",
-                            DataType::Timestamp(unit),
-                            other.datatype()
-                        )))
-                    }
+                    other => Err(RayexecError::new(format!(
+                        "Array is not of the expected type. Expected {}, got {}",
+                        DataType::Timestamp(unit),
+                        other.datatype()
+                    ))),
                 })
                 .collect::<rayexec_error::Result<Vec<_>>>()?;
             Ok(Array::Timestamp(unit, concat_primitive(arrs.as_slice())))

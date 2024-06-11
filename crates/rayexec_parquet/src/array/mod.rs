@@ -2,7 +2,7 @@ pub mod primitive;
 pub mod varlen;
 
 use bytes::{Buf, Bytes};
-use futures::stream::{self, BoxStream, Unfold};
+use futures::stream::{self, BoxStream};
 use futures::StreamExt;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
@@ -15,6 +15,7 @@ use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
+use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::field::{DataType, Schema, TimeUnit};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReadAt;
@@ -77,8 +78,17 @@ where
     }
 }
 
+/// Trait for converting a buffer of values into an array.
 pub trait IntoArray {
-    fn into_array(self) -> Array;
+    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array;
+}
+
+pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
+    Bitmap::from_iter(def_levels.into_iter().map(|v| match v {
+        0 => false,
+        1 => true,
+        other => unimplemented!("nested unimplemented, def level: {other}"),
+    }))
 }
 
 pub struct AsyncBatchReader<R: AsyncReadAt> {
@@ -375,7 +385,8 @@ where
 
             // Pad nulls.
             if values_read < levels_read {
-                unimplemented!()
+                // unimplemented!()
+                self.values.resize(levels_read, T::T::default());
             }
 
             num_read += records_read;
@@ -390,5 +401,13 @@ where
 
     pub fn take_values(&mut self) -> Vec<T::T> {
         std::mem::take(&mut self.values)
+    }
+
+    pub fn take_def_levels(&mut self) -> Option<Vec<i16>> {
+        std::mem::take(&mut self.def_levels)
+    }
+
+    pub fn take_rep_levels(&mut self) -> Option<Vec<i16>> {
+        std::mem::take(&mut self.rep_levels)
     }
 }

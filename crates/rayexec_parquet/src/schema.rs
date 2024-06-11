@@ -81,7 +81,7 @@ fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
     }
 }
 
-fn from_int32(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataType> {
+fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<DataType> {
     match (info.logical_type(), info.converted_type()) {
         (None, ConvertedType::NONE) => Ok(DataType::Int32),
         (
@@ -104,7 +104,13 @@ fn from_int32(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataTy
                 t
             ))),
         },
-        (Some(LogicalType::Decimal { scale, precision }), _) => unimplemented!(),
+        (
+            Some(LogicalType::Decimal {
+                scale: _,
+                precision: _,
+            }),
+            _,
+        ) => unimplemented!(),
         (Some(LogicalType::Date), _) => unimplemented!(),
         (Some(LogicalType::Time { unit, .. }), _) => match unit {
             ParquetTimeUnit::MILLIS(_) => unimplemented!(),
@@ -131,7 +137,7 @@ fn from_int32(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataTy
     }
 }
 
-fn from_int64(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataType> {
+fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<DataType> {
     match (info.logical_type(), info.converted_type()) {
         (None, ConvertedType::NONE) => Ok(DataType::Int64),
         (
@@ -153,8 +159,8 @@ fn from_int64(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataTy
         },
         (
             Some(LogicalType::Timestamp {
-                is_adjusted_to_u_t_c,
-                unit,
+                is_adjusted_to_u_t_c: _,
+                unit: _,
             }),
             _,
         ) => unimplemented!(), // Ok(DataType::Timestamp(
@@ -174,7 +180,13 @@ fn from_int64(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataTy
         (None, ConvertedType::TIME_MICROS) => unimplemented!(),
         (None, ConvertedType::TIMESTAMP_MILLIS) => unimplemented!(),
         (None, ConvertedType::TIMESTAMP_MICROS) => unimplemented!(),
-        (Some(LogicalType::Decimal { scale, precision }), _) => unimplemented!(),
+        (
+            Some(LogicalType::Decimal {
+                scale: _,
+                precision: _,
+            }),
+            _,
+        ) => unimplemented!(),
         (None, ConvertedType::DECIMAL) => unimplemented!(),
         (logical, converted) => Err(RayexecError::new(format!(
             "Unable to convert parquet INT64 logical type {:?} or converted type {}",
@@ -183,7 +195,7 @@ fn from_int64(info: &BasicTypeInfo, scale: i32, precision: i32) -> Result<DataTy
     }
 }
 
-fn from_byte_array(info: &BasicTypeInfo, precision: i32, scale: i32) -> Result<DataType> {
+fn from_byte_array(info: &BasicTypeInfo, _precision: i32, _scale: i32) -> Result<DataType> {
     match (info.logical_type(), info.converted_type()) {
         (Some(LogicalType::String), _) => Ok(DataType::Utf8),
         (Some(LogicalType::Json), _) => Ok(DataType::Utf8),
@@ -196,8 +208,8 @@ fn from_byte_array(info: &BasicTypeInfo, precision: i32, scale: i32) -> Result<D
         (None, ConvertedType::UTF8) => Ok(DataType::Utf8),
         (
             Some(LogicalType::Decimal {
-                scale: s,
-                precision: p,
+                scale: _,
+                precision: _,
             }),
             _,
         ) => unimplemented!(),

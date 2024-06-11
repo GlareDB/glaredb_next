@@ -316,7 +316,15 @@ impl<A: AsVarlenType, O: OffsetIndex> Default for VarlenArrayBuilder<A, O> {
 }
 
 impl<A: AsVarlenType, O: OffsetIndex> VarlenArrayBuilder<A, O> {
-    // TODO: With capacity
+    pub fn with_data_capacity(cap: usize) -> Self {
+        VarlenArrayBuilder {
+            validity: None,
+            offsets: vec![O::from_usize(0)],
+            data: Vec::with_capacity(cap),
+            varlen_type: PhantomData,
+        }
+    }
+
     pub fn new() -> Self {
         VarlenArrayBuilder {
             validity: None,

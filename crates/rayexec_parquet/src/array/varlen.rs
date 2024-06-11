@@ -7,7 +7,7 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 
-use super::{ArrayBuilder, IntoArray, ValuesReader};
+use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};
 
 #[derive(Debug)]
 pub struct VarlenArrayReader<T: ParquetDataType, P: PageReader> {
@@ -30,16 +30,39 @@ where
 
     pub fn take_array(&mut self) -> Result<Array> {
         let data = self.values_reader.take_values();
-        // TODO: Nulls
+        let def_levels = self.values_reader.take_def_levels();
+        let _rep_levels = self.values_reader.take_rep_levels();
+
         let arr = match (T::get_physical_type(), &self.datatype) {
             (PhysicalType::BYTE_ARRAY, DataType::Utf8) => {
-                data.into_array()
+                data.into_array(def_levels)
             }
             (PhysicalType::BYTE_ARRAY, DataType::Binary) => {
                 let mut builder = VarlenArrayBuilder::new();
-                for buf in &data {
-                    builder.push_value(buf.as_bytes());
+
+                match def_levels {
+                    Some(levels) => {
+                        let bitmap = def_levels_into_bitmap(levels);
+                        let mut values_iter = data.iter();
+
+                        for valid in bitmap.iter() {
+                            if valid {
+                                let value = values_iter.next().expect("value to exist");
+                                builder.push_value(value.as_bytes());
+                            } else {
+                                builder.push_value(&[]);
+                            }
+                        }
+
+                        builder.put_validity(bitmap);
+                    }
+                    None => {
+                        for buf in &data {
+                            builder.push_value(buf.as_bytes());
+                        }
+                    }
                 }
+
                 let arr = builder.into_typed_array();
                 Array::Binary(arr)
             }
@@ -70,12 +93,34 @@ where
 }
 
 impl IntoArray for Vec<ByteArray> {
-    fn into_array(self) -> Array {
+    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array {
         let mut builder = VarlenArrayBuilder::new();
-        for buf in &self {
-            let s = unsafe { std::str::from_utf8_unchecked(buf.as_bytes()) };
-            builder.push_value(s);
+
+        match def_levels {
+            Some(levels) => {
+                let bitmap = def_levels_into_bitmap(levels);
+                let mut values_iter = self.iter();
+
+                for valid in bitmap.iter() {
+                    if valid {
+                        let value = values_iter.next().expect("value to exist");
+                        let s = unsafe { std::str::from_utf8_unchecked(value.as_bytes()) };
+                        builder.push_value(s);
+                    } else {
+                        builder.push_value("");
+                    }
+                }
+
+                builder.put_validity(bitmap);
+            }
+            None => {
+                for buf in &self {
+                    let s = unsafe { std::str::from_utf8_unchecked(buf.as_bytes()) };
+                    builder.push_value(s);
+                }
+            }
         }
+
         let arr = builder.into_typed_array();
         Array::Utf8(arr)
     }

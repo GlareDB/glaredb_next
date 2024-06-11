@@ -6,12 +6,12 @@ use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
-use crate::functions::table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs};
+use crate::functions::table::InitializedTableFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
 };
-use rayexec_bullet::field::{DataType, Field, Schema, TypeSchema};
+use rayexec_bullet::field::{DataType, Field, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;

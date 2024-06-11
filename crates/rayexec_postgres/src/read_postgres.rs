@@ -81,7 +81,7 @@ impl SpecializedTableFunction for ReadPostgresArgs {
 
             Ok(Box::new(ReadPostgresImpl {
                 args: *self,
-                client,
+                _client: client,
                 table_schema: schema,
             }) as _)
         })
@@ -91,7 +91,7 @@ impl SpecializedTableFunction for ReadPostgresArgs {
 #[derive(Debug, Clone)]
 pub struct ReadPostgresImpl {
     args: ReadPostgresArgs,
-    client: PostgresClient,
+    _client: PostgresClient,
     table_schema: Schema,
 }
 

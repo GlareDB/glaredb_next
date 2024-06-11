@@ -138,6 +138,14 @@ pub type Float64Array = PrimitiveArray<f64>;
 pub type TimestampArray = PrimitiveArray<i64>;
 
 impl<T> PrimitiveArray<T> {
+    pub fn new_from_values_and_validity(values: Vec<T>, validity: Bitmap) -> Self {
+        assert_eq!(values.len(), validity.len());
+        PrimitiveArray {
+            values: values.into(),
+            validity: Some(validity),
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.values.as_ref().len()
     }
