@@ -1,5 +1,15 @@
 # read_parquet tests
 
 query I
-select * from read_parquet('../testdata/parquet/userdata0.parquet');
+select * from read_parquet('../testdata/parquet/small.parquet')
 ----
+1  2
+
+query I
+select * from read_parquet('../testdata/parquet/userdata0.parquet') limit 1;
+----
+
+# query I
+# select * from read_parquet('../submodules/parquet-testing/data/alltypes_plain.parquet') limit 1;
+# ----
+

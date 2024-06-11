@@ -1,15 +1,10 @@
-use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::{
-    engine::EngineRuntime,
-    functions::table::{
-        check_named_args_is_empty, GenericTableFunction, InitializedTableFunction,
-        SpecializedTableFunction, TableFunctionArgs,
-    },
+use rayexec_execution::functions::table::{
+    check_named_args_is_empty, GenericTableFunction, SpecializedTableFunction, TableFunctionArgs,
 };
 use std::path::PathBuf;
 
-use crate::read_parquet_local::ReadParquetLocal;
+use super::read_parquet_local::ReadParquetLocal;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadParquet;

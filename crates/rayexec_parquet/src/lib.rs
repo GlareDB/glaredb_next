@@ -1,10 +1,10 @@
 pub mod array;
-pub mod read_parquet;
+pub mod functions;
 
 mod metadata;
-mod read_parquet_local;
 mod schema;
 
+use functions::read_parquet::ReadParquet;
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
@@ -12,7 +12,6 @@ use rayexec_execution::{
     database::catalog::Catalog, datasource::DataSource, engine::EngineRuntime,
     functions::table::GenericTableFunction,
 };
-use read_parquet::ReadParquet;
 use regex::{Regex, RegexBuilder};
 use std::{collections::HashMap, sync::Arc};
 

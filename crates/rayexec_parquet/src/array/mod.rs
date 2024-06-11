@@ -1,15 +1,16 @@
 pub mod primitive;
 pub mod varlen;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::stream::{self, BoxStream, Unfold};
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
-    BoolType, DataType as ParquetDataType, DoubleType, FloatType, Int32Type, Int64Type, Int96Type,
+    BoolType, ByteArrayType, DataType as ParquetDataType, DoubleType, FloatType, Int32Type,
+    Int64Type, Int96Type,
 };
-use parquet::file::reader::SerializedPageReader;
+use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
 use rayexec_bullet::array::Array;
@@ -20,6 +21,7 @@ use rayexec_io::AsyncReadAt;
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 use std::sync::Arc;
+use varlen::VarlenArrayReader;
 
 use crate::metadata::Metadata;
 
@@ -63,10 +65,20 @@ where
         DataType::Float64 => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
             datatype, desc,
         ))),
+        DataType::Utf8 => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
+            datatype, desc,
+        ))),
+        DataType::Binary => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
+            datatype, desc,
+        ))),
         other => Err(RayexecError::new(format!(
             "Unimplemented parquet array builder: {other:?}"
         ))),
     }
+}
+
+pub trait IntoArray {
+    fn into_array(self) -> Array;
 }
 
 pub struct AsyncBatchReader<R: AsyncReadAt> {
@@ -88,10 +100,10 @@ pub struct AsyncBatchReader<R: AsyncReadAt> {
     batch_size: usize,
 
     /// Builders for each column in the batch.
-    builders: Vec<Box<dyn ArrayBuilder<SerializedPageReader<Bytes>>>>,
+    builders: Vec<Box<dyn ArrayBuilder<SerializedPageReader<InMemoryColumnChunk>>>>,
 
     /// Columns chunks we've read.
-    column_chunks: Vec<Vec<u8>>,
+    column_chunks: Vec<Option<InMemoryColumnChunk>>,
 }
 
 impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
@@ -102,7 +114,7 @@ impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
         schema: &Schema,
         batch_size: usize,
     ) -> Result<Self> {
-        let column_chunks = vec![Vec::new(); schema.fields.len()];
+        let column_chunks = (0..schema.fields.len()).map(|_| None).collect();
         let mut builders = Vec::with_capacity(schema.fields.len());
 
         for (datatype, column_chunk_meta) in schema
@@ -137,6 +149,17 @@ impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
     }
 
     pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+        if self.current_row_group.is_none() {
+            match self.row_groups.pop_front() {
+                Some(group) => {
+                    self.current_row_group = Some(group);
+                    self.fetch_column_chunks().await?;
+                    self.set_page_readers()?;
+                }
+                None => return Ok(None),
+            }
+        }
+
         loop {
             match self.maybe_read_batch()? {
                 Some(batch) => return Ok(Some(batch)),
@@ -198,16 +221,26 @@ impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
                 .column(idx);
             let (start, len) = col.byte_range();
 
-            chunk.resize(len as usize, 0);
+            // TODO: Reuse buffer?
+            let mut buf = vec![0; len as usize];
+
             // TODO: Parallel reads.
-            self.reader.read_at(start as usize, chunk).await?;
+            self.reader.read_at(start as usize, &mut buf).await?;
+
+            *chunk = Some(InMemoryColumnChunk {
+                offset: start as usize,
+                buf: Bytes::from(buf),
+            })
         }
 
         Ok(())
     }
 
     /// Take the underlying buffer for a column and convert into a page reader.
-    fn take_serialized_page_reader(&mut self, col: usize) -> Result<SerializedPageReader<Bytes>> {
+    fn take_serialized_page_reader(
+        &mut self,
+        col: usize,
+    ) -> Result<SerializedPageReader<InMemoryColumnChunk>> {
         let row_group = self.current_row_group.expect("current row group to be set");
         let locations = self
             .metadata
@@ -217,11 +250,13 @@ impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
 
         let row_group_meta = self.metadata.parquet_metadata.row_group(row_group);
 
-        let chunk = std::mem::take(&mut self.column_chunks[col]);
-        let chunk_reader = Arc::new(Bytes::from(chunk));
+        let chunk = match std::mem::take(&mut self.column_chunks[col]) {
+            Some(chunk) => Arc::new(chunk),
+            None => return Err(RayexecError::new("Expected column chunk")),
+        };
 
         let page_reader = SerializedPageReader::new(
-            chunk_reader,
+            chunk,
             row_group_meta.column(col),
             row_group_meta.num_rows() as usize,
             locations,
@@ -238,6 +273,42 @@ impl<R: AsyncReadAt> fmt::Debug for AsyncBatchReader<R> {
             .field("row_groups", &self.row_groups)
             .field("current_row_group", &self.current_row_group)
             .finish_non_exhaustive()
+    }
+}
+
+/// In-memory column chunk buffer.
+#[derive(Debug, PartialEq, Eq)]
+struct InMemoryColumnChunk {
+    /// The offset of the column chunk in the file. This is used to properly
+    /// adapt this to the `ChunkReader` trait which is file oriented.
+    offset: usize,
+
+    /// The actual column data.
+    buf: Bytes,
+}
+
+impl InMemoryColumnChunk {
+    fn get(&self, start: usize) -> Bytes {
+        let start = start - self.offset;
+        self.buf.slice(start..)
+    }
+}
+
+impl ChunkReader for InMemoryColumnChunk {
+    type T = bytes::buf::Reader<Bytes>;
+
+    fn get_read(&self, start: u64) -> parquet::errors::Result<Self::T> {
+        Ok(self.get(start as usize).reader())
+    }
+
+    fn get_bytes(&self, start: u64, length: usize) -> parquet::errors::Result<Bytes> {
+        Ok(self.get(start as usize).slice(..length))
+    }
+}
+
+impl Length for InMemoryColumnChunk {
+    fn len(&self) -> u64 {
+        self.buf.len() as u64
     }
 }
 

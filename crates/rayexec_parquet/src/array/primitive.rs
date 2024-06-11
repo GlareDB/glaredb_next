@@ -14,7 +14,7 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 
-use super::{ArrayBuilder, ValuesReader};
+use super::{ArrayBuilder, IntoArray, ValuesReader};
 
 pub struct PrimitiveArrayReader<T: ParquetDataType, P: PageReader> {
     datatype: DataType,
@@ -33,14 +33,7 @@ where
             values_reader: ValuesReader::new(desc),
         }
     }
-}
 
-impl<T, P> PrimitiveArrayReader<T, P>
-where
-    T: ParquetDataType,
-    P: PageReader,
-    Vec<T::T>: IntoArray,
-{
     /// Take the currently read values and convert into an array.
     pub fn take_array(&mut self) -> Result<Array> {
         let data = self.values_reader.take_values();
@@ -78,10 +71,6 @@ where
     fn read_rows(&mut self, n: usize) -> Result<usize> {
         self.values_reader.read_records(n)
     }
-}
-
-pub trait IntoArray {
-    fn into_array(self) -> Array;
 }
 
 impl IntoArray for Vec<bool> {
