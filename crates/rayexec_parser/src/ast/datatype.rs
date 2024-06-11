@@ -19,6 +19,12 @@ pub enum DataType {
     Double,
     /// BOOL, BOOLEAN
     Bool,
+    /// DATE
+    Date,
+    /// TIMESTAMP
+    Timestamp,
+    /// INTERVAL
+    Interval,
 }
 
 impl AstParseable for DataType {
@@ -40,6 +46,9 @@ impl AstParseable for DataType {
             Keyword::REAL | Keyword::FLOAT | Keyword::FLOAT4 => DataType::Real,
             Keyword::DOUBLE | Keyword::FLOAT8 => DataType::Double,
             Keyword::BOOL | Keyword::BOOLEAN => DataType::Bool,
+            Keyword::DATE => DataType::Date,
+            Keyword::TIMESTAMP => DataType::Timestamp,
+            Keyword::INTERVAL => DataType::Interval,
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected keyword for data type: {other:?}",
@@ -84,5 +93,11 @@ mod tests {
 
         assert_ast_eq(DataType::Bool, "bool");
         assert_ast_eq(DataType::Bool, "boolean");
+
+        assert_ast_eq(DataType::Date, "date");
+
+        assert_ast_eq(DataType::Timestamp, "TIMESTAMP");
+
+        assert_ast_eq(DataType::Interval, "INTERVAL");
     }
 }

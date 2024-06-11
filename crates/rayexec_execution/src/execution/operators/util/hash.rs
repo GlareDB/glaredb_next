@@ -1,6 +1,9 @@
 use ahash::RandomState;
 use rayexec_bullet::{
-    array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
+    array::{
+        Array, BooleanArray, IntervalDayTime, IntervalYearMonth, OffsetIndex, PrimitiveArray,
+        VarlenArray, VarlenType,
+    },
     row::ScalarRow,
     scalar::ScalarValue,
 };
@@ -38,7 +41,11 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
             Array::UInt16(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt32(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt64(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::Date32(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::Date64(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Timestamp(_, arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::IntervalYearMonth(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::IntervalDayTime(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Utf8(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::LargeUtf8(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::Binary(arr) => hash_varlen(arr, hashes, combine_hash),
@@ -73,7 +80,11 @@ pub fn hash_row(row: &ScalarRow) -> Result<u64> {
             ScalarValue::UInt16(v) => v.hash_one(),
             ScalarValue::UInt32(v) => v.hash_one(),
             ScalarValue::UInt64(v) => v.hash_one(),
+            ScalarValue::Date32(v) => v.hash_one(),
+            ScalarValue::Date64(v) => v.hash_one(),
             ScalarValue::Timestamp(_, v) => v.hash_one(),
+            ScalarValue::IntervalYearMonth(v) => v.hash_one(),
+            ScalarValue::IntervalDayTime(v) => v.hash_one(),
             ScalarValue::Utf8(v) => v.hash_one(),
             ScalarValue::LargeUtf8(v) => v.hash_one(),
             ScalarValue::Binary(v) => v.hash_one(),
@@ -122,6 +133,8 @@ impl_hash_value!(u32);
 impl_hash_value!(u64);
 impl_hash_value!(str);
 impl_hash_value!([u8]);
+impl_hash_value!(IntervalYearMonth);
+impl_hash_value!(IntervalDayTime);
 
 impl HashValue for f32 {
     fn hash_one(&self) -> u64 {

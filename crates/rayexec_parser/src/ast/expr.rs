@@ -7,7 +7,7 @@ use crate::{
     tokens::{Token, Word},
 };
 
-use super::{AstParseable, Ident, ObjectReference, QueryNode};
+use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -193,6 +193,8 @@ pub enum Expr<T: AstMeta> {
         subquery: Box<QueryNode<T>>,
         not_exists: bool,
     },
+    /// DATE '1992-10-11'
+    TypedString { datatype: DataType, value: String },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -234,7 +236,20 @@ impl Expr<Raw> {
     }
 
     fn parse_prefix(parser: &mut Parser) -> Result<Self> {
-        // TODO: Typed string
+        // Try to parse a possibly typed string.
+        //
+        // DATE '1992-10-11'
+        // BOOL 'true'
+        match parser.maybe_parse(DataType::parse) {
+            Some(dt) => {
+                let s = Self::parse_string_literal(parser)?;
+                return Ok(Expr::TypedString {
+                    datatype: dt,
+                    value: s,
+                });
+            }
+            None => (), // Continue trying to parse a normal expression.
+        }
 
         let tok = match parser.next() {
             Some(tok) => tok,
@@ -516,6 +531,20 @@ impl Expr<Raw> {
             })
         }
     }
+
+    fn parse_string_literal(parser: &mut Parser) -> Result<String> {
+        let tok = match parser.next() {
+            Some(tok) => &tok.token,
+            None => return Err(RayexecError::new("Unexpected end of statement")),
+        };
+
+        match tok {
+            Token::SingleQuotedString(s) => Ok(s.clone()),
+            other => Err(RayexecError::new(format!(
+                "Expected string literal, got {other:?}"
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -653,6 +682,16 @@ mod tests {
             })),
             op: BinaryOperator::Multiply,
             right: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn date_typed_string() {
+        let expr: Expr<_> = parse_ast("date '1992-10-11'").unwrap();
+        let expected = Expr::TypedString {
+            datatype: DataType::Date,
+            value: "1992-10-11".to_string(),
         };
         assert_eq!(expected, expr);
     }

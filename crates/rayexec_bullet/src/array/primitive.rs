@@ -1,6 +1,7 @@
 use crate::bitmap::Bitmap;
 use crate::storage::PrimitiveStorage;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use super::{is_valid, ArrayAccessor, ArrayBuilder};
 
@@ -112,6 +113,17 @@ impl PrimitiveNumeric for f64 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct IntervalYearMonth {
+    pub months: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct IntervalDayTime {
+    pub days: i32,
+    pub milliseconds: i32,
+}
+
 /// Array for storing primitive values.
 #[derive(Debug, PartialEq)]
 pub struct PrimitiveArray<T> {
@@ -136,6 +148,10 @@ pub type UInt64Array = PrimitiveArray<u64>;
 pub type Float32Array = PrimitiveArray<f32>;
 pub type Float64Array = PrimitiveArray<f64>;
 pub type TimestampArray = PrimitiveArray<i64>;
+pub type Date32Array = PrimitiveArray<i32>;
+pub type Date64Array = PrimitiveArray<i64>;
+pub type IntervalYearMonthArray = PrimitiveArray<IntervalYearMonth>;
+pub type IntervalDayTimeArray = PrimitiveArray<IntervalDayTime>;
 
 impl<T> PrimitiveArray<T> {
     pub fn new_from_values_and_validity(values: Vec<T>, validity: Bitmap) -> Self {

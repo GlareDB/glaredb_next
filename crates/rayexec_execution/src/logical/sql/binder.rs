@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use rayexec_bullet::{field::DataType, scalar::OwnedScalarValue};
+use rayexec_bullet::{
+    field::{DataType, IntervalUnit, TimeUnit},
+    scalar::OwnedScalarValue,
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
@@ -851,6 +854,10 @@ impl<'a> Binder<'a> {
             ast::DataType::Real => DataType::Float32,
             ast::DataType::Double => DataType::Float64,
             ast::DataType::Bool => DataType::Boolean,
+            ast::DataType::Date => DataType::Date32,
+            ast::DataType::Timestamp => DataType::Timestamp(TimeUnit::Microsecond),
+            // TODO: Need more info to get the correct type.
+            ast::DataType::Interval => DataType::Interval(IntervalUnit::DayTime),
         }
     }
 }

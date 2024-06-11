@@ -221,6 +221,22 @@ impl Parser {
         Ok(vals)
     }
 
+    /// Try to parse using the given function, reverting back to the previous
+    /// state if not not successful.
+    pub(crate) fn maybe_parse<T>(
+        &mut self,
+        mut f: impl FnMut(&mut Parser) -> Result<T>,
+    ) -> Option<T> {
+        let idx = self.idx;
+        match f(self) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                self.idx = idx;
+                None
+            }
+        }
+    }
+
     /// Parse a single keyword.
     pub(crate) fn parse_keyword(&mut self, keyword: Keyword) -> bool {
         let idx = self.idx;

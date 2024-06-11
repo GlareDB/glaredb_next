@@ -17,11 +17,44 @@ pub enum DataType {
     UInt32,
     UInt64,
     Timestamp(TimeUnit),
+    /// Days since epoch.
+    Date32,
+    /// Millisecond since epoch.
+    Date64,
+    Interval(IntervalUnit),
     Utf8,
     LargeUtf8,
     Binary,
     LargeBinary,
-    Struct { fields: Vec<DataType> },
+    Struct {
+        fields: Vec<DataType>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IntervalUnit {
+    /// YEAR_MONTH
+    ///
+    /// '1-2' => 1 year 2 months
+    ///
+    /// Store as whole months in a 4 byte int.
+    YearMonth,
+    /// DAY_TIME
+    ///
+    /// '3 4:05:06' -> 3 days 4:05:06
+    ///
+    /// Stored as two contiguous 4 byte integers representing days and
+    /// milliseconds.
+    DayTime,
+}
+
+impl fmt::Display for IntervalUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::YearMonth => write!(f, "ym"),
+            Self::DayTime => write!(f, "dt"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -91,6 +124,9 @@ impl fmt::Display for DataType {
             Self::UInt32 => write!(f, "UInt32"),
             Self::UInt64 => write!(f, "UInt64"),
             Self::Timestamp(unit) => write!(f, "Timestamp({unit})"),
+            Self::Date32 => write!(f, "Date32"),
+            Self::Date64 => write!(f, "Date64"),
+            Self::Interval(unit) => write!(f, "Interval({unit})"),
             Self::Utf8 => write!(f, "Utf8"),
             Self::LargeUtf8 => write!(f, "LargeUtf8"),
             Self::Binary => write!(f, "Binary"),

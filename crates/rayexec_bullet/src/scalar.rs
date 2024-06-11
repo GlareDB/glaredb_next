@@ -1,9 +1,10 @@
 use crate::array::{
-    Array, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array,
-    Int64Array, Int8Array, LargeBinaryArray, LargeUtf8Array, NullArray, TimestampArray,
-    UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array,
+    Int16Array, Int32Array, Int64Array, Int8Array, IntervalDayTime, IntervalDayTimeArray,
+    IntervalYearMonth, IntervalYearMonthArray, LargeBinaryArray, LargeUtf8Array, NullArray,
+    TimestampArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
 };
-use crate::field::{DataType, TimeUnit};
+use crate::field::{DataType, IntervalUnit, TimeUnit};
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
 use std::fmt;
@@ -47,8 +48,20 @@ pub enum ScalarValue<'a> {
     /// Unsigned 64bit int
     UInt64(u64),
 
+    /// A Date32 value.
+    Date32(i32),
+
+    /// A Date64 value.
+    Date64(i64),
+
     /// Timestamp value
     Timestamp(TimeUnit, i64),
+
+    /// A YearMonth interval
+    IntervalYearMonth(IntervalYearMonth),
+
+    /// A DayTime interval
+    IntervalDayTime(IntervalDayTime),
 
     /// Utf-8 encoded string.
     Utf8(Cow<'a, str>),
@@ -83,7 +96,11 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::UInt16(_) => DataType::UInt16,
             ScalarValue::UInt32(_) => DataType::UInt32,
             ScalarValue::UInt64(_) => DataType::UInt64,
+            ScalarValue::Date32(_) => DataType::Date32,
+            ScalarValue::Date64(_) => DataType::Date64,
             ScalarValue::Timestamp(unit, _) => DataType::Timestamp(*unit),
+            ScalarValue::IntervalYearMonth(_) => DataType::Interval(IntervalUnit::YearMonth),
+            ScalarValue::IntervalDayTime(_) => DataType::Interval(IntervalUnit::DayTime),
             ScalarValue::Utf8(_) => DataType::Utf8,
             ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
             ScalarValue::Binary(_) => DataType::Binary,
@@ -108,7 +125,11 @@ impl<'a> ScalarValue<'a> {
             Self::UInt16(v) => OwnedScalarValue::UInt16(v),
             Self::UInt32(v) => OwnedScalarValue::UInt32(v),
             Self::UInt64(v) => OwnedScalarValue::UInt64(v),
+            Self::Date32(v) => OwnedScalarValue::Date32(v),
+            Self::Date64(v) => OwnedScalarValue::Date64(v),
             Self::Timestamp(unit, v) => OwnedScalarValue::Timestamp(unit, v),
+            Self::IntervalYearMonth(v) => OwnedScalarValue::IntervalYearMonth(v),
+            Self::IntervalDayTime(v) => OwnedScalarValue::IntervalDayTime(v),
             Self::Utf8(v) => OwnedScalarValue::Utf8(v.into_owned().into()),
             Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
             Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
@@ -140,10 +161,18 @@ impl<'a> ScalarValue<'a> {
             Self::UInt16(v) => Array::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt32(v) => Array::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt64(v) => Array::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Date32(v) => Array::Date32(Date32Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Date64(v) => Array::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::Timestamp(unit, v) => Array::Timestamp(
                 *unit,
                 TimestampArray::from_iter(std::iter::repeat(*v).take(n)),
             ),
+            Self::IntervalYearMonth(v) => Array::IntervalYearMonth(
+                IntervalYearMonthArray::from_iter(std::iter::repeat(*v).take(n)),
+            ),
+            Self::IntervalDayTime(v) => Array::IntervalDayTime(IntervalDayTimeArray::from_iter(
+                std::iter::repeat(*v).take(n),
+            )),
             Self::Utf8(v) => {
                 Array::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
             }
@@ -263,7 +292,11 @@ impl fmt::Display for ScalarValue<'_> {
             Self::UInt16(v) => write!(f, "{}", v),
             Self::UInt32(v) => write!(f, "{}", v),
             Self::UInt64(v) => write!(f, "{}", v),
+            Self::Date32(v) => write!(f, "{}", v), // TODO
+            Self::Date64(v) => write!(f, "{}", v), // TODO
             Self::Timestamp(unit, v) => write!(f, "{v} {unit}"), // TODO: Definitely wrong
+            Self::IntervalYearMonth(v) => write!(f, "{} months", v.months), // TODO
+            Self::IntervalDayTime(v) => write!(f, "{} day {} ms", v.days, v.milliseconds), // TODO
             Self::Utf8(v) => write!(f, "{}", v),
             Self::LargeUtf8(v) => write!(f, "{}", v),
             Self::Binary(v) => write!(f, "{:X?}", v),

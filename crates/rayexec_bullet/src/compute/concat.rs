@@ -1,7 +1,7 @@
 use crate::array::{
     Array, BooleanArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
 };
-use crate::field::DataType;
+use crate::field::{DataType, IntervalUnit};
 use rayexec_error::{RayexecError, Result};
 
 use super::macros::collect_arrays_of_type;
@@ -68,6 +68,15 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
             Ok(Array::UInt64(concat_primitive(arrs.as_slice())))
         }
+        DataType::Date32 => {
+            let arrs = collect_arrays_of_type!(arrays, Date32, datatype)?;
+            Ok(Array::Date32(concat_primitive(arrs.as_slice())))
+        }
+        DataType::Date64 => {
+            let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
+            Ok(Array::Date64(concat_primitive(arrs.as_slice())))
+        }
+
         DataType::Timestamp(unit) => {
             // TODO: Need to worry about unit?
             let arrs = arrays
@@ -82,6 +91,14 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
                 })
                 .collect::<rayexec_error::Result<Vec<_>>>()?;
             Ok(Array::Timestamp(unit, concat_primitive(arrs.as_slice())))
+        }
+        DataType::Interval(IntervalUnit::YearMonth) => {
+            let arrs = collect_arrays_of_type!(arrays, IntervalYearMonth, datatype)?;
+            Ok(Array::IntervalYearMonth(concat_primitive(arrs.as_slice())))
+        }
+        DataType::Interval(IntervalUnit::DayTime) => {
+            let arrs = collect_arrays_of_type!(arrays, IntervalDayTime, datatype)?;
+            Ok(Array::IntervalDayTime(concat_primitive(arrs.as_slice())))
         }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;

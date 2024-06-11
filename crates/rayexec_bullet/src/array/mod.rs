@@ -9,7 +9,7 @@ pub use primitive::*;
 pub mod varlen;
 pub use varlen::*;
 
-use crate::field::DataType;
+use crate::field::{DataType, IntervalUnit};
 use crate::scalar::ScalarValue;
 use crate::{bitmap::Bitmap, field::TimeUnit};
 use rayexec_error::{RayexecError, Result};
@@ -29,7 +29,11 @@ pub enum Array {
     UInt16(UInt16Array),
     UInt32(UInt32Array),
     UInt64(UInt64Array),
+    Date32(Date32Array),
+    Date64(Date64Array),
     Timestamp(TimeUnit, TimestampArray),
+    IntervalYearMonth(IntervalYearMonthArray),
+    IntervalDayTime(IntervalDayTimeArray),
     Utf8(Utf8Array),
     LargeUtf8(LargeUtf8Array),
     Binary(BinaryArray),
@@ -52,7 +56,11 @@ impl Array {
             Array::UInt16(_) => DataType::UInt16,
             Array::UInt32(_) => DataType::UInt32,
             Array::UInt64(_) => DataType::UInt64,
+            Array::Date32(_) => DataType::Date32,
+            Array::Date64(_) => DataType::Date64,
             Array::Timestamp(unit, _) => DataType::Timestamp(*unit),
+            Array::IntervalYearMonth(_) => DataType::Interval(IntervalUnit::YearMonth),
+            Array::IntervalDayTime(_) => DataType::Interval(IntervalUnit::DayTime),
             Array::Utf8(_) => DataType::Utf8,
             Array::LargeUtf8(_) => DataType::LargeUtf8,
             Array::Binary(_) => DataType::Binary,
@@ -80,7 +88,11 @@ impl Array {
             Self::UInt16(arr) => ScalarValue::UInt16(*arr.value(idx)?),
             Self::UInt32(arr) => ScalarValue::UInt32(*arr.value(idx)?),
             Self::UInt64(arr) => ScalarValue::UInt64(*arr.value(idx)?),
+            Self::Date32(arr) => ScalarValue::Date32(*arr.value(idx)?),
+            Self::Date64(arr) => ScalarValue::Date64(*arr.value(idx)?),
             Self::Timestamp(unit, arr) => ScalarValue::Timestamp(*unit, *arr.value(idx)?),
+            Self::IntervalYearMonth(arr) => ScalarValue::IntervalYearMonth(*arr.value(idx)?),
+            Self::IntervalDayTime(arr) => ScalarValue::IntervalDayTime(*arr.value(idx)?),
             Self::Utf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::LargeUtf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::Binary(arr) => ScalarValue::Binary(arr.value(idx)?.into()),
@@ -103,7 +115,11 @@ impl Array {
             Self::UInt16(arr) => arr.is_valid(idx),
             Self::UInt32(arr) => arr.is_valid(idx),
             Self::UInt64(arr) => arr.is_valid(idx),
+            Self::Date32(arr) => arr.is_valid(idx),
+            Self::Date64(arr) => arr.is_valid(idx),
             Self::Timestamp(_, arr) => arr.is_valid(idx),
+            Self::IntervalYearMonth(arr) => arr.is_valid(idx),
+            Self::IntervalDayTime(arr) => arr.is_valid(idx),
             Self::Utf8(arr) => arr.is_valid(idx),
             Self::LargeUtf8(arr) => arr.is_valid(idx),
             Self::Binary(arr) => arr.is_valid(idx),
@@ -126,7 +142,11 @@ impl Array {
             Self::UInt16(arr) => arr.len(),
             Self::UInt32(arr) => arr.len(),
             Self::UInt64(arr) => arr.len(),
+            Self::Date32(arr) => arr.len(),
+            Self::Date64(arr) => arr.len(),
             Self::Timestamp(_, arr) => arr.len(),
+            Self::IntervalYearMonth(arr) => arr.len(),
+            Self::IntervalDayTime(arr) => arr.len(),
             Self::Utf8(arr) => arr.len(),
             Self::LargeUtf8(arr) => arr.len(),
             Self::Binary(arr) => arr.len(),
@@ -153,7 +173,11 @@ impl Array {
             Self::UInt16(arr) => arr.validity(),
             Self::UInt32(arr) => arr.validity(),
             Self::UInt64(arr) => arr.validity(),
+            Self::Date32(arr) => arr.validity(),
+            Self::Date64(arr) => arr.validity(),
             Self::Timestamp(_, arr) => arr.validity(),
+            Self::IntervalYearMonth(arr) => arr.validity(),
+            Self::IntervalDayTime(arr) => arr.validity(),
             Self::Utf8(arr) => arr.validity(),
             Self::LargeUtf8(arr) => arr.validity(),
             Self::Binary(arr) => arr.validity(),
@@ -252,6 +276,12 @@ impl Array {
             DataType::UInt64 => {
                 iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt64)
             }
+            DataType::Date32 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Date32)
+            }
+            DataType::Date64 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Date64)
+            }
             DataType::Timestamp(unit) => {
                 let mut validity = Bitmap::default();
                 let mut builder = PrimitiveArrayBuilder::with_capacity(cap);
@@ -274,6 +304,23 @@ impl Array {
                 }
                 builder.put_validity(validity);
                 Ok(Array::Timestamp(unit, builder.into_typed_array()))
+            }
+            DataType::Interval(IntervalUnit::YearMonth) => {
+                iter_scalars_for_type!(
+                    PrimitiveArrayBuilder::with_capacity(cap),
+                    IntervalYearMonth { months: 0 },
+                    IntervalYearMonth
+                )
+            }
+            DataType::Interval(IntervalUnit::DayTime) => {
+                iter_scalars_for_type!(
+                    PrimitiveArrayBuilder::with_capacity(cap),
+                    IntervalDayTime {
+                        days: 0,
+                        milliseconds: 0
+                    },
+                    IntervalDayTime
+                )
             }
             DataType::Utf8 => {
                 iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), Utf8)
