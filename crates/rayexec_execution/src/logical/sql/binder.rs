@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
 use rayexec_bullet::{
     field::{DataType, IntervalUnit, TimeUnit},
@@ -225,7 +226,7 @@ pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
     file_handlers: &'a FileHandlers,
-    runtime: &'a EngineRuntime,
+    runtime: &'a Arc<EngineRuntime>,
 }
 
 impl<'a> Binder<'a> {
@@ -233,7 +234,7 @@ impl<'a> Binder<'a> {
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
-        runtime: &'a EngineRuntime,
+        runtime: &'a Arc<EngineRuntime>,
     ) -> Self {
         Binder {
             tx,

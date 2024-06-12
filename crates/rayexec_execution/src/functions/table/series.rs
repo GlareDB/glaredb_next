@@ -73,7 +73,7 @@ impl SpecializedTableFunction for GenerateSeriesI64 {
 
     fn initialize(
         self: Box<Self>,
-        _runtime: &EngineRuntime,
+        _runtime: &Arc<EngineRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
         Box::pin(async move { Ok(self as _) })
     }
