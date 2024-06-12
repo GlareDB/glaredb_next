@@ -10,6 +10,10 @@ use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
 use std::fmt;
 
+pub const DECIMAL_64_MAX_PRECISION: u8 = 18;
+pub const DECIMAL_128_MAX_PRECISION: u8 = 38;
+pub const DECIMAL_DEFUALT_SCALE: i8 = 9;
+
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScalarValue<'a> {

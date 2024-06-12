@@ -1451,6 +1451,7 @@ name = "rayexec_bullet"
 version = "0.0.1"
 dependencies = [
  "backtrace-on-stack-overflow",
+ "chrono",
  "csv-core",
  "num",
  "rayexec_arrow_ipc",

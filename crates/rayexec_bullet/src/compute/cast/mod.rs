@@ -1,8 +1,11 @@
+pub mod parse;
+
 use crate::{
     array::{Array, OffsetIndex, PrimitiveArray, PrimitiveNumeric, VarlenArray},
     field::DataType,
     scalar::ScalarValue,
 };
+use parse::{parse_bool, parse_date32};
 use rayexec_error::{RayexecError, Result};
 
 // TODO: This is woefully incomplete.
@@ -44,19 +47,19 @@ pub fn cast_scalar(scalar: ScalarValue, to: DataType) -> Result<ScalarValue> {
             DataType::UInt64 => ScalarValue::UInt64(v.try_into()?),
             _ => unreachable!(),
         },
-        (ScalarValue::Utf8(val), to) if to.is_numeric() => utf8_scalar_to_numeric(val, to)?,
-        (ScalarValue::LargeUtf8(val), to) if to.is_numeric() => utf8_scalar_to_numeric(val, to)?,
-        (arr, to) => {
+        (ScalarValue::Utf8(val), to) => utf8_scalar_cast(val, to)?,
+        (ScalarValue::LargeUtf8(val), to) => utf8_scalar_cast(val, to)?,
+        (scalar, to) => {
             return Err(RayexecError::new(format!(
                 "Unhandled cast for scalar of type {:?} to {:?}",
-                arr.datatype(),
+                scalar.datatype(),
                 to
             )))
         }
     })
 }
 
-fn utf8_scalar_to_numeric(val: impl AsRef<str>, to: DataType) -> Result<ScalarValue<'static>> {
+fn utf8_scalar_cast(val: impl AsRef<str>, to: DataType) -> Result<ScalarValue<'static>> {
     fn inner<T>(val: impl AsRef<str>) -> Result<T>
     where
         T: PrimitiveNumeric,
@@ -65,8 +68,10 @@ fn utf8_scalar_to_numeric(val: impl AsRef<str>, to: DataType) -> Result<ScalarVa
         T::from_str(val)
             .ok_or_else(|| RayexecError::new(format!("Unable to cast '{val}' to a number")))
     }
+    let val = val.as_ref();
 
     Ok(match to {
+        DataType::Boolean => ScalarValue::Boolean(parse_bool(val)?),
         DataType::Float32 => ScalarValue::Float32(inner(val)?),
         DataType::Float64 => ScalarValue::Float64(inner(val)?),
         DataType::Int8 => ScalarValue::Int8(inner(val)?),
@@ -77,6 +82,7 @@ fn utf8_scalar_to_numeric(val: impl AsRef<str>, to: DataType) -> Result<ScalarVa
         DataType::UInt16 => ScalarValue::UInt16(inner(val)?),
         DataType::UInt32 => ScalarValue::UInt32(inner(val)?),
         DataType::UInt64 => ScalarValue::UInt64(inner(val)?),
+        DataType::Date32 => ScalarValue::Date32(parse_date32(val)?),
         other => {
             return Err(RayexecError::new(format!(
                 "Data type {other:?} is not numeric"

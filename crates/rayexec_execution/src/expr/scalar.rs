@@ -28,6 +28,13 @@ impl fmt::Display for UnaryOperator {
     }
 }
 
+impl TryFrom<ast::UnaryOperator> for UnaryOperator {
+    type Error = RayexecError;
+    fn try_from(value: ast::UnaryOperator) -> Result<Self> {
+        unimplemented!()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BinaryOperator {
     Eq,

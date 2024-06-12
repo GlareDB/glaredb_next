@@ -194,7 +194,10 @@ pub enum Expr<T: AstMeta> {
         not_exists: bool,
     },
     /// DATE '1992-10-11'
-    TypedString { datatype: DataType, value: String },
+    TypedString {
+        datatype: T::DataType,
+        value: String,
+    },
 }
 
 impl AstParseable for Expr<Raw> {

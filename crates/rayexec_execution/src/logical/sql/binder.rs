@@ -1044,6 +1044,10 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             })),
+            ast::Expr::UnaryExpr { op, expr } => Ok(ast::Expr::UnaryExpr {
+                op,
+                expr: Box::new(Box::pin(self.bind_expression(*expr, bind_data)).await?),
+            }),
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.bind_expression(*left, bind_data)).await?),
                 op,
@@ -1149,6 +1153,14 @@ impl<'a> ExpressionBinder<'a> {
                     subquery: Box::new(bound),
                     not_exists,
                 })
+            }
+            ast::Expr::TypedString { datatype, value } => {
+                let datatype = Binder::ast_datatype_to_exec_datatype(datatype);
+                Ok(ast::Expr::TypedString { datatype, value })
+            }
+            ast::Expr::Nested(expr) => {
+                let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
+                Ok(ast::Expr::Nested(Box::new(expr)))
             }
             other => unimplemented!("{other:?}"),
         }

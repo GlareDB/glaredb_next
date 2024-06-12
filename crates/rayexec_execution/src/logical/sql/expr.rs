@@ -1,4 +1,4 @@
-use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
+use rayexec_bullet::{compute::cast::cast_scalar, field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
@@ -114,6 +114,10 @@ impl<'a> ExpressionContext<'a> {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
             ast::Expr::Literal(literal) => Self::plan_literal(literal),
+            ast::Expr::UnaryExpr { op, expr } => Ok(LogicalExpression::Unary {
+                op: op.try_into()?,
+                expr: Box::new(self.plan_expression(*expr)?),
+            }),
             ast::Expr::BinaryExpr { left, op, right } => Ok(LogicalExpression::Binary {
                 op: op.try_into()?,
                 left: Box::new(self.plan_expression(*left)?),
@@ -184,6 +188,11 @@ impl<'a> ExpressionContext<'a> {
                     not_exists,
                     subquery: Box::new(subquery.root),
                 })
+            }
+            ast::Expr::TypedString { datatype, value } => {
+                let scalar = OwnedScalarValue::Utf8(value.into());
+                let scalar = cast_scalar(scalar, datatype)?;
+                Ok(LogicalExpression::Literal(scalar))
             }
 
             _ => unimplemented!(),
