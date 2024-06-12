@@ -1,7 +1,6 @@
 use std::fmt;
 
-/// All possible data types.
-// TODO: Additional types (compound, decimal, timestamp, etc)
+/// Data types with extended metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DataType {
     Null,
@@ -95,7 +94,13 @@ impl DataType {
                 | Self::UInt16
                 | Self::UInt32
                 | Self::UInt64
+                | Self::Decimal64(_, _)
+                | Self::Decimal128(_, _)
         )
+    }
+
+    pub const fn is_decimal(&self) -> bool {
+        matches!(self, Self::Decimal64(_, _) | Self::Decimal128(_, _))
     }
 
     pub const fn is_integer(&self) -> bool {
@@ -109,6 +114,32 @@ impl DataType {
                 | Self::UInt16
                 | Self::UInt32
                 | Self::UInt64
+        )
+    }
+
+    pub const fn is_float(&self) -> bool {
+        matches!(self, Self::Float32 | Self::Float64)
+    }
+
+    pub const fn is_signed_integer(&self) -> bool {
+        matches!(self, Self::Int8 | Self::Int16 | Self::Int32 | Self::Int64)
+    }
+
+    pub const fn is_unsigned_integer(&self) -> bool {
+        matches!(
+            self,
+            Self::UInt8 | Self::UInt16 | Self::UInt32 | Self::UInt64
+        )
+    }
+
+    pub const fn is_string(&self) -> bool {
+        matches!(self, Self::Utf8 | Self::LargeUtf8)
+    }
+
+    pub const fn is_temporal(&self) -> bool {
+        matches!(
+            self,
+            Self::Timestamp(_) | Self::Date32 | Self::Date64 | Self::Interval(_)
         )
     }
 }

@@ -7,6 +7,7 @@ use crate::logical::operator::LogicalExpression;
 
 use super::{
     binder::{Bound, BoundFunctionReference},
+    cast::find_candidate_signatures,
     planner::PlanContext,
     scope::{Scope, TableReference},
 };
@@ -144,21 +145,32 @@ impl<'a> ExpressionContext<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
+                let input_datatypes = inputs
+                    .iter()
+                    .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
+                    .collect::<Result<Vec<_>>>()?;
+
                 match func.reference {
                     BoundFunctionReference::Scalar(scalar) => {
-                        if !self.scalar_function_can_handle_input(scalar.as_ref(), &inputs)? {
+                        if scalar.return_type_for_inputs(&input_datatypes).is_some() {
+                            // Exact
+                            Ok(LogicalExpression::ScalarFunction {
+                                function: scalar,
+                                inputs,
+                            })
+                        } else {
+                            // Try to find candidates that we can cast to.
+                            let candidates =
+                                find_candidate_signatures(&input_datatypes, scalar.signatures());
+
                             // TODO: Do we want to fall through? Is it possible for a
                             // scalar and aggregate function to have the same name?
 
-                            return Err(RayexecError::new(format!(
+                            Err(RayexecError::new(format!(
                                 "Invalid inputs to '{}'",
                                 scalar.name(),
-                            )));
+                            )))
                         }
-                        Ok(LogicalExpression::ScalarFunction {
-                            function: scalar,
-                            inputs,
-                        })
                     }
                     BoundFunctionReference::Aggregate(agg) => {
                         // TODO: Sig check
