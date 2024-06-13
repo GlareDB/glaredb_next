@@ -1,9 +1,11 @@
+use rayexec_error::{RayexecError, Result};
+
 use crate::bitmap::Bitmap;
 use crate::storage::PrimitiveStorage;
 use std::marker::PhantomData;
 use std::{borrow::Cow, fmt::Debug};
 
-use super::{is_valid, ArrayAccessor, ArrayBuilder};
+use super::{is_valid, ArrayAccessor, ArrayBuilder, ValuesBuffer};
 
 /// Trait for determining how to interpret binary data stored in a variable
 /// length array.
@@ -43,6 +45,13 @@ pub trait AsVarlenType {
 }
 
 impl AsVarlenType for String {
+    type AsType = str;
+    fn as_varlen_type(&self) -> &Self::AsType {
+        self.as_str()
+    }
+}
+
+impl AsVarlenType for &String {
     type AsType = str;
     fn as_varlen_type(&self) -> &Self::AsType {
         self.as_str()
@@ -110,16 +119,42 @@ impl OffsetIndex for i64 {
 }
 
 #[derive(Debug)]
-pub struct VarlenBuffer<O: OffsetIndex> {
-    pub offsets: Vec<O>,
-    pub data: Vec<u8>,
+pub struct VarlenValuesBuffer<O: OffsetIndex> {
+    offsets: Vec<O>,
+    data: Vec<u8>,
 }
 
-impl<O: OffsetIndex> Default for VarlenBuffer<O> {
+impl<O: OffsetIndex> VarlenValuesBuffer<O> {
+    pub fn try_new(data: Vec<u8>, offsets: Vec<O>) -> Result<Self> {
+        if data.len() != offsets.len() + 1 {
+            return Err(RayexecError::new("Invalid buffer lengths"));
+        }
+        Ok(VarlenValuesBuffer { offsets, data })
+    }
+
+    pub fn into_data_and_offsets(self) -> (Vec<u8>, Vec<O>) {
+        (self.data, self.offsets)
+    }
+}
+
+impl<A: AsVarlenType, O: OffsetIndex> ValuesBuffer<A> for VarlenValuesBuffer<O> {
+    fn push_value(&mut self, value: A) {
+        self.data.extend(value.as_varlen_type().as_binary());
+        let offset = self.data.len();
+        self.offsets.push(O::from_usize(offset));
+    }
+
+    fn push_null(&mut self) {
+        let offset = self.data.len();
+        self.offsets.push(O::from_usize(offset));
+    }
+}
+
+impl<O: OffsetIndex> Default for VarlenValuesBuffer<O> {
     fn default() -> Self {
         let offsets: Vec<O> = vec![O::from_usize(0)];
         let data: Vec<u8> = Vec::new();
-        VarlenBuffer { offsets, data }
+        VarlenValuesBuffer { offsets, data }
     }
 }
 
@@ -151,6 +186,15 @@ where
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
+    pub fn new(values: VarlenValuesBuffer<O>, validity: Option<Bitmap>) -> Self {
+        VarlenArray {
+            validity,
+            offsets: values.offsets.into(),
+            data: values.data.into(),
+            varlen_type: PhantomData,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.offsets.as_ref().len() - 1
     }
@@ -212,6 +256,19 @@ where
     pub(crate) fn put_validity(&mut self, validity: Bitmap) {
         assert_eq!(validity.len(), self.len());
         self.validity = Some(validity);
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn try_into_buffer_and_validity(
+        self,
+    ) -> Result<(VarlenValuesBuffer<O>, Option<Bitmap>)> {
+        match (self.data, self.offsets) {
+            (PrimitiveStorage::Vec(data), PrimitiveStorage::Vec(offsets)) => {
+                let buf = VarlenValuesBuffer { offsets, data };
+                Ok((buf, self.validity))
+            }
+            _ => Err(RayexecError::new("Cannot get Vecs for data and offsets")),
+        }
     }
 }
 

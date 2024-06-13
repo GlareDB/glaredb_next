@@ -5,6 +5,13 @@ use crate::array::{
     LargeBinaryArray, LargeUtf8Array, NullArray, TimestampArray, UInt16Array, UInt32Array,
     UInt64Array, UInt8Array, Utf8Array,
 };
+use crate::compute::cast::format::{
+    BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
+    Float32Formatter, Float64Formatter, Formatter, Int16Formatter, Int32Formatter, Int64Formatter,
+    Int8Formatter, TimestampMicrosecondsFormatter, TimestampMillisecondsFormatter,
+    TimestampNanosecondsFormatter, TimestampSecondsFormatter, UInt16Formatter, UInt32Formatter,
+    UInt64Formatter, UInt8Formatter,
+};
 use crate::field::{DataType, IntervalUnit, TimeUnit};
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
@@ -212,7 +219,7 @@ impl<'a> ScalarValue<'a> {
     pub fn try_as_bool(&self) -> Result<bool> {
         match self {
             Self::Boolean(b) => Ok(*b),
-            other => Err(RayexecError::new(format!("Not a bool: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not a bool: {other}"))),
         }
     }
 
@@ -226,7 +233,7 @@ impl<'a> ScalarValue<'a> {
             Self::UInt16(i) => Ok(*i as usize),
             Self::UInt32(i) => Ok(*i as usize),
             Self::UInt64(i) => Ok(*i as usize),
-            other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not an integer: {other}"))),
         }
     }
 
@@ -246,7 +253,7 @@ impl<'a> ScalarValue<'a> {
                     Err(RayexecError::new("u64 too large to fit into an i64"))
                 }
             }
-            other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not an integer: {other}"))),
         }
     }
 
@@ -278,21 +285,21 @@ impl<'a> ScalarValue<'a> {
                     Err(RayexecError::new("u64 too large to fit into an i32"))
                 }
             }
-            other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not an integer: {other}"))),
         }
     }
 
     pub fn try_as_str(&self) -> Result<&str> {
         match self {
             Self::Utf8(v) | Self::LargeUtf8(v) => Ok(v.as_ref()),
-            other => Err(RayexecError::new(format!("Not a string: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not a string: {other}"))),
         }
     }
 
     pub fn try_into_string(self) -> Result<String> {
         match self {
             Self::Utf8(v) | Self::LargeUtf8(v) => Ok(v.to_string()),
-            other => Err(RayexecError::new(format!("Not a string: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not a string: {other}"))),
         }
     }
 }
@@ -301,22 +308,29 @@ impl fmt::Display for ScalarValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Null => write!(f, "NULL"),
-            Self::Boolean(v) => write!(f, "{}", v),
-            Self::Float32(v) => write!(f, "{}", v),
-            Self::Float64(v) => write!(f, "{}", v),
-            Self::Int8(v) => write!(f, "{}", v),
-            Self::Int16(v) => write!(f, "{}", v),
-            Self::Int32(v) => write!(f, "{}", v),
-            Self::Int64(v) => write!(f, "{}", v),
-            Self::UInt8(v) => write!(f, "{}", v),
-            Self::UInt16(v) => write!(f, "{}", v),
-            Self::UInt32(v) => write!(f, "{}", v),
-            Self::UInt64(v) => write!(f, "{}", v),
-            Self::Decimal64(v) => write!(f, "{}", v.value), // TODO
-            Self::Decimal128(v) => write!(f, "{}", v.value), // TODO
-            Self::Date32(v) => write!(f, "{}", v),          // TODO
-            Self::Date64(v) => write!(f, "{}", v),          // TODO
-            Self::Timestamp(unit, v) => write!(f, "{v} {unit}"), // TODO: Definitely wrong
+            Self::Boolean(v) => BoolFormatter::default().write(v, f),
+            Self::Float32(v) => Float32Formatter::default().write(v, f),
+            Self::Float64(v) => Float64Formatter::default().write(v, f),
+            Self::Int8(v) => Int8Formatter::default().write(v, f),
+            Self::Int16(v) => Int16Formatter::default().write(v, f),
+            Self::Int32(v) => Int32Formatter::default().write(v, f),
+            Self::Int64(v) => Int64Formatter::default().write(v, f),
+            Self::UInt8(v) => UInt8Formatter::default().write(v, f),
+            Self::UInt16(v) => UInt16Formatter::default().write(v, f),
+            Self::UInt32(v) => UInt32Formatter::default().write(v, f),
+            Self::UInt64(v) => UInt64Formatter::default().write(v, f),
+            Self::Decimal64(v) => Decimal64Formatter::new(v.precision, v.scale).write(&v.value, f),
+            Self::Decimal128(v) => {
+                Decimal128Formatter::new(v.precision, v.scale).write(&v.value, f)
+            }
+            Self::Date32(v) => Date32Formatter.write(v, f),
+            Self::Date64(v) => Date64Formatter.write(v, f),
+            Self::Timestamp(unit, v) => match unit {
+                TimeUnit::Second => TimestampSecondsFormatter::default().write(v, f),
+                TimeUnit::Millisecond => TimestampMillisecondsFormatter::default().write(v, f),
+                TimeUnit::Microsecond => TimestampMicrosecondsFormatter::default().write(v, f),
+                TimeUnit::Nanosecond => TimestampNanosecondsFormatter::default().write(v, f),
+            },
             Self::IntervalYearMonth(v) => write!(f, "{} months", v.months), // TODO
             Self::IntervalDayTime(v) => write!(f, "{} day {} ms", v.days, v.milliseconds), // TODO
             Self::Utf8(v) => write!(f, "{}", v),

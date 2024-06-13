@@ -3,7 +3,7 @@ pub mod scalar;
 use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
 use crate::logical::operator::LogicalExpression;
-use rayexec_bullet::compute::cast;
+use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::field::{DataType, TypeSchema};
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
@@ -142,7 +142,7 @@ impl PhysicalScalarExpression {
             }
             Self::Cast { to, expr } => {
                 let input = expr.eval(batch)?;
-                let out = cast::cast(&input, to)?;
+                let out = cast_array(&input, to)?;
                 Arc::new(out)
             }
             _ => unimplemented!(),

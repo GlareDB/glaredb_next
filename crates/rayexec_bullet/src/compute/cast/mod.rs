@@ -1,4 +1,5 @@
 pub mod array;
+pub mod format;
 pub mod parse;
 
 use crate::{
@@ -6,25 +7,7 @@ use crate::{
     field::DataType,
     scalar::ScalarValue,
 };
-use parse::{parse_bool, parse_date32};
 use rayexec_error::{RayexecError, Result};
-
-// TODO: This is woefully incomplete.
-pub fn cast(arr: &Array, to: &DataType) -> Result<Array> {
-    Ok(match (arr, to) {
-        // Nulls casted to anything always returns nulls.
-        (Array::Null(arr), _) => Array::Null(NullArray::new(arr.len())),
-        (Array::Utf8(arr), to) if to.is_numeric() => utf8_array_to_numeric(arr, to)?,
-        (Array::LargeUtf8(arr), to) if to.is_numeric() => utf8_array_to_numeric(arr, to)?,
-        (arr, to) => {
-            return Err(RayexecError::new(format!(
-                "Unhandled cast for array of type {:?} to {:?}",
-                arr.datatype(),
-                to
-            )))
-        }
-    })
-}
 
 pub fn cast_scalar(scalar: ScalarValue, to: DataType) -> Result<ScalarValue> {
     if scalar.datatype() == to {
@@ -68,7 +51,7 @@ fn utf8_scalar_cast(val: impl AsRef<str>, to: DataType) -> Result<ScalarValue<'s
     let val = val.as_ref();
 
     Ok(match to {
-        DataType::Boolean => ScalarValue::Boolean(parse_bool(val)?),
+        // DataType::Boolean => ScalarValue::Boolean(parse_bool(val)?),
         DataType::Float32 => ScalarValue::Float32(inner(val)?),
         DataType::Float64 => ScalarValue::Float64(inner(val)?),
         DataType::Int8 => ScalarValue::Int8(inner(val)?),
@@ -79,7 +62,7 @@ fn utf8_scalar_cast(val: impl AsRef<str>, to: DataType) -> Result<ScalarValue<'s
         DataType::UInt16 => ScalarValue::UInt16(inner(val)?),
         DataType::UInt32 => ScalarValue::UInt32(inner(val)?),
         DataType::UInt64 => ScalarValue::UInt64(inner(val)?),
-        DataType::Date32 => ScalarValue::Date32(parse_date32(val)?),
+        // DataType::Date32 => ScalarValue::Date32(parse_date32(val)?),
         other => {
             return Err(RayexecError::new(format!(
                 "Data type {other:?} is not numeric"
@@ -131,30 +114,4 @@ where
             )))
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::array::{Float32Array, Int32Array, Utf8Array};
-
-    use super::*;
-
-    #[test]
-    fn utf8_arr_to_float() {
-        let arr = Array::Utf8(Utf8Array::from_iter(["1", "2.1", "3.5"]));
-        let out = cast(&arr, &DataType::Float32).unwrap();
-
-        assert_eq!(
-            Array::Float32(Float32Array::from_iter([1.0, 2.1, 3.5])),
-            out
-        )
-    }
-
-    #[test]
-    fn utf8_arr_to_int() {
-        let arr = Array::Utf8(Utf8Array::from_iter(["1", "2", "3"]));
-        let out = cast(&arr, &DataType::Int32).unwrap();
-
-        assert_eq!(Array::Int32(Int32Array::from_iter([1, 2, 3])), out)
-    }
 }

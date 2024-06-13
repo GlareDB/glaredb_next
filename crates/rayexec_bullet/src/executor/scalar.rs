@@ -9,7 +9,7 @@
 //! those are likely to be the most common, so have these operations be
 //! monomorphized is probably a good thing.
 
-use crate::array::{ArrayAccessor, ArrayBuilder};
+use crate::array::{ArrayAccessor, ArrayBuilder, ValuesBuffer};
 use rayexec_error::{RayexecError, Result};
 
 /// Execute an operation on a single array.
@@ -31,6 +31,38 @@ impl UnaryExecutor {
         for val in array.values_iter() {
             let out = operation(val);
             builder.push_value(out);
+        }
+
+        Ok(())
+    }
+
+    /// Execute a potentially fallible operation on an array.
+    pub fn try_execute<Array, Type, Iter, Output>(
+        array: Array,
+        mut operation: impl FnMut(Type) -> Result<Output>,
+        buffer: &mut impl ValuesBuffer<Output>,
+    ) -> Result<()>
+    where
+        Array: ArrayAccessor<Type, ValueIter = Iter>,
+        Iter: Iterator<Item = Type>,
+    {
+        match array.validity() {
+            Some(validity) => {
+                for (value, valid) in array.values_iter().zip(validity.iter()) {
+                    if valid {
+                        let out = operation(value)?;
+                        buffer.push_value(out);
+                    } else {
+                        buffer.push_null();
+                    }
+                }
+            }
+            None => {
+                for value in array.values_iter() {
+                    let out = operation(value)?;
+                    buffer.push_value(out);
+                }
+            }
         }
 
         Ok(())

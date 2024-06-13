@@ -398,6 +398,21 @@ pub trait ArrayBuilder<T: ?Sized> {
     fn put_validity(&mut self, validity: Bitmap);
 }
 
+pub trait ValuesBuffer<T: ?Sized> {
+    fn push_value(&mut self, value: T);
+    fn push_null(&mut self);
+}
+
+impl<T: Default> ValuesBuffer<T> for Vec<T> {
+    fn push_value(&mut self, value: T) {
+        self.push(value);
+    }
+
+    fn push_null(&mut self) {
+        self.push(T::default())
+    }
+}
+
 /// An implementation of an accessor that just returns unit values for
 /// everything.
 ///

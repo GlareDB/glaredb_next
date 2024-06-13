@@ -155,6 +155,13 @@ pub type IntervalYearMonthArray = PrimitiveArray<IntervalYearMonth>;
 pub type IntervalDayTimeArray = PrimitiveArray<IntervalDayTime>;
 
 impl<T> PrimitiveArray<T> {
+    pub fn new(values: Vec<T>, validity: Option<Bitmap>) -> Self {
+        PrimitiveArray {
+            values: values.into(),
+            validity,
+        }
+    }
+
     pub fn new_from_values_and_validity(values: Vec<T>, validity: Bitmap) -> Self {
         assert_eq!(values.len(), validity.len());
         PrimitiveArray {
