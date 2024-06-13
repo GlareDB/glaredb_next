@@ -2,8 +2,10 @@ use rayexec_bullet::{compute::cast::cast_scalar, field::TypeSchema, scalar::Owne
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::functions::scalar::GenericScalarFunction;
+use crate::expr::scalar::BinaryOperator;
+use crate::functions::aggregate::GenericAggregateFunction;
 use crate::logical::operator::LogicalExpression;
+use crate::{functions::scalar::GenericScalarFunction, logical::sql::cast::CastType};
 
 use super::{
     binder::{Bound, BoundFunctionReference},
@@ -119,11 +121,21 @@ impl<'a> ExpressionContext<'a> {
                 op: op.try_into()?,
                 expr: Box::new(self.plan_expression(*expr)?),
             }),
-            ast::Expr::BinaryExpr { left, op, right } => Ok(LogicalExpression::Binary {
-                op: op.try_into()?,
-                left: Box::new(self.plan_expression(*left)?),
-                right: Box::new(self.plan_expression(*right)?),
-            }),
+            ast::Expr::BinaryExpr { left, op, right } => {
+                let op = BinaryOperator::try_from(op)?;
+                let left = self.plan_expression(*left)?;
+                let right = self.plan_expression(*right)?;
+
+                let mut out =
+                    self.apply_casts_for_scalar_function(op.scalar_function(), vec![left, right])?;
+                let [right, left] = [out.pop().unwrap(), out.pop().unwrap()];
+
+                Ok(LogicalExpression::Binary {
+                    op,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                })
+            }
             ast::Expr::Function(func) => {
                 let inputs = func
                     .args
@@ -145,35 +157,19 @@ impl<'a> ExpressionContext<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                let input_datatypes = inputs
-                    .iter()
-                    .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
-                    .collect::<Result<Vec<_>>>()?;
-
                 match func.reference {
                     BoundFunctionReference::Scalar(scalar) => {
-                        if scalar.return_type_for_inputs(&input_datatypes).is_some() {
-                            // Exact
-                            Ok(LogicalExpression::ScalarFunction {
-                                function: scalar,
-                                inputs,
-                            })
-                        } else {
-                            // Try to find candidates that we can cast to.
-                            let candidates =
-                                find_candidate_signatures(&input_datatypes, scalar.signatures());
+                        let inputs =
+                            self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
-                            // TODO: Do we want to fall through? Is it possible for a
-                            // scalar and aggregate function to have the same name?
-
-                            Err(RayexecError::new(format!(
-                                "Invalid inputs to '{}'",
-                                scalar.name(),
-                            )))
-                        }
+                        Ok(LogicalExpression::ScalarFunction {
+                            function: scalar,
+                            inputs,
+                        })
                     }
                     BoundFunctionReference::Aggregate(agg) => {
-                        // TODO: Sig check
+                        let inputs =
+                            self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
 
                         Ok(LogicalExpression::Aggregate {
                             agg,
@@ -305,23 +301,101 @@ impl<'a> ExpressionContext<'a> {
         }
     }
 
-    /// Check if a scalar function is able to handle the given inputs.
-    ///
-    /// Errors if the datatypes for the inputs cannot be determined.
-    fn scalar_function_can_handle_input(
+    /// Applies casts to an input expression based on the signatures for a
+    /// scalar function.
+    fn apply_casts_for_scalar_function(
         &self,
-        function: &dyn GenericScalarFunction,
-        inputs: &[LogicalExpression],
-    ) -> Result<bool> {
-        let inputs = inputs
+        scalar: &dyn GenericScalarFunction,
+        inputs: Vec<LogicalExpression>,
+    ) -> Result<Vec<LogicalExpression>> {
+        let input_datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
             .collect::<Result<Vec<_>>>()?;
 
-        if function.return_type_for_inputs(&inputs).is_some() {
-            return Ok(true);
-        }
+        if scalar.return_type_for_inputs(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = find_candidate_signatures(&input_datatypes, scalar.signatures());
 
-        Ok(false)
+            if candidates.is_empty() {
+                // TODO: Do we want to fall through? Is it possible for a
+                // scalar and aggregate function to have the same name?
+
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}'",
+                    scalar.name(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            //
+            // We should do some lightweight const folding and prefer candidates
+            // that cast the consts over ones that need array inputs to be
+            // casted.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.datatypes)
+                .map(|(input, cast_to)| match cast_to {
+                    CastType::CastTo(datatype) => LogicalExpression::Cast {
+                        to: datatype,
+                        expr: Box::new(input),
+                    },
+                    CastType::NoCastNeeded => input,
+                })
+                .collect();
+
+            Ok(inputs)
+        }
+    }
+
+    // TODO: Reduce dupliation with the scalar one.
+    fn apply_casts_for_aggregate_function(
+        &self,
+        agg: &dyn GenericAggregateFunction,
+        inputs: Vec<LogicalExpression>,
+    ) -> Result<Vec<LogicalExpression>> {
+        let input_datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
+            .collect::<Result<Vec<_>>>()?;
+
+        if agg.return_type_for_inputs(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = find_candidate_signatures(&input_datatypes, agg.signatures());
+
+            if candidates.is_empty() {
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}'",
+                    agg.name(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.datatypes)
+                .map(|(input, cast_to)| match cast_to {
+                    CastType::CastTo(datatype) => LogicalExpression::Cast {
+                        to: datatype,
+                        expr: Box::new(input),
+                    },
+                    CastType::NoCastNeeded => input,
+                })
+                .collect();
+
+            Ok(inputs)
+        }
     }
 }

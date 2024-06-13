@@ -1,7 +1,8 @@
+pub mod array;
 pub mod parse;
 
 use crate::{
-    array::{Array, OffsetIndex, PrimitiveArray, PrimitiveNumeric, VarlenArray},
+    array::{Array, NullArray, OffsetIndex, PrimitiveArray, PrimitiveNumeric, VarlenArray},
     field::DataType,
     scalar::ScalarValue,
 };
@@ -9,14 +10,10 @@ use parse::{parse_bool, parse_date32};
 use rayexec_error::{RayexecError, Result};
 
 // TODO: This is woefully incomplete.
-pub fn cast(arr: Array, to: DataType) -> Result<Array> {
-    if arr.datatype() == to {
-        return Ok(arr);
-    }
-
+pub fn cast(arr: &Array, to: &DataType) -> Result<Array> {
     Ok(match (arr, to) {
         // Nulls casted to anything always returns nulls.
-        (Array::Null(arr), _) => Array::Null(arr),
+        (Array::Null(arr), _) => Array::Null(NullArray::new(arr.len())),
         (Array::Utf8(arr), to) if to.is_numeric() => utf8_array_to_numeric(arr, to)?,
         (Array::LargeUtf8(arr), to) if to.is_numeric() => utf8_array_to_numeric(arr, to)?,
         (arr, to) => {
@@ -92,11 +89,11 @@ fn utf8_scalar_cast(val: impl AsRef<str>, to: DataType) -> Result<ScalarValue<'s
 }
 
 /// Cast an array of utf strings to a numeric array.
-fn utf8_array_to_numeric<O>(arr: VarlenArray<str, O>, to: DataType) -> Result<Array>
+fn utf8_array_to_numeric<O>(arr: &VarlenArray<str, O>, to: &DataType) -> Result<Array>
 where
     O: OffsetIndex,
 {
-    fn inner<T, O>(arr: VarlenArray<str, O>) -> Result<PrimitiveArray<T>>
+    fn inner<T, O>(arr: &VarlenArray<str, O>) -> Result<PrimitiveArray<T>>
     where
         T: PrimitiveNumeric,
         O: OffsetIndex,
@@ -145,7 +142,7 @@ mod tests {
     #[test]
     fn utf8_arr_to_float() {
         let arr = Array::Utf8(Utf8Array::from_iter(["1", "2.1", "3.5"]));
-        let out = cast(arr, DataType::Float32).unwrap();
+        let out = cast(&arr, &DataType::Float32).unwrap();
 
         assert_eq!(
             Array::Float32(Float32Array::from_iter([1.0, 2.1, 3.5])),
@@ -156,7 +153,7 @@ mod tests {
     #[test]
     fn utf8_arr_to_int() {
         let arr = Array::Utf8(Utf8Array::from_iter(["1", "2", "3"]));
-        let out = cast(arr, DataType::Int32).unwrap();
+        let out = cast(&arr, &DataType::Int32).unwrap();
 
         assert_eq!(Array::Int32(Int32Array::from_iter([1, 2, 3])), out)
     }

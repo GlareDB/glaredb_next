@@ -3,6 +3,7 @@ pub mod scalar;
 use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
 use crate::logical::operator::LogicalExpression;
+use rayexec_bullet::compute::cast;
 use rayexec_bullet::field::{DataType, TypeSchema};
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
@@ -16,6 +17,12 @@ pub enum PhysicalScalarExpression {
 
     /// A scalar literal.
     Literal(OwnedScalarValue),
+
+    /// Cast an input expression.
+    Cast {
+        to: DataType,
+        expr: Box<PhysicalScalarExpression>,
+    },
 
     /// A scalar function.
     ScalarFunction {
@@ -76,6 +83,12 @@ impl PhysicalScalarExpression {
                     inputs: vec![left, right],
                 }
             }
+            LogicalExpression::Cast { to, expr } => PhysicalScalarExpression::Cast {
+                to,
+                expr: Box::new(PhysicalScalarExpression::try_from_uncorrelated_expr(
+                    *expr, input,
+                )?),
+            },
             LogicalExpression::ScalarFunction { function, inputs } => {
                 let datatypes = inputs
                     .iter()
@@ -127,6 +140,11 @@ impl PhysicalScalarExpression {
 
                 Arc::new(out)
             }
+            Self::Cast { to, expr } => {
+                let input = expr.eval(batch)?;
+                let out = cast::cast(&input, to)?;
+                Arc::new(out)
+            }
             _ => unimplemented!(),
         })
     }
@@ -137,6 +155,7 @@ impl fmt::Display for PhysicalScalarExpression {
         match self {
             Self::Column(idx) => write!(f, "#{idx}"),
             Self::Literal(lit) => write!(f, "{lit}"),
+            Self::Cast { to, expr } => write!(f, "cast({expr}, {to})"),
             Self::ScalarFunction { function, inputs } => write!(
                 f,
                 "{function:?}({})",

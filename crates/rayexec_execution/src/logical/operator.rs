@@ -828,6 +828,12 @@ pub enum LogicalExpression {
         inputs: Vec<LogicalExpression>,
     },
 
+    /// Cast an expression to some type.
+    Cast {
+        to: DataType,
+        expr: Box<LogicalExpression>,
+    },
+
     /// Unary operator.
     Unary {
         op: UnaryOperator,
@@ -898,6 +904,7 @@ impl fmt::Display for LogicalExpression {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Self::Cast { to, expr } => write!(f, "CAST({expr}, {to})"),
             Self::Literal(val) => write!(f, "{val}"),
             Self::Unary { op, expr } => write!(f, "{op}{expr}"),
             Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
@@ -982,6 +989,7 @@ impl LogicalExpression {
                     ))
                 })?
             }
+            LogicalExpression::Cast { to, .. } => to.clone(),
             LogicalExpression::Aggregate {
                 agg,
                 inputs,
@@ -1114,6 +1122,11 @@ impl LogicalExpression {
         pre(self)?;
         match self {
             LogicalExpression::Unary { expr, .. } => {
+                pre(expr)?;
+                expr.walk_mut(pre, post)?;
+                post(expr)?;
+            }
+            LogicalExpression::Cast { expr, .. } => {
                 pre(expr)?;
                 expr.walk_mut(pre, post)?;
                 post(expr)?;
