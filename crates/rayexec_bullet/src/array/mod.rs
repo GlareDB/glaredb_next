@@ -9,6 +9,8 @@ pub use primitive::*;
 pub mod varlen;
 pub use varlen::*;
 
+pub mod validity;
+
 use crate::field::DataType;
 use crate::scalar::{DecimalScalar, ScalarValue};
 use crate::{bitmap::Bitmap, field::TimeUnit};

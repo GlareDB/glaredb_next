@@ -383,7 +383,7 @@ impl TypedDecoder {
                             bits.push(b);
                         }
 
-                        Array::Boolean(BooleanArray::new_with_values(bits))
+                        Array::Boolean(BooleanArray::new(bits, None))
                     }
                     DataType::Int8 => {
                         Array::Int8(Self::build_primitive(&records, *idx, skip_records)?)

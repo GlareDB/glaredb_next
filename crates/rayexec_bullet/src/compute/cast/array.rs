@@ -330,7 +330,7 @@ where
     }
 
     Ok(match arr.validity() {
-        Some(validity) => PrimitiveArray::new_from_values_and_validity(new_vals, validity.clone()),
+        Some(validity) => PrimitiveArray::new(new_vals, Some(validity.clone())),
         None => PrimitiveArray::from(new_vals),
     })
 }

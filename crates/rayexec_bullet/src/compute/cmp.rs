@@ -255,7 +255,7 @@ where
 {
     let iter = left.zip(right).map(|(left, right)| cmp_fn(left, right));
     let bitmap = Bitmap::from_iter(iter);
-    BooleanArray::new_with_values(bitmap)
+    BooleanArray::new(bitmap, None)
 }
 
 #[cfg(test)]

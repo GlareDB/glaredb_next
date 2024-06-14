@@ -151,6 +151,19 @@ impl<O: OffsetIndex> Default for VarlenValuesBuffer<O> {
     }
 }
 
+impl<A: AsVarlenType, O: OffsetIndex> FromIterator<A> for VarlenValuesBuffer<O> {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let mut buf = Self::default();
+
+        for v in iter {
+            buf.push_value(v);
+        }
+
+        buf
+    }
+}
+
 #[derive(Debug)]
 pub struct VarlenArray<T: VarlenType + ?Sized, O: OffsetIndex> {
     /// Value validities.
@@ -244,24 +257,6 @@ where
     /// Get a reference to the raw data buffer.
     pub(crate) fn data(&self) -> &PrimitiveStorage<u8> {
         &self.data
-    }
-
-    pub(crate) fn put_validity(&mut self, validity: Bitmap) {
-        assert_eq!(validity.len(), self.len());
-        self.validity = Some(validity);
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn try_into_buffer_and_validity(
-        self,
-    ) -> Result<(VarlenValuesBuffer<O>, Option<Bitmap>)> {
-        match (self.data, self.offsets) {
-            (PrimitiveStorage::Vec(data), PrimitiveStorage::Vec(offsets)) => {
-                let buf = VarlenValuesBuffer { offsets, data };
-                Ok((buf, self.validity))
-            }
-            _ => Err(RayexecError::new("Cannot get Vecs for data and offsets")),
-        }
     }
 }
 

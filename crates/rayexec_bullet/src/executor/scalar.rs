@@ -10,7 +10,7 @@
 //! monomorphized is probably a good thing.
 
 use crate::{
-    array::{ArrayAccessor, ValuesBuffer},
+    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
 };
 use rayexec_error::{RayexecError, Result};
@@ -268,25 +268,6 @@ impl UniformExecutor {
 
         Ok(validity)
     }
-}
-
-/// Union all validities.
-///
-/// The final bitmap will be the OR of all bitmaps.
-pub fn union_validities<'a>(
-    validities: impl IntoIterator<Item = Option<&'a Bitmap>>,
-) -> Result<Option<Bitmap>> {
-    let mut unioned: Option<Bitmap> = None;
-
-    for bitmap in validities {
-        match (&mut unioned, bitmap) {
-            (Some(unioned), Some(bitmap)) => unioned.bit_or_mut(bitmap)?,
-            (None, Some(bitmap)) => unioned = Some(bitmap.clone()),
-            _ => (),
-        }
-    }
-
-    Ok(unioned)
 }
 
 #[cfg(test)]

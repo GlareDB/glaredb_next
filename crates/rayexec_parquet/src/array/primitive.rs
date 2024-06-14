@@ -1,5 +1,5 @@
-use parquet::column::page::PageReader;
 use parquet::basic::Type as PhysicalType;
+use parquet::column::page::PageReader;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::TimestampArray;
@@ -81,7 +81,7 @@ impl IntoArray for Vec<bool> {
                 let bitmap = def_levels_into_bitmap(levels);
                 let values = insert_null_values(self, &bitmap);
                 let values = Bitmap::from_iter(values);
-                Array::Boolean(BooleanArray::new_with_values_and_validity(values, bitmap))
+                Array::Boolean(BooleanArray::new(values, Some(bitmap)))
             }
             None => Array::Boolean(BooleanArray::from_iter(self)),
         }
@@ -97,7 +97,7 @@ impl IntoArray for Vec<Int96> {
                 let values = insert_null_values(values, &bitmap);
                 Array::Timestamp(
                     TimeUnit::Nanosecond,
-                    TimestampArray::new_from_values_and_validity(values, bitmap),
+                    TimestampArray::new(values, Some(bitmap)),
                 )
             }
             None => Array::Timestamp(TimeUnit::Nanosecond, TimestampArray::from_iter(values)),
@@ -113,7 +113,7 @@ macro_rules! into_array_prim {
                     Some(levels) => {
                         let bitmap = def_levels_into_bitmap(levels);
                         let values = insert_null_values(self, &bitmap);
-                        Array::$variant(<$array>::new_from_values_and_validity(values, bitmap))
+                        Array::$variant(<$array>::new(values, Some(bitmap)))
                     }
                     None => Array::$variant(<$array>::from(self)),
                 }

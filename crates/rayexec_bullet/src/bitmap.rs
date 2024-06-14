@@ -159,6 +159,14 @@ impl FromIterator<bool> for Bitmap {
     }
 }
 
+impl Extend<bool> for Bitmap {
+    fn extend<T: IntoIterator<Item = bool>>(&mut self, iter: T) {
+        for v in iter {
+            self.push(v)
+        }
+    }
+}
+
 /// Iterator over individual bits (bools) in the bitmap.
 #[derive(Debug)]
 pub struct BitmapIter<'a> {

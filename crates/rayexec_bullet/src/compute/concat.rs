@@ -1,6 +1,7 @@
+use crate::array::validity::concat_validities;
 use crate::array::{
-    Array, BooleanArray, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray,
-    VarlenType,
+    Array, BooleanArray, BooleanValuesBuffer, DecimalArray, NullArray, OffsetIndex, PrimitiveArray,
+    VarlenArray, VarlenType, VarlenValuesBuffer,
 };
 use crate::field::DataType;
 use rayexec_error::{RayexecError, Result};
@@ -135,17 +136,17 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
 }
 
 pub fn concat_boolean(arrays: &[&BooleanArray]) -> BooleanArray {
-    // TODO: Nulls
+    let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));
     let values_iters = arrays.iter().map(|arr| arr.values());
-    let values: Vec<bool> = values_iters.flat_map(|v| v.iter()).collect();
-    BooleanArray::from_iter(values)
+    let values: BooleanValuesBuffer = values_iters.flat_map(|v| v.iter()).collect();
+    BooleanArray::new(values, validity)
 }
 
 pub fn concat_primitive<T: Copy>(arrays: &[&PrimitiveArray<T>]) -> PrimitiveArray<T> {
-    // TODO: Nulls
+    let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));
     let values_iters = arrays.iter().map(|arr| arr.values().as_ref());
     let values: Vec<T> = values_iters.flat_map(|v| v.iter().copied()).collect();
-    PrimitiveArray::from(values)
+    PrimitiveArray::new(values, validity)
 }
 
 pub fn concat_varlen<T, O>(arrays: &[&VarlenArray<T, O>]) -> VarlenArray<T, O>
@@ -153,10 +154,10 @@ where
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
-    // TODO: Nulls
-    // TODO: We should probably preallocate the values buffer.
+    let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));
     let values_iters = arrays.iter().map(|arr| arr.values_iter());
-    VarlenArray::from_iter(values_iters.flatten())
+    let values: VarlenValuesBuffer<_> = values_iters.flatten().collect();
+    VarlenArray::new(values, validity)
 }
 
 #[cfg(test)]
