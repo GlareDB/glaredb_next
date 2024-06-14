@@ -2,7 +2,9 @@
 use chrono::{Datelike, NaiveDate};
 use num::PrimInt;
 use rayexec_error::RayexecError;
-use std::{marker::PhantomData, str::FromStr};
+use std::{fmt::Write, marker::PhantomData, str::FromStr};
+
+use crate::array::Interval;
 
 pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 01, 01) {
     Some(date) => date,
@@ -11,7 +13,7 @@ pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 01, 
 
 pub const EPOCH_DAYS_FROM_CE: i32 = 719163;
 
-pub const SECONDS_IN_DAY: i64 = 86400;
+pub const SECONDS_IN_DAY: i64 = 86_400;
 
 /// Logic for parsing a string into some type.
 pub trait Parser {
@@ -174,6 +176,175 @@ impl<T: PrimInt> Parser for DecimalParser<T> {
     }
 }
 
+const NANOSECONDS_IN_SECONDS: f64 = 1_000_000_000.0;
+
+#[derive(Debug, Clone, Copy)]
+enum IntervalUnit {
+    Millenium,
+    Century,
+    Decade,
+    Year,
+    Month,
+    Week,
+    Day,
+    Hour,
+    Minute,
+    Second,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
+}
+
+impl FromStr for IntervalUnit {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "millenium" | "milleniums" => Self::Millenium,
+            "century" | "centuries" => Self::Century,
+            "decade" | "decades" => Self::Decade,
+            "year" | "years" => Self::Year,
+            "month" | "months" => Self::Month,
+            "week" | "weeks" => Self::Week,
+            "day" | "days" => Self::Day,
+            "hour" | "hours" => Self::Hour,
+            "minute" | "minutes" | "min" | "mins" => Self::Minute,
+            "second" | "seconds" | "sec" | "secs" => Self::Second,
+            "millisecond" | "milliseconds" => Self::Millisecond,
+            "microsecond" | "microseconds" => Self::Microsecond,
+            "nanosecond" | "nanoseconds" => Self::Nanosecond,
+            _ => return Err(()),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct IntervalParser {
+    buf: String,
+}
+
+impl Parser for IntervalParser {
+    type Type = Interval;
+    fn parse(&mut self, s: &str) -> Option<Self::Type> {
+        self.buf.clear();
+        self.buf.write_str(s).ok()?;
+        self.buf.make_ascii_lowercase();
+        let s = &self.buf;
+
+        let mut fields: Vec<_> = s.split_whitespace().collect();
+
+        // If there's only one "field", assume it's seconds.
+        if fields.len() == 1 {
+            let sec = fields.pop().unwrap().parse::<f64>().ok()?;
+            let nanos = sec * NANOSECONDS_IN_SECONDS;
+            return Some(Interval {
+                months: 0,
+                days: 0,
+                nanos: nanos.round() as i64,
+            });
+        }
+
+        if fields.len() % 2 != 0 {
+            return None;
+        }
+
+        let mut interval = Interval {
+            months: 0,
+            days: 0,
+            nanos: 0,
+        };
+
+        // TODO: Duplicate unit check
+
+        for field in fields.chunks(2) {
+            let quantity = field[0].parse::<f64>().ok()?;
+            let unit = IntervalUnit::from_str(field[1]).ok()?;
+
+            // TODO: Move the inner logic to methods on Interval.
+            match unit {
+                IntervalUnit::Millenium => {
+                    let mill = quantity.floor();
+                    let centuries = ((quantity - mill) * 10.0) as i32;
+                    interval.add_millenium(mill as i32);
+                    interval.add_centuries(centuries);
+                }
+                IntervalUnit::Century => {
+                    let centuries = quantity.floor();
+                    let decades = ((quantity - centuries) * 10.0) as i32;
+                    interval.add_centuries(centuries as i32);
+                    interval.add_decades(decades);
+                }
+                IntervalUnit::Decade => {
+                    let decades = quantity.floor();
+                    let years = ((quantity - decades) * 10.0) as i32;
+                    interval.add_decades(decades as i32);
+                    interval.add_years(years);
+                }
+                IntervalUnit::Year => {
+                    let years = quantity.floor();
+                    let months = ((quantity - years) * 12.0) as i32;
+                    interval.add_years(years as i32);
+                    interval.add_months(months);
+                }
+                IntervalUnit::Month => {
+                    let months = quantity.floor();
+                    let days =
+                        ((quantity - months) * Interval::ASSUMED_DAYS_IN_MONTH as f64) as i32;
+                    interval.add_months(months as i32);
+                    interval.add_days(days);
+                }
+                IntervalUnit::Week => {
+                    let weeks = quantity.floor();
+                    let days = ((quantity - weeks) * 7.0) as i32;
+                    interval.add_days(weeks as i32 * 7);
+                    interval.add_days(days);
+                }
+                IntervalUnit::Day => {
+                    let days = quantity.floor();
+                    let hours = ((quantity - days) * Interval::ASSUMED_HOURS_IN_DAY as f64) as i32;
+                    interval.add_days(days as i32);
+                    interval.add_hours(hours as i64);
+                }
+                IntervalUnit::Hour => {
+                    let hours = quantity.floor();
+                    let minutes = ((quantity - hours) * 60.0) as i64;
+                    interval.add_hours(hours as i64);
+                    interval.add_minutes(minutes);
+                }
+                IntervalUnit::Minute => {
+                    let minutes = quantity.floor();
+                    let secs = ((quantity - minutes) * 60.0) as i64;
+                    interval.add_minutes(minutes as i64);
+                    interval.add_seconds(secs);
+                }
+                IntervalUnit::Second => {
+                    let secs = quantity.floor();
+                    let ms = ((quantity - secs) * 1000.0) as i64;
+                    interval.add_seconds(secs as i64);
+                    interval.add_milliseconds(ms);
+                }
+                IntervalUnit::Millisecond => {
+                    let ms = quantity.floor();
+                    let us = ((quantity - ms) * 1000.0) as i64;
+                    interval.add_milliseconds(ms as i64);
+                    interval.add_microseconds(us);
+                }
+                IntervalUnit::Microsecond => {
+                    let us = quantity.floor();
+                    let ns = ((quantity - us) * 1000.0) as i64;
+                    interval.add_microseconds(us as i64);
+                    interval.nanos += ns;
+                }
+                IntervalUnit::Nanosecond => {
+                    let ns = quantity.round() as i64;
+                    interval.nanos += ns;
+                }
+            }
+        }
+
+        Some(interval)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +377,45 @@ mod tests {
         assert_eq!(None, Decimal64Parser::new(5, 1).parse("1four2.3"));
         assert_eq!(None, Decimal64Parser::new(5, 1).parse("12.3a"));
         assert_eq!(None, Decimal64Parser::new(3, 1).parse("123.4")); // "overflow"
+    }
+
+    #[test]
+    fn parse_intervals() {
+        let expected = Interval {
+            months: 0,
+            days: 0,
+            nanos: 2_500_000_000,
+        };
+        assert_eq!(expected, IntervalParser::default().parse("2.5").unwrap());
+
+        let expected = Interval {
+            months: 0,
+            days: 1,
+            nanos: 3 * Interval::NANOSECONDS_IN_HOUR,
+        };
+        assert_eq!(
+            expected,
+            IntervalParser::default().parse("1 day 3 hours").unwrap()
+        );
+
+        let expected = Interval {
+            months: 0,
+            days: 1,
+            nanos: 12 * Interval::NANOSECONDS_IN_HOUR,
+        };
+        assert_eq!(
+            expected,
+            IntervalParser::default().parse("1.5 days").unwrap()
+        );
+
+        let expected = Interval {
+            months: 0,
+            days: 1,
+            nanos: 14 * Interval::NANOSECONDS_IN_HOUR,
+        };
+        assert_eq!(
+            expected,
+            IntervalParser::default().parse("1.5 days 2 hours").unwrap()
+        );
     }
 }

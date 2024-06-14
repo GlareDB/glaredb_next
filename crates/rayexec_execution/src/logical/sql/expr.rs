@@ -1,4 +1,7 @@
+use rayexec_bullet::array::Interval;
 use rayexec_bullet::compute::cast::scalar::cast_scalar;
+use rayexec_bullet::field::DataType;
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
@@ -209,6 +212,67 @@ impl<'a> ExpressionContext<'a> {
                     to: datatype,
                     expr: Box::new(expr),
                 })
+            }
+            ast::Expr::Interval(ast::Interval {
+                value,
+                leading,
+                trailing,
+            }) => {
+                if leading.is_some() {
+                    return Err(RayexecError::new(
+                        "Leading unit in interval not yet supported",
+                    ));
+                }
+                let expr = self.plan_expression(*value)?;
+
+                match trailing {
+                    Some(trailing) => {
+                        // If a user provides a unit like `INTERVAL 3 YEARS`, we
+                        // go ahead an multiply 3 with the a constant interval
+                        // representing 1 YEAR.
+                        //
+                        // This builds on top of our existing casting/function
+                        // dispatch rules. It's assumed that we have a
+                        // `mul(int64, interval)` function (and similar).
+
+                        let const_interval = match trailing {
+                            ast::IntervalUnit::Year => Interval::new(12, 0, 0),
+                            ast::IntervalUnit::Month => Interval::new(1, 0, 0),
+                            ast::IntervalUnit::Week => Interval::new(0, 7, 0),
+                            ast::IntervalUnit::Day => Interval::new(0, 1, 0),
+                            ast::IntervalUnit::Hour => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_HOUR)
+                            }
+                            ast::IntervalUnit::Minute => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MINUTE)
+                            }
+                            ast::IntervalUnit::Second => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_SECOND)
+                            }
+                            ast::IntervalUnit::Millisecond => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MILLISECOND)
+                            }
+                            other => {
+                                // TODO: Got lazy, add the rest.
+                                return Err(RayexecError::new(format!(
+                                    "Missing interval constant for {other:?}"
+                                )));
+                            }
+                        };
+
+                        Ok(LogicalExpression::Binary {
+                            op: BinaryOperator::Multiply,
+                            left: Box::new(expr),
+                            right: Box::new(LogicalExpression::Literal(ScalarValue::Interval(
+                                const_interval,
+                            ))),
+                        })
+                    }
+                    None => Ok(LogicalExpression::Cast {
+                        to: DataType::Interval,
+                        expr: Box::new(expr),
+                    }),
+                }
             }
 
             _ => unimplemented!(),

@@ -20,8 +20,8 @@ use super::{
     },
     parse::{
         BoolParser, Date32Parser, Decimal128Parser, Decimal64Parser, Float32Parser, Float64Parser,
-        Int16Parser, Int32Parser, Int64Parser, Int8Parser, Parser, UInt16Parser, UInt32Parser,
-        UInt64Parser, UInt8Parser,
+        Int16Parser, Int32Parser, Int64Parser, Int8Parser, IntervalParser, Parser, UInt16Parser,
+        UInt32Parser, UInt64Parser, UInt8Parser,
     },
 };
 
@@ -182,6 +182,9 @@ where
             Array::Decimal128(DecimalArray::new(*p, *s, primitive))
         }
         DataType::Date32 => Array::Date32(cast_parse_primitive(arr, Date32Parser)?),
+        DataType::Interval => {
+            Array::Interval(cast_parse_primitive(arr, IntervalParser::default())?)
+        }
         other => {
             return Err(RayexecError::new(format!(
                 "Unable to cast utf8 array to {other}"

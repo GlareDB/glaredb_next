@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
 use crate::{
-    compute::cast::parse::{BoolParser, Date32Parser},
+    compute::cast::parse::{BoolParser, Date32Parser, IntervalParser},
     field::DataType,
     scalar::{DecimalScalar, OwnedScalarValue, ScalarValue},
 };
@@ -286,6 +286,7 @@ fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<OwnedScalarValu
             value: parse(Decimal128Parser::new(*p, *s), v, datatype)?,
         }),
         DataType::Date32 => ScalarValue::Date32(parse(Date32Parser, v, datatype)?),
+        DataType::Interval => ScalarValue::Interval(parse(IntervalParser::default(), v, datatype)?),
         other => {
             return Err(RayexecError::new(format!(
                 "Unable to cast utf8 scalar to {other}"

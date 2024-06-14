@@ -7,9 +7,9 @@ use crate::array::{
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
     Float32Formatter, Float64Formatter, Formatter, Int16Formatter, Int32Formatter, Int64Formatter,
-    Int8Formatter, TimestampMicrosecondsFormatter, TimestampMillisecondsFormatter,
-    TimestampNanosecondsFormatter, TimestampSecondsFormatter, UInt16Formatter, UInt32Formatter,
-    UInt64Formatter, UInt8Formatter,
+    Int8Formatter, IntervalFormatter, TimestampMicrosecondsFormatter,
+    TimestampMillisecondsFormatter, TimestampNanosecondsFormatter, TimestampSecondsFormatter,
+    UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
 use crate::field::{DataType, TimeUnit};
 use rayexec_error::{RayexecError, Result};
@@ -322,7 +322,7 @@ impl fmt::Display for ScalarValue<'_> {
                 TimeUnit::Microsecond => TimestampMicrosecondsFormatter::default().write(v, f),
                 TimeUnit::Nanosecond => TimestampNanosecondsFormatter::default().write(v, f),
             },
-            Self::Interval(v) => write!(f, "{} months", v.months), // TODO
+            Self::Interval(v) => IntervalFormatter.write(v, f),
             Self::Utf8(v) => write!(f, "{}", v),
             Self::LargeUtf8(v) => write!(f, "{}", v),
             Self::Binary(v) => write!(f, "{:X?}", v),

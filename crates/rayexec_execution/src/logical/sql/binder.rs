@@ -30,22 +30,44 @@ use crate::{
 
 pub type BoundStatement = Statement<Bound>;
 
+/// Implementation of `AstMeta` which annotates the AST query with
+/// tables/functions/etc found in the db.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bound;
 
-// TODO: Table function
+impl AstMeta for Bound {
+    type DataSourceName = String;
+    type ItemReference = BoundItemReference;
+    type TableReference = BoundTableOrCteReference;
+    type TableFunctionReference = BoundTableFunctionReference;
+    type TableFunctionArguments = TableFunctionArgs;
+    type CteReference = BoundCteReference;
+    type FunctionReference = BoundFunctionReference;
+    type ColumnReference = String;
+    type DataType = DataType;
+}
+
+/// Represents a bound function found in the select list, where clause, or order
+/// by/group by clause.
+// TODO: If we want to support table functions in the select list, this will
+// need to be extended.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
     Scalar(Box<dyn GenericScalarFunction>),
     Aggregate(Box<dyn GenericAggregateFunction>),
 }
 
+/// References a CTE that can be found in `BindData`.
+///
+/// Note that this doesn't hold the CTE itself since it may be referenced more
+/// than once in a query.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundCteReference {
     /// Index into the CTE map.
     pub idx: usize,
 }
 
+/// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundTableOrCteReference {
     Table {
@@ -56,6 +78,7 @@ pub enum BoundTableOrCteReference {
     Cte(BoundCteReference),
 }
 
+/// Table function found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundTableFunctionReference {
     /// Name of the original function.
@@ -120,20 +143,6 @@ impl fmt::Display for BoundItemReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.join(","))
     }
-}
-
-// TODO: Table function associated type (separate from above). Will likely be
-// the specialized table function.
-impl AstMeta for Bound {
-    type DataSourceName = String;
-    type ItemReference = BoundItemReference;
-    type TableReference = BoundTableOrCteReference;
-    type TableFunctionReference = BoundTableFunctionReference;
-    type TableFunctionArguments = TableFunctionArgs;
-    type CteReference = BoundCteReference;
-    type FunctionReference = BoundFunctionReference;
-    type ColumnReference = String;
-    type DataType = DataType;
 }
 
 // TODO: This might need some scoping information.
@@ -1211,77 +1220,19 @@ impl<'a> ExpressionBinder<'a> {
                 let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
                 Ok(ast::Expr::Nested(Box::new(expr)))
             }
+            ast::Expr::Interval(ast::Interval {
+                value,
+                leading,
+                trailing,
+            }) => {
+                let value = Box::pin(self.bind_expression(*value, bind_data)).await?;
+                Ok(ast::Expr::Interval(ast::Interval {
+                    value: Box::new(value),
+                    leading,
+                    trailing,
+                }))
+            }
             other => unimplemented!("{other:?}"),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-
-    // #[test]
-    // fn bind_data_cte_basic() {
-    //     let mut bind_data = BindData::default();
-
-    //     bind_data.push_cte("cte1");
-    //     bind_data.push_cte("cte2");
-
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 1 }),
-    //         bind_data.find_cte("cte2")
-    //     );
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 0 }),
-    //         bind_data.find_cte("cte1")
-    //     );
-    //     assert_eq!(None, bind_data.find_cte("cte3"));
-    // }
-
-    // #[test]
-    // fn bind_data_cte_reference_from_parent() {
-    //     // with cte1 as
-    //     //     (select 1)
-    //     // select *
-    //     //     from (select * from cte1);
-
-    //     let mut bind_data = BindData::default();
-    //     bind_data.push_cte("cte1");
-
-    //     // Dive into subquery.
-    //     bind_data.inc_depth();
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 0 }),
-    //         bind_data.find_cte("cte1")
-    //     );
-    // }
-
-    // #[test]
-    // #[ignore] // Highlights the TODO in `find_cte`
-    // fn bind_data_cte_reference_from_parent_not_sibling() {
-    //     // with cte1 as
-    //     //     (select 1)
-    //     // select *
-    //     //   from (with cte1 as (select 2) select * from cte1)
-    //     //        cross join
-    //     //        (select * from cte1);
-    //     //
-    //     // Right side of cross join should reference the top-level CTE (at index
-    //     // 0)
-
-    //     let mut bind_data = BindData::default();
-    //     bind_data.push_cte("cte1");
-
-    //     // Dive into first subquery.
-    //     bind_data.inc_depth();
-    //     bind_data.push_cte("cte1");
-    //     bind_data.dec_depth();
-
-    //     // Dive into second subquery, get CTE reference.
-    //     bind_data.inc_depth();
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 0 }),
-    //         bind_data.find_cte("cte1")
-    //     );
-    // }
 }

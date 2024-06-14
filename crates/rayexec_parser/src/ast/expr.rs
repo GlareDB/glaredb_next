@@ -200,7 +200,7 @@ pub enum Expr<T: AstMeta> {
         datatype: T::DataType,
         value: String,
     },
-    /// Cast exprssion.
+    /// Cast expression.
     ///
     /// `CAST(<expr> AS <datatype>)`
     /// `<expr>::<datatype>`
@@ -208,6 +208,11 @@ pub enum Expr<T: AstMeta> {
         datatype: T::DataType,
         expr: Box<Expr<T>>,
     },
+    /// Interval
+    ///
+    /// `INTERVAL '1 year 2 months'`
+    /// `INTERVAL 1 YEAR`
+    Interval(Interval<T>),
 }
 
 impl AstParseable for Expr<Raw> {
@@ -254,6 +259,11 @@ impl Expr<Raw> {
         // DATE '1992-10-11'
         // BOOL 'true'
         match parser.maybe_parse(DataType::parse) {
+            // INTERVAL is a special case.
+            Some(DataType::Interval) => {
+                let interval = Interval::parse(parser)?;
+                return Ok(Expr::Interval(interval));
+            }
             Some(dt) => {
                 let s = Self::parse_string_literal(parser)?;
                 return Ok(Expr::TypedString {
@@ -606,6 +616,68 @@ impl Expr<Raw> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntervalUnit {
+    Millenium,
+    Century,
+    Decade,
+    Year,
+    Month,
+    Week,
+    Day,
+    Hour,
+    Minute,
+    Second,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
+}
+
+impl AstParseable for IntervalUnit {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        Ok(match parser.next_keyword()? {
+            Keyword::MILLENIUM | Keyword::MILLENIUMS => Self::Millenium,
+            Keyword::CENTURY | Keyword::CENTURIES => Self::Century,
+            Keyword::DECADE | Keyword::DECADES => Self::Decade,
+            Keyword::YEAR | Keyword::YEARS => Self::Year,
+            Keyword::MONTH | Keyword::MONTHS => Self::Month,
+            Keyword::WEEK | Keyword::WEEKS => Self::Week,
+            Keyword::DAY | Keyword::DAYS => Self::Day,
+            Keyword::HOUR | Keyword::HOURS => Self::Hour,
+            Keyword::MINUTE | Keyword::MINUTES => Self::Minute,
+            Keyword::SECOND | Keyword::SECONDS => Self::Second,
+            Keyword::MILLISECOND | Keyword::MILLISECONDS => Self::Millisecond,
+            Keyword::MICROSECOND | Keyword::MICROSECONDS => Self::Microsecond,
+            Keyword::NANOSECOND | Keyword::NANOSECONDS => Self::Nanosecond,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Expected interval unit, got '{other}'"
+                )))
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Interval<T: AstMeta> {
+    pub value: Box<Expr<T>>,
+    pub leading: Option<IntervalUnit>,
+    pub trailing: Option<IntervalUnit>,
+}
+
+impl AstParseable for Interval<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        let expr = Expr::parse(parser)?;
+        let trailing = parser.maybe_parse(IntervalUnit::parse);
+
+        Ok(Interval {
+            value: Box::new(expr),
+            leading: None,
+            trailing,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ast::testutil::parse_ast;
@@ -774,6 +846,30 @@ mod tests {
                 "4.0".to_string(),
             ))),
         };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn interval_typed_string() {
+        let expr: Expr<_> = parse_ast("INTERVAL '1 year 2 months'").unwrap();
+        let expected = Expr::Interval(Interval {
+            value: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                "1 year 2 months".to_string(),
+            ))),
+            leading: None,
+            trailing: None,
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn interval_literal() {
+        let expr: Expr<_> = parse_ast("INTERVAL 2 YEARS").unwrap();
+        let expected = Expr::Interval(Interval {
+            value: Box::new(Expr::Literal(Literal::Number("2".to_string()))),
+            leading: None,
+            trailing: Some(IntervalUnit::Year),
+        });
         assert_eq!(expected, expr);
     }
 }

@@ -6,7 +6,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 
-use crate::compute::cast::parse::SECONDS_IN_DAY;
+use crate::{array::Interval, compute::cast::parse::SECONDS_IN_DAY};
 
 /// Logic for formatting and writing a type to a buffer.
 pub trait Formatter {
@@ -165,6 +165,77 @@ impl Formatter for Date64Formatter {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IntervalFormatter;
+
+impl Formatter for IntervalFormatter {
+    type Type = Interval;
+    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
+        let years = val.months / 12;
+        let months = val.months % 12;
+
+        let days = val.days;
+
+        let mut nanos = val.nanos;
+        let hours = nanos / Interval::NANOSECONDS_IN_HOUR;
+        nanos = nanos % Interval::NANOSECONDS_IN_HOUR;
+        let minutes = nanos / Interval::NANOSECONDS_IN_MINUTE;
+        nanos = nanos % Interval::NANOSECONDS_IN_MINUTE;
+        let seconds = nanos / Interval::NANOSECONDS_IN_SECOND;
+        nanos = nanos % Interval::NANOSECONDS_IN_SECOND;
+        let millis = nanos / Interval::NANOSECONDS_IN_MILLISECOND;
+
+        let mut pad = false;
+
+        if years > 0 {
+            write!(buf, "{years} year")?;
+            if years > 1 {
+                write!(buf, "s")?;
+            }
+            pad = true;
+        }
+
+        if months > 0 {
+            if pad {
+                write!(buf, " ")?;
+            }
+
+            write!(buf, "{months} mon")?;
+            if months > 1 {
+                write!(buf, "s")?;
+            }
+            pad = true;
+        }
+
+        if days > 0 {
+            if pad {
+                write!(buf, " ")?;
+            }
+
+            write!(buf, "{days} day")?;
+            if days > 1 {
+                write!(buf, "s")?;
+            }
+            pad = true;
+        }
+
+        // Only write the "time" portion if anything is non-zero.
+        if (hours + minutes + seconds + millis) != 0 {
+            if pad {
+                write!(buf, " ")?;
+            }
+
+            write!(buf, "{:02}:{:02}:{:02}", hours, minutes, seconds)?;
+
+            if millis > 0 {
+                write!(buf, ".{:.6}", millis)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,5 +286,66 @@ mod tests {
         let mut buf = String::new();
         formatter.write(&8319, &mut buf).unwrap();
         assert_eq!("1992-10-11", buf);
+    }
+
+    #[test]
+    fn interval() {
+        let interval = Interval {
+            months: (12 * 178) + 3,
+            days: 0,
+            nanos: 0,
+        };
+        let mut buf = String::new();
+        IntervalFormatter.write(&interval, &mut buf).unwrap();
+        assert_eq!("178 years 3 mons", buf);
+
+        let interval = Interval {
+            months: (12 * 178) + 3,
+            days: 2,
+            nanos: 0,
+        };
+        let mut buf = String::new();
+        IntervalFormatter.write(&interval, &mut buf).unwrap();
+        assert_eq!("178 years 3 mons 2 days", buf);
+
+        let interval = Interval {
+            months: 0,
+            days: 0,
+            nanos: 3 * Interval::NANOSECONDS_IN_HOUR,
+        };
+        let mut buf = String::new();
+        IntervalFormatter.write(&interval, &mut buf).unwrap();
+        assert_eq!("03:00:00", buf);
+
+        let interval = Interval {
+            months: 0,
+            days: 0,
+            nanos: (3 * Interval::NANOSECONDS_IN_HOUR) + (24 * Interval::NANOSECONDS_IN_SECOND),
+        };
+        let mut buf = String::new();
+        IntervalFormatter.write(&interval, &mut buf).unwrap();
+        assert_eq!("03:00:24", buf);
+
+        let interval = Interval {
+            months: 0,
+            days: 0,
+            nanos: (3 * Interval::NANOSECONDS_IN_HOUR)
+                + (24 * Interval::NANOSECONDS_IN_SECOND)
+                + (982 * Interval::NANOSECONDS_IN_MILLISECOND),
+        };
+        let mut buf = String::new();
+        IntervalFormatter.write(&interval, &mut buf).unwrap();
+        assert_eq!("03:00:24.982", buf);
+
+        let interval = Interval {
+            months: 14,
+            days: 11,
+            nanos: (3 * Interval::NANOSECONDS_IN_HOUR)
+                + (24 * Interval::NANOSECONDS_IN_SECOND)
+                + (982 * Interval::NANOSECONDS_IN_MILLISECOND),
+        };
+        let mut buf = String::new();
+        IntervalFormatter.write(&interval, &mut buf).unwrap();
+        assert_eq!("1 year 2 mons 11 days 03:00:24.982", buf);
     }
 }
