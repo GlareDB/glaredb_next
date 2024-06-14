@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use rayexec_bullet::{
     field::{DataType, IntervalUnit, TimeUnit},
-    scalar::OwnedScalarValue,
+    scalar::{
+        OwnedScalarValue, DECIMAL_128_MAX_PRECISION, DECIMAL_64_MAX_PRECISION,
+        DECIMAL_DEFUALT_SCALE,
+    },
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
@@ -390,15 +393,17 @@ impl<'a> Binder<'a> {
             }
         }
 
-        let columns: Vec<_> = create
+        let columns = create
             .columns
             .into_iter()
-            .map(|col| ColumnDef::<Bound> {
-                name: col.name.into_normalized_string(),
-                datatype: Self::ast_datatype_to_exec_datatype(col.datatype),
-                opts: col.opts,
+            .map(|col| {
+                Ok(ColumnDef::<Bound> {
+                    name: col.name.into_normalized_string(),
+                    datatype: Self::ast_datatype_to_exec_datatype(col.datatype)?,
+                    opts: col.opts,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         let source = match create.source {
             Some(source) => Some(self.bind_query(source, bind_data).await?),
@@ -846,20 +851,56 @@ impl<'a> Binder<'a> {
             .collect()
     }
 
-    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {
-        match datatype {
+    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
+        Ok(match datatype {
             ast::DataType::Varchar(_) => DataType::Utf8,
+            ast::DataType::TinyInt => DataType::Int8,
             ast::DataType::SmallInt => DataType::Int16,
             ast::DataType::Integer => DataType::Int32,
             ast::DataType::BigInt => DataType::Int64,
             ast::DataType::Real => DataType::Float32,
             ast::DataType::Double => DataType::Float64,
+            ast::DataType::Decimal(prec, scale) => {
+                let scale: i8 = match scale {
+                    Some(scale) => scale
+                        .try_into()
+                        .map_err(|_| RayexecError::new(format!("Scale too high: {scale}")))?,
+                    None if prec.is_some() => 0, // TODO: I'm not sure what behavior we want here, but it seems to match postgres.
+                    None => DECIMAL_DEFUALT_SCALE,
+                };
+
+                let prec: u8 = match prec {
+                    Some(prec) if prec < 0 => {
+                        return Err(RayexecError::new("Precision cannot be negative"))
+                    }
+                    Some(prec) => prec
+                        .try_into()
+                        .map_err(|_| RayexecError::new(format!("Precision too high: {prec}")))?,
+                    None => DECIMAL_64_MAX_PRECISION,
+                };
+
+                if scale as i16 > prec as i16 {
+                    return Err(RayexecError::new(
+                        "Decimal scale cannot be larger than scale",
+                    ));
+                }
+
+                if prec <= DECIMAL_64_MAX_PRECISION {
+                    DataType::Decimal64(prec, scale)
+                } else if prec <= DECIMAL_128_MAX_PRECISION {
+                    DataType::Decimal128(prec, scale)
+                } else {
+                    return Err(RayexecError::new(
+                        "Decimal precision too big for max decimal size",
+                    ));
+                }
+            }
             ast::DataType::Bool => DataType::Boolean,
             ast::DataType::Date => DataType::Date32,
             ast::DataType::Timestamp => DataType::Timestamp(TimeUnit::Microsecond),
             // TODO: Need more info to get the correct type.
             ast::DataType::Interval => DataType::Interval(IntervalUnit::DayTime),
-        }
+        })
     }
 }
 
@@ -1156,8 +1197,16 @@ impl<'a> ExpressionBinder<'a> {
                 })
             }
             ast::Expr::TypedString { datatype, value } => {
-                let datatype = Binder::ast_datatype_to_exec_datatype(datatype);
+                let datatype = Binder::ast_datatype_to_exec_datatype(datatype)?;
                 Ok(ast::Expr::TypedString { datatype, value })
+            }
+            ast::Expr::Cast { datatype, expr } => {
+                let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
+                let datatype = Binder::ast_datatype_to_exec_datatype(datatype)?;
+                Ok(ast::Expr::Cast {
+                    datatype,
+                    expr: Box::new(expr),
+                })
             }
             ast::Expr::Nested(expr) => {
                 let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;

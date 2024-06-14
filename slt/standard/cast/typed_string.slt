@@ -15,11 +15,10 @@ select int '48';
 ----
 48
 
-# TODO: Autocast
-# query B
-# select int '48' + 29;
-# ----
-# 77
+query I
+select int '48' + 29;
+----
+77
 
 query I
 select bigint '48' + 29;

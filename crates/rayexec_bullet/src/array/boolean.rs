@@ -1,7 +1,30 @@
 use crate::bitmap::{Bitmap, BitmapIter};
 use std::fmt::Debug;
 
-use super::{ArrayAccessor, ArrayBuilder};
+use super::{ArrayAccessor, ArrayBuilder, ValuesBuffer};
+
+#[derive(Debug, PartialEq)]
+pub struct BooleanValuesBuffer {
+    pub bitmap: Bitmap,
+}
+
+impl BooleanValuesBuffer {
+    pub fn with_capacity(cap: usize) -> Self {
+        BooleanValuesBuffer {
+            bitmap: Bitmap::with_capacity(cap),
+        }
+    }
+}
+
+impl ValuesBuffer<bool> for BooleanValuesBuffer {
+    fn push_value(&mut self, value: bool) {
+        self.bitmap.push(value);
+    }
+
+    fn push_null(&mut self) {
+        self.bitmap.push(false);
+    }
+}
 
 /// A logical array for representing bools.
 #[derive(Debug, PartialEq)]
@@ -11,6 +34,17 @@ pub struct BooleanArray {
 }
 
 impl BooleanArray {
+    pub fn new(values: BooleanValuesBuffer, validity: Option<Bitmap>) -> Self {
+        if let Some(validity) = &validity {
+            assert_eq!(values.bitmap.len(), validity.len());
+        }
+
+        BooleanArray {
+            values: values.bitmap,
+            validity,
+        }
+    }
+
     pub fn new_with_values(values: Bitmap) -> Self {
         BooleanArray {
             validity: None,

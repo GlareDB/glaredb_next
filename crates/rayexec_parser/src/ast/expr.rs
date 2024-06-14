@@ -1,3 +1,5 @@
+use std::ops::Neg;
+
 use rayexec_error::{RayexecError, Result};
 
 use crate::{
@@ -198,6 +200,14 @@ pub enum Expr<T: AstMeta> {
         datatype: T::DataType,
         value: String,
     },
+    /// Cast exprssion.
+    ///
+    /// `CAST(<expr> AS <datatype>)`
+    /// `<expr>::<datatype>`
+    Cast {
+        datatype: T::DataType,
+        expr: Box<Expr<T>>,
+    },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -294,6 +304,17 @@ impl Expr<Raw> {
                             expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_NOT)?),
                         },
                     },
+                    Keyword::CAST => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let expr = Expr::parse(parser)?;
+                        parser.expect_keyword(Keyword::AS)?;
+                        let datatype = DataType::parse(parser)?;
+                        parser.expect_token(&Token::RightParen)?;
+                        Expr::Cast {
+                            datatype,
+                            expr: Box::new(expr),
+                        }
+                    }
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
                 },
                 None => Self::parse_ident_expr(w.clone(), parser)?,
@@ -372,8 +393,10 @@ impl Expr<Raw> {
             // Array index
             unimplemented!()
         } else if tok == &Token::DoubleColon {
-            // Cast
-            unimplemented!()
+            Ok(Expr::Cast {
+                datatype: DataType::parse(parser)?,
+                expr: Box::new(prefix),
+            })
         } else {
             Err(RayexecError::new(format!(
                 "Unable to parse token {:?} as an expression",
@@ -535,7 +558,7 @@ impl Expr<Raw> {
         }
     }
 
-    fn parse_string_literal(parser: &mut Parser) -> Result<String> {
+    pub fn parse_string_literal(parser: &mut Parser) -> Result<String> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
             None => return Err(RayexecError::new("Unexpected end of statement")),
@@ -545,6 +568,39 @@ impl Expr<Raw> {
             Token::SingleQuotedString(s) => Ok(s.clone()),
             other => Err(RayexecError::new(format!(
                 "Expected string literal, got {other:?}"
+            ))),
+        }
+    }
+
+    pub fn parse_i64_literal(parser: &mut Parser) -> Result<i64> {
+        let tok = match parser.next() {
+            Some(tok) => &tok.token,
+            None => return Err(RayexecError::new("Unexpected end of statement")),
+        };
+
+        let parse = |s: &str| {
+            s.parse::<i64>()
+                .map_err(|_| RayexecError::new(format!("Unable to parse '{s}' as an integer")))
+        };
+
+        match tok {
+            Token::Minus => {
+                let tok = match parser.next() {
+                    Some(tok) => &tok.token,
+                    None => return Err(RayexecError::new("Unexpected end of statement")),
+                };
+
+                if let Token::Number(s) = tok {
+                    return parse(s).map(|v| v.neg());
+                }
+
+                Err(RayexecError::new(format!(
+                    "Expected integer literal, got {tok:?}"
+                )))
+            }
+            Token::Number(s) => parse(s),
+            other => Err(RayexecError::new(format!(
+                "Expected integer literal, got {other:?}"
             ))),
         }
     }
@@ -695,6 +751,28 @@ mod tests {
         let expected = Expr::TypedString {
             datatype: DataType::Date,
             value: "1992-10-11".to_string(),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn double_colon_cast() {
+        let expr: Expr<_> = parse_ast("4::TEXT").unwrap();
+        let expected = Expr::Cast {
+            datatype: DataType::Varchar(None),
+            expr: Box::new(Expr::Literal(Literal::Number("4".to_string()))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn cast_function() {
+        let expr: Expr<_> = parse_ast("CAST('4.0' AS REAL)").unwrap();
+        let expected = Expr::Cast {
+            datatype: DataType::Real,
+            expr: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                "4.0".to_string(),
+            ))),
         };
         assert_eq!(expected, expr);
     }

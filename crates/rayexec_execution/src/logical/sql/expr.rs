@@ -1,4 +1,5 @@
-use rayexec_bullet::{compute::cast::cast_scalar, field::TypeSchema, scalar::OwnedScalarValue};
+use rayexec_bullet::compute::cast::scalar::cast_scalar;
+use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
@@ -199,8 +200,15 @@ impl<'a> ExpressionContext<'a> {
             }
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.into());
-                let scalar = cast_scalar(scalar, datatype)?;
+                let scalar = cast_scalar(scalar, &datatype)?;
                 Ok(LogicalExpression::Literal(scalar))
+            }
+            ast::Expr::Cast { datatype, expr } => {
+                let expr = self.plan_expression(*expr)?;
+                Ok(LogicalExpression::Cast {
+                    to: datatype,
+                    expr: Box::new(expr),
+                })
             }
 
             _ => unimplemented!(),

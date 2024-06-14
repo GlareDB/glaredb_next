@@ -1,7 +1,7 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray,
-        VarlenValuesBuffer,
+        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, DecimalArray, OffsetIndex,
+        PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
     },
     executor::scalar::UnaryExecutor,
     field::{DataType, TimeUnit},
@@ -19,8 +19,9 @@ use super::{
         UInt64Formatter, UInt8Formatter,
     },
     parse::{
-        Decimal128Parser, Decimal64Parser, Float32Parser, Float64Parser, Int16Parser, Int32Parser,
-        Int64Parser, Int8Parser, Parser, UInt16Parser, UInt32Parser, UInt64Parser, UInt8Parser,
+        BoolParser, Date32Parser, Decimal128Parser, Decimal64Parser, Float32Parser, Float64Parser,
+        Int16Parser, Int32Parser, Int64Parser, Int8Parser, Parser, UInt16Parser, UInt32Parser,
+        UInt64Parser, UInt8Parser,
     },
 };
 
@@ -116,10 +117,32 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        // From Float32
+        (Array::Float32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        // From FLoat64
+        (Array::Float64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
 
         // From Utf8
-        (Array::Utf8(arr), datatype) => cast_from_ut8_array(arr, datatype)?,
-        (Array::LargeUtf8(arr), datatype) => cast_from_ut8_array(arr, datatype)?,
+        (Array::Utf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
+        (Array::LargeUtf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
 
         // To Utf8
         (arr, DataType::Utf8) => Array::Utf8(cast_to_utf8_array(arr)?),
@@ -134,11 +157,12 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
     })
 }
 
-pub fn cast_from_ut8_array<O>(arr: &VarlenArray<str, O>, datatype: &DataType) -> Result<Array>
+pub fn cast_from_utf8_array<O>(arr: &VarlenArray<str, O>, datatype: &DataType) -> Result<Array>
 where
     O: OffsetIndex,
 {
     Ok(match datatype {
+        DataType::Boolean => Array::Boolean(cast_parse_boolean(arr)?),
         DataType::Int8 => Array::Int8(cast_parse_primitive(arr, Int8Parser::default())?),
         DataType::Int16 => Array::Int16(cast_parse_primitive(arr, Int16Parser::default())?),
         DataType::Int32 => Array::Int32(cast_parse_primitive(arr, Int32Parser::default())?),
@@ -157,6 +181,7 @@ where
             let primitive = cast_parse_primitive(arr, Decimal128Parser::new(*p, *s))?;
             Array::Decimal128(DecimalArray::new(*p, *s, primitive))
         }
+        DataType::Date32 => Array::Date32(cast_parse_primitive(arr, Date32Parser)?),
         other => {
             return Err(RayexecError::new(format!(
                 "Unable to cast utf8 array to {other}"
@@ -272,6 +297,21 @@ where
     UnaryExecutor::try_execute(arr, operation, &mut new_values)?;
 
     Ok(PrimitiveArray::new(new_values, arr.validity().cloned()))
+}
+
+fn cast_parse_boolean<O>(arr: &VarlenArray<str, O>) -> Result<BooleanArray>
+where
+    O: OffsetIndex,
+{
+    let mut buf = BooleanValuesBuffer::with_capacity(arr.len());
+    let operation = |val| {
+        BoolParser
+            .parse(val)
+            .ok_or_else(|| RayexecError::new(format!("Failed to parse '{val}'")))
+    };
+    UnaryExecutor::try_execute(arr, operation, &mut buf)?;
+
+    Ok(BooleanArray::new(buf, arr.validity().cloned()))
 }
 
 /// Fallibly cast from primitive type A to primitive type B.

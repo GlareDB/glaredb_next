@@ -9,6 +9,13 @@ pub struct Bitmap {
 }
 
 impl Bitmap {
+    pub fn with_capacity(cap: usize) -> Self {
+        Bitmap {
+            len: 0,
+            data: Vec::with_capacity(cap + 1),
+        }
+    }
+
     /// Create a new bitmap of a given length with all values initialized to the
     /// given value.
     pub fn new_with_val(val: bool, len: usize) -> Self {
