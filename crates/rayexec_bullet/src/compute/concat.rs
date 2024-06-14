@@ -2,7 +2,7 @@ use crate::array::{
     Array, BooleanArray, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray,
     VarlenType,
 };
-use crate::field::{DataType, IntervalUnit};
+use crate::field::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use super::macros::collect_arrays_of_type;
@@ -110,13 +110,9 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
                 .collect::<rayexec_error::Result<Vec<_>>>()?;
             Ok(Array::Timestamp(unit, concat_primitive(arrs.as_slice())))
         }
-        DataType::Interval(IntervalUnit::YearMonth) => {
-            let arrs = collect_arrays_of_type!(arrays, IntervalYearMonth, datatype)?;
-            Ok(Array::IntervalYearMonth(concat_primitive(arrs.as_slice())))
-        }
-        DataType::Interval(IntervalUnit::DayTime) => {
-            let arrs = collect_arrays_of_type!(arrays, IntervalDayTime, datatype)?;
-            Ok(Array::IntervalDayTime(concat_primitive(arrs.as_slice())))
+        DataType::Interval => {
+            let arrs = collect_arrays_of_type!(arrays, Interval, datatype)?;
+            Ok(Array::Interval(concat_primitive(arrs.as_slice())))
         }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;

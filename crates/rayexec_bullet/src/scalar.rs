@@ -1,9 +1,8 @@
 use crate::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    IntervalDayTime, IntervalDayTimeArray, IntervalYearMonth, IntervalYearMonthArray,
-    LargeBinaryArray, LargeUtf8Array, NullArray, TimestampArray, UInt16Array, UInt32Array,
-    UInt64Array, UInt8Array, Utf8Array,
+    Interval, IntervalArray, LargeBinaryArray, LargeUtf8Array, NullArray, TimestampArray,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
 };
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
@@ -12,7 +11,7 @@ use crate::compute::cast::format::{
     TimestampNanosecondsFormatter, TimestampSecondsFormatter, UInt16Formatter, UInt32Formatter,
     UInt64Formatter, UInt8Formatter,
 };
-use crate::field::{DataType, IntervalUnit, TimeUnit};
+use crate::field::{DataType, TimeUnit};
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
 use std::fmt;
@@ -72,11 +71,8 @@ pub enum ScalarValue<'a> {
     /// Timestamp value
     Timestamp(TimeUnit, i64),
 
-    /// A YearMonth interval
-    IntervalYearMonth(IntervalYearMonth),
-
-    /// A DayTime interval
-    IntervalDayTime(IntervalDayTime),
+    /// An interval
+    Interval(Interval),
 
     /// Utf-8 encoded string.
     Utf8(Cow<'a, str>),
@@ -116,8 +112,7 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::Date32(_) => DataType::Date32,
             ScalarValue::Date64(_) => DataType::Date64,
             ScalarValue::Timestamp(unit, _) => DataType::Timestamp(*unit),
-            ScalarValue::IntervalYearMonth(_) => DataType::Interval(IntervalUnit::YearMonth),
-            ScalarValue::IntervalDayTime(_) => DataType::Interval(IntervalUnit::DayTime),
+            ScalarValue::Interval(_) => DataType::Interval,
             ScalarValue::Utf8(_) => DataType::Utf8,
             ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
             ScalarValue::Binary(_) => DataType::Binary,
@@ -147,8 +142,7 @@ impl<'a> ScalarValue<'a> {
             Self::Date32(v) => OwnedScalarValue::Date32(v),
             Self::Date64(v) => OwnedScalarValue::Date64(v),
             Self::Timestamp(unit, v) => OwnedScalarValue::Timestamp(unit, v),
-            Self::IntervalYearMonth(v) => OwnedScalarValue::IntervalYearMonth(v),
-            Self::IntervalDayTime(v) => OwnedScalarValue::IntervalDayTime(v),
+            Self::Interval(v) => OwnedScalarValue::Interval(v),
             Self::Utf8(v) => OwnedScalarValue::Utf8(v.into_owned().into()),
             Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
             Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
@@ -194,12 +188,9 @@ impl<'a> ScalarValue<'a> {
                 *unit,
                 TimestampArray::from_iter(std::iter::repeat(*v).take(n)),
             ),
-            Self::IntervalYearMonth(v) => Array::IntervalYearMonth(
-                IntervalYearMonthArray::from_iter(std::iter::repeat(*v).take(n)),
-            ),
-            Self::IntervalDayTime(v) => Array::IntervalDayTime(IntervalDayTimeArray::from_iter(
-                std::iter::repeat(*v).take(n),
-            )),
+            Self::Interval(v) => {
+                Array::Interval(IntervalArray::from_iter(std::iter::repeat(*v).take(n)))
+            }
             Self::Utf8(v) => {
                 Array::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
             }
@@ -331,8 +322,7 @@ impl fmt::Display for ScalarValue<'_> {
                 TimeUnit::Microsecond => TimestampMicrosecondsFormatter::default().write(v, f),
                 TimeUnit::Nanosecond => TimestampNanosecondsFormatter::default().write(v, f),
             },
-            Self::IntervalYearMonth(v) => write!(f, "{} months", v.months), // TODO
-            Self::IntervalDayTime(v) => write!(f, "{} day {} ms", v.days, v.milliseconds), // TODO
+            Self::Interval(v) => write!(f, "{} months", v.months), // TODO
             Self::Utf8(v) => write!(f, "{}", v),
             Self::LargeUtf8(v) => write!(f, "{}", v),
             Self::Binary(v) => write!(f, "{:X?}", v),

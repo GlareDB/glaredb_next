@@ -113,15 +113,12 @@ impl PrimitiveNumeric for f64 {
     }
 }
 
+/// A representation of an interval.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct IntervalYearMonth {
+pub struct Interval {
     pub months: i32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct IntervalDayTime {
     pub days: i32,
-    pub milliseconds: i32,
+    pub nanos: i64,
 }
 
 /// Array for storing primitive values.
@@ -151,8 +148,7 @@ pub type Float64Array = PrimitiveArray<f64>;
 pub type TimestampArray = PrimitiveArray<i64>;
 pub type Date32Array = PrimitiveArray<i32>;
 pub type Date64Array = PrimitiveArray<i64>;
-pub type IntervalYearMonthArray = PrimitiveArray<IntervalYearMonth>;
-pub type IntervalDayTimeArray = PrimitiveArray<IntervalDayTime>;
+pub type IntervalArray = PrimitiveArray<Interval>;
 
 impl<T> PrimitiveArray<T> {
     pub fn new(values: Vec<T>, validity: Option<Bitmap>) -> Self {

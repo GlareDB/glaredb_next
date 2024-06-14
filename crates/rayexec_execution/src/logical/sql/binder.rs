@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    field::{DataType, IntervalUnit, TimeUnit},
+    field::{DataType, TimeUnit},
     scalar::{
         OwnedScalarValue, DECIMAL_128_MAX_PRECISION, DECIMAL_64_MAX_PRECISION,
         DECIMAL_DEFUALT_SCALE,
@@ -898,8 +898,7 @@ impl<'a> Binder<'a> {
             ast::DataType::Bool => DataType::Boolean,
             ast::DataType::Date => DataType::Date32,
             ast::DataType::Timestamp => DataType::Timestamp(TimeUnit::Microsecond),
-            // TODO: Need more info to get the correct type.
-            ast::DataType::Interval => DataType::Interval(IntervalUnit::DayTime),
+            ast::DataType::Interval => DataType::Interval,
         })
     }
 }
