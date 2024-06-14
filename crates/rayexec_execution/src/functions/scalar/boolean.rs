@@ -3,7 +3,7 @@ use super::{
     SpecializedScalarFunction,
 };
 use crate::functions::{InputTypes, ReturnType, Signature};
-use rayexec_bullet::array::BooleanArrayBuilder;
+use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
@@ -44,9 +44,10 @@ impl SpecializedScalarFunction for AndBool {
             let second = arrays[1];
             Ok(match (first.as_ref(), second.as_ref()) {
                 (Array::Boolean(first), Array::Boolean(second)) => {
-                    let mut builder = BooleanArrayBuilder::new();
-                    BinaryExecutor::execute(first, second, |a, b| a && b, &mut builder)?;
-                    Array::Boolean(builder.into_typed_array())
+                    let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+                    let validity =
+                        BinaryExecutor::execute(first, second, |a, b| a && b, &mut buffer)?;
+                    Array::Boolean(BooleanArray::new(buffer, validity))
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })
@@ -90,9 +91,10 @@ impl SpecializedScalarFunction for OrBool {
             let second = arrays[1];
             Ok(match (first.as_ref(), second.as_ref()) {
                 (Array::Boolean(first), Array::Boolean(second)) => {
-                    let mut builder = BooleanArrayBuilder::new();
-                    BinaryExecutor::execute(first, second, |a, b| a || b, &mut builder)?;
-                    Array::Boolean(builder.into_typed_array())
+                    let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+                    let validity =
+                        BinaryExecutor::execute(first, second, |a, b| a || b, &mut buffer)?;
+                    Array::Boolean(BooleanArray::new(buffer, validity))
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })

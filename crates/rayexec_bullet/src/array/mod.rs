@@ -217,18 +217,18 @@ impl Array {
         ///
         /// `variant` is the enum variant for the Array and ScalarValue.
         macro_rules! iter_scalars_for_type {
-            ($builder:expr, $default:expr, $variant:ident) => {{
-                let mut validity = Bitmap::default();
-                let mut builder = $builder;
+            ($buffer:expr, $variant:ident, $array:ident, $null:expr) => {{
+                let mut bitmap = Bitmap::default();
+                let mut buffer = $buffer;
                 for scalar in scalars {
                     match scalar {
                         ScalarValue::Null => {
-                            validity.push(false);
-                            builder.push_value($default);
+                            bitmap.push(false);
+                            buffer.push_value($null);
                         }
                         ScalarValue::$variant(v) => {
-                            validity.push(true);
-                            builder.push_value(v);
+                            bitmap.push(true);
+                            buffer.push_value(v);
                         }
                         other => {
                             return Err(RayexecError::new(format!(
@@ -237,8 +237,8 @@ impl Array {
                         }
                     }
                 }
-                builder.put_validity(validity);
-                Ok(Array::$variant(builder.into_typed_array()))
+                let arr = $array::new(buffer, Some(bitmap));
+                Ok(Array::$variant(arr))
             }};
         }
 
@@ -259,36 +259,41 @@ impl Array {
                 }
                 Ok(Array::Null(NullArray::new(len)))
             }
-            DataType::Boolean => iter_scalars_for_type!(BooleanArrayBuilder::new(), false, Boolean),
+            DataType::Boolean => iter_scalars_for_type!(
+                BooleanValuesBuffer::with_capacity(cap),
+                Boolean,
+                BooleanArray,
+                false
+            ),
             DataType::Float32 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0.0, Float32)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Float32, PrimitiveArray, 0.0)
             }
             DataType::Float64 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0.0, Float64)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Float64, PrimitiveArray, 0.0)
             }
             DataType::Int8 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int8)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int8, PrimitiveArray, 0)
             }
             DataType::Int16 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int16)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int16, PrimitiveArray, 0)
             }
             DataType::Int32 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int32)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int32, PrimitiveArray, 0)
             }
             DataType::Int64 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int64)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int64, PrimitiveArray, 0)
             }
             DataType::UInt8 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt8)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt8, PrimitiveArray, 0)
             }
             DataType::UInt16 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt16)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt16, PrimitiveArray, 0)
             }
             DataType::UInt32 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt32)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt32, PrimitiveArray, 0)
             }
             DataType::UInt64 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt64)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt64, PrimitiveArray, 0)
             }
             DataType::Decimal64(_p, _s) => {
                 unimplemented!()
@@ -297,23 +302,23 @@ impl Array {
                 unimplemented!()
             }
             DataType::Date32 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Date32)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Date32, PrimitiveArray, 0)
             }
             DataType::Date64 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Date64)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Date64, PrimitiveArray, 0)
             }
             DataType::Timestamp(unit) => {
-                let mut validity = Bitmap::default();
-                let mut builder = PrimitiveArrayBuilder::with_capacity(cap);
+                let mut bitmap = Bitmap::default();
+                let mut buffer = Vec::with_capacity(cap);
                 for scalar in scalars {
                     match scalar {
                         ScalarValue::Null => {
-                            validity.push(false);
-                            builder.push_value(0);
+                            bitmap.push(false);
+                            buffer.push_null();
                         }
                         ScalarValue::Timestamp(_, v) => {
-                            validity.push(true);
-                            builder.push_value(v);
+                            bitmap.push(true);
+                            buffer.push_value(v);
                         }
                         other => {
                             return Err(RayexecError::new(format!(
@@ -322,31 +327,40 @@ impl Array {
                         }
                     }
                 }
-                builder.put_validity(validity);
-                Ok(Array::Timestamp(unit, builder.into_typed_array()))
+                Ok(Array::Timestamp(
+                    unit,
+                    PrimitiveArray::new(buffer, Some(bitmap)),
+                ))
             }
             DataType::Interval => {
                 iter_scalars_for_type!(
-                    PrimitiveArrayBuilder::with_capacity(cap),
-                    Interval {
-                        months: 0,
-                        days: 0,
-                        nanos: 0
-                    },
-                    Interval
+                    Vec::with_capacity(cap),
+                    Interval,
+                    PrimitiveArray,
+                    Interval::default()
                 )
             }
             DataType::Utf8 => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), Utf8)
+                iter_scalars_for_type!(VarlenValuesBuffer::default(), Utf8, VarlenArray, "")
             }
             DataType::LargeUtf8 => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), LargeUtf8)
+                iter_scalars_for_type!(VarlenValuesBuffer::default(), LargeUtf8, VarlenArray, "")
             }
             DataType::Binary => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), (&[]).into(), Binary)
+                iter_scalars_for_type!(
+                    VarlenValuesBuffer::default(),
+                    Binary,
+                    VarlenArray,
+                    &[] as &[u8]
+                )
             }
             DataType::LargeBinary => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), (&[]).into(), LargeBinary)
+                iter_scalars_for_type!(
+                    VarlenValuesBuffer::default(),
+                    LargeBinary,
+                    VarlenArray,
+                    &[] as &[u8]
+                )
             }
             DataType::Struct { .. } => Err(RayexecError::new(
                 "Cannot build a struct array from struct scalars",
@@ -377,17 +391,12 @@ pub trait ArrayAccessor<T: ?Sized> {
     fn validity(&self) -> Option<&Bitmap>;
 }
 
-/// Utility trait for building up a new array.
-pub trait ArrayBuilder<T: ?Sized> {
-    /// Push a value onto the builder.
-    fn push_value(&mut self, value: T);
-
-    /// Put a validity bitmap on the array.
-    fn put_validity(&mut self, validity: Bitmap);
-}
-
+/// Storage for result values when executing operations on an array.
 pub trait ValuesBuffer<T: ?Sized> {
+    /// Put a computed value onto the buffer.
     fn push_value(&mut self, value: T);
+
+    /// Push a dummy value for null.
     fn push_null(&mut self);
 }
 

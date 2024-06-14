@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 
 use crate::{
-    array::{ArrayAccessor, ArrayBuilder},
+    array::{ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
 };
 
@@ -160,14 +160,14 @@ pub struct StateFinalizer;
 impl StateFinalizer {
     pub fn finalize<S, T, O>(
         states: impl IntoIterator<Item = S>,
-        builder: &mut impl ArrayBuilder<O>,
+        buffer: &mut impl ValuesBuffer<O>,
     ) -> Result<()>
     where
         S: AggregateState<T, O>,
     {
         for state in states {
             let out = state.finalize()?;
-            builder.push_value(out);
+            buffer.push_value(out);
         }
 
         Ok(())

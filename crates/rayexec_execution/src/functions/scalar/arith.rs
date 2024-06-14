@@ -4,7 +4,7 @@ use super::{
     specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
     SpecializedScalarFunction,
 };
-use rayexec_bullet::array::PrimitiveArrayBuilder;
+use rayexec_bullet::array::PrimitiveArray;
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
@@ -72,9 +72,10 @@ macro_rules! generate_specialized_binary_numeric {
                     let second = arrays[1];
                     Ok(match (first.as_ref(), second.as_ref()) {
                         (Array::$first_variant(first), Array::$second_variant(second)) => {
-                            let mut builder = PrimitiveArrayBuilder::with_capacity(first.len());
-                            BinaryExecutor::execute(first, second, $operation, &mut builder)?;
-                            Array::$output_variant(builder.into_typed_array())
+                            let mut buffer = Vec::with_capacity(first.len());
+                            let validity =
+                                BinaryExecutor::execute(first, second, $operation, &mut buffer)?;
+                            Array::$output_variant(PrimitiveArray::new(buffer, validity))
                         }
                         other => panic!("unexpected array type: {other:?}"),
                     })

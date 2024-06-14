@@ -3,7 +3,7 @@ use super::{
     SpecializedScalarFunction,
 };
 use crate::functions::{InputTypes, ReturnType, Signature};
-use rayexec_bullet::array::{BooleanArrayBuilder, PrimitiveArrayBuilder};
+use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer, PrimitiveArray};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
@@ -26,9 +26,12 @@ macro_rules! generate_specialized_unary_numeric {
                     let array = arrays[0];
                     Ok(match array.as_ref() {
                         Array::$input_variant(array) => {
-                            let mut builder = PrimitiveArrayBuilder::with_capacity(array.len());
-                            UnaryExecutor::execute(array, $operation, &mut builder)?;
-                            Array::$output_variant(builder.into_typed_array())
+                            let mut buffer = Vec::with_capacity(array.len());
+                            UnaryExecutor::execute(array, $operation, &mut buffer)?;
+                            Array::$output_variant(PrimitiveArray::new(
+                                buffer,
+                                array.validity().cloned(),
+                            ))
                         }
                         other => panic!("unexpected array type: {other:?}"),
                     })
@@ -80,9 +83,9 @@ impl SpecializedScalarFunction for IsNanFloat32 {
             let array = arrays[0];
             Ok(match array.as_ref() {
                 Array::Float32(array) => {
-                    let mut builder = BooleanArrayBuilder::new();
-                    UnaryExecutor::execute(array, |f| f.is_nan(), &mut builder)?;
-                    Array::Boolean(builder.into_typed_array())
+                    let mut buffer = BooleanValuesBuffer::with_capacity(array.len());
+                    UnaryExecutor::execute(array, |f| f.is_nan(), &mut buffer)?;
+                    Array::Boolean(BooleanArray::new(buffer, array.validity().cloned()))
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })
@@ -101,9 +104,9 @@ impl SpecializedScalarFunction for IsNanFloat64 {
             let array = arrays[0];
             Ok(match array.as_ref() {
                 Array::Float64(array) => {
-                    let mut builder = BooleanArrayBuilder::new();
-                    UnaryExecutor::execute(array, |f| f.is_nan(), &mut builder)?;
-                    Array::Boolean(builder.into_typed_array())
+                    let mut buffer = BooleanValuesBuffer::with_capacity(array.len());
+                    UnaryExecutor::execute(array, |f| f.is_nan(), &mut buffer)?;
+                    Array::Boolean(BooleanArray::new(buffer, array.validity().cloned()))
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })

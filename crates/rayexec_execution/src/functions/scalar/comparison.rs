@@ -3,7 +3,7 @@ use super::{
     SpecializedScalarFunction,
 };
 use crate::functions::{InputTypes, ReturnType, Signature};
-use rayexec_bullet::array::BooleanArrayBuilder;
+use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
@@ -85,9 +85,10 @@ macro_rules! generate_specialized_comparison {
                     let second = arrays[1];
                     Ok(match (first.as_ref(), second.as_ref()) {
                         (Array::$first_variant(first), Array::$second_variant(second)) => {
-                            let mut builder = BooleanArrayBuilder::new();
-                            BinaryExecutor::execute(first, second, $operation, &mut builder)?;
-                            Array::Boolean(builder.into_typed_array())
+                            let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+                            let validity =
+                                BinaryExecutor::execute(first, second, $operation, &mut buffer)?;
+                            Array::Boolean(BooleanArray::new(buffer, validity))
                         }
                         other => panic!("unexpected array type: {other:?}"),
                     })

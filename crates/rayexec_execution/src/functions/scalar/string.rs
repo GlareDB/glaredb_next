@@ -3,7 +3,7 @@ use super::{
     SpecializedScalarFunction,
 };
 use crate::functions::{InputTypes, ReturnType, Signature};
-use rayexec_bullet::array::VarlenArrayBuilder;
+use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
@@ -51,14 +51,14 @@ impl SpecializedScalarFunction for RepeatUtf8 {
             let nums = arrays[1];
             Ok(match (strings.as_ref(), nums.as_ref()) {
                 (Array::Utf8(strings), Array::Int64(nums)) => {
-                    let mut builder = VarlenArrayBuilder::new();
-                    BinaryExecutor::execute(
+                    let mut buffer = VarlenValuesBuffer::default();
+                    let validity = BinaryExecutor::execute(
                         strings,
                         nums,
                         |s, count| s.repeat(count as usize),
-                        &mut builder,
+                        &mut buffer,
                     )?;
-                    Array::Utf8(builder.into_typed_array())
+                    Array::Utf8(VarlenArray::new(buffer, validity))
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })
@@ -78,14 +78,14 @@ impl SpecializedScalarFunction for RepeatLargeUtf8 {
             let nums = arrays[1];
             Ok(match (strings.as_ref(), nums.as_ref()) {
                 (Array::LargeUtf8(strings), Array::Int64(nums)) => {
-                    let mut builder = VarlenArrayBuilder::new();
-                    BinaryExecutor::execute(
+                    let mut buffer = VarlenValuesBuffer::default();
+                    let validity = BinaryExecutor::execute(
                         strings,
                         nums,
                         |s, count| s.repeat(count as usize),
-                        &mut builder,
+                        &mut buffer,
                     )?;
-                    Array::LargeUtf8(builder.into_typed_array())
+                    Array::LargeUtf8(VarlenArray::new(buffer, validity))
                 }
                 other => panic!("unexpected array type: {other:?}"),
             })

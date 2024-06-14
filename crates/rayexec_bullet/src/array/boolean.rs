@@ -1,7 +1,7 @@
 use crate::bitmap::{Bitmap, BitmapIter};
 use std::fmt::Debug;
 
-use super::{ArrayAccessor, ArrayBuilder, ValuesBuffer};
+use super::{ArrayAccessor, ValuesBuffer};
 
 #[derive(Debug, PartialEq)]
 pub struct BooleanValuesBuffer {
@@ -189,15 +189,5 @@ impl BooleanArrayBuilder {
             validity: self.validity,
             values: self.values,
         }
-    }
-}
-
-impl ArrayBuilder<bool> for BooleanArrayBuilder {
-    fn push_value(&mut self, value: bool) {
-        self.values.push(value)
-    }
-
-    fn put_validity(&mut self, validity: Bitmap) {
-        self.validity = Some(validity)
     }
 }

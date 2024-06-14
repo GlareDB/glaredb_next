@@ -1,5 +1,5 @@
 use rayexec_bullet::{
-    array::{Array, PrimitiveArrayBuilder, UnitArrayAccessor},
+    array::{Array, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
     executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
     field::DataType,
@@ -50,9 +50,9 @@ impl SpecializedAggregateFunction for CountNonNull {
         };
 
         let finalize_fn = |states: vec::Drain<'_, _>| {
-            let mut builder = PrimitiveArrayBuilder::with_capacity(states.len());
-            StateFinalizer::finalize(states, &mut builder)?;
-            Ok(Array::Int64(builder.into_typed_array()))
+            let mut buffer = Vec::with_capacity(states.len());
+            StateFinalizer::finalize(states, &mut buffer)?;
+            Ok(Array::Int64(PrimitiveArray::new(buffer, None)))
         };
 
         Box::new(DefaultGroupedStates::new(

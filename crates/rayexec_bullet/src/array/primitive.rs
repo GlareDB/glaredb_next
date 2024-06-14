@@ -4,7 +4,7 @@ use crate::storage::PrimitiveStorage;
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 
-use super::{is_valid, ArrayAccessor, ArrayBuilder};
+use super::{is_valid, ArrayAccessor};
 
 pub trait PrimitiveNumeric: Sized {
     const MIN_VALUE: Self;
@@ -401,16 +401,6 @@ impl<T> PrimitiveArrayBuilder<T> {
             validity: self.validity,
             values: self.values.into(),
         }
-    }
-}
-
-impl<T> ArrayBuilder<T> for PrimitiveArrayBuilder<T> {
-    fn push_value(&mut self, value: T) {
-        self.values.push(value);
-    }
-
-    fn put_validity(&mut self, validity: Bitmap) {
-        self.validity = Some(validity);
     }
 }
 

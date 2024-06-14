@@ -1,7 +1,8 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, ArrayBuilder, BooleanArray, BooleanArrayBuilder, OffsetIndex,
-        PrimitiveArray, PrimitiveArrayBuilder, VarlenArray, VarlenType,
+        Array, ArrayAccessor, BooleanArray, BooleanArrayBuilder, BooleanValuesBuffer, OffsetIndex,
+        PrimitiveArray, PrimitiveArrayBuilder, ValuesBuffer, VarlenArray, VarlenType,
+        VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -44,21 +45,21 @@ pub fn slice_boolean(arr: &BooleanArray, start: usize, count: usize) -> Result<B
         )));
     }
 
-    let mut builder = BooleanArrayBuilder::new();
+    let mut buffer = BooleanValuesBuffer::with_capacity(count);
     arr.values_iter()
         .skip(start)
         .take(count)
-        .for_each(|val| builder.push_value(val));
+        .for_each(|val| buffer.push_value(val));
 
-    if let Some(validity) = arr.validity() {
-        let new_validity = Bitmap::from_iter(validity.iter().skip(start).take(count));
-        builder.put_validity(new_validity);
-    }
+    let validity = match arr.validity() {
+        Some(validity) => Some(Bitmap::from_iter(validity.iter().skip(start).take(count))),
+        None => None,
+    };
 
-    Ok(builder.into_typed_array())
+    Ok(BooleanArray::new(buffer, validity))
 }
 
-pub fn slice_primitive<T: Copy>(
+pub fn slice_primitive<T: Copy + Default>(
     arr: &PrimitiveArray<T>,
     start: usize,
     count: usize,
@@ -72,17 +73,17 @@ pub fn slice_primitive<T: Copy>(
 
     let vals = arr.values_iter();
 
-    let mut builder = PrimitiveArrayBuilder::with_capacity(arr.len());
+    let mut buffer = Vec::with_capacity(arr.len());
     vals.skip(start)
         .take(count)
-        .for_each(|val| builder.push_value(val));
+        .for_each(|val| buffer.push_value(val));
 
-    if let Some(validity) = arr.validity() {
-        let new_validity = Bitmap::from_iter(validity.iter().skip(start).take(count));
-        builder.put_validity(new_validity);
-    }
+    let validity = match arr.validity() {
+        Some(validity) => Some(Bitmap::from_iter(validity.iter().skip(start).take(count))),
+        None => None,
+    };
 
-    Ok(builder.into_typed_array())
+    Ok(PrimitiveArray::new(buffer, validity))
 }
 
 pub fn slice_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
@@ -98,14 +99,18 @@ pub fn slice_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     }
 
     let vals = arr.values_iter();
-    let mut new_arr = VarlenArray::from_iter(vals.skip(start).take(count));
 
-    if let Some(validity) = arr.validity() {
-        let new_validity = Bitmap::from_iter(validity.iter().skip(start).take(count));
-        new_arr.put_validity(new_validity);
-    }
+    let mut buffer = VarlenValuesBuffer::default();
+    vals.skip(start)
+        .take(count)
+        .for_each(|val| buffer.push_value(val));
 
-    Ok(new_arr)
+    let validity = match arr.validity() {
+        Some(validity) => Some(Bitmap::from_iter(validity.iter().skip(start).take(count))),
+        None => None,
+    };
+
+    Ok(VarlenArray::new(buffer, validity))
 }
 
 #[cfg(test)]
