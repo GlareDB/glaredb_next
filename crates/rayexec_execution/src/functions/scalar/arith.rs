@@ -4,7 +4,7 @@ use super::{
     specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
     SpecializedScalarFunction,
 };
-use rayexec_bullet::array::PrimitiveArray;
+use rayexec_bullet::array::{Interval, PrimitiveArray};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
@@ -12,6 +12,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 /// Signatures for primitive arith operations (+, -, /, *, %)
+// TODO: This needs to be placed directly into the functions and not shared
+// since some operations apply to intervals/dates, but not others.
 const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     Signature {
         input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
@@ -52,6 +54,14 @@ const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     Signature {
         input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
         return_type: ReturnType::Static(DataType::UInt64),
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::Date32, DataType::Int64]),
+        return_type: ReturnType::Static(DataType::Date32),
+    },
+    Signature {
+        input: InputTypes::Exact(&[DataType::Interval, DataType::Int64]),
+        return_type: ReturnType::Static(DataType::Interval),
     },
 ];
 
@@ -116,6 +126,7 @@ impl GenericScalarFunction for Add {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(AddUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(AddUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(AddUInt64)),
+            (DataType::Date32, DataType::Int64) => Ok(Box::new(AddDate32Int64)),
             (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
         }
     }
@@ -131,6 +142,9 @@ generate_specialized_binary_numeric!(AddUInt8, UInt8, UInt8, UInt8, |a, b| a + b
 generate_specialized_binary_numeric!(AddUInt16, UInt16, UInt16, UInt16, |a, b| a + b);
 generate_specialized_binary_numeric!(AddUInt32, UInt32, UInt32, UInt32, |a, b| a + b);
 generate_specialized_binary_numeric!(AddUInt64, UInt64, UInt64, UInt64, |a, b| a + b);
+
+// Date32 is stored as "days", so just add the values.
+generate_specialized_binary_numeric!(AddDate32Int64, Date32, Int64, Date32, |a, b| a + b as i32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sub;
@@ -161,6 +175,7 @@ impl GenericScalarFunction for Sub {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(SubUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(SubUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(SubUInt64)),
+            (DataType::Date32, DataType::Int64) => Ok(Box::new(SubDate32Int64)),
             (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
         }
     }
@@ -176,6 +191,8 @@ generate_specialized_binary_numeric!(SubUInt8, UInt8, UInt8, UInt8, |a, b| a - b
 generate_specialized_binary_numeric!(SubUInt16, UInt16, UInt16, UInt16, |a, b| a - b);
 generate_specialized_binary_numeric!(SubUInt32, UInt32, UInt32, UInt32, |a, b| a - b);
 generate_specialized_binary_numeric!(SubUInt64, UInt64, UInt64, UInt64, |a, b| a - b);
+
+generate_specialized_binary_numeric!(SubDate32Int64, Date32, Int64, Date32, |a, b| a - b as i32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Div;
@@ -251,6 +268,7 @@ impl GenericScalarFunction for Mul {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(MulUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(MulUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(MulUInt64)),
+            (DataType::Interval, DataType::Int64) => Ok(Box::new(MulIntervalInt64)),
             (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
         }
     }
@@ -266,6 +284,18 @@ generate_specialized_binary_numeric!(MulUInt8, UInt8, UInt8, UInt8, |a, b| a * b
 generate_specialized_binary_numeric!(MulUInt16, UInt16, UInt16, UInt16, |a, b| a * b);
 generate_specialized_binary_numeric!(MulUInt32, UInt32, UInt32, UInt32, |a, b| a * b);
 generate_specialized_binary_numeric!(MulUInt64, UInt64, UInt64, UInt64, |a, b| a * b);
+
+generate_specialized_binary_numeric!(
+    MulIntervalInt64,
+    Interval,
+    Int64,
+    Interval,
+    |interval, v| Interval {
+        months: interval.months * (v as i32),
+        days: interval.days * (v as i32),
+        nanos: interval.nanos * v,
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rem;

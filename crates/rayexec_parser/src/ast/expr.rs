@@ -233,6 +233,7 @@ impl Expr<Raw> {
     const PREC_ADD_SUB: u8 = 80;
     const PREC_MUL_DIV_MOD: u8 = 90;
     const _PREC_EXPONENTIATION: u8 = 100;
+    const PREC_UNARY_MINUS: u8 = 105;
     const _PREC_AT: u8 = 110; // AT TIME ZONE
     const _PREC_COLLATE: u8 = 120;
     const PREC_ARRAY_ELEM: u8 = 130; // []
@@ -346,6 +347,14 @@ impl Expr<Raw> {
                 parser.expect_token(&Token::RightParen)?;
                 expr
             }
+            Token::Minus => Expr::UnaryExpr {
+                op: UnaryOperator::Minus,
+                expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_UNARY_MINUS)?),
+            },
+            Token::Plus => Expr::UnaryExpr {
+                op: UnaryOperator::Plus,
+                expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_UNARY_MINUS)?),
+            },
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected token '{other:?}'. Expected expression."
@@ -667,7 +676,10 @@ pub struct Interval<T: AstMeta> {
 
 impl AstParseable for Interval<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
-        let expr = Expr::parse(parser)?;
+        // TODO: Determine if this is the right precedence. It should be pretty
+        // high, but how high?
+        let expr = Expr::parse_subexpr(parser, Expr::PREC_CAST)?;
+
         let trailing = parser.maybe_parse(IntervalUnit::parse);
 
         Ok(Interval {
@@ -681,6 +693,7 @@ impl AstParseable for Interval<Raw> {
 #[cfg(test)]
 mod tests {
     use crate::ast::testutil::parse_ast;
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -871,5 +884,49 @@ mod tests {
             trailing: Some(IntervalUnit::Year),
         });
         assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn interval_binary_expr() {
+        let expr: Expr<_> = parse_ast("INTERVAL '1 year' * 3").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Interval(Interval {
+                value: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                    "1 year".to_string(),
+                ))),
+                leading: None,
+                trailing: None,
+            })),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::Literal(Literal::Number("3".to_string()))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn unary_minus() {
+        let expr: Expr<_> = parse_ast("-12").unwrap();
+        let expected = Expr::UnaryExpr {
+            op: UnaryOperator::Minus,
+            expr: Box::new(Expr::Literal(Literal::Number("12".to_string()))),
+        };
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn unary_minus_bind_right() {
+        let expr: Expr<_> = parse_ast("-12 * -23").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::UnaryExpr {
+                op: UnaryOperator::Minus,
+                expr: Box::new(Expr::Literal(Literal::Number("12".to_string()))),
+            }),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::UnaryExpr {
+                op: UnaryOperator::Minus,
+                expr: Box::new(Expr::Literal(Literal::Number("23".to_string()))),
+            }),
+        };
+        assert_eq!(expected, expr)
     }
 }

@@ -1,0 +1,21 @@
+# SUM
+
+query I
+select sum(1);
+----
+1
+
+query I
+select sum(v) from generate_series(1, 1000) as s(v);
+----
+500500
+
+# query I
+# select sum(v) from generate_series(1, -1000, -1) as s(v);
+# ----
+# -500499
+
+query I
+select sum(a) from (values (-1), (-8), (2)) v(a);
+----
+-7

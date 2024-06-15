@@ -1,6 +1,7 @@
 pub mod arith;
 pub mod boolean;
 pub mod comparison;
+pub mod negate;
 pub mod numeric;
 pub mod string;
 pub mod struct_funcs;
@@ -41,6 +42,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> =
         Box::new(string::Repeat),
         // Struct
         Box::new(struct_funcs::StructPack),
+        // Unary
+        Box::new(negate::Negate),
     ]
 });
 

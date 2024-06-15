@@ -56,6 +56,10 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
         return_type: ReturnType::Static(DataType::Boolean),
     },
     Signature {
+        input: InputTypes::Exact(&[DataType::Date32, DataType::Date32]),
+        return_type: ReturnType::Static(DataType::Boolean),
+    },
+    Signature {
         input: InputTypes::Exact(&[DataType::Utf8, DataType::Utf8]),
         return_type: ReturnType::Static(DataType::Boolean),
     },
@@ -125,6 +129,7 @@ impl GenericScalarFunction for Eq {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(EqUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(EqUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(EqUInt64)),
+            (DataType::Date32, DataType::Date32) => Ok(Box::new(EqDate32)),
             (DataType::Utf8, DataType::Utf8) => Ok(Box::new(EqUtf8)),
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(EqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(EqBinary)),
@@ -144,6 +149,7 @@ generate_specialized_comparison!(EqUInt8, UInt8, UInt8, |a, b| a == b);
 generate_specialized_comparison!(EqUInt16, UInt16, UInt16, |a, b| a == b);
 generate_specialized_comparison!(EqUInt32, UInt32, UInt32, |a, b| a == b);
 generate_specialized_comparison!(EqUInt64, UInt64, UInt64, |a, b| a == b);
+generate_specialized_comparison!(EqDate32, Date32, Date32, |a, b| a == b);
 generate_specialized_comparison!(EqUtf8, Utf8, Utf8, |a, b| a == b);
 generate_specialized_comparison!(EqLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a == b);
 generate_specialized_comparison!(EqBinary, Binary, Binary, |a, b| a == b);
@@ -178,6 +184,7 @@ impl GenericScalarFunction for Neq {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(NeqUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(NeqUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(NeqUInt64)),
+            (DataType::Date32, DataType::Date32) => Ok(Box::new(NeqDate32)),
             (DataType::Utf8, DataType::Utf8) => Ok(Box::new(NeqUtf8)),
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(NeqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(NeqBinary)),
@@ -197,6 +204,7 @@ generate_specialized_comparison!(NeqUInt8, UInt8, UInt8, |a, b| a != b);
 generate_specialized_comparison!(NeqUInt16, UInt16, UInt16, |a, b| a != b);
 generate_specialized_comparison!(NeqUInt32, UInt32, UInt32, |a, b| a != b);
 generate_specialized_comparison!(NeqUInt64, UInt64, UInt64, |a, b| a != b);
+generate_specialized_comparison!(NeqDate32, Date32, Date32, |a, b| a != b);
 generate_specialized_comparison!(NeqUtf8, Utf8, Utf8, |a, b| a != b);
 generate_specialized_comparison!(NeqLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a != b);
 generate_specialized_comparison!(NeqBinary, Binary, Binary, |a, b| a != b);
@@ -227,6 +235,7 @@ impl GenericScalarFunction for Lt {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(LtUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(LtUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(LtUInt64)),
+            (DataType::Date32, DataType::Date32) => Ok(Box::new(LtDate32)),
             (DataType::Utf8, DataType::Utf8) => Ok(Box::new(LtUtf8)),
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(LtLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(LtBinary)),
@@ -246,6 +255,7 @@ generate_specialized_comparison!(LtUInt8, UInt8, UInt8, |a, b| a < b);
 generate_specialized_comparison!(LtUInt16, UInt16, UInt16, |a, b| a < b);
 generate_specialized_comparison!(LtUInt32, UInt32, UInt32, |a, b| a < b);
 generate_specialized_comparison!(LtUInt64, UInt64, UInt64, |a, b| a < b);
+generate_specialized_comparison!(LtDate32, Date32, Date32, |a, b| a < b);
 generate_specialized_comparison!(LtUtf8, Utf8, Utf8, |a, b| a < b);
 generate_specialized_comparison!(LtLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a < b);
 generate_specialized_comparison!(LtBinary, Binary, Binary, |a, b| a < b);
@@ -276,6 +286,7 @@ impl GenericScalarFunction for LtEq {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(LtEqUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(LtEqUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(LtEqUInt64)),
+            (DataType::Date32, DataType::Date32) => Ok(Box::new(LtEqDate32)),
             (DataType::Utf8, DataType::Utf8) => Ok(Box::new(LtEqUtf8)),
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(LtEqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(LtEqBinary)),
@@ -295,6 +306,7 @@ generate_specialized_comparison!(LtEqUInt8, UInt8, UInt8, |a, b| a <= b);
 generate_specialized_comparison!(LtEqUInt16, UInt16, UInt16, |a, b| a <= b);
 generate_specialized_comparison!(LtEqUInt32, UInt32, UInt32, |a, b| a <= b);
 generate_specialized_comparison!(LtEqUInt64, UInt64, UInt64, |a, b| a <= b);
+generate_specialized_comparison!(LtEqDate32, Date32, Date32, |a, b| a <= b);
 generate_specialized_comparison!(LtEqUtf8, Utf8, Utf8, |a, b| a <= b);
 generate_specialized_comparison!(LtEqLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a <= b);
 generate_specialized_comparison!(LtEqBinary, Binary, Binary, |a, b| a <= b);
@@ -325,6 +337,7 @@ impl GenericScalarFunction for Gt {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(GtUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(GtUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(GtUInt64)),
+            (DataType::Date32, DataType::Date32) => Ok(Box::new(GtDate32)),
             (DataType::Utf8, DataType::Utf8) => Ok(Box::new(GtUtf8)),
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(GtLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(GtBinary)),
@@ -344,6 +357,7 @@ generate_specialized_comparison!(GtUInt8, UInt8, UInt8, |a, b| a > b);
 generate_specialized_comparison!(GtUInt16, UInt16, UInt16, |a, b| a > b);
 generate_specialized_comparison!(GtUInt32, UInt32, UInt32, |a, b| a > b);
 generate_specialized_comparison!(GtUInt64, UInt64, UInt64, |a, b| a > b);
+generate_specialized_comparison!(GtDate32, Date32, Date32, |a, b| a > b);
 generate_specialized_comparison!(GtUtf8, Utf8, Utf8, |a, b| a > b);
 generate_specialized_comparison!(GtLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a > b);
 generate_specialized_comparison!(GtBinary, Binary, Binary, |a, b| a > b);
@@ -374,6 +388,7 @@ impl GenericScalarFunction for GtEq {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(GtEqUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(GtEqUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(GtEqUInt64)),
+            (DataType::Date32, DataType::Date32) => Ok(Box::new(GtEqDate32)),
             (DataType::Utf8, DataType::Utf8) => Ok(Box::new(GtEqUtf8)),
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(GtEqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(GtEqBinary)),
@@ -393,6 +408,7 @@ generate_specialized_comparison!(GtEqUInt8, UInt8, UInt8, |a, b| a >= b);
 generate_specialized_comparison!(GtEqUInt16, UInt16, UInt16, |a, b| a >= b);
 generate_specialized_comparison!(GtEqUInt32, UInt32, UInt32, |a, b| a >= b);
 generate_specialized_comparison!(GtEqUInt64, UInt64, UInt64, |a, b| a >= b);
+generate_specialized_comparison!(GtEqDate32, Date32, Date32, |a, b| a >= b);
 generate_specialized_comparison!(GtEqUtf8, Utf8, Utf8, |a, b| a >= b);
 generate_specialized_comparison!(GtEqLargeUtf8, LargeUtf8, LargeUtf8, |a, b| a >= b);
 generate_specialized_comparison!(GtEqBinary, Binary, Binary, |a, b| a >= b);

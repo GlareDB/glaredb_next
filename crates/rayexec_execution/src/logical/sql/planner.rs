@@ -1186,7 +1186,7 @@ impl<'a> PlanContext<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::functions::aggregate::numeric::Sum;
+    use crate::functions::aggregate::sum::Sum;
 
     use super::*;
 

@@ -20,6 +20,11 @@ select '1.001'::DECIMAL(3, 2)
 ----
 1.00
 
+# TODO: Shoudl error
+# statement error
+# select '1.23'::decimal(8, 8);
+# ----
+
 # TODO: Failed to parse '123.001'
 # query R
 # select '123.001'::DECIMAL(3, -2)

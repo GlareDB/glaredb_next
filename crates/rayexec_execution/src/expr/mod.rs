@@ -63,10 +63,22 @@ impl PhysicalScalarExpression {
                 PhysicalScalarExpression::Column(col)
             }
             LogicalExpression::Literal(lit) => PhysicalScalarExpression::Literal(lit),
-            // LogicalExpression::Unary { op, expr } => PhysicalScalarExpression::Unary {
-            //     op,
-            //     expr: Box::new(Self::try_from_uncorrelated_expr(*expr, t)?),
-            // },
+            LogicalExpression::Unary { op, expr } => {
+                let datatype = expr.datatype(input, &[])?;
+                let input = PhysicalScalarExpression::try_from_uncorrelated_expr(*expr, input)?;
+
+                match op.scalar_function() {
+                    scalar::PossibleNoop::Function(func) => {
+                        let specialized = func.specialize(&[datatype])?;
+
+                        PhysicalScalarExpression::ScalarFunction {
+                            function: specialized,
+                            inputs: vec![input],
+                        }
+                    }
+                    scalar::PossibleNoop::Noop => input,
+                }
+            }
             LogicalExpression::Binary { op, left, right } => {
                 let left_datatype = left.datatype(input, &[])?;
                 let right_datatype = right.datatype(input, &[])?;

@@ -1,5 +1,5 @@
 pub mod count;
-pub mod numeric;
+pub mod sum;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
@@ -16,7 +16,7 @@ use std::{
 use super::{ReturnType, Signature};
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
-    Lazy::new(|| vec![Box::new(numeric::Sum), Box::new(count::Count)]);
+    Lazy::new(|| vec![Box::new(sum::Sum), Box::new(count::Count)]);
 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.

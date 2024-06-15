@@ -233,7 +233,7 @@ impl<'a> ExpressionContext<'a> {
                         //
                         // This builds on top of our existing casting/function
                         // dispatch rules. It's assumed that we have a
-                        // `mul(int64, interval)` function (and similar).
+                        // `mul(interval, int64)` function (and similar).
 
                         let const_interval = match trailing {
                             ast::IntervalUnit::Year => Interval::new(12, 0, 0),
@@ -262,10 +262,10 @@ impl<'a> ExpressionContext<'a> {
 
                         Ok(LogicalExpression::Binary {
                             op: BinaryOperator::Multiply,
-                            left: Box::new(expr),
-                            right: Box::new(LogicalExpression::Literal(ScalarValue::Interval(
+                            left: Box::new(LogicalExpression::Literal(ScalarValue::Interval(
                                 const_interval,
                             ))),
+                            right: Box::new(expr),
                         })
                     }
                     None => Ok(LogicalExpression::Cast {

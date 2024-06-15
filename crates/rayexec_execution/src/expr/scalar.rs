@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::fmt;
 
-use crate::functions::scalar::{arith, boolean, comparison, GenericScalarFunction};
+use crate::functions::scalar::{arith, boolean, comparison, negate, GenericScalarFunction};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnaryOperator {
@@ -12,7 +12,22 @@ pub enum UnaryOperator {
     IsNull,
     IsNotNull,
     Negate,
-    Cast { to: DataType },
+    Identity,
+}
+
+pub enum PossibleNoop<'a> {
+    Function(&'a dyn GenericScalarFunction),
+    Noop,
+}
+
+impl UnaryOperator {
+    pub fn scalar_function(&self) -> PossibleNoop {
+        match self {
+            Self::Negate => PossibleNoop::Function(&negate::Negate),
+            Self::Identity => PossibleNoop::Noop,
+            other => unimplemented!("{other}"),
+        }
+    }
 }
 
 impl fmt::Display for UnaryOperator {
@@ -23,7 +38,7 @@ impl fmt::Display for UnaryOperator {
             Self::IsNull => write!(f, "IS NULL"),
             Self::IsNotNull => write!(f, "IS NOT NULL"),
             Self::Negate => write!(f, "-"),
-            Self::Cast { to } => write!(f, "CAST TO {to}"),
+            Self::Identity => write!(f, "IDENTITY"),
         }
     }
 }
@@ -31,7 +46,11 @@ impl fmt::Display for UnaryOperator {
 impl TryFrom<ast::UnaryOperator> for UnaryOperator {
     type Error = RayexecError;
     fn try_from(value: ast::UnaryOperator) -> Result<Self> {
-        unimplemented!()
+        Ok(match value {
+            ast::UnaryOperator::Minus => Self::Negate,
+            ast::UnaryOperator::Plus => Self::Identity,
+            _ => unimplemented!(),
+        })
     }
 }
 

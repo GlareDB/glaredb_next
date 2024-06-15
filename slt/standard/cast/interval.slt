@@ -15,13 +15,22 @@ select interval '2 centuries 4 months 8 hours 2 mins 1 second';
 ----
 200 years 4 mons 08:02:01
 
-# TODO: Got invalid type(s) 'Int64,Interval' for '*'
-# query T
-# select interval 3 years;
-# ----
-# 3 years
+query T
+select interval 3 years;
+----
+3 years
 
 query T
 select interval '5 second 289 milliseconds 1 hour';
 ----
 01:00:05.289
+
+# Can use a column reference in an interval expressions.
+query T
+select interval v day from generate_series(2,8,2) as s(v);
+----
+2 days
+4 days
+6 days
+8 days
+
