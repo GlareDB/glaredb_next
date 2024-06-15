@@ -1,9 +1,9 @@
-use crate::functions::{InputTypes, ReturnType, Signature};
-
-use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
-    SpecializedScalarFunction,
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
 };
+
+use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use rayexec_bullet::array::{Interval, PrimitiveArray};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
@@ -100,19 +100,21 @@ macro_rules! generate_specialized_binary_numeric {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Add;
 
-impl GenericScalarFunction for Add {
-    fn name(&self) -> &str {
+impl FunctionInfo for Add {
+    fn name(&self) -> &'static str {
         "+"
     }
 
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &["add"]
     }
 
     fn signatures(&self) -> &[Signature] {
         PRIMITIVE_ARITH_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Add {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -127,7 +129,7 @@ impl GenericScalarFunction for Add {
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(AddUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(AddUInt64)),
             (DataType::Date32, DataType::Int64) => Ok(Box::new(AddDate32Int64)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -149,19 +151,21 @@ generate_specialized_binary_numeric!(AddDate32Int64, Date32, Int64, Date32, |a, 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sub;
 
-impl GenericScalarFunction for Sub {
-    fn name(&self) -> &str {
+impl FunctionInfo for Sub {
+    fn name(&self) -> &'static str {
         "-"
     }
 
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &["sub"]
     }
 
     fn signatures(&self) -> &[Signature] {
         PRIMITIVE_ARITH_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Sub {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -176,7 +180,7 @@ impl GenericScalarFunction for Sub {
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(SubUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(SubUInt64)),
             (DataType::Date32, DataType::Int64) => Ok(Box::new(SubDate32Int64)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -197,19 +201,21 @@ generate_specialized_binary_numeric!(SubDate32Int64, Date32, Int64, Date32, |a, 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Div;
 
-impl GenericScalarFunction for Div {
-    fn name(&self) -> &str {
+impl FunctionInfo for Div {
+    fn name(&self) -> &'static str {
         "/"
     }
 
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &["div"]
     }
 
     fn signatures(&self) -> &[Signature] {
         PRIMITIVE_ARITH_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Div {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -223,7 +229,7 @@ impl GenericScalarFunction for Div {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(DivUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(DivUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(DivUInt64)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -242,19 +248,21 @@ generate_specialized_binary_numeric!(DivUInt64, UInt64, UInt64, UInt64, |a, b| a
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mul;
 
-impl GenericScalarFunction for Mul {
-    fn name(&self) -> &str {
+impl FunctionInfo for Mul {
+    fn name(&self) -> &'static str {
         "*"
     }
 
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &["mul"]
     }
 
     fn signatures(&self) -> &[Signature] {
         PRIMITIVE_ARITH_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Mul {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -269,7 +277,7 @@ impl GenericScalarFunction for Mul {
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(MulUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(MulUInt64)),
             (DataType::Interval, DataType::Int64) => Ok(Box::new(MulIntervalInt64)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -300,19 +308,21 @@ generate_specialized_binary_numeric!(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rem;
 
-impl GenericScalarFunction for Rem {
-    fn name(&self) -> &str {
+impl FunctionInfo for Rem {
+    fn name(&self) -> &'static str {
         "%"
     }
 
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &["rem", "mod"]
     }
 
     fn signatures(&self) -> &[Signature] {
         PRIMITIVE_ARITH_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Rem {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -326,7 +336,7 @@ impl GenericScalarFunction for Rem {
             (DataType::UInt16, DataType::UInt16) => Ok(Box::new(RemUInt16)),
             (DataType::UInt32, DataType::UInt32) => Ok(Box::new(RemUInt32)),
             (DataType::UInt64, DataType::UInt64) => Ok(Box::new(RemUInt64)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }

@@ -1,8 +1,8 @@
-use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
-    SpecializedScalarFunction,
+use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
 };
-use crate::functions::{InputTypes, ReturnType, Signature};
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
@@ -13,8 +13,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;
 
-impl GenericScalarFunction for And {
-    fn name(&self) -> &str {
+impl FunctionInfo for And {
+    fn name(&self) -> &'static str {
         "and"
     }
 
@@ -24,12 +24,14 @@ impl GenericScalarFunction for And {
             return_type: ReturnType::Static(DataType::Boolean),
         }]
     }
+}
 
+impl GenericScalarFunction for And {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndBool)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -60,8 +62,8 @@ impl SpecializedScalarFunction for AndBool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Or;
 
-impl GenericScalarFunction for Or {
-    fn name(&self) -> &str {
+impl FunctionInfo for Or {
+    fn name(&self) -> &'static str {
         "or"
     }
 
@@ -71,12 +73,14 @@ impl GenericScalarFunction for Or {
             return_type: ReturnType::Static(DataType::Boolean),
         }]
     }
+}
 
+impl GenericScalarFunction for Or {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrBool)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }

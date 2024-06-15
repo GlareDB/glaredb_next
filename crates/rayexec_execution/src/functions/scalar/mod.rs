@@ -13,7 +13,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::{ReturnType, Signature};
+use super::{FunctionInfo, ReturnType, Signature};
 
 // List of all scalar functions.
 pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
@@ -54,35 +54,7 @@ pub type ScalarFn = fn(&[&Arc<Array>]) -> Result<Array>;
 /// depending on input types.
 ///
 /// Generic scalar functions must be cheaply cloneable.
-pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
-    /// Name of the function.
-    fn name(&self) -> &str;
-
-    /// Optional aliases for this function.
-    fn aliases(&self) -> &[&str] {
-        &[]
-    }
-
-    /// Signatures of the function.
-    fn signatures(&self) -> &[Signature];
-
-    /// Get the return type for this function.
-    ///
-    /// This is expected to be overridden by functions that return a dynamic
-    /// type based on input. The default implementation can only determine the
-    /// output if it can be statically determined.
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
-        let sig = self
-            .signatures()
-            .iter()
-            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
-
-        match &sig.return_type {
-            ReturnType::Static(datatype) => Some(datatype.clone()),
-            ReturnType::Dynamic => None,
-        }
-    }
-
+pub trait GenericScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// Specialize the function using the given input types.
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>>;
 }
@@ -119,38 +91,6 @@ impl Clone for Box<dyn SpecializedScalarFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
-}
-
-pub(crate) fn specialize_check_num_args(
-    scalar: &impl GenericScalarFunction,
-    inputs: &[DataType],
-    expected: usize,
-) -> Result<()> {
-    if inputs.len() != expected {
-        return Err(RayexecError::new(format!(
-            "Expected {} input for '{}', received {}",
-            expected,
-            scalar.name(),
-            inputs.len(),
-        )));
-    }
-    Ok(())
-}
-
-pub(crate) fn specialize_invalid_input_type(
-    scalar: &impl GenericScalarFunction,
-    got: &[&DataType],
-) -> RayexecError {
-    let got_types = got
-        .iter()
-        .map(|d| d.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
-    RayexecError::new(format!(
-        "Got invalid type(s) '{}' for '{}'",
-        got_types,
-        scalar.name()
-    ))
 }
 
 #[cfg(test)]

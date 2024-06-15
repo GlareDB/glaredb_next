@@ -7,7 +7,7 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use std::vec;
 
-use crate::functions::{InputTypes, ReturnType, Signature};
+use crate::functions::{FunctionInfo, InputTypes, ReturnType, Signature};
 
 use super::{
     DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
@@ -16,8 +16,8 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Count;
 
-impl GenericAggregateFunction for Count {
-    fn name(&self) -> &str {
+impl FunctionInfo for Count {
+    fn name(&self) -> &'static str {
         "count"
     }
 
@@ -27,7 +27,9 @@ impl GenericAggregateFunction for Count {
             return_type: ReturnType::Static(DataType::Int64),
         }]
     }
+}
 
+impl GenericAggregateFunction for Count {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
         if inputs.len() != 1 {
             return Err(RayexecError::new("Expected 1 input"));

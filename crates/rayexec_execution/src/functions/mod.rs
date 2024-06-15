@@ -3,6 +3,7 @@ pub mod scalar;
 pub mod table;
 
 use rayexec_bullet::field::DataType;
+use rayexec_error::{RayexecError, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputTypes {
@@ -43,4 +44,76 @@ impl Signature {
             InputTypes::Dynamic => true,
         }
     }
+}
+
+/// Trait for defining informating about functions.
+pub trait FunctionInfo {
+    /// Name of the function.
+    fn name(&self) -> &'static str;
+
+    /// Aliases for the function.
+    ///
+    /// When the system catalog is initialized, the function will be placed into
+    /// the catalog using both its name and all of its aliases.
+    fn aliases(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    /// Signature for the function.
+    ///
+    /// This is used during binding/planning to determine the return type for a
+    /// function given some inputs, and how we should handle implicit casting.
+    fn signatures(&self) -> &[Signature];
+
+    /// Get the return type for this function.
+    ///
+    /// This is expected to be overridden by functions that return a dynamic
+    /// type based on input. The default implementation can only determine the
+    /// output if it can be statically determined.
+    // TODO: Maybe remove
+    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
+        let sig = self
+            .signatures()
+            .iter()
+            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
+
+        match &sig.return_type {
+            ReturnType::Static(datatype) => Some(datatype.clone()),
+            ReturnType::Dynamic => None,
+        }
+    }
+}
+
+/// Check the number of arguments provided, erroring if it doesn't match the
+/// expected number of arguments.
+pub fn specialize_check_num_args(
+    func: &impl FunctionInfo,
+    inputs: &[DataType],
+    expected: usize,
+) -> Result<()> {
+    if inputs.len() != expected {
+        return Err(RayexecError::new(format!(
+            "Expected {} input for '{}', received {}",
+            expected,
+            func.name(),
+            inputs.len(),
+        )));
+    }
+    Ok(())
+}
+
+/// Return an error indicating the input types we got are not ones we can
+/// handle.
+// TODO: Include valid signatures in the error
+pub fn invalid_input_types_error(func: &impl FunctionInfo, got: &[&DataType]) -> RayexecError {
+    let got_types = got
+        .iter()
+        .map(|d| d.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    RayexecError::new(format!(
+        "Got invalid type(s) '{}' for '{}'",
+        got_types,
+        func.name()
+    ))
 }

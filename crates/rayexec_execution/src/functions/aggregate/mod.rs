@@ -1,3 +1,4 @@
+pub mod avg;
 pub mod count;
 pub mod sum;
 
@@ -13,36 +14,15 @@ use std::{
     vec,
 };
 
-use super::{ReturnType, Signature};
+use super::{FunctionInfo, ReturnType, Signature};
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
     Lazy::new(|| vec![Box::new(sum::Sum), Box::new(count::Count)]);
 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
-pub trait GenericAggregateFunction: Debug + Sync + Send + DynClone {
-    /// Name of the function.
-    fn name(&self) -> &str;
-
-    /// Optional aliases for this function.
-    fn aliases(&self) -> &[&str] {
-        &[]
-    }
-
-    fn signatures(&self) -> &[Signature];
-
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
-        let sig = self
-            .signatures()
-            .iter()
-            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
-
-        match &sig.return_type {
-            ReturnType::Static(datatype) => Some(datatype.clone()),
-            ReturnType::Dynamic => None,
-        }
-    }
-
+pub trait GenericAggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+    /// Specialize into an aggregate function specific to handling these inputs.
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>>;
 }
 

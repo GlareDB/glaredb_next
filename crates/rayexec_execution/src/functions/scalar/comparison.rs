@@ -1,8 +1,8 @@
-use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
-    SpecializedScalarFunction,
+use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
 };
-use crate::functions::{InputTypes, ReturnType, Signature};
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
@@ -107,15 +107,17 @@ macro_rules! generate_specialized_comparison {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Eq;
 
-impl GenericScalarFunction for Eq {
-    fn name(&self) -> &str {
+impl FunctionInfo for Eq {
+    fn name(&self) -> &'static str {
         "="
     }
 
     fn signatures(&self) -> &[Signature] {
         COMPARISON_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Eq {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -134,7 +136,7 @@ impl GenericScalarFunction for Eq {
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(EqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(EqBinary)),
             (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(EqLargeBinary)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -158,19 +160,21 @@ generate_specialized_comparison!(EqLargeBinary, LargeBinary, LargeBinary, |a, b|
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Neq;
 
-impl GenericScalarFunction for Neq {
-    fn name(&self) -> &str {
+impl FunctionInfo for Neq {
+    fn name(&self) -> &'static str {
         "<>"
     }
 
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &["!="]
     }
 
     fn signatures(&self) -> &[Signature] {
         COMPARISON_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Neq {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -189,7 +193,7 @@ impl GenericScalarFunction for Neq {
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(NeqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(NeqBinary)),
             (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(NeqLargeBinary)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -213,15 +217,17 @@ generate_specialized_comparison!(NeqLargeBinary, LargeBinary, LargeBinary, |a, b
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lt;
 
-impl GenericScalarFunction for Lt {
-    fn name(&self) -> &str {
+impl FunctionInfo for Lt {
+    fn name(&self) -> &'static str {
         "<"
     }
 
     fn signatures(&self) -> &[Signature] {
         COMPARISON_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Lt {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -240,7 +246,7 @@ impl GenericScalarFunction for Lt {
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(LtLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(LtBinary)),
             (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtLargeBinary)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -264,15 +270,17 @@ generate_specialized_comparison!(LtLargeBinary, LargeBinary, LargeBinary, |a, b|
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LtEq;
 
-impl GenericScalarFunction for LtEq {
-    fn name(&self) -> &str {
+impl FunctionInfo for LtEq {
+    fn name(&self) -> &'static str {
         "<="
     }
 
     fn signatures(&self) -> &[Signature] {
         COMPARISON_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for LtEq {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -291,7 +299,7 @@ impl GenericScalarFunction for LtEq {
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(LtEqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(LtEqBinary)),
             (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtEqLargeBinary)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -315,15 +323,17 @@ generate_specialized_comparison!(LtEqLargeBinary, LargeBinary, LargeBinary, |a, 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Gt;
 
-impl GenericScalarFunction for Gt {
-    fn name(&self) -> &str {
+impl FunctionInfo for Gt {
+    fn name(&self) -> &'static str {
         ">"
     }
 
     fn signatures(&self) -> &[Signature] {
         COMPARISON_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for Gt {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -342,7 +352,7 @@ impl GenericScalarFunction for Gt {
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(GtLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(GtBinary)),
             (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtLargeBinary)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -366,15 +376,17 @@ generate_specialized_comparison!(GtLargeBinary, LargeBinary, LargeBinary, |a, b|
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GtEq;
 
-impl GenericScalarFunction for GtEq {
-    fn name(&self) -> &str {
+impl FunctionInfo for GtEq {
+    fn name(&self) -> &'static str {
         ">="
     }
 
     fn signatures(&self) -> &[Signature] {
         COMPARISON_SIGNATURES
     }
+}
 
+impl GenericScalarFunction for GtEq {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -393,7 +405,7 @@ impl GenericScalarFunction for GtEq {
             (DataType::LargeUtf8, DataType::LargeUtf8) => Ok(Box::new(GtEqLargeUtf8)),
             (DataType::Binary, DataType::Binary) => Ok(Box::new(GtEqBinary)),
             (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtEqLargeBinary)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }

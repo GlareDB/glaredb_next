@@ -8,15 +8,15 @@ use rayexec_bullet::{
 use super::{
     DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
 };
-use crate::functions::{InputTypes, ReturnType, Signature};
+use crate::functions::{FunctionInfo, InputTypes, ReturnType, Signature};
 use rayexec_error::Result;
 use std::vec;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sum;
 
-impl GenericAggregateFunction for Sum {
-    fn name(&self) -> &str {
+impl FunctionInfo for Sum {
+    fn name(&self) -> &'static str {
         "sum"
     }
 
@@ -26,7 +26,9 @@ impl GenericAggregateFunction for Sum {
             return_type: ReturnType::Static(DataType::Int64), // TODO: Should be big num
         }]
     }
+}
 
+impl GenericAggregateFunction for Sum {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(SumI64)),

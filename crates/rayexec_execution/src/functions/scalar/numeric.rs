@@ -1,8 +1,8 @@
-use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
-    SpecializedScalarFunction,
+use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
 };
-use crate::functions::{InputTypes, ReturnType, Signature};
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer, PrimitiveArray};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
@@ -46,8 +46,8 @@ macro_rules! generate_specialized_unary_numeric {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsNan;
 
-impl GenericScalarFunction for IsNan {
-    fn name(&self) -> &str {
+impl FunctionInfo for IsNan {
+    fn name(&self) -> &'static str {
         "isnan"
     }
 
@@ -63,13 +63,15 @@ impl GenericScalarFunction for IsNan {
             },
         ]
     }
+}
 
+impl GenericScalarFunction for IsNan {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 => Ok(Box::new(IsNanFloat32)),
             DataType::Float64 => Ok(Box::new(IsNanFloat64)),
-            other => Err(specialize_invalid_input_type(self, &[other])),
+            other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
@@ -119,12 +121,12 @@ impl SpecializedScalarFunction for IsNanFloat64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ceil;
 
-impl GenericScalarFunction for Ceil {
-    fn name(&self) -> &str {
+impl FunctionInfo for Ceil {
+    fn name(&self) -> &'static str {
         "ceil"
     }
 
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &["ceiling"]
     }
 
@@ -140,13 +142,15 @@ impl GenericScalarFunction for Ceil {
             },
         ]
     }
+}
 
+impl GenericScalarFunction for Ceil {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 => Ok(Box::new(CeilFloat32)),
             DataType::Float64 => Ok(Box::new(CeilFloat64)),
-            other => Err(specialize_invalid_input_type(self, &[other])),
+            other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
@@ -157,8 +161,8 @@ generate_specialized_unary_numeric!(CeilFloat64, Float64, Float64, |f| f.ceil())
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Floor;
 
-impl GenericScalarFunction for Floor {
-    fn name(&self) -> &str {
+impl FunctionInfo for Floor {
+    fn name(&self) -> &'static str {
         "floor"
     }
 
@@ -174,13 +178,15 @@ impl GenericScalarFunction for Floor {
             },
         ]
     }
+}
 
+impl GenericScalarFunction for Floor {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 => Ok(Box::new(FloorFloat32)),
             DataType::Float64 => Ok(Box::new(FloorFloat64)),
-            other => Err(specialize_invalid_input_type(self, &[other])),
+            other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }

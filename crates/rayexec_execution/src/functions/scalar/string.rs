@@ -1,8 +1,8 @@
-use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
-    SpecializedScalarFunction,
+use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
 };
-use crate::functions::{InputTypes, ReturnType, Signature};
 use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
@@ -13,8 +13,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Repeat;
 
-impl GenericScalarFunction for Repeat {
-    fn name(&self) -> &str {
+impl FunctionInfo for Repeat {
+    fn name(&self) -> &'static str {
         "repeat"
     }
 
@@ -30,13 +30,15 @@ impl GenericScalarFunction for Repeat {
             },
         ]
     }
+}
 
+impl GenericScalarFunction for Repeat {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Int64) => Ok(Box::new(RepeatUtf8)),
             (DataType::LargeUtf8, DataType::Int64) => Ok(Box::new(RepeatLargeUtf8)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }

@@ -1,20 +1,20 @@
-use crate::functions::scalar::specialize_check_num_args;
-use crate::functions::{InputTypes, ReturnType, Signature};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
+};
 use rayexec_bullet::array::PrimitiveArray;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::sync::Arc;
 
-use super::{
-    specialize_invalid_input_type, GenericScalarFunction, ScalarFn, SpecializedScalarFunction,
-};
+use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Negate;
 
-impl GenericScalarFunction for Negate {
-    fn name(&self) -> &str {
+impl FunctionInfo for Negate {
+    fn name(&self) -> &'static str {
         "negate"
     }
 
@@ -50,7 +50,9 @@ impl GenericScalarFunction for Negate {
             },
         ]
     }
+}
 
+impl GenericScalarFunction for Negate {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
@@ -60,7 +62,7 @@ impl GenericScalarFunction for Negate {
             DataType::Int64 => Ok(Box::new(NegateI64)),
             DataType::Float32 => Ok(Box::new(NegateF32)),
             DataType::Float64 => Ok(Box::new(NegateF64)),
-            other => Err(specialize_invalid_input_type(self, &[other])),
+            other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
