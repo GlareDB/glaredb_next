@@ -4,7 +4,6 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
-use crate::expr::scalar::PossibleNoop;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
 use crate::functions::table::InitializedTableFunction;
@@ -1010,14 +1009,11 @@ impl LogicalExpression {
             }
             LogicalExpression::Unary { op, expr } => {
                 let datatype = expr.datatype(current, outer)?;
-                match op.scalar_function() {
-                    PossibleNoop::Function(func) => {
-                        func.return_type_for_inputs(&[datatype]).ok_or_else(|| {
-                            RayexecError::new("Failed to get correct signature for scalar function")
-                        })?
-                    }
-                    PossibleNoop::Noop => datatype,
-                }
+                op.scalar_function()
+                    .return_type_for_inputs(&[datatype])
+                    .ok_or_else(|| {
+                        RayexecError::new("Failed to get correct signature for scalar function")
+                    })?
             }
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.datatype(current, outer)?;

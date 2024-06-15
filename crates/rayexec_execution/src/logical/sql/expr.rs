@@ -6,7 +6,7 @@ use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::expr::scalar::BinaryOperator;
+use crate::expr::scalar::{BinaryOperator, UnaryOperator};
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::logical::operator::LogicalExpression;
 use crate::{functions::scalar::GenericScalarFunction, logical::sql::cast::CastType};
@@ -121,10 +121,19 @@ impl<'a> ExpressionContext<'a> {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
             ast::Expr::Literal(literal) => Self::plan_literal(literal),
-            ast::Expr::UnaryExpr { op, expr } => Ok(LogicalExpression::Unary {
-                op: op.try_into()?,
-                expr: Box::new(self.plan_expression(*expr)?),
-            }),
+            ast::Expr::UnaryExpr { op, expr } => {
+                let expr = self.plan_expression(*expr)?;
+                let op = match op {
+                    ast::UnaryOperator::Plus => return Ok(expr), // Nothing to do.
+                    ast::UnaryOperator::Minus => UnaryOperator::Negate,
+                    ast::UnaryOperator::Not => unimplemented!(),
+                };
+
+                Ok(LogicalExpression::Unary {
+                    op,
+                    expr: Box::new(expr),
+                })
+            }
             ast::Expr::BinaryExpr { left, op, right } => {
                 let op = BinaryOperator::try_from(op)?;
                 let left = self.plan_expression(*left)?;

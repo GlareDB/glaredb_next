@@ -12,19 +12,12 @@ pub enum UnaryOperator {
     IsNull,
     IsNotNull,
     Negate,
-    Identity,
-}
-
-pub enum PossibleNoop<'a> {
-    Function(&'a dyn GenericScalarFunction),
-    Noop,
 }
 
 impl UnaryOperator {
-    pub fn scalar_function(&self) -> PossibleNoop {
+    pub fn scalar_function(&self) -> &dyn GenericScalarFunction {
         match self {
-            Self::Negate => PossibleNoop::Function(&negate::Negate),
-            Self::Identity => PossibleNoop::Noop,
+            Self::Negate => &negate::Negate,
             other => unimplemented!("{other}"),
         }
     }
@@ -38,19 +31,7 @@ impl fmt::Display for UnaryOperator {
             Self::IsNull => write!(f, "IS NULL"),
             Self::IsNotNull => write!(f, "IS NOT NULL"),
             Self::Negate => write!(f, "-"),
-            Self::Identity => write!(f, "IDENTITY"),
         }
-    }
-}
-
-impl TryFrom<ast::UnaryOperator> for UnaryOperator {
-    type Error = RayexecError;
-    fn try_from(value: ast::UnaryOperator) -> Result<Self> {
-        Ok(match value {
-            ast::UnaryOperator::Minus => Self::Negate,
-            ast::UnaryOperator::Plus => Self::Identity,
-            _ => unimplemented!(),
-        })
     }
 }
 

@@ -67,16 +67,12 @@ impl PhysicalScalarExpression {
                 let datatype = expr.datatype(input, &[])?;
                 let input = PhysicalScalarExpression::try_from_uncorrelated_expr(*expr, input)?;
 
-                match op.scalar_function() {
-                    scalar::PossibleNoop::Function(func) => {
-                        let specialized = func.specialize(&[datatype])?;
+                let func = op.scalar_function();
+                let specialized = func.specialize(&[datatype])?;
 
-                        PhysicalScalarExpression::ScalarFunction {
-                            function: specialized,
-                            inputs: vec![input],
-                        }
-                    }
-                    scalar::PossibleNoop::Noop => input,
+                PhysicalScalarExpression::ScalarFunction {
+                    function: specialized,
+                    inputs: vec![input],
                 }
             }
             LogicalExpression::Binary { op, left, right } => {
