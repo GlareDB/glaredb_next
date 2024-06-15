@@ -4,10 +4,10 @@ use crate::functions::{
 };
 
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{Interval, PrimitiveArray};
+use rayexec_bullet::datatype::{DataType, TypeMeta};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE};
-use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -66,13 +66,10 @@ const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     },
     Signature {
         input: InputTypes::Exact(&[
-            DataType::Decimal64(Decimal64Type::MAX_PRECISION, DECIMAL_DEFUALT_SCALE),
-            DataType::Decimal64(Decimal64Type::MAX_PRECISION, DECIMAL_DEFUALT_SCALE),
+            DataType::Decimal64(TypeMeta::None),
+            DataType::Decimal64(TypeMeta::None),
         ]),
-        return_type: ReturnType::Static(DataType::Decimal64(
-            Decimal64Type::MAX_PRECISION,
-            DECIMAL_DEFUALT_SCALE,
-        )),
+        return_type: ReturnType::Static(DataType::Decimal64(TypeMeta::None)),
     },
 ];
 

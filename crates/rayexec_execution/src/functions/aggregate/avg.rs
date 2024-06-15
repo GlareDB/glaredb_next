@@ -2,8 +2,8 @@ use num_traits::{NumCast, ToPrimitive};
 use rayexec_bullet::{
     array::{Array, PrimitiveArray},
     bitmap::Bitmap,
+    datatype::DataType,
     executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
-    field::DataType,
 };
 
 use super::{

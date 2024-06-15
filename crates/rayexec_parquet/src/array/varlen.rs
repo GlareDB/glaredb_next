@@ -1,11 +1,9 @@
 use parquet::column::page::PageReader;
 use parquet::data_type::{AsBytes, ByteArray, DataType as ParquetDataType};
 use parquet::{basic::Type as PhysicalType, schema::types::ColumnDescPtr};
+use rayexec_bullet::array::{Array, ValuesBuffer};
 use rayexec_bullet::array::{BinaryArray, VarlenArray, VarlenValuesBuffer};
-use rayexec_bullet::{
-    array::{Array, ValuesBuffer},
-    field::DataType,
-};
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};

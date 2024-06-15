@@ -1,8 +1,10 @@
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use crate::functions::{FunctionInfo, InputTypes, ReturnType, Signature};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::array::StructArray;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::TypeMeta;
 use rayexec_bullet::scalar::ScalarValue;
-use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -25,10 +27,7 @@ impl FunctionInfo for StructPack {
     fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
         // TODO: Check "key" types.
 
-        let value_types = inputs.iter().skip(1).step_by(2).cloned().collect();
-        Some(DataType::Struct {
-            fields: value_types,
-        })
+        Some(DataType::Struct(TypeMeta::None))
     }
 }
 

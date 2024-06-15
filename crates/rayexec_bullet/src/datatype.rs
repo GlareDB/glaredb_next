@@ -1,5 +1,7 @@
 use std::fmt;
 
+use rayexec_error::{RayexecError, Result};
+
 /// Some types may optionally contain metadata to further refine the type. For
 /// example, the decimal types might have additional precision/scale
 /// information.
@@ -14,21 +16,43 @@ pub enum TypeMeta<T> {
     None,
 }
 
+impl<T> TypeMeta<T> {
+    /// Get the type metadata if it's some, erroring if it's None.
+    pub fn try_get_meta(&self) -> Result<&T> {
+        match self {
+            Self::Some(m) => Ok(m),
+            Self::None => Err(RayexecError::new("No metadata on data type")),
+        }
+    }
+}
+
+impl<T> From<T> for TypeMeta<T> {
+    fn from(value: T) -> Self {
+        TypeMeta::Some(value)
+    }
+}
+
 /// Metadata associated with decimals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DecimalTypMeta {
+pub struct DecimalTypeMeta {
     pub precision: u8,
     pub scale: i8,
 }
 
+impl DecimalTypeMeta {
+    pub const fn new(precision: u8, scale: i8) -> Self {
+        DecimalTypeMeta { precision, scale }
+    }
+}
+
 /// Metadata associated with structs.
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructTypeMeta {
     pub fields: Vec<(String, DataType)>,
 }
 
 /// Metadata associated with lists.
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ListTypeMeta {
     pub datatype: Box<DataType>,
 }
@@ -38,8 +62,10 @@ pub struct ListTypeMeta {
 /// This generally follows Arrow's type system, but is not restricted to it.
 ///
 /// Some types may include additional metadata, and so will have an attached
-/// `TypeMeta` field.
-#[derive(Debug, Clone, PartialEq, Hash)]
+/// `TypeMeta` field. This will act to refine the type even further. For
+/// example, in cases where we care to act on _any_ list, and not just a list of
+/// specific type, we use `List(TypeMeta::None)` to represent that.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DataType {
     /// Constant null columns.
     Null,
@@ -55,9 +81,9 @@ pub enum DataType {
     Float32,
     Float64,
     /// 64-bit decimal.
-    Decimal64(TypeMeta<DecimalTypMeta>),
+    Decimal64(TypeMeta<DecimalTypeMeta>),
     /// 128-bit decimal.
-    Decimal128(TypeMeta<DecimalTypMeta>),
+    Decimal128(TypeMeta<DecimalTypeMeta>),
     /// Timestamp in seconds.
     TimestampSeconds,
     /// Timestamp in milliseconds.

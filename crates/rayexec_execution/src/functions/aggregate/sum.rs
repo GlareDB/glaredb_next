@@ -9,9 +9,8 @@ use crate::functions::{
 use rayexec_bullet::{
     array::{Decimal128Array, Decimal64Array},
     bitmap::Bitmap,
+    datatype::{DataType, TypeMeta},
     executor::aggregate::AggregateState,
-    field::DataType,
-    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
 };
 use rayexec_error::Result;
 use std::{fmt::Debug, ops::AddAssign, vec};
@@ -35,24 +34,12 @@ impl FunctionInfo for Sum {
                 return_type: ReturnType::Static(DataType::Int64), // TODO: Should be big num
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Decimal64(
-                    Decimal64Type::MAX_PRECISION,
-                    DECIMAL_DEFUALT_SCALE,
-                )]),
-                return_type: ReturnType::Static(DataType::Decimal64(
-                    Decimal64Type::MAX_PRECISION,
-                    DECIMAL_DEFUALT_SCALE,
-                )),
+                input: InputTypes::Exact(&[DataType::Decimal64(TypeMeta::None)]),
+                return_type: ReturnType::Static(DataType::Decimal64(TypeMeta::None)),
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Decimal128(
-                    Decimal128Type::MAX_PRECISION,
-                    DECIMAL_DEFUALT_SCALE,
-                )]),
-                return_type: ReturnType::Static(DataType::Decimal128(
-                    Decimal128Type::MAX_PRECISION,
-                    DECIMAL_DEFUALT_SCALE,
-                )),
+                input: InputTypes::Exact(&[DataType::Decimal128(TypeMeta::None)]),
+                return_type: ReturnType::Static(DataType::Decimal128(TypeMeta::None)),
             },
         ]
     }
@@ -64,14 +51,20 @@ impl GenericAggregateFunction for Sum {
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(SumI64)),
             DataType::Float64 => Ok(Box::new(SumF64)),
-            DataType::Decimal64(p, s) => Ok(Box::new(SumDecimal64 {
-                precision: *p,
-                scale: *s,
-            })),
-            DataType::Decimal128(p, s) => Ok(Box::new(SumDecimal128 {
-                precision: *p,
-                scale: *s,
-            })),
+            DataType::Decimal64(meta) => {
+                let meta = meta.try_get_meta()?;
+                Ok(Box::new(SumDecimal64 {
+                    precision: meta.precision,
+                    scale: meta.scale,
+                }))
+            }
+            DataType::Decimal128(meta) => {
+                let meta = meta.try_get_meta()?;
+                Ok(Box::new(SumDecimal128 {
+                    precision: meta.precision,
+                    scale: meta.scale,
+                }))
+            }
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }

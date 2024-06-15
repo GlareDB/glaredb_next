@@ -11,7 +11,8 @@ use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
 };
-use rayexec_bullet::field::{DataType, Field, TypeSchema};
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::field::{Field, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;

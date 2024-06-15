@@ -3,7 +3,7 @@ pub mod implicit;
 pub mod scalar;
 pub mod table;
 
-use rayexec_bullet::field::DataType;
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,25 +45,13 @@ impl Signature {
                     return false;
                 }
                 for (expected, input) in expected.iter().zip(inputs.iter()) {
-                    // TODO: Need to rething signatures a bit...
-                    if matches!(expected, DataType::Decimal64(_, _))
-                        && matches!(input, DataType::Decimal64(_, _))
-                    {
-                        continue;
-                    }
-                    if matches!(expected, DataType::Decimal128(_, _))
-                        && matches!(input, DataType::Decimal128(_, _))
-                    {
-                        continue;
-                    }
-
-                    if expected != input {
+                    if !expected.eq_no_meta(input) {
                         return false;
                     }
                 }
                 true
             }
-            InputTypes::Variadic(typ) => inputs.iter().all(|input| input == typ),
+            InputTypes::Variadic(typ) => inputs.iter().all(|input| typ.eq_no_meta(input)),
             InputTypes::Dynamic => true,
         }
     }

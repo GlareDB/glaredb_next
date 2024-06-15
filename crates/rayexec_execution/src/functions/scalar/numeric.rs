@@ -3,9 +3,10 @@ use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
     Signature,
 };
+use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer, PrimitiveArray};
+use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;

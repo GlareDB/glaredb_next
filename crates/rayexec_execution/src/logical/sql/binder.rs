@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    field::{DataType, TimeUnit},
+    datatype::{DataType, DecimalTypeMeta},
     scalar::{
         decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
         OwnedScalarValue,
@@ -895,9 +895,9 @@ impl<'a> Binder<'a> {
                 }
 
                 if prec <= Decimal64Type::MAX_PRECISION {
-                    DataType::Decimal64(prec, scale)
+                    DataType::Decimal64(DecimalTypeMeta::new(prec, scale).into())
                 } else if prec <= Decimal128Type::MAX_PRECISION {
-                    DataType::Decimal128(prec, scale)
+                    DataType::Decimal128(DecimalTypeMeta::new(prec, scale).into())
                 } else {
                     return Err(RayexecError::new(
                         "Decimal precision too big for max decimal size",
@@ -906,7 +906,7 @@ impl<'a> Binder<'a> {
             }
             ast::DataType::Bool => DataType::Boolean,
             ast::DataType::Date => DataType::Date32,
-            ast::DataType::Timestamp => DataType::Timestamp(TimeUnit::Microsecond),
+            ast::DataType::Timestamp => DataType::TimestampMicroseconds, // Matches postgres default
             ast::DataType::Interval => DataType::Interval,
         })
     }

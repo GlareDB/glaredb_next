@@ -7,7 +7,8 @@ mod macros;
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::{array::Array, executor::aggregate::AggregateState, field::DataType};
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::{array::Array, executor::aggregate::AggregateState};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
 use std::{

@@ -41,7 +41,7 @@ mod macros {
     mod tests {
         use crate::{
             array::{Array, Int32Array, UInt32Array},
-            field::DataType,
+            datatype::DataType,
         };
 
         use super::*;

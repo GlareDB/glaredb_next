@@ -6,7 +6,7 @@ use crate::{
     },
     bitmap::Bitmap,
     compute::macros::collect_arrays_of_type,
-    field::DataType,
+    datatype::DataType,
 };
 use rayexec_error::{RayexecError, Result};
 

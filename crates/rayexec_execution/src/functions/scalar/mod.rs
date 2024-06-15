@@ -8,7 +8,7 @@ pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::{array::Array, field::DataType};
+use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;

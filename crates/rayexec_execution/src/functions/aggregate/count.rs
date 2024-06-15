@@ -1,8 +1,8 @@
 use rayexec_bullet::{
     array::{Array, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
+    datatype::DataType,
     executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
-    field::DataType,
 };
 use rayexec_error::{RayexecError, Result};
 use std::vec;
