@@ -5,7 +5,10 @@ use std::fmt;
 use crate::{
     compute::cast::parse::{BoolParser, Date32Parser, IntervalParser},
     field::DataType,
-    scalar::{DecimalScalar, OwnedScalarValue, ScalarValue},
+    scalar::{
+        decimal::{Decimal128Scalar, Decimal64Scalar},
+        OwnedScalarValue, ScalarValue,
+    },
 };
 
 use super::parse::{
@@ -275,12 +278,12 @@ fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<OwnedScalarValu
         DataType::UInt64 => ScalarValue::UInt64(parse(UInt64Parser::default(), v, datatype)?),
         DataType::Float32 => ScalarValue::Float32(parse(Float32Parser::default(), v, datatype)?),
         DataType::Float64 => ScalarValue::Float64(parse(Float64Parser::default(), v, datatype)?),
-        DataType::Decimal64(p, s) => ScalarValue::Decimal64(DecimalScalar {
+        DataType::Decimal64(p, s) => ScalarValue::Decimal64(Decimal64Scalar {
             precision: *p,
             scale: *s,
             value: parse(Decimal64Parser::new(*p, *s), v, datatype)?,
         }),
-        DataType::Decimal128(p, s) => ScalarValue::Decimal128(DecimalScalar {
+        DataType::Decimal128(p, s) => ScalarValue::Decimal128(Decimal128Scalar {
             precision: *p,
             scale: *s,
             value: parse(Decimal128Parser::new(*p, *s), v, datatype)?,

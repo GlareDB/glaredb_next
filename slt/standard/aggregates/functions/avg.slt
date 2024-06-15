@@ -1,5 +1,21 @@
 # AVG
 
-statement ok
-create temp table ints(i int);
+query R
+select avg(1);
+----
+1
 
+query R
+select avg(a) from (values (1), (2)) as v(a);
+----
+1.5
+
+# TODO: Unable to cast from Null to Int32
+# query R
+# select avg(null::int);
+# ----
+
+query R
+select avg(a) from (values (2.1), (4.8)) as v(a);
+----
+3.45

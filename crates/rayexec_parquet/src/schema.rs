@@ -4,7 +4,7 @@ use parquet::{
 };
 use rayexec_bullet::{
     field::{DataType, Field, Schema, TimeUnit},
-    scalar::{DECIMAL_128_MAX_PRECISION, DECIMAL_64_MAX_PRECISION},
+    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -92,9 +92,9 @@ fn decimal_type(precision: i32, scale: i32) -> Result<DataType> {
         return Err(RayexecError::new("Scale cannot be greater than precision"));
     }
 
-    if precision <= DECIMAL_64_MAX_PRECISION as i32 {
+    if precision <= Decimal64Type::MAX_PRECISION as i32 {
         Ok(DataType::Decimal64(precision as u8, scale as i8))
-    } else if precision <= DECIMAL_128_MAX_PRECISION as i32 {
+    } else if precision <= Decimal128Type::MAX_PRECISION as i32 {
         Ok(DataType::Decimal128(precision as u8, scale as i8))
     } else {
         Err(RayexecError::new(format!(

@@ -210,6 +210,7 @@ impl<'a> ExpressionContext<'a> {
                     subquery: Box::new(subquery.root),
                 })
             }
+            ast::Expr::Nested(expr) => self.plan_expression(*expr),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.into());
                 let scalar = cast_scalar(scalar, &datatype)?;
@@ -284,7 +285,7 @@ impl<'a> ExpressionContext<'a> {
                 }
             }
 
-            _ => unimplemented!(),
+            other => unimplemented!("{other:?}"),
         }
     }
 
@@ -405,9 +406,11 @@ impl<'a> ExpressionContext<'a> {
                 // TODO: Do we want to fall through? Is it possible for a
                 // scalar and aggregate function to have the same name?
 
+                // TODO: Better error.
                 return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}'",
+                    "Invalid inputs to '{}': {:?}",
                     scalar.name(),
+                    input_datatypes,
                 )));
             }
 
@@ -455,8 +458,9 @@ impl<'a> ExpressionContext<'a> {
 
             if candidates.is_empty() {
                 return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}'",
+                    "Invalid inputs to '{}': {:?}",
                     agg.name(),
+                    input_datatypes,
                 )));
             }
 

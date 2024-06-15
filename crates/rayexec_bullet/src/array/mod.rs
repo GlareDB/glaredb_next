@@ -12,7 +12,10 @@ pub use varlen::*;
 pub mod validity;
 
 use crate::field::DataType;
-use crate::scalar::{DecimalScalar, ScalarValue};
+use crate::scalar::{
+    decimal::{Decimal128Scalar, Decimal64Scalar},
+    ScalarValue,
+};
 use crate::{bitmap::Bitmap, field::TimeUnit};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -92,12 +95,12 @@ impl Array {
             Self::UInt16(arr) => ScalarValue::UInt16(*arr.value(idx)?),
             Self::UInt32(arr) => ScalarValue::UInt32(*arr.value(idx)?),
             Self::UInt64(arr) => ScalarValue::UInt64(*arr.value(idx)?),
-            Self::Decimal64(arr) => ScalarValue::Decimal64(DecimalScalar {
+            Self::Decimal64(arr) => ScalarValue::Decimal64(Decimal64Scalar {
                 precision: arr.precision(),
                 scale: arr.scale(),
                 value: *arr.get_primitive().value(idx)?,
             }),
-            Self::Decimal128(arr) => ScalarValue::Decimal128(DecimalScalar {
+            Self::Decimal128(arr) => ScalarValue::Decimal128(Decimal128Scalar {
                 precision: arr.precision(),
                 scale: arr.scale(),
                 value: *arr.get_primitive().value(idx)?,

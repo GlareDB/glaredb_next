@@ -1,3 +1,5 @@
+pub mod decimal;
+
 use crate::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
@@ -12,13 +14,10 @@ use crate::compute::cast::format::{
     UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
 use crate::field::{DataType, TimeUnit};
+use decimal::{Decimal128Scalar, Decimal64Scalar};
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
 use std::fmt;
-
-pub const DECIMAL_64_MAX_PRECISION: u8 = 18;
-pub const DECIMAL_128_MAX_PRECISION: u8 = 38;
-pub const DECIMAL_DEFUALT_SCALE: i8 = 9;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq)]
@@ -59,8 +58,8 @@ pub enum ScalarValue<'a> {
     /// Unsigned 64bit int
     UInt64(u64),
 
-    Decimal64(DecimalScalar<i64>),
-    Decimal128(DecimalScalar<i128>),
+    Decimal64(Decimal64Scalar),
+    Decimal128(Decimal128Scalar),
 
     /// A Date32 value.
     Date32(i32),
@@ -338,13 +337,6 @@ impl fmt::Display for ScalarValue<'_> {
             ),
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DecimalScalar<T: Copy> {
-    pub precision: u8,
-    pub scale: i8,
-    pub value: T,
 }
 
 impl<'a> From<bool> for ScalarValue<'a> {

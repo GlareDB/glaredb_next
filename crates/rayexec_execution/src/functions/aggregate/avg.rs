@@ -7,9 +7,13 @@ use rayexec_bullet::{
 };
 
 use super::{
-    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
+    macros::generate_unary_primitive_aggregate, DefaultGroupedStates, GenericAggregateFunction,
+    GroupedStates, SpecializedAggregateFunction,
 };
-use crate::functions::{FunctionInfo, InputTypes, ReturnType, Signature};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
+};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::{marker::PhantomData, vec};
@@ -23,27 +27,44 @@ impl FunctionInfo for Avg {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            input: InputTypes::Exact(&[DataType::Int64]),
-            return_type: ReturnType::Static(DataType::Int64), // TODO: Should be big num
-        }]
+        &[
+            Signature {
+                input: InputTypes::Exact(&[DataType::Float64]),
+                return_type: ReturnType::Static(DataType::Float64),
+            },
+            Signature {
+                input: InputTypes::Exact(&[DataType::Int64]),
+                return_type: ReturnType::Static(DataType::Float64), // TODO: Should be decimal
+            },
+        ]
     }
 }
 
 impl GenericAggregateFunction for Avg {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
-        unimplemented!()
+        specialize_check_num_args(self, inputs, 1)?;
+        match &inputs[0] {
+            DataType::Int64 => Ok(Box::new(AvgI64)),
+            DataType::Float64 => Ok(Box::new(AvgF64)),
+            other => Err(invalid_input_types_error(self, &[other])),
+        }
     }
 }
 
+generate_unary_primitive_aggregate!(AvgF64, Float64, Float64, AvgStateF64);
+generate_unary_primitive_aggregate!(AvgI64, Int64, Float64, AvgStateI64);
+
+type AvgStateF64 = AvgState<f64>;
+type AvgStateI64 = AvgState<i64>;
+
 #[derive(Debug, Default)]
-pub struct AvgStateF64<T> {
+struct AvgState<T> {
     sum: f64,
     count: i64,
     _type: PhantomData<T>,
 }
 
-impl<T: ToPrimitive + Default + Debug> AggregateState<T, f64> for AvgStateF64<T> {
+impl<T: ToPrimitive + Default + Debug> AggregateState<T, f64> for AvgState<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;

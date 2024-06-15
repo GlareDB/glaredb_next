@@ -1,4 +1,5 @@
 pub mod aggregate;
+pub mod implicit;
 pub mod scalar;
 pub mod table;
 
@@ -39,7 +40,29 @@ impl Signature {
     /// Return if inputs given data types satisfy this signature.
     fn inputs_satisfy_signature(&self, inputs: &[DataType]) -> bool {
         match &self.input {
-            InputTypes::Exact(expected) => inputs == *expected,
+            InputTypes::Exact(expected) => {
+                if expected.len() != inputs.len() {
+                    return false;
+                }
+                for (expected, input) in expected.iter().zip(inputs.iter()) {
+                    // TODO: Need to rething signatures a bit...
+                    if matches!(expected, DataType::Decimal64(_, _))
+                        && matches!(input, DataType::Decimal64(_, _))
+                    {
+                        continue;
+                    }
+                    if matches!(expected, DataType::Decimal128(_, _))
+                        && matches!(input, DataType::Decimal128(_, _))
+                    {
+                        continue;
+                    }
+
+                    if expected != input {
+                        return false;
+                    }
+                }
+                true
+            }
             InputTypes::Variadic(typ) => inputs.iter().all(|input| input == typ),
             InputTypes::Dynamic => true,
         }

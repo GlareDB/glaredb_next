@@ -4,6 +4,7 @@ pub mod batch;
 pub mod bitmap;
 pub mod compute;
 pub mod csv;
+pub mod datatype;
 pub mod executor;
 pub mod field;
 pub mod format;

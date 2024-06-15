@@ -244,4 +244,26 @@ mod tests {
 
         assert_eq!(expected, candidates)
     }
+
+    #[test]
+    fn binary_int64_decimal() {
+        // (Int64, Decimal64(15, 2)) -> (Decimal64(15, 2), Decimal64(15, 2))
+
+        let inputs = &[DataType::Int64, DataType::Decimal64(15, 2)];
+        let sigs = &[Signature {
+            input: InputTypes::Exact(&[DataType::Decimal64(15, 2), DataType::Decimal64(15, 2)]),
+            return_type: ReturnType::Static(DataType::Decimal64(15, 2)),
+        }];
+
+        let candidates = find_candidate_signatures(inputs, sigs);
+        let expected = vec![CandidateSignature {
+            signature_idx: 0,
+            datatypes: vec![
+                CastType::CastTo(DataType::Decimal64(15, 2)),
+                CastType::NoCastNeeded,
+            ],
+        }];
+
+        assert_eq!(expected, candidates)
+    }
 }

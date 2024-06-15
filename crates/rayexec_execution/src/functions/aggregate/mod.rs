@@ -2,6 +2,8 @@ pub mod avg;
 pub mod count;
 pub mod sum;
 
+mod macros;
+
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use rayexec_bullet::bitmap::Bitmap;
@@ -14,10 +16,16 @@ use std::{
     vec,
 };
 
-use super::{FunctionInfo, ReturnType, Signature};
+use super::FunctionInfo;
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
-    Lazy::new(|| vec![Box::new(sum::Sum), Box::new(count::Count)]);
+    Lazy::new(|| {
+        vec![
+            Box::new(sum::Sum),
+            Box::new(avg::Avg),
+            Box::new(count::Count),
+        ]
+    });
 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.

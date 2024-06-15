@@ -1,14 +1,18 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, DecimalArray, OffsetIndex,
-        PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
+        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
+        DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
     },
     executor::scalar::UnaryExecutor,
     field::{DataType, TimeUnit},
+    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
-use num::{NumCast, ToPrimitive};
+use num::{NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
-use std::fmt::{self, Display};
+use std::{
+    fmt::{self, Display},
+    ops::{Div, Mul},
+};
 
 use super::{
     format::{
@@ -40,6 +44,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt8(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt8(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt8(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::UInt8(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::UInt8(arr), DataType::Decimal128(p, s)) => Array::Decimal128(Decimal128Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+        )),
         // From UInt16
         (Array::UInt16(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::UInt16(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -51,6 +65,18 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt16(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt16(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt16(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::UInt16(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::UInt16(arr), DataType::Decimal128(p, s)) => {
+            Array::Decimal128(Decimal128Array::new(
+                *p,
+                *s,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+            ))
+        }
         // From UInt32
         (Array::UInt32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::UInt32(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -62,6 +88,18 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::UInt32(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::UInt32(arr), DataType::Decimal128(p, s)) => {
+            Array::Decimal128(Decimal128Array::new(
+                *p,
+                *s,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+            ))
+        }
         // From UInt64
         (Array::UInt64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::UInt64(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -73,6 +111,18 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::UInt64(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::UInt64(arr), DataType::Decimal128(p, s)) => {
+            Array::Decimal128(Decimal128Array::new(
+                *p,
+                *s,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+            ))
+        }
         // From Int8
         (Array::Int8(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::Int8(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -84,6 +134,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int8(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int8(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int8(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::Int8(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::Int8(arr), DataType::Decimal128(p, s)) => Array::Decimal128(Decimal128Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+        )),
         // From Int16
         (Array::Int16(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::Int16(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -95,6 +155,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int16(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int16(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int16(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::Int16(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::Int16(arr), DataType::Decimal128(p, s)) => Array::Decimal128(Decimal128Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+        )),
         // From Int32
         (Array::Int32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::Int32(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -106,6 +176,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::Int32(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::Int32(arr), DataType::Decimal128(p, s)) => Array::Decimal128(Decimal128Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+        )),
         // From Int64
         (Array::Int64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::Int64(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -117,6 +197,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::Int64(arr), DataType::Decimal64(p, s)) => Array::Decimal64(Decimal64Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, *p, *s)?,
+        )),
+        (Array::Int64(arr), DataType::Decimal128(p, s)) => Array::Decimal128(Decimal128Array::new(
+            *p,
+            *s,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, *p, *s)?,
+        )),
         // From Float32
         (Array::Float32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::Float32(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -333,4 +423,42 @@ where
         Some(validity) => PrimitiveArray::new(new_vals, Some(validity.clone())),
         None => PrimitiveArray::from(new_vals),
     })
+}
+
+/// Cast a primitive int type to the primitive representation of a decimal.
+fn cast_int_to_decimal<I, D>(
+    arr: &PrimitiveArray<I>,
+    precision: u8,
+    scale: i8,
+) -> Result<PrimitiveArray<D::Primitive>>
+where
+    I: PrimInt + fmt::Display,
+    D: DecimalType,
+{
+    let mut new_vals: Vec<D::Primitive> = Vec::with_capacity(arr.len());
+
+    // Convert everything to the primitive.
+    for val in arr.values().as_ref().iter() {
+        new_vals.push(
+            <D::Primitive as NumCast>::from(*val)
+                .ok_or_else(|| RayexecError::new(format!("Failed to cast {val}")))?,
+        );
+    }
+
+    // Scale everything.
+    let scale_amount =
+        <D::Primitive as NumCast>::from(10.pow(scale.abs() as u32)).expect("to be in range");
+    if scale > 0 {
+        new_vals.iter_mut().for_each(|v| *v = v.mul(scale_amount))
+    } else {
+        new_vals.iter_mut().for_each(|v| *v = v.div(scale_amount))
+    }
+
+    // Validate precision.
+    // TODO: Skip nulls
+    for v in &new_vals {
+        D::validate_precision(*v, precision)?;
+    }
+
+    Ok(PrimitiveArray::new(new_vals, arr.validity().cloned()))
 }

@@ -5,8 +5,8 @@ use std::sync::Arc;
 use rayexec_bullet::{
     field::{DataType, TimeUnit},
     scalar::{
-        OwnedScalarValue, DECIMAL_128_MAX_PRECISION, DECIMAL_64_MAX_PRECISION,
-        DECIMAL_DEFUALT_SCALE,
+        decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+        OwnedScalarValue,
     },
 };
 use rayexec_error::{RayexecError, Result};
@@ -885,7 +885,7 @@ impl<'a> Binder<'a> {
                     Some(prec) => prec
                         .try_into()
                         .map_err(|_| RayexecError::new(format!("Precision too high: {prec}")))?,
-                    None => DECIMAL_64_MAX_PRECISION,
+                    None => Decimal64Type::MAX_PRECISION,
                 };
 
                 if scale as i16 > prec as i16 {
@@ -894,9 +894,9 @@ impl<'a> Binder<'a> {
                     ));
                 }
 
-                if prec <= DECIMAL_64_MAX_PRECISION {
+                if prec <= Decimal64Type::MAX_PRECISION {
                     DataType::Decimal64(prec, scale)
-                } else if prec <= DECIMAL_128_MAX_PRECISION {
+                } else if prec <= Decimal128Type::MAX_PRECISION {
                     DataType::Decimal128(prec, scale)
                 } else {
                     return Err(RayexecError::new(

@@ -1,16 +1,20 @@
-use rayexec_bullet::{
-    array::{Array, PrimitiveArray},
-    bitmap::Bitmap,
-    executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
-    field::DataType,
-};
-
 use super::{
-    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
+    macros::{generate_unary_decimal_aggregate, generate_unary_primitive_aggregate},
+    GenericAggregateFunction, SpecializedAggregateFunction,
 };
-use crate::functions::{FunctionInfo, InputTypes, ReturnType, Signature};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
+    Signature,
+};
+use rayexec_bullet::{
+    array::{Decimal128Array, Decimal64Array},
+    bitmap::Bitmap,
+    executor::aggregate::AggregateState,
+    field::DataType,
+    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+};
 use rayexec_error::Result;
-use std::vec;
+use std::{fmt::Debug, ops::AddAssign, vec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sum;
@@ -21,69 +25,81 @@ impl FunctionInfo for Sum {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            input: InputTypes::Exact(&[DataType::Int64]),
-            return_type: ReturnType::Static(DataType::Int64), // TODO: Should be big num
-        }]
+        &[
+            Signature {
+                input: InputTypes::Exact(&[DataType::Float64]),
+                return_type: ReturnType::Static(DataType::Float64),
+            },
+            Signature {
+                input: InputTypes::Exact(&[DataType::Int64]),
+                return_type: ReturnType::Static(DataType::Int64), // TODO: Should be big num
+            },
+            Signature {
+                input: InputTypes::Exact(&[DataType::Decimal64(
+                    Decimal64Type::MAX_PRECISION,
+                    DECIMAL_DEFUALT_SCALE,
+                )]),
+                return_type: ReturnType::Static(DataType::Decimal64(
+                    Decimal64Type::MAX_PRECISION,
+                    DECIMAL_DEFUALT_SCALE,
+                )),
+            },
+            Signature {
+                input: InputTypes::Exact(&[DataType::Decimal128(
+                    Decimal128Type::MAX_PRECISION,
+                    DECIMAL_DEFUALT_SCALE,
+                )]),
+                return_type: ReturnType::Static(DataType::Decimal128(
+                    Decimal128Type::MAX_PRECISION,
+                    DECIMAL_DEFUALT_SCALE,
+                )),
+            },
+        ]
     }
 }
 
 impl GenericAggregateFunction for Sum {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
+        specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(SumI64)),
-            _ => unimplemented!(),
+            DataType::Float64 => Ok(Box::new(SumF64)),
+            DataType::Decimal64(p, s) => Ok(Box::new(SumDecimal64 {
+                precision: *p,
+                scale: *s,
+            })),
+            DataType::Decimal128(p, s) => Ok(Box::new(SumDecimal128 {
+                precision: *p,
+                scale: *s,
+            })),
+            other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SumI64;
+generate_unary_primitive_aggregate!(SumI64, Int64, Int64, SumState<i64>);
+generate_unary_primitive_aggregate!(SumF64, Float64, Float64, SumState<f64>);
 
-impl SpecializedAggregateFunction for SumI64 {
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let update_fn = |row_selection: &Bitmap,
-                         arrays: &[&Array],
-                         mapping: &[usize],
-                         states: &mut [SumI64State]| {
-            let inputs = match &arrays[0] {
-                Array::Int64(arr) => arr,
-                other => panic!("unexpected array type: {other:?}"),
-            };
-            UnaryNonNullUpdater::update(row_selection, inputs, mapping, states)
-        };
-
-        let finalize_fn = |states: vec::Drain<'_, _>| {
-            let mut buffer = Vec::with_capacity(states.len());
-            StateFinalizer::finalize(states, &mut buffer)?;
-            Ok(Array::Int64(PrimitiveArray::new(buffer, None)))
-        };
-
-        Box::new(DefaultGroupedStates::new(
-            update_fn,
-            StateCombiner::combine,
-            finalize_fn,
-        ))
-    }
-}
+generate_unary_decimal_aggregate!(SumDecimal64, Decimal64, Decimal64Array, SumState<i64>);
+generate_unary_decimal_aggregate!(SumDecimal128, Decimal128, Decimal128Array, SumState<i128>);
 
 #[derive(Debug, Default)]
-pub struct SumI64State {
-    sum: i64,
+pub struct SumState<T> {
+    sum: T,
 }
 
-impl AggregateState<i64, i64> for SumI64State {
+impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumState<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum += other.sum;
         Ok(())
     }
 
-    fn update(&mut self, input: i64) -> Result<()> {
+    fn update(&mut self, input: T) -> Result<()> {
         self.sum += input;
         Ok(())
     }
 
-    fn finalize(self) -> Result<i64> {
+    fn finalize(self) -> Result<T> {
         Ok(self.sum)
     }
 }
@@ -146,7 +162,7 @@ impl AggregateState<(f64, f64), f64> for CovarSampFloat64 {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Int64Array;
+    use rayexec_bullet::array::{Array, Int64Array};
 
     use super::*;
 
