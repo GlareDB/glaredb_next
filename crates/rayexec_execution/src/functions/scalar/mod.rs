@@ -13,7 +13,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::{FunctionInfo, ReturnType, Signature};
+use super::FunctionInfo;
 
 // List of all scalar functions.
 pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {

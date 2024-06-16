@@ -1,7 +1,6 @@
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
@@ -21,8 +20,8 @@ impl FunctionInfo for And {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-            return_type: ReturnType::Static(DataType::Boolean),
+            input: &[DataType::Boolean, DataType::Boolean],
+            return_type: DataType::Boolean,
         }]
     }
 }
@@ -70,8 +69,8 @@ impl FunctionInfo for Or {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-            return_type: ReturnType::Static(DataType::Boolean),
+            input: &[DataType::Boolean, DataType::Boolean],
+            return_type: DataType::Boolean,
         }]
     }
 }

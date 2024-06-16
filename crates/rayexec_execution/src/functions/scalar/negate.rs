@@ -1,6 +1,5 @@
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::PrimitiveArray;
@@ -22,32 +21,32 @@ impl FunctionInfo for Negate {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: InputTypes::Exact(&[DataType::Float32]),
-                return_type: ReturnType::Static(DataType::Float32),
+                input: &[DataType::Float32],
+                return_type: DataType::Float32,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: ReturnType::Static(DataType::Float64),
+                input: &[DataType::Float64],
+                return_type: DataType::Float64,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Int8]),
-                return_type: ReturnType::Static(DataType::Int8),
+                input: &[DataType::Int8],
+                return_type: DataType::Int8,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Int16]),
-                return_type: ReturnType::Static(DataType::Int16),
+                input: &[DataType::Int16],
+                return_type: DataType::Int16,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Int32]),
-                return_type: ReturnType::Static(DataType::Int32),
+                input: &[DataType::Int32],
+                return_type: DataType::Int32,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Int64]),
-                return_type: ReturnType::Static(DataType::Int64),
+                input: &[DataType::Int64],
+                return_type: DataType::Int64,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Interval]),
-                return_type: ReturnType::Static(DataType::Interval),
+                input: &[DataType::Interval],
+                return_type: DataType::Interval,
             },
         ]
     }

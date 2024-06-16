@@ -1,7 +1,6 @@
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
@@ -22,12 +21,12 @@ impl FunctionInfo for Repeat {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: InputTypes::Exact(&[DataType::Utf8, DataType::Int64]),
-                return_type: ReturnType::Static(DataType::Utf8),
+                input: &[DataType::Utf8, DataType::Int64],
+                return_type: DataType::Utf8,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::LargeUtf8, DataType::Int64]),
-                return_type: ReturnType::Static(DataType::LargeUtf8),
+                input: &[DataType::LargeUtf8, DataType::Int64],
+                return_type: DataType::LargeUtf8,
             },
         ]
     }

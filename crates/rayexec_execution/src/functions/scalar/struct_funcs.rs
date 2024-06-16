@@ -1,5 +1,5 @@
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
-use crate::functions::{FunctionInfo, InputTypes, ReturnType, Signature};
+use crate::functions::{FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::StructArray;
 use rayexec_bullet::datatype::DataType;
@@ -19,8 +19,8 @@ impl FunctionInfo for StructPack {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Dynamic,
-            return_type: ReturnType::Dynamic,
+            input: &[DataType::Struct(TypeMeta::None)],
+            return_type: DataType::Struct(TypeMeta::None),
         }]
     }
 
@@ -83,8 +83,8 @@ impl FunctionInfo for StructExtract {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Dynamic,
-            return_type: ReturnType::Dynamic,
+            input: &[DataType::Struct(TypeMeta::None)],
+            return_type: DataType::Any(TypeMeta::None),
         }]
     }
 

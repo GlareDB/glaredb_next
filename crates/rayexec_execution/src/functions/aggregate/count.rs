@@ -1,13 +1,13 @@
 use rayexec_bullet::{
     array::{Array, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
-    datatype::DataType,
+    datatype::{DataType, TypeMeta},
     executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::{RayexecError, Result};
 use std::vec;
 
-use crate::functions::{FunctionInfo, InputTypes, ReturnType, Signature};
+use crate::functions::{FunctionInfo, Signature};
 
 use super::{
     DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
@@ -23,8 +23,8 @@ impl FunctionInfo for Count {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Dynamic,
-            return_type: ReturnType::Static(DataType::Int64),
+            input: &[DataType::Any(TypeMeta::None)],
+            return_type: DataType::Int64,
         }]
     }
 }

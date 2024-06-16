@@ -142,6 +142,7 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
         }
         DataType::Struct(_) => unimplemented!(),
         DataType::List(_) => unimplemented!(),
+        DataType::Any(_) => Err(RayexecError::new("Cannot concat with datatype ANY")),
     }
 }
 

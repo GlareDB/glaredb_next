@@ -1,7 +1,6 @@
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer, PrimitiveArray};
@@ -55,12 +54,12 @@ impl FunctionInfo for IsNan {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: InputTypes::Exact(&[DataType::Float32]),
-                return_type: ReturnType::Static(DataType::Boolean),
+                input: &[DataType::Float32],
+                return_type: DataType::Boolean,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: ReturnType::Static(DataType::Boolean),
+                input: &[DataType::Float64],
+                return_type: DataType::Boolean,
             },
         ]
     }
@@ -134,12 +133,12 @@ impl FunctionInfo for Ceil {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: InputTypes::Exact(&[DataType::Float32]),
-                return_type: ReturnType::Static(DataType::Float32),
+                input: &[DataType::Float32],
+                return_type: DataType::Float32,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: ReturnType::Static(DataType::Float64),
+                input: &[DataType::Float64],
+                return_type: DataType::Float64,
             },
         ]
     }
@@ -170,12 +169,12 @@ impl FunctionInfo for Floor {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: InputTypes::Exact(&[DataType::Float32]),
-                return_type: ReturnType::Static(DataType::Float32),
+                input: &[DataType::Float32],
+                return_type: DataType::Float32,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: ReturnType::Static(DataType::Float64),
+                input: &[DataType::Float64],
+                return_type: DataType::Float64,
             },
         ]
     }

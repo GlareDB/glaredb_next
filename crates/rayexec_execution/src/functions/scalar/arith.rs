@@ -1,6 +1,5 @@
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
@@ -17,59 +16,59 @@ use std::sync::Arc;
 // since some operations apply to intervals/dates, but not others.
 const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     Signature {
-        input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
-        return_type: ReturnType::Static(DataType::Float32),
+        input: &[DataType::Float32, DataType::Float32],
+        return_type: DataType::Float32,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
-        return_type: ReturnType::Static(DataType::Float64),
+        input: &[DataType::Float64, DataType::Float64],
+        return_type: DataType::Float64,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
-        return_type: ReturnType::Static(DataType::Int8),
+        input: &[DataType::Int8, DataType::Int8],
+        return_type: DataType::Int8,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
-        return_type: ReturnType::Static(DataType::Int16),
+        input: &[DataType::Int16, DataType::Int16],
+        return_type: DataType::Int16,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
-        return_type: ReturnType::Static(DataType::Int32),
+        input: &[DataType::Int32, DataType::Int32],
+        return_type: DataType::Int32,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
-        return_type: ReturnType::Static(DataType::Int64),
+        input: &[DataType::Int64, DataType::Int64],
+        return_type: DataType::Int64,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
-        return_type: ReturnType::Static(DataType::UInt8),
+        input: &[DataType::UInt8, DataType::UInt8],
+        return_type: DataType::UInt8,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
-        return_type: ReturnType::Static(DataType::UInt16),
+        input: &[DataType::UInt16, DataType::UInt16],
+        return_type: DataType::UInt16,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
-        return_type: ReturnType::Static(DataType::UInt32),
+        input: &[DataType::UInt32, DataType::UInt32],
+        return_type: DataType::UInt32,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
-        return_type: ReturnType::Static(DataType::UInt64),
+        input: &[DataType::UInt64, DataType::UInt64],
+        return_type: DataType::UInt64,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Date32, DataType::Int64]),
-        return_type: ReturnType::Static(DataType::Date32),
+        input: &[DataType::Date32, DataType::Int64],
+        return_type: DataType::Date32,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Interval, DataType::Int64]),
-        return_type: ReturnType::Static(DataType::Interval),
+        input: &[DataType::Interval, DataType::Int64],
+        return_type: DataType::Interval,
     },
     Signature {
-        input: InputTypes::Exact(&[
+        input: &[
             DataType::Decimal64(TypeMeta::None),
             DataType::Decimal64(TypeMeta::None),
-        ]),
-        return_type: ReturnType::Static(DataType::Decimal64(TypeMeta::None)),
+        ],
+        return_type: DataType::Decimal64(TypeMeta::None),
     },
 ];
 

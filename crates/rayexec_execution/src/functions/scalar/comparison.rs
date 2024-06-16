@@ -1,7 +1,6 @@
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
@@ -13,68 +12,68 @@ use std::sync::Arc;
 
 const COMPARISON_SIGNATURES: &[Signature] = &[
     Signature {
-        input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Boolean, DataType::Boolean],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Float32, DataType::Float32],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Float64, DataType::Float64]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Float64, DataType::Float64],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int8, DataType::Int8]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Int8, DataType::Int8],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int16, DataType::Int16]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Int16, DataType::Int16],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int32, DataType::Int32]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Int32, DataType::Int32],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Int64, DataType::Int64]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Int64, DataType::Int64],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt8, DataType::UInt8]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::UInt8, DataType::UInt8],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt16, DataType::UInt16]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::UInt16, DataType::UInt16],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt32, DataType::UInt32]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::UInt32, DataType::UInt32],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::UInt64, DataType::UInt64]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::UInt64, DataType::UInt64],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Date32, DataType::Date32]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Date32, DataType::Date32],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Utf8, DataType::Utf8]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Utf8, DataType::Utf8],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::LargeUtf8, DataType::LargeUtf8]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::LargeUtf8, DataType::LargeUtf8],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::Binary, DataType::Binary]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::Binary, DataType::Binary],
+        return_type: DataType::Boolean,
     },
     Signature {
-        input: InputTypes::Exact(&[DataType::LargeBinary, DataType::LargeBinary]),
-        return_type: ReturnType::Static(DataType::Boolean),
+        input: &[DataType::LargeBinary, DataType::LargeBinary],
+        return_type: DataType::Boolean,
     },
 ];
 

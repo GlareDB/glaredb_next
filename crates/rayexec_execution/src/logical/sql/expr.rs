@@ -8,12 +8,12 @@ use rayexec_parser::ast;
 
 use crate::expr::scalar::{BinaryOperator, UnaryOperator};
 use crate::functions::aggregate::GenericAggregateFunction;
+use crate::functions::scalar::GenericScalarFunction;
+use crate::functions::CastType;
 use crate::logical::operator::LogicalExpression;
-use crate::{functions::scalar::GenericScalarFunction, logical::sql::cast::CastType};
 
 use super::{
     binder::{Bound, BoundFunctionReference},
-    cast::find_candidate_signatures,
     planner::PlanContext,
     scope::{Scope, TableReference},
 };
@@ -400,7 +400,7 @@ impl<'a> ExpressionContext<'a> {
             Ok(inputs)
         } else {
             // Try to find candidates that we can cast to.
-            let mut candidates = find_candidate_signatures(&input_datatypes, scalar.signatures());
+            let mut candidates = scalar.cadidate_signatures(&input_datatypes);
 
             if candidates.is_empty() {
                 // TODO: Do we want to fall through? Is it possible for a
@@ -416,6 +416,8 @@ impl<'a> ExpressionContext<'a> {
 
             // TODO: Maybe more sophisticated candidate selection.
             //
+            // TODO: Sort by score
+            //
             // We should do some lightweight const folding and prefer candidates
             // that cast the consts over ones that need array inputs to be
             // casted.
@@ -424,10 +426,10 @@ impl<'a> ExpressionContext<'a> {
             // Apply casts where needed.
             let inputs = inputs
                 .into_iter()
-                .zip(candidate.datatypes)
+                .zip(candidate.casts)
                 .map(|(input, cast_to)| match cast_to {
-                    CastType::CastTo(datatype) => LogicalExpression::Cast {
-                        to: datatype,
+                    CastType::Cast { to, .. } => LogicalExpression::Cast {
+                        to,
                         expr: Box::new(input),
                     },
                     CastType::NoCastNeeded => input,
@@ -454,7 +456,7 @@ impl<'a> ExpressionContext<'a> {
             Ok(inputs)
         } else {
             // Try to find candidates that we can cast to.
-            let mut candidates = find_candidate_signatures(&input_datatypes, agg.signatures());
+            let mut candidates = agg.cadidate_signatures(&input_datatypes);
 
             if candidates.is_empty() {
                 return Err(RayexecError::new(format!(
@@ -470,10 +472,10 @@ impl<'a> ExpressionContext<'a> {
             // Apply casts where needed.
             let inputs = inputs
                 .into_iter()
-                .zip(candidate.datatypes)
+                .zip(candidate.casts)
                 .map(|(input, cast_to)| match cast_to {
-                    CastType::CastTo(datatype) => LogicalExpression::Cast {
-                        to: datatype,
+                    CastType::Cast { to, .. } => LogicalExpression::Cast {
+                        to,
                         expr: Box::new(input),
                     },
                     CastType::NoCastNeeded => input,

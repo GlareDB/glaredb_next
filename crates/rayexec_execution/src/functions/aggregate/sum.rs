@@ -3,8 +3,7 @@ use super::{
     GenericAggregateFunction, SpecializedAggregateFunction,
 };
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::{
     array::{Decimal128Array, Decimal64Array},
@@ -26,20 +25,20 @@ impl FunctionInfo for Sum {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: ReturnType::Static(DataType::Float64),
+                input: &[DataType::Float64],
+                return_type: DataType::Float64,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Int64]),
-                return_type: ReturnType::Static(DataType::Int64), // TODO: Should be big num
+                input: &[DataType::Int64],
+                return_type: DataType::Int64, // TODO: Should be big num
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Decimal64(TypeMeta::None)]),
-                return_type: ReturnType::Static(DataType::Decimal64(TypeMeta::None)),
+                input: &[DataType::Decimal64(TypeMeta::None)],
+                return_type: DataType::Decimal64(TypeMeta::None),
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Decimal128(TypeMeta::None)]),
-                return_type: ReturnType::Static(DataType::Decimal128(TypeMeta::None)),
+                input: &[DataType::Decimal128(TypeMeta::None)],
+                return_type: DataType::Decimal128(TypeMeta::None),
             },
         ]
     }

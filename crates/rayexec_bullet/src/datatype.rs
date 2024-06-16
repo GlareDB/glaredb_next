@@ -24,6 +24,10 @@ impl<T> TypeMeta<T> {
             Self::None => Err(RayexecError::new("No metadata on data type")),
         }
     }
+
+    pub const fn is_some(&self) -> bool {
+        matches!(self, TypeMeta::Some(_))
+    }
 }
 
 impl<T> From<T> for TypeMeta<T> {
@@ -31,6 +35,10 @@ impl<T> From<T> for TypeMeta<T> {
         TypeMeta::Some(value)
     }
 }
+
+/// Metadata for the any type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AnyTypeMeta {}
 
 /// Metadata associated with decimals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -67,6 +75,12 @@ pub struct ListTypeMeta {
 /// specific type, we use `List(TypeMeta::None)` to represent that.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DataType {
+    /// Any datatype.
+    ///
+    /// This is used for functions that can accept any input. Like all other
+    /// variants, this variant must be explicitly matched on. Checking equality
+    /// with any other data type will always return false.
+    Any(TypeMeta<AnyTypeMeta>),
     /// Constant null columns.
     Null,
     Boolean,
@@ -109,9 +123,30 @@ pub enum DataType {
 }
 
 impl DataType {
+    /// Return if this datatype is any.
+    pub const fn is_any(&self) -> bool {
+        matches!(self, DataType::Any(_))
+    }
+
+    /// Return if this datatype is null.
     pub const fn is_null(&self) -> bool {
+        matches!(self, DataType::Null)
+    }
+
+    /// Return if this datatype is a list.
+    pub const fn is_list(&self) -> bool {
+        matches!(self, DataType::List(_))
+    }
+
+    /// For types that might hold a `TypeMeta`, check if it's Some.
+    ///
+    /// All other types will return false.
+    pub const fn type_meta_is_some(&self) -> bool {
         match self {
-            Self::Null => true,
+            Self::Decimal64(meta) => meta.is_some(),
+            Self::Decimal128(meta) => meta.is_some(),
+            Self::Struct(meta) => meta.is_some(),
+            Self::List(meta) => meta.is_some(),
             _ => false,
         }
     }
@@ -120,6 +155,7 @@ impl DataType {
     /// metadata.
     pub const fn eq_no_meta(&self, other: &Self) -> bool {
         match (self, other) {
+            (DataType::Any(_), DataType::Any(_)) => true,
             (DataType::Null, DataType::Null) => true,
             (DataType::Int8, DataType::Int8) => true,
             (DataType::Int16, DataType::Int16) => true,
@@ -154,6 +190,7 @@ impl DataType {
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Any(_) => write!(f, "Any"),
             Self::Null => write!(f, "Null"),
             Self::Boolean => write!(f, "Boolean"),
             Self::Int8 => write!(f, "Int8"),

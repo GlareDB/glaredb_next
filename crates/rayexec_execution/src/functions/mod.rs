@@ -3,57 +3,69 @@ pub mod implicit;
 pub mod scalar;
 pub mod table;
 
+use implicit::implicit_cast_score;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum InputTypes {
-    /// Exact number of inputs with the given types.
-    Exact(&'static [DataType]),
-
-    /// Variadic number of inputs with the same type.
-    Variadic(DataType),
-
-    /// Input is not statically determined. Further checks need to be done.
-    Dynamic,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ReturnType {
-    /// Return type is statically known.
-    Static(DataType),
-
-    /// Return type depends entirely on the input, and we can't know ahead of
-    /// time.
-    ///
-    /// This is typically used for compound types.
-    Dynamic,
-}
-
+/// Function signature.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
-    pub input: InputTypes,
-    pub return_type: ReturnType,
+    /// Expected input types for this signature.
+    ///
+    /// If the last data type is a list, this signature will be considered
+    /// variadic.
+    pub input: &'static [DataType],
+
+    /// The expected return type.
+    ///
+    /// Note that for some functions, this might return a compound type
+    /// `DataType::Struct(TypeMeta::None)` which might require further
+    /// refinement.
+    pub return_type: DataType,
 }
 
 impl Signature {
-    /// Return if inputs given data types satisfy this signature.
-    fn inputs_satisfy_signature(&self, inputs: &[DataType]) -> bool {
-        match &self.input {
-            InputTypes::Exact(expected) => {
-                if expected.len() != inputs.len() {
+    /// Check if this signature is a variadic signature.
+    pub const fn is_variadic(&self) -> bool {
+        match self.input.last() {
+            Some(datatype) => datatype.is_list(),
+            None => false,
+        }
+    }
+
+    /// Return if inputs given data types exactly satisfy the signature.
+    fn exact_match(&self, inputs: &[DataType]) -> bool {
+        if self.is_variadic() {
+            unimplemented!()
+        }
+
+        if self.input.len() != inputs.len() {
+            return false;
+        }
+
+        for (expected, have) in self.input.iter().zip(inputs.iter()) {
+            if expected.is_any() {
+                continue;
+            }
+
+            if expected.type_meta_is_some() {
+                // Signature has a more refined type, eq the whole thing.
+                if !expected.eq(have) {
                     return false;
                 }
-                for (expected, input) in expected.iter().zip(inputs.iter()) {
-                    if !expected.eq_no_meta(input) {
-                        return false;
-                    }
+            } else {
+                // Otherwise just compare the top-level types and not the type
+                // metadata.
+                //
+                // E.q. we might have a Decimal64(18, 9), and the function just
+                // cares that we're passing in a Decimal64.
+                if !expected.eq_no_meta(have) {
+                    return false;
                 }
-                true
             }
-            InputTypes::Variadic(typ) => inputs.iter().all(|input| typ.eq_no_meta(input)),
-            InputTypes::Dynamic => true,
         }
+
+        true
     }
 }
 
@@ -76,22 +88,103 @@ pub trait FunctionInfo {
     /// function given some inputs, and how we should handle implicit casting.
     fn signatures(&self) -> &[Signature];
 
-    /// Get the return type for this function.
+    /// Get the return type for this function if the inputs have an exact
+    /// signature match.
     ///
-    /// This is expected to be overridden by functions that return a dynamic
-    /// type based on input. The default implementation can only determine the
-    /// output if it can be statically determined.
-    // TODO: Maybe remove
+    /// If there are no exact signatures for these types, None will be retuned.
     fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
         let sig = self
             .signatures()
             .iter()
-            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
+            .find(|sig| sig.exact_match(inputs))?;
 
-        match &sig.return_type {
-            ReturnType::Static(datatype) => Some(datatype.clone()),
-            ReturnType::Dynamic => None,
+        Some(sig.return_type.clone())
+    }
+
+    /// Get candidate signatures for this function given the input datatypes.
+    ///
+    /// The returned candidates will have info on which arguments need to be
+    /// casted and which are fine to state as-is.
+    fn cadidate_signatures(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
+        CandidateSignature::find_candidates(inputs, self.signatures())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CastType {
+    /// Need to cast the type to this one.
+    Cast { to: DataType, score: i32 },
+
+    /// Casting isn't needed, the original data type works.
+    NoCastNeeded,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CandidateSignature {
+    /// Index of the signature
+    pub signature_idx: usize,
+
+    /// Casts that would need to be applied in order to satisfy the signature.
+    pub casts: Vec<CastType>,
+}
+
+impl CandidateSignature {
+    /// Find candidate signatures for the given dataypes.
+    fn find_candidates(inputs: &[DataType], sigs: &[Signature]) -> Vec<Self> {
+        let mut candidates = Vec::new();
+
+        let mut buf = Vec::new();
+        for (idx, sig) in sigs.iter().enumerate() {
+            if sig.is_variadic() {
+                unimplemented!()
+            }
+
+            if !Self::compare_and_fill_types(inputs, &sig.input, &mut buf) {
+                continue;
+            }
+
+            candidates.push(CandidateSignature {
+                signature_idx: idx,
+                casts: std::mem::take(&mut buf),
+            })
         }
+
+        candidates
+    }
+
+    /// Compare the types we have with the types we want, filling the provided
+    /// buffer with the cast type.
+    ///
+    /// Returns true if everything is able to be implicitly cast, false otherwise.
+    fn compare_and_fill_types(
+        have: &[DataType],
+        want: &[DataType],
+        buf: &mut Vec<CastType>,
+    ) -> bool {
+        if have.len() != want.len() {
+            return false;
+        }
+        buf.clear();
+
+        for (have, want) in have.iter().zip(want.iter()) {
+            if have == want {
+                buf.push(CastType::NoCastNeeded);
+                continue;
+            }
+
+            let score = implicit_cast_score(have, want);
+            if score > 0 {
+                buf.push(CastType::Cast {
+                    to: want.clone(),
+                    score,
+                });
+                continue;
+            }
+
+            return false;
+        }
+
+        true
     }
 }
 

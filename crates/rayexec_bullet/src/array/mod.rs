@@ -276,6 +276,7 @@ impl Array {
         let (cap, _) = scalars.size_hint();
 
         match datatype {
+            DataType::Any(_) => Err(RayexecError::new("Cannot create an ANY array from scalars")),
             DataType::Null => {
                 let mut len = 0;
                 for scalar in scalars {

@@ -11,8 +11,7 @@ use super::{
     GroupedStates, SpecializedAggregateFunction,
 };
 use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, InputTypes, ReturnType,
-    Signature,
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -29,12 +28,12 @@ impl FunctionInfo for Avg {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: InputTypes::Exact(&[DataType::Float64]),
-                return_type: ReturnType::Static(DataType::Float64),
+                input: &[DataType::Float64],
+                return_type: DataType::Float64,
             },
             Signature {
-                input: InputTypes::Exact(&[DataType::Int64]),
-                return_type: ReturnType::Static(DataType::Float64), // TODO: Should be decimal
+                input: &[DataType::Int64],
+                return_type: DataType::Float64, // TODO: Should be decimal
             },
         ]
     }
