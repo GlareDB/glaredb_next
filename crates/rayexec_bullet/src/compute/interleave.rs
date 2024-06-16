@@ -1,8 +1,8 @@
 use crate::{
     array::{
-        Array, AsVarlenType, BooleanArray, BooleanArrayBuilder, BooleanValuesBuffer, NullArray,
-        OffsetIndex, PrimitiveArray, PrimitiveArrayBuilder, ValuesBuffer, VarlenArray, VarlenType,
-        VarlenValuesBuffer,
+        Array, AsVarlenType, BooleanArray, BooleanArrayBuilder, BooleanValuesBuffer,
+        Decimal128Array, Decimal64Array, NullArray, OffsetIndex, PrimitiveArray,
+        PrimitiveArrayBuilder, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
     compute::macros::collect_arrays_of_type,
@@ -71,6 +71,26 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             let arrs = collect_arrays_of_type!(arrays, Float64, datatype)?;
             Ok(Array::Float64(interleave_primitive(&arrs, indices)?))
         }
+        DataType::Decimal64(meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal64, datatype)?;
+            let primitives: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            let interleaved = interleave_primitive(&primitives, indices)?;
+            Ok(Array::Decimal64(Decimal64Array::new(
+                meta.precision,
+                meta.scale,
+                interleaved,
+            )))
+        }
+        DataType::Decimal128(meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal128, datatype)?;
+            let primitives: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            let interleaved = interleave_primitive(&primitives, indices)?;
+            Ok(Array::Decimal128(Decimal128Array::new(
+                meta.precision,
+                meta.scale,
+                interleaved,
+            )))
+        }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
             Ok(Array::Utf8(interleave_varlen(&arrs, indices)?))
@@ -87,7 +107,7 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
             Ok(Array::LargeBinary(interleave_varlen(&arrs, indices)?))
         }
-        _ => unimplemented!(),
+        other => unimplemented!("{other}"),
     }
 }
 

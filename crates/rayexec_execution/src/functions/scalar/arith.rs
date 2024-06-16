@@ -490,7 +490,9 @@ impl SpecializedScalarFunction for MulPrimitiveSpecialized {
                     primitive_binary_execute_no_wrap!(
                         first.get_primitive(),
                         second.get_primitive(),
-                        |a, b| a * b
+                        |a, b| {
+                            a.checked_mul(b).unwrap_or(0) // TODO
+                        }
                     ),
                 )
                 .into()
@@ -503,7 +505,9 @@ impl SpecializedScalarFunction for MulPrimitiveSpecialized {
                     primitive_binary_execute_no_wrap!(
                         first.get_primitive(),
                         second.get_primitive(),
-                        |a, b| a * b
+                        |a, b| {
+                            a.checked_mul(b).unwrap_or(0) // TODO
+                        }
                     ),
                 )
                 .into()

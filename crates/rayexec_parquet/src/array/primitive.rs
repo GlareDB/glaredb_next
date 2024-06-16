@@ -3,8 +3,9 @@ use parquet::column::page::PageReader;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::{
-    Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    TimestampNanosecondsArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Array, BooleanArray, Decimal128Array, Decimal64Array, Float32Array, Float64Array, Int16Array,
+    Int32Array, Int64Array, Int8Array, TimestampNanosecondsArray, UInt16Array, UInt32Array,
+    UInt64Array, UInt8Array,
 };
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
@@ -40,7 +41,21 @@ where
         let arr = match (T::get_physical_type(), &self.datatype) {
             (PhysicalType::BOOLEAN, DataType::Boolean) => data.into_array(def_levels),
             (PhysicalType::INT32, DataType::Int32) => data.into_array(def_levels),
+            (PhysicalType::INT32, DataType::Date32) => {
+                let arr = data.into_array(def_levels);
+                match arr {
+                    Array::Int32(arr) => Array::Date32(arr),
+                    other => return Err(RayexecError::new(format!("Unexpected array type when converting to Date32: {}", other.datatype())))
+                }
+            },
             (PhysicalType::INT64, DataType::Int64) => data.into_array(def_levels),
+            (PhysicalType::INT64, DataType::Decimal64(meta)) => {
+                let arr = data.into_array(def_levels);
+                match arr {
+                    Array::Int64(arr) => Array::Decimal64(Decimal64Array::new(meta.precision, meta.scale, arr)),
+                    other => return Err(RayexecError::new(format!("Unexpected array type when converting to Decimal64: {}", other.datatype())))
+                }
+            }
             (PhysicalType::INT96, DataType::TimestampNanoseconds) => data.into_array(def_levels),
             (PhysicalType::FLOAT, DataType::Float32) => data.into_array(def_levels),
             (PhysicalType::DOUBLE, DataType::Float64) => data.into_array(def_levels),

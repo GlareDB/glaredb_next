@@ -18,6 +18,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Schema;
+use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReadAt;
 use std::collections::VecDeque;
@@ -64,6 +65,12 @@ where
             datatype, desc,
         ))),
         DataType::Float64 => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
+            datatype, desc,
+        ))),
+        DataType::Date32 => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+            datatype, desc,
+        ))),
+        DataType::Decimal64(_) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
             datatype, desc,
         ))),
         DataType::Utf8 => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
@@ -404,10 +411,10 @@ where
     }
 
     pub fn take_def_levels(&mut self) -> Option<Vec<i16>> {
-        std::mem::take(&mut self.def_levels)
+        self.def_levels.as_mut().map(|v| std::mem::take(v))
     }
 
     pub fn take_rep_levels(&mut self) -> Option<Vec<i16>> {
-        std::mem::take(&mut self.rep_levels)
+        self.rep_levels.as_mut().map(|v| std::mem::take(v))
     }
 }

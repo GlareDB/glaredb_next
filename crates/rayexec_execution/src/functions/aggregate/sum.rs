@@ -4,6 +4,7 @@ use super::{
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
+use num_traits::CheckedAdd;
 use rayexec_bullet::{
     array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
     bitmap::Bitmap,
@@ -70,7 +71,7 @@ impl SumInt64Specialized {
         row_selection: &Bitmap,
         arrays: &[&Array],
         mapping: &[usize],
-        states: &mut [SumState<i64>],
+        states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
         match &arrays[0] {
             Array::Int64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
@@ -78,7 +79,7 @@ impl SumInt64Specialized {
         }
     }
 
-    fn finalize(states: vec::Drain<SumState<i64>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
@@ -100,7 +101,7 @@ impl SumFloat64Specialized {
         row_selection: &Bitmap,
         arrays: &[&Array],
         mapping: &[usize],
-        states: &mut [SumState<f64>],
+        states: &mut [SumStateAdd<f64>],
     ) -> Result<()> {
         match &arrays[0] {
             Array::Float64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
@@ -108,7 +109,7 @@ impl SumFloat64Specialized {
         }
     }
 
-    fn finalize(states: vec::Drain<SumState<f64>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateAdd<f64>>) -> Result<Array> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
@@ -133,7 +134,7 @@ impl SumDecimal64Specialized {
         row_selection: &Bitmap,
         arrays: &[&Array],
         mapping: &[usize],
-        states: &mut [SumState<i64>],
+        states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
         match &arrays[0] {
             Array::Decimal64(arr) => {
@@ -143,7 +144,7 @@ impl SumDecimal64Specialized {
         }
     }
 
-    fn finalize(states: vec::Drain<SumState<i64>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
@@ -174,7 +175,7 @@ impl SumDecimal128Specialized {
         row_selection: &Bitmap,
         arrays: &[&Array],
         mapping: &[usize],
-        states: &mut [SumState<i128>],
+        states: &mut [SumStateCheckedAdd<i128>],
     ) -> Result<()> {
         match &arrays[0] {
             Array::Decimal128(arr) => {
@@ -184,7 +185,7 @@ impl SumDecimal128Specialized {
         }
     }
 
-    fn finalize(states: vec::Drain<SumState<i128>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateCheckedAdd<i128>>) -> Result<Array> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
@@ -207,12 +208,40 @@ impl SpecializedAggregateFunction for SumDecimal128Specialized {
 }
 
 #[derive(Debug, Default)]
-pub struct SumState<T> {
+pub struct SumStateCheckedAdd<T> {
     sum: T,
     at_least_one: bool,
 }
 
-impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumState<T> {
+impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAdd<T> {
+    fn merge(&mut self, other: Self) -> Result<()> {
+        self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
+        self.at_least_one = self.at_least_one || other.at_least_one;
+        Ok(())
+    }
+
+    fn update(&mut self, input: T) -> Result<()> {
+        self.sum = self.sum.checked_add(&input).unwrap_or_default(); // TODO
+        self.at_least_one = true;
+        Ok(())
+    }
+
+    fn finalize(self) -> Result<(T, bool)> {
+        if self.at_least_one {
+            Ok((self.sum, true))
+        } else {
+            Ok((T::default(), false))
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct SumStateAdd<T> {
+    sum: T,
+    at_least_one: bool,
+}
+
+impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum += other.sum;
         self.at_least_one = self.at_least_one || other.at_least_one;
