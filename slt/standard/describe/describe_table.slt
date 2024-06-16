@@ -11,12 +11,11 @@ b  Decimal64(18, 9)
 c  Utf8
 
 statement ok
-create temp table "compound.table" (d text, e float, f bigint);
+create temp table "a.b.c" (d text, e float, f bigint);
 
 query TT
-describe "compound.table"
+describe "a.b.c"
 ----
 d  Utf8
 e  Float32
 f  Int64
-

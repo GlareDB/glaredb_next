@@ -461,6 +461,11 @@ impl<'a> PlanContext<'a> {
         let mut names = Vec::with_capacity(projections.len());
         let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         for proj in projections {
+            // TODO: I feel like we should be modifying the scope here?
+            //
+            // I believe it would help with this query (ambiguous name a):
+            //
+            // with cte1 as (select 4 as a) select t1.a + t2.a from cte1 as t1, cte1 as t2
             match proj {
                 ExpandedSelectExpr::Expr { expr, name } => {
                     let expr = expr_ctx.plan_expression(expr)?;

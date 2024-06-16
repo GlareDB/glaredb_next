@@ -54,3 +54,11 @@ c1  Utf8
 a1  Utf8
 c2  Utf8
 
+query TT
+describe select * from (values (1,2), (3,4)) l(a, b), (values (4,5)) r(c, d);
+----
+a  Int64
+b  Int64
+c  Int64
+d  Int64
+
