@@ -70,10 +70,10 @@ impl Array {
             Array::UInt64(_) => DataType::UInt64,
             Array::UInt128(_) => DataType::UInt128,
             Self::Decimal64(arr) => {
-                DataType::Decimal64(DecimalTypeMeta::new(arr.precision(), arr.scale()).into())
+                DataType::Decimal64(DecimalTypeMeta::new(arr.precision(), arr.scale()))
             }
             Self::Decimal128(arr) => {
-                DataType::Decimal128(DecimalTypeMeta::new(arr.precision(), arr.scale()).into())
+                DataType::Decimal128(DecimalTypeMeta::new(arr.precision(), arr.scale()))
             }
             Array::Date32(_) => DataType::Date32,
             Array::Date64(_) => DataType::Date64,
@@ -288,7 +288,6 @@ impl Array {
         let (cap, _) = scalars.size_hint();
 
         match datatype {
-            DataType::Any(_) => Err(RayexecError::new("Cannot create an ANY array from scalars")),
             DataType::Null => {
                 let mut len = 0;
                 for scalar in scalars {

@@ -278,30 +278,24 @@ fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<OwnedScalarValu
         DataType::UInt64 => ScalarValue::UInt64(parse(UInt64Parser::default(), v, datatype)?),
         DataType::Float32 => ScalarValue::Float32(parse(Float32Parser::default(), v, datatype)?),
         DataType::Float64 => ScalarValue::Float64(parse(Float64Parser::default(), v, datatype)?),
-        DataType::Decimal64(meta) => {
-            let meta = meta.try_get_meta()?;
-            ScalarValue::Decimal64(Decimal64Scalar {
-                precision: meta.precision,
-                scale: meta.scale,
-                value: parse(
-                    Decimal64Parser::new(meta.precision, meta.scale),
-                    v,
-                    datatype,
-                )?,
-            })
-        }
-        DataType::Decimal128(meta) => {
-            let meta = meta.try_get_meta()?;
-            ScalarValue::Decimal128(Decimal128Scalar {
-                precision: meta.precision,
-                scale: meta.scale,
-                value: parse(
-                    Decimal128Parser::new(meta.precision, meta.scale),
-                    v,
-                    datatype,
-                )?,
-            })
-        }
+        DataType::Decimal64(meta) => ScalarValue::Decimal64(Decimal64Scalar {
+            precision: meta.precision,
+            scale: meta.scale,
+            value: parse(
+                Decimal64Parser::new(meta.precision, meta.scale),
+                v,
+                datatype,
+            )?,
+        }),
+        DataType::Decimal128(meta) => ScalarValue::Decimal128(Decimal128Scalar {
+            precision: meta.precision,
+            scale: meta.scale,
+            value: parse(
+                Decimal128Parser::new(meta.precision, meta.scale),
+                v,
+                datatype,
+            )?,
+        }),
         DataType::Date32 => ScalarValue::Date32(parse(Date32Parser, v, datatype)?),
         DataType::Interval => ScalarValue::Interval(parse(IntervalParser::default(), v, datatype)?),
         other => {

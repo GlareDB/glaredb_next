@@ -79,7 +79,6 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             Ok(Array::UInt128(concat_primitive(arrs.as_slice())))
         }
         DataType::Decimal64(meta) => {
-            let meta = meta.try_get_meta()?;
             let arrs = collect_arrays_of_type!(arrays, Decimal64, datatype)?;
             let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
             Ok(Array::Decimal64(DecimalArray::new(
@@ -89,7 +88,6 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             )))
         }
         DataType::Decimal128(meta) => {
-            let meta = meta.try_get_meta()?;
             let arrs = collect_arrays_of_type!(arrays, Decimal128, datatype)?;
             let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
             Ok(Array::Decimal128(DecimalArray::new(
@@ -150,7 +148,6 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
         }
         DataType::Struct(_) => unimplemented!(),
         DataType::List(_) => unimplemented!(),
-        DataType::Any(_) => Err(RayexecError::new("Cannot concat with datatype ANY")),
     }
 }
 

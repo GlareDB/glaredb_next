@@ -2,8 +2,7 @@ use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::StructArray;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::datatype::TypeMeta;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -19,15 +18,15 @@ impl FunctionInfo for StructPack {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataType::Struct(TypeMeta::None)],
-            return_type: DataType::Struct(TypeMeta::None),
+            input: &[DataTypeId::Struct],
+            return_type: DataTypeId::Struct,
         }]
     }
 
     fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
         // TODO: Check "key" types.
 
-        Some(DataType::Struct(TypeMeta::None))
+        unimplemented!()
     }
 }
 
@@ -83,8 +82,8 @@ impl FunctionInfo for StructExtract {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataType::Struct(TypeMeta::None)],
-            return_type: DataType::Any(TypeMeta::None),
+            input: &[DataTypeId::Struct],
+            return_type: DataTypeId::Any,
         }]
     }
 

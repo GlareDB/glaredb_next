@@ -44,22 +44,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt8(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt8(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt8(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
-        (Array::UInt8(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal128(Decimal128Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::UInt8(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
+        (Array::UInt8(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+        )),
         // From UInt16
         (Array::UInt16(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::UInt16(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -71,16 +65,12 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt16(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt16(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt16(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::UInt16(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
         (Array::UInt16(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
             Array::Decimal128(Decimal128Array::new(
                 meta.precision,
                 meta.scale,
@@ -99,16 +89,12 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::UInt32(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
         (Array::UInt32(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
             Array::Decimal128(Decimal128Array::new(
                 meta.precision,
                 meta.scale,
@@ -127,16 +113,12 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::UInt64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::UInt64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::UInt64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::UInt64(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
         (Array::UInt64(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
             Array::Decimal128(Decimal128Array::new(
                 meta.precision,
                 meta.scale,
@@ -155,22 +137,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int8(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int8(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int8(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
-        (Array::Int8(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal128(Decimal128Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::Int8(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
+        (Array::Int8(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+        )),
 
         // From Int16
         (Array::Int16(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
@@ -183,22 +159,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int16(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int16(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int16(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
-        (Array::Int16(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal128(Decimal128Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::Int16(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
+        (Array::Int16(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+        )),
 
         // From Int32
         (Array::Int32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
@@ -211,22 +181,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
-        (Array::Int32(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal128(Decimal128Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::Int32(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
+        (Array::Int32(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+        )),
 
         // From Int64
         (Array::Int64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
@@ -239,22 +203,16 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Int64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Int64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Int64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::Decimal64(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal64(Decimal64Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
-        (Array::Int64(arr), DataType::Decimal128(meta)) => {
-            let meta = meta.try_get_meta()?;
-            Array::Decimal128(Decimal128Array::new(
-                meta.precision,
-                meta.scale,
-                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-            ))
-        }
+        (Array::Int64(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
+        )),
+        (Array::Int64(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
+            meta.precision,
+            meta.scale,
+            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+        )),
 
         // From Float32
         (Array::Float32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
@@ -313,13 +271,11 @@ where
         DataType::Float32 => Array::Float32(cast_parse_primitive(arr, Float32Parser::default())?),
         DataType::Float64 => Array::Float64(cast_parse_primitive(arr, Float64Parser::default())?),
         DataType::Decimal64(meta) => {
-            let meta = meta.try_get_meta()?;
             let primitive =
                 cast_parse_primitive(arr, Decimal64Parser::new(meta.precision, meta.scale))?;
             Array::Decimal64(DecimalArray::new(meta.precision, meta.scale, primitive))
         }
         DataType::Decimal128(meta) => {
-            let meta = meta.try_get_meta()?;
             let primitive =
                 cast_parse_primitive(arr, Decimal128Parser::new(meta.precision, meta.scale))?;
             Array::Decimal128(DecimalArray::new(meta.precision, meta.scale, primitive))

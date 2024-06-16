@@ -5,7 +5,7 @@ use crate::functions::{
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
-use rayexec_bullet::datatype::{DataType, TypeMeta};
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -18,107 +18,101 @@ use std::sync::Arc;
 
 const COMPARISON_SIGNATURES: &[Signature] = &[
     Signature {
-        input: &[DataType::Boolean, DataType::Boolean],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Int8, DataType::Int8],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Int8, DataTypeId::Int8],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Int16, DataType::Int16],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Int16, DataTypeId::Int16],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Int32, DataType::Int32],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Int32, DataTypeId::Int32],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Int64, DataType::Int64],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Int64, DataTypeId::Int64],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::UInt8, DataType::UInt8],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::UInt8, DataTypeId::UInt8],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::UInt16, DataType::UInt16],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::UInt16, DataTypeId::UInt16],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::UInt32, DataType::UInt32],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::UInt32, DataTypeId::UInt32],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::UInt64, DataType::UInt64],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::UInt64, DataTypeId::UInt64],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Float32, DataType::Float32],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Float32, DataTypeId::Float32],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Float64, DataType::Float64],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Float64, DataTypeId::Float64],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[
-            DataType::Decimal64(TypeMeta::None),
-            DataType::Decimal64(TypeMeta::None),
-        ],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[
-            DataType::Decimal128(TypeMeta::None),
-            DataType::Decimal128(TypeMeta::None),
-        ],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Decimal128, DataTypeId::Decimal128],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::TimestampSeconds, DataType::TimestampSeconds],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::TimestampSeconds, DataTypeId::TimestampSeconds],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[
-            DataType::TimestampMilliseconds,
-            DataType::TimestampMilliseconds,
+            DataTypeId::TimestampMilliseconds,
+            DataTypeId::TimestampMilliseconds,
         ],
-        return_type: DataType::Boolean,
+        return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[
-            DataType::TimestampMicroseconds,
-            DataType::TimestampMicroseconds,
+            DataTypeId::TimestampMicroseconds,
+            DataTypeId::TimestampMicroseconds,
         ],
-        return_type: DataType::Boolean,
+        return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[
-            DataType::TimestampNanoseconds,
-            DataType::TimestampNanoseconds,
+            DataTypeId::TimestampNanoseconds,
+            DataTypeId::TimestampNanoseconds,
         ],
-        return_type: DataType::Boolean,
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Date32, DataType::Date32],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Date32, DataTypeId::Date32],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Utf8, DataType::Utf8],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Utf8, DataTypeId::Utf8],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::LargeUtf8, DataType::LargeUtf8],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::Binary, DataType::Binary],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::Binary, DataTypeId::Binary],
+        return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataType::LargeBinary, DataType::LargeBinary],
-        return_type: DataType::Boolean,
+        input: &[DataTypeId::LargeBinary, DataTypeId::LargeBinary],
+        return_type: DataTypeId::Boolean,
     },
 ];
 

@@ -3,7 +3,7 @@ use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use std::sync::Arc;
 
@@ -20,32 +20,32 @@ impl FunctionInfo for Negate {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataType::Float32],
-                return_type: DataType::Float32,
+                input: &[DataTypeId::Float32],
+                return_type: DataTypeId::Float32,
             },
             Signature {
-                input: &[DataType::Float64],
-                return_type: DataType::Float64,
+                input: &[DataTypeId::Float64],
+                return_type: DataTypeId::Float64,
             },
             Signature {
-                input: &[DataType::Int8],
-                return_type: DataType::Int8,
+                input: &[DataTypeId::Int8],
+                return_type: DataTypeId::Int8,
             },
             Signature {
-                input: &[DataType::Int16],
-                return_type: DataType::Int16,
+                input: &[DataTypeId::Int16],
+                return_type: DataTypeId::Int16,
             },
             Signature {
-                input: &[DataType::Int32],
-                return_type: DataType::Int32,
+                input: &[DataTypeId::Int32],
+                return_type: DataTypeId::Int32,
             },
             Signature {
-                input: &[DataType::Int64],
-                return_type: DataType::Int64,
+                input: &[DataTypeId::Int64],
+                return_type: DataTypeId::Int64,
             },
             Signature {
-                input: &[DataType::Interval],
-                return_type: DataType::Interval,
+                input: &[DataTypeId::Interval],
+                return_type: DataTypeId::Interval,
             },
         ]
     }

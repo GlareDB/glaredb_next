@@ -5,7 +5,7 @@ pub mod table;
 
 use fmtutil::IntoDisplayableSlice;
 use implicit::implicit_cast_score;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
 
 /// Function signature.
@@ -15,21 +15,21 @@ pub struct Signature {
     ///
     /// If the last data type is a list, this signature will be considered
     /// variadic.
-    pub input: &'static [DataType],
+    pub input: &'static [DataTypeId],
 
     /// The expected return type.
     ///
     /// Note that for some functions, this might return a compound type
     /// `DataType::Struct(TypeMeta::None)` which might require further
     /// refinement.
-    pub return_type: DataType,
+    pub return_type: DataTypeId,
 }
 
 impl Signature {
     /// Check if this signature is a variadic signature.
     pub const fn is_variadic(&self) -> bool {
         match self.input.last() {
-            Some(datatype) => datatype.is_list(),
+            Some(id) => matches!(id, DataTypeId::List),
             None => false,
         }
     }
@@ -44,25 +44,13 @@ impl Signature {
             return false;
         }
 
-        for (expected, have) in self.input.iter().zip(inputs.iter()) {
-            if expected.is_any() {
+        for (&expected, have) in self.input.iter().zip(inputs.iter()) {
+            if expected == DataTypeId::Any {
                 continue;
             }
 
-            if expected.type_meta_is_some() {
-                // Signature has a more refined type, eq the whole thing.
-                if !expected.eq(have) {
-                    return false;
-                }
-            } else {
-                // Otherwise just compare the top-level types and not the type
-                // metadata.
-                //
-                // E.q. we might have a Decimal64(18, 9), and the function just
-                // cares that we're passing in a Decimal64.
-                if !expected.eq_no_meta(have) {
-                    return false;
-                }
+            if have.datatype_id() != expected {
+                return false;
             }
         }
 
@@ -93,13 +81,17 @@ pub trait FunctionInfo {
     /// signature match.
     ///
     /// If there are no exact signatures for these types, None will be retuned.
+    ///
+    /// This can be overridden to allow for working with more complex types
+    /// (like extracting a field from a struct).
     fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
         let sig = self
             .signatures()
             .iter()
             .find(|sig| sig.exact_match(inputs))?;
+        let datatype = DataType::try_default_datatype(sig.return_type).ok()?;
 
-        Some(sig.return_type.clone())
+        Some(datatype)
     }
 
     /// Get candidate signatures for this function given the input datatypes.
@@ -114,7 +106,7 @@ pub trait FunctionInfo {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CastType {
     /// Need to cast the type to this one.
-    Cast { to: DataType, score: i32 },
+    Cast { to: DataTypeId, score: i32 },
 
     /// Casting isn't needed, the original data type works.
     NoCastNeeded,
@@ -159,7 +151,7 @@ impl CandidateSignature {
     /// Returns true if everything is able to be implicitly cast, false otherwise.
     fn compare_and_fill_types(
         have: &[DataType],
-        want: &[DataType],
+        want: &[DataTypeId],
         buf: &mut Vec<CastType>,
     ) -> bool {
         if have.len() != want.len() {
@@ -167,8 +159,8 @@ impl CandidateSignature {
         }
         buf.clear();
 
-        for (have, want) in have.iter().zip(want.iter()) {
-            if have.eq_no_meta(want) {
+        for (have, &want) in have.iter().zip(want.iter()) {
+            if have.datatype_id() == want {
                 buf.push(CastType::NoCastNeeded);
                 continue;
             }

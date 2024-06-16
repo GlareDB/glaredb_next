@@ -4,7 +4,7 @@ use crate::functions::{
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -21,12 +21,12 @@ impl FunctionInfo for Repeat {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataType::Utf8, DataType::Int64],
-                return_type: DataType::Utf8,
+                input: &[DataTypeId::Utf8, DataTypeId::Int64],
+                return_type: DataTypeId::Utf8,
             },
             Signature {
-                input: &[DataType::LargeUtf8, DataType::Int64],
-                return_type: DataType::LargeUtf8,
+                input: &[DataTypeId::LargeUtf8, DataTypeId::Int64],
+                return_type: DataTypeId::LargeUtf8,
             },
         ]
     }

@@ -226,7 +226,7 @@ impl<'a> ExpressionContext<'a> {
             ast::Expr::Cast { datatype, expr } => {
                 let expr = self.plan_expression(*expr)?;
                 Ok(LogicalExpression::Cast {
-                    to: datatype.fill_default_type_meta(),
+                    to: datatype,
                     expr: Box::new(expr),
                 })
             }
@@ -434,14 +434,16 @@ impl<'a> ExpressionContext<'a> {
             let inputs = inputs
                 .into_iter()
                 .zip(candidate.casts)
-                .map(|(input, cast_to)| match cast_to {
-                    CastType::Cast { to, .. } => LogicalExpression::Cast {
-                        to: to.fill_default_type_meta(),
-                        expr: Box::new(input),
-                    },
-                    CastType::NoCastNeeded => input,
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => LogicalExpression::Cast {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        },
+                        CastType::NoCastNeeded => input,
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>>>()?;
 
             Ok(inputs)
         }
@@ -480,14 +482,16 @@ impl<'a> ExpressionContext<'a> {
             let inputs = inputs
                 .into_iter()
                 .zip(candidate.casts)
-                .map(|(input, cast_to)| match cast_to {
-                    CastType::Cast { to, .. } => LogicalExpression::Cast {
-                        to: to.fill_default_type_meta(),
-                        expr: Box::new(input),
-                    },
-                    CastType::NoCastNeeded => input,
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => LogicalExpression::Cast {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        },
+                        CastType::NoCastNeeded => input,
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>>>()?;
 
             Ok(inputs)
         }

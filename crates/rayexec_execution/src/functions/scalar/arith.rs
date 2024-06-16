@@ -8,7 +8,7 @@ use crate::functions::{
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
 use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
 use rayexec_bullet::array::{Interval, PrimitiveArray};
-use rayexec_bullet::datatype::{DataType, TypeMeta};
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -18,59 +18,56 @@ use std::sync::Arc;
 // since some operations apply to intervals/dates, but not others.
 const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     Signature {
-        input: &[DataType::Float32, DataType::Float32],
-        return_type: DataType::Float32,
+        input: &[DataTypeId::Float32, DataTypeId::Float32],
+        return_type: DataTypeId::Float32,
     },
     Signature {
-        input: &[DataType::Float64, DataType::Float64],
-        return_type: DataType::Float64,
+        input: &[DataTypeId::Float64, DataTypeId::Float64],
+        return_type: DataTypeId::Float64,
     },
     Signature {
-        input: &[DataType::Int8, DataType::Int8],
-        return_type: DataType::Int8,
+        input: &[DataTypeId::Int8, DataTypeId::Int8],
+        return_type: DataTypeId::Int8,
     },
     Signature {
-        input: &[DataType::Int16, DataType::Int16],
-        return_type: DataType::Int16,
+        input: &[DataTypeId::Int16, DataTypeId::Int16],
+        return_type: DataTypeId::Int16,
     },
     Signature {
-        input: &[DataType::Int32, DataType::Int32],
-        return_type: DataType::Int32,
+        input: &[DataTypeId::Int32, DataTypeId::Int32],
+        return_type: DataTypeId::Int32,
     },
     Signature {
-        input: &[DataType::Int64, DataType::Int64],
-        return_type: DataType::Int64,
+        input: &[DataTypeId::Int64, DataTypeId::Int64],
+        return_type: DataTypeId::Int64,
     },
     Signature {
-        input: &[DataType::UInt8, DataType::UInt8],
-        return_type: DataType::UInt8,
+        input: &[DataTypeId::UInt8, DataTypeId::UInt8],
+        return_type: DataTypeId::UInt8,
     },
     Signature {
-        input: &[DataType::UInt16, DataType::UInt16],
-        return_type: DataType::UInt16,
+        input: &[DataTypeId::UInt16, DataTypeId::UInt16],
+        return_type: DataTypeId::UInt16,
     },
     Signature {
-        input: &[DataType::UInt32, DataType::UInt32],
-        return_type: DataType::UInt32,
+        input: &[DataTypeId::UInt32, DataTypeId::UInt32],
+        return_type: DataTypeId::UInt32,
     },
     Signature {
-        input: &[DataType::UInt64, DataType::UInt64],
-        return_type: DataType::UInt64,
+        input: &[DataTypeId::UInt64, DataTypeId::UInt64],
+        return_type: DataTypeId::UInt64,
     },
     Signature {
-        input: &[DataType::Date32, DataType::Int64],
-        return_type: DataType::Date32,
+        input: &[DataTypeId::Date32, DataTypeId::Int64],
+        return_type: DataTypeId::Date32,
     },
     Signature {
-        input: &[DataType::Interval, DataType::Int64],
-        return_type: DataType::Interval,
+        input: &[DataTypeId::Interval, DataTypeId::Int64],
+        return_type: DataTypeId::Interval,
     },
     Signature {
-        input: &[
-            DataType::Decimal64(TypeMeta::None),
-            DataType::Decimal64(TypeMeta::None),
-        ],
-        return_type: DataType::Decimal64(TypeMeta::None),
+        input: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
+        return_type: DataTypeId::Decimal64,
     },
 ];
 

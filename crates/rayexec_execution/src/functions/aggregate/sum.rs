@@ -8,7 +8,7 @@ use crate::functions::{
 use rayexec_bullet::{
     array::{Decimal128Array, Decimal64Array},
     bitmap::Bitmap,
-    datatype::{DataType, TypeMeta},
+    datatype::{DataType, DataTypeId},
     executor::aggregate::AggregateState,
 };
 use rayexec_error::Result;
@@ -25,20 +25,20 @@ impl FunctionInfo for Sum {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataType::Float64],
-                return_type: DataType::Float64,
+                input: &[DataTypeId::Float64],
+                return_type: DataTypeId::Float64,
             },
             Signature {
-                input: &[DataType::Int64],
-                return_type: DataType::Int64, // TODO: Should be big num
+                input: &[DataTypeId::Int64],
+                return_type: DataTypeId::Int64, // TODO: Should be big num
             },
             Signature {
-                input: &[DataType::Decimal64(TypeMeta::None)],
-                return_type: DataType::Decimal64(TypeMeta::None),
+                input: &[DataTypeId::Decimal64],
+                return_type: DataTypeId::Decimal64,
             },
             Signature {
-                input: &[DataType::Decimal128(TypeMeta::None)],
-                return_type: DataType::Decimal128(TypeMeta::None),
+                input: &[DataTypeId::Decimal128],
+                return_type: DataTypeId::Decimal128,
             },
         ]
     }
@@ -50,20 +50,14 @@ impl GenericAggregateFunction for Sum {
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(SumI64)),
             DataType::Float64 => Ok(Box::new(SumF64)),
-            DataType::Decimal64(meta) => {
-                let meta = meta.try_get_meta()?;
-                Ok(Box::new(SumDecimal64 {
-                    precision: meta.precision,
-                    scale: meta.scale,
-                }))
-            }
-            DataType::Decimal128(meta) => {
-                let meta = meta.try_get_meta()?;
-                Ok(Box::new(SumDecimal128 {
-                    precision: meta.precision,
-                    scale: meta.scale,
-                }))
-            }
+            DataType::Decimal64(meta) => Ok(Box::new(SumDecimal64 {
+                precision: meta.precision,
+                scale: meta.scale,
+            })),
+            DataType::Decimal128(meta) => Ok(Box::new(SumDecimal128 {
+                precision: meta.precision,
+                scale: meta.scale,
+            })),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }

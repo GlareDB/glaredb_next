@@ -4,7 +4,7 @@ use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -20,12 +20,12 @@ impl FunctionInfo for IsNan {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataType::Float32],
-                return_type: DataType::Boolean,
+                input: &[DataTypeId::Float32],
+                return_type: DataTypeId::Boolean,
             },
             Signature {
-                input: &[DataType::Float64],
-                return_type: DataType::Boolean,
+                input: &[DataTypeId::Float64],
+                return_type: DataTypeId::Boolean,
             },
         ]
     }
@@ -78,12 +78,12 @@ impl FunctionInfo for Ceil {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataType::Float32],
-                return_type: DataType::Float32,
+                input: &[DataTypeId::Float32],
+                return_type: DataTypeId::Float32,
             },
             Signature {
-                input: &[DataType::Float64],
-                return_type: DataType::Float64,
+                input: &[DataTypeId::Float64],
+                return_type: DataTypeId::Float64,
             },
         ]
     }
@@ -132,12 +132,12 @@ impl FunctionInfo for Floor {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataType::Float32],
-                return_type: DataType::Float32,
+                input: &[DataTypeId::Float32],
+                return_type: DataTypeId::Float32,
             },
             Signature {
-                input: &[DataType::Float64],
-                return_type: DataType::Float64,
+                input: &[DataTypeId::Float64],
+                return_type: DataTypeId::Float64,
             },
         ]
     }

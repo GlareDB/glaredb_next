@@ -1,8 +1,7 @@
 use num_traits::{NumCast, ToPrimitive};
 use rayexec_bullet::{
-    array::{Array, PrimitiveArray},
     bitmap::Bitmap,
-    datatype::DataType,
+    datatype::{DataType, DataTypeId},
     executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
 };
 
@@ -28,12 +27,12 @@ impl FunctionInfo for Avg {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataType::Float64],
-                return_type: DataType::Float64,
+                input: &[DataTypeId::Float64],
+                return_type: DataTypeId::Float64,
             },
             Signature {
-                input: &[DataType::Int64],
-                return_type: DataType::Float64, // TODO: Should be decimal
+                input: &[DataTypeId::Int64],
+                return_type: DataTypeId::Float64, // TODO: Should be decimal
             },
         ]
     }

@@ -15,7 +15,7 @@ use crate::compute::cast::format::{
     TimestampMillisecondsFormatter, TimestampNanosecondsFormatter, TimestampSecondsFormatter,
     UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
-use crate::datatype::{DataType, DecimalTypeMeta, TypeMeta};
+use crate::datatype::{DataType, DecimalTypeMeta};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
@@ -74,10 +74,10 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::UInt64(_) => DataType::UInt64,
             ScalarValue::UInt128(_) => DataType::UInt128,
             ScalarValue::Decimal64(v) => {
-                DataType::Decimal64(TypeMeta::Some(DecimalTypeMeta::new(v.precision, v.scale)))
+                DataType::Decimal64(DecimalTypeMeta::new(v.precision, v.scale))
             }
             ScalarValue::Decimal128(v) => {
-                DataType::Decimal128(TypeMeta::Some(DecimalTypeMeta::new(v.precision, v.scale)))
+                DataType::Decimal128(DecimalTypeMeta::new(v.precision, v.scale))
             }
             ScalarValue::Date32(_) => DataType::Date32,
             ScalarValue::Date64(_) => DataType::Date64,
@@ -90,7 +90,7 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
             ScalarValue::Binary(_) => DataType::Binary,
             ScalarValue::LargeBinary(_) => DataType::LargeBinary,
-            ScalarValue::Struct(fields) => DataType::Struct(TypeMeta::None), // TODO: Fill out the meta
+            ScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
         }
     }
 

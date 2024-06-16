@@ -1,7 +1,7 @@
 use rayexec_bullet::{
     array::{Array, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
-    datatype::{DataType, TypeMeta},
+    datatype::{DataType, DataTypeId},
     executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::{RayexecError, Result};
@@ -23,8 +23,8 @@ impl FunctionInfo for Count {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataType::Any(TypeMeta::None)],
-            return_type: DataType::Int64,
+            input: &[DataTypeId::Any],
+            return_type: DataTypeId::Int64,
         }]
     }
 }

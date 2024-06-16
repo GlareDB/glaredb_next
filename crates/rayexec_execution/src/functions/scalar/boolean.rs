@@ -4,7 +4,7 @@ use crate::functions::{
 };
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -20,8 +20,8 @@ impl FunctionInfo for And {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataType::Boolean, DataType::Boolean],
-            return_type: DataType::Boolean,
+            input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+            return_type: DataTypeId::Boolean,
         }]
     }
 }
@@ -69,8 +69,8 @@ impl FunctionInfo for Or {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataType::Boolean, DataType::Boolean],
-            return_type: DataType::Boolean,
+            input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+            return_type: DataTypeId::Boolean,
         }]
     }
 }
