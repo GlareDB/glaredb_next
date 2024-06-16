@@ -2,6 +2,8 @@ use std::fmt;
 
 use rayexec_error::{RayexecError, Result};
 
+use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE};
+
 /// Some types may optionally contain metadata to further refine the type. For
 /// example, the decimal types might have additional precision/scale
 /// information.
@@ -125,6 +127,22 @@ pub enum DataType {
 }
 
 impl DataType {
+    /// Fill the datatype with default type meta if it's missing.
+    pub fn fill_default_type_meta(self) -> Self {
+        match self {
+            Self::Any(TypeMeta::None) => Self::Any(TypeMeta::Some(AnyTypeMeta {})),
+            Self::Decimal64(TypeMeta::None) => Self::Decimal64(TypeMeta::Some(DecimalTypeMeta {
+                precision: Decimal64Type::MAX_PRECISION,
+                scale: DECIMAL_DEFUALT_SCALE,
+            })),
+            Self::Decimal128(TypeMeta::None) => Self::Decimal128(TypeMeta::Some(DecimalTypeMeta {
+                precision: Decimal128Type::MAX_PRECISION,
+                scale: DECIMAL_DEFUALT_SCALE,
+            })),
+            other => other,
+        }
+    }
+
     /// Return if this datatype is any.
     pub const fn is_any(&self) -> bool {
         matches!(self, DataType::Any(_))

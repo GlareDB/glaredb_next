@@ -214,13 +214,19 @@ impl<'a> ExpressionContext<'a> {
             ast::Expr::Nested(expr) => self.plan_expression(*expr),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.into());
-                let scalar = cast_scalar(scalar, &datatype)?;
-                Ok(LogicalExpression::Literal(scalar))
+                // TODO: Add this back. Currently doing this to avoid having to
+                // update cast rules for arrays and scalars at the same time.
+                //
+                // let scalar = cast_scalar(scalar, &datatype)?;
+                Ok(LogicalExpression::Cast {
+                    to: datatype,
+                    expr: Box::new(LogicalExpression::Literal(scalar)),
+                })
             }
             ast::Expr::Cast { datatype, expr } => {
                 let expr = self.plan_expression(*expr)?;
                 Ok(LogicalExpression::Cast {
-                    to: datatype,
+                    to: datatype.fill_default_type_meta(),
                     expr: Box::new(expr),
                 })
             }
@@ -430,7 +436,7 @@ impl<'a> ExpressionContext<'a> {
                 .zip(candidate.casts)
                 .map(|(input, cast_to)| match cast_to {
                     CastType::Cast { to, .. } => LogicalExpression::Cast {
-                        to,
+                        to: to.fill_default_type_meta(),
                         expr: Box::new(input),
                     },
                     CastType::NoCastNeeded => input,
@@ -476,7 +482,7 @@ impl<'a> ExpressionContext<'a> {
                 .zip(candidate.casts)
                 .map(|(input, cast_to)| match cast_to {
                     CastType::Cast { to, .. } => LogicalExpression::Cast {
-                        to,
+                        to: to.fill_default_type_meta(),
                         expr: Box::new(input),
                     },
                     CastType::NoCastNeeded => input,
