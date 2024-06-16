@@ -2,7 +2,7 @@ use rayexec_bullet::{
     array::{Array, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId},
-    executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
+    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::{RayexecError, Result};
 use std::vec;
@@ -41,27 +41,28 @@ impl GenericAggregateFunction for Count {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CountNonNull;
 
+impl CountNonNull {
+    fn update(
+        row_selection: &Bitmap,
+        arrays: &[&Array],
+        mapping: &[usize],
+        states: &mut [CountNonNullState],
+    ) -> Result<()> {
+        let unit_arr = UnitArrayAccessor::new(arrays[0]);
+        UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
+    }
+
+    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array> {
+        let mut buffer = Vec::with_capacity(states.len());
+        let mut bitmap = Bitmap::with_capacity(states.len());
+        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+    }
+}
+
 impl SpecializedAggregateFunction for CountNonNull {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let update_fn = |row_selection: &Bitmap,
-                         arrays: &[&Array],
-                         mapping: &[usize],
-                         states: &mut [CountNonNullState]| {
-            let unit_arr = UnitArrayAccessor::new(arrays[0]);
-            UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
-        };
-
-        let finalize_fn = |states: vec::Drain<'_, _>| {
-            let mut buffer = Vec::with_capacity(states.len());
-            StateFinalizer::finalize(states, &mut buffer)?;
-            Ok(Array::Int64(PrimitiveArray::new(buffer, None)))
-        };
-
-        Box::new(DefaultGroupedStates::new(
-            update_fn,
-            StateCombiner::combine,
-            finalize_fn,
-        ))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
@@ -81,7 +82,8 @@ impl AggregateState<(), i64> for CountNonNullState {
         Ok(())
     }
 
-    fn finalize(self) -> Result<i64> {
-        Ok(self.count)
+    fn finalize(self) -> Result<(i64, bool)> {
+        // Always valid, even when count is 0
+        Ok((self.count, true))
     }
 }

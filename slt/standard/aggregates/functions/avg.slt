@@ -19,3 +19,8 @@ query R
 select avg(a) from (values (2.1), (4.8)) as v(a);
 ----
 3.45
+
+query R
+select avg(a) from (values ('1.34'::decimal(6,3)), ('3.42'::decimal(6,3))) as v(a);
+----
+2.380

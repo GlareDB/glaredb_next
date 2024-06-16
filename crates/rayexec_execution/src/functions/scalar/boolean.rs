@@ -1,4 +1,4 @@
-use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use super::{GenericScalarFunction, SpecializedScalarFunction};
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };

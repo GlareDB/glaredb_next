@@ -47,9 +47,6 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> =
     ]
 });
 
-/// A function pointer with the concrete implementation of a scalar function.
-pub type ScalarFn = fn(&[&Arc<Array>]) -> Result<Array>;
-
 /// A generic scalar function that can specialize into a more specific function
 /// depending on input types.
 ///

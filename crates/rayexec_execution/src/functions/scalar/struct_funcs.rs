@@ -1,4 +1,4 @@
-use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use super::{GenericScalarFunction, SpecializedScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::StructArray;

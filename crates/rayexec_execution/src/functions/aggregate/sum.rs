@@ -1,15 +1,14 @@
 use super::{
-    macros::{generate_unary_decimal_aggregate, generate_unary_primitive_aggregate},
-    GenericAggregateFunction, SpecializedAggregateFunction,
+    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
 };
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::{
-    array::{Decimal128Array, Decimal64Array},
+    array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId},
-    executor::aggregate::AggregateState,
+    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::Result;
 use std::{fmt::Debug, ops::AddAssign, vec};
@@ -48,13 +47,13 @@ impl GenericAggregateFunction for Sum {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(SumI64)),
-            DataType::Float64 => Ok(Box::new(SumF64)),
-            DataType::Decimal64(meta) => Ok(Box::new(SumDecimal64 {
+            DataType::Int64 => Ok(Box::new(SumInt64Specialized)),
+            DataType::Float64 => Ok(Box::new(SumFloat64Specialized)),
+            DataType::Decimal64(meta) => Ok(Box::new(SumDecimal64Specialized {
                 precision: meta.precision,
                 scale: meta.scale,
             })),
-            DataType::Decimal128(meta) => Ok(Box::new(SumDecimal128 {
+            DataType::Decimal128(meta) => Ok(Box::new(SumDecimal128Specialized {
                 precision: meta.precision,
                 scale: meta.scale,
             })),
@@ -63,86 +62,175 @@ impl GenericAggregateFunction for Sum {
     }
 }
 
-generate_unary_primitive_aggregate!(SumI64, Int64, Int64, SumState<i64>);
-generate_unary_primitive_aggregate!(SumF64, Float64, Float64, SumState<f64>);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SumInt64Specialized;
 
-generate_unary_decimal_aggregate!(SumDecimal64, Decimal64, Decimal64Array, SumState<i64>);
-generate_unary_decimal_aggregate!(SumDecimal128, Decimal128, Decimal128Array, SumState<i128>);
+impl SumInt64Specialized {
+    fn update(
+        row_selection: &Bitmap,
+        arrays: &[&Array],
+        mapping: &[usize],
+        states: &mut [SumState<i64>],
+    ) -> Result<()> {
+        match &arrays[0] {
+            Array::Int64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
+            other => panic!("unexpected array type: {other:?}"),
+        }
+    }
+
+    fn finalize(states: vec::Drain<SumState<i64>>) -> Result<Array> {
+        let mut buffer = Vec::with_capacity(states.len());
+        let mut bitmap = Bitmap::with_capacity(states.len());
+        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+    }
+}
+
+impl SpecializedAggregateFunction for SumInt64Specialized {
+    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SumFloat64Specialized;
+
+impl SumFloat64Specialized {
+    fn update(
+        row_selection: &Bitmap,
+        arrays: &[&Array],
+        mapping: &[usize],
+        states: &mut [SumState<f64>],
+    ) -> Result<()> {
+        match &arrays[0] {
+            Array::Float64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
+            other => panic!("unexpected array type: {other:?}"),
+        }
+    }
+
+    fn finalize(states: vec::Drain<SumState<f64>>) -> Result<Array> {
+        let mut buffer = Vec::with_capacity(states.len());
+        let mut bitmap = Bitmap::with_capacity(states.len());
+        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+        Ok(Array::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
+    }
+}
+
+impl SpecializedAggregateFunction for SumFloat64Specialized {
+    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SumDecimal64Specialized {
+    precision: u8,
+    scale: i8,
+}
+
+impl SumDecimal64Specialized {
+    fn update(
+        row_selection: &Bitmap,
+        arrays: &[&Array],
+        mapping: &[usize],
+        states: &mut [SumState<i64>],
+    ) -> Result<()> {
+        match &arrays[0] {
+            Array::Decimal64(arr) => {
+                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        }
+    }
+
+    fn finalize(states: vec::Drain<SumState<i64>>) -> Result<Array> {
+        let mut buffer = Vec::with_capacity(states.len());
+        let mut bitmap = Bitmap::with_capacity(states.len());
+        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+    }
+}
+
+impl SpecializedAggregateFunction for SumDecimal64Specialized {
+    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
+        let precision = self.precision;
+        let scale = self.scale;
+        let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
+            Array::Int64(arr) => Ok(Array::Decimal64(Decimal64Array::new(precision, scale, arr))),
+            other => panic!("unexpected array type: {}", other.datatype()),
+        };
+        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SumDecimal128Specialized {
+    precision: u8,
+    scale: i8,
+}
+
+impl SumDecimal128Specialized {
+    fn update(
+        row_selection: &Bitmap,
+        arrays: &[&Array],
+        mapping: &[usize],
+        states: &mut [SumState<i128>],
+    ) -> Result<()> {
+        match &arrays[0] {
+            Array::Decimal128(arr) => {
+                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        }
+    }
+
+    fn finalize(states: vec::Drain<SumState<i128>>) -> Result<Array> {
+        let mut buffer = Vec::with_capacity(states.len());
+        let mut bitmap = Bitmap::with_capacity(states.len());
+        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+        Ok(Array::Int128(PrimitiveArray::new(buffer, Some(bitmap))))
+    }
+}
+
+impl SpecializedAggregateFunction for SumDecimal128Specialized {
+    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
+        let precision = self.precision;
+        let scale = self.scale;
+        let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
+            Array::Int128(arr) => Ok(Array::Decimal128(Decimal128Array::new(
+                precision, scale, arr,
+            ))),
+            other => panic!("unexpected array type: {}", other.datatype()),
+        };
+        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct SumState<T> {
     sum: T,
+    at_least_one: bool,
 }
 
 impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumState<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum += other.sum;
+        self.at_least_one = self.at_least_one || other.at_least_one;
         Ok(())
     }
 
     fn update(&mut self, input: T) -> Result<()> {
         self.sum += input;
+        self.at_least_one = true;
         Ok(())
     }
 
-    fn finalize(self) -> Result<T> {
-        Ok(self.sum)
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct CovarSampFloat64 {
-    count: usize,
-    meanx: f64,
-    meany: f64,
-    co_moment: f64,
-}
-
-impl AggregateState<(f64, f64), f64> for CovarSampFloat64 {
-    fn merge(&mut self, other: Self) -> Result<()> {
-        let count = self.count + other.count;
-        let meanx =
-            (other.count as f64 * other.meanx + self.count as f64 * self.meanx) / count as f64;
-        let meany =
-            (other.count as f64 * other.meany + self.count as f64 * self.meany) / count as f64;
-
-        let deltax = self.meanx - other.meanx;
-        let deltay = self.meany - other.meany;
-
-        self.co_moment = other.co_moment
-            + self.co_moment
-            + deltax * deltay * other.count as f64 * self.count as f64 / count as f64;
-        self.meanx = meanx;
-        self.meany = meany;
-        self.count = count;
-
-        Ok(())
-    }
-
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
-        let x = input.1;
-        let y = input.0;
-
-        let n = self.count as f64;
-        self.count += 1;
-
-        let dx = x - self.meanx;
-        let meanx = self.meanx + dx / n;
-
-        let dy = y - self.meany;
-        let meany = self.meany + dy / n;
-
-        let co_moment = self.co_moment + dx * (y - meany);
-
-        self.meanx = meanx;
-        self.meany = meany;
-        self.co_moment = co_moment;
-
-        Ok(())
-    }
-
-    fn finalize(self) -> Result<f64> {
-        Ok(self.co_moment / (self.count - 1) as f64)
+    fn finalize(self) -> Result<(T, bool)> {
+        if self.at_least_one {
+            Ok((self.sum, true))
+        } else {
+            Ok((T::default(), false))
+        }
     }
 }
 
@@ -190,7 +278,7 @@ mod tests {
 
         // Get final output.
         let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([21]));
+        let expected = Array::Int64(Int64Array::from_iter([Some(21)]));
         assert_eq!(expected, out.unwrap());
     }
 
@@ -251,7 +339,7 @@ mod tests {
 
         // Get final output.
         let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([9, 12]));
+        let expected = Array::Int64(Int64Array::from_iter([Some(9), Some(12)]));
         assert_eq!(expected, out.unwrap());
     }
 
@@ -318,7 +406,7 @@ mod tests {
 
         // Get final output.
         let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([8, 3, 25]));
+        let expected = Array::Int64(Int64Array::from_iter([Some(8), Some(3), Some(25)]));
         assert_eq!(expected, out.unwrap());
     }
 
@@ -340,11 +428,11 @@ mod tests {
             .update_states(&Bitmap::all_true(6), &[vals], &mapping)
             .unwrap();
 
-        let expected_1 = Array::Int64(Int64Array::from_iter([3, 7]));
+        let expected_1 = Array::Int64(Int64Array::from_iter([Some(3), Some(7)]));
         let out_1 = states.drain_finalize_n(2).unwrap();
         assert_eq!(Some(expected_1), out_1);
 
-        let expected_2 = Array::Int64(Int64Array::from_iter([11]));
+        let expected_2 = Array::Int64(Int64Array::from_iter([Some(11)]));
         let out_2 = states.drain_finalize_n(2).unwrap();
         assert_eq!(Some(expected_2), out_2);
 

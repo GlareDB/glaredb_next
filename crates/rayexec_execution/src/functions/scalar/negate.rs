@@ -7,7 +7,7 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use std::sync::Arc;
 
-use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use super::{GenericScalarFunction, SpecializedScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Negate;

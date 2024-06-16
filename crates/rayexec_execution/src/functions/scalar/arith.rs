@@ -5,7 +5,7 @@ use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 
-use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
+use super::{GenericScalarFunction, SpecializedScalarFunction};
 use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
 use rayexec_bullet::array::{Interval, PrimitiveArray};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
