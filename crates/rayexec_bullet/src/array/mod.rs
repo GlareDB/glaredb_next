@@ -30,10 +30,12 @@ pub enum Array {
     Int16(Int16Array),
     Int32(Int32Array),
     Int64(Int64Array),
+    Int128(Int128Array),
     UInt8(UInt8Array),
     UInt16(UInt16Array),
     UInt32(UInt32Array),
     UInt64(UInt64Array),
+    UInt128(UInt128Array),
     Decimal64(Decimal64Array),
     Decimal128(Decimal128Array),
     Date32(Date32Array),
@@ -61,10 +63,12 @@ impl Array {
             Array::Int16(_) => DataType::Int16,
             Array::Int32(_) => DataType::Int32,
             Array::Int64(_) => DataType::Int64,
+            Array::Int128(_) => DataType::Int128,
             Array::UInt8(_) => DataType::UInt8,
             Array::UInt16(_) => DataType::UInt16,
             Array::UInt32(_) => DataType::UInt32,
             Array::UInt64(_) => DataType::UInt64,
+            Array::UInt128(_) => DataType::UInt128,
             Self::Decimal64(arr) => {
                 DataType::Decimal64(DecimalTypeMeta::new(arr.precision(), arr.scale()).into())
             }
@@ -101,10 +105,12 @@ impl Array {
             Self::Int16(arr) => ScalarValue::Int16(*arr.value(idx)?),
             Self::Int32(arr) => ScalarValue::Int32(*arr.value(idx)?),
             Self::Int64(arr) => ScalarValue::Int64(*arr.value(idx)?),
+            Self::Int128(arr) => ScalarValue::Int128(*arr.value(idx)?),
             Self::UInt8(arr) => ScalarValue::UInt8(*arr.value(idx)?),
             Self::UInt16(arr) => ScalarValue::UInt16(*arr.value(idx)?),
             Self::UInt32(arr) => ScalarValue::UInt32(*arr.value(idx)?),
             Self::UInt64(arr) => ScalarValue::UInt64(*arr.value(idx)?),
+            Self::UInt128(arr) => ScalarValue::UInt128(*arr.value(idx)?),
             Self::Decimal64(arr) => ScalarValue::Decimal64(Decimal64Scalar {
                 precision: arr.precision(),
                 scale: arr.scale(),
@@ -144,10 +150,12 @@ impl Array {
             Self::Int16(arr) => arr.is_valid(idx),
             Self::Int32(arr) => arr.is_valid(idx),
             Self::Int64(arr) => arr.is_valid(idx),
+            Self::Int128(arr) => arr.is_valid(idx),
             Self::UInt8(arr) => arr.is_valid(idx),
             Self::UInt16(arr) => arr.is_valid(idx),
             Self::UInt32(arr) => arr.is_valid(idx),
             Self::UInt64(arr) => arr.is_valid(idx),
+            Self::UInt128(arr) => arr.is_valid(idx),
             Self::Decimal64(arr) => arr.get_primitive().is_valid(idx),
             Self::Decimal128(arr) => arr.get_primitive().is_valid(idx),
             Self::Date32(arr) => arr.is_valid(idx),
@@ -175,10 +183,12 @@ impl Array {
             Self::Int16(arr) => arr.len(),
             Self::Int32(arr) => arr.len(),
             Self::Int64(arr) => arr.len(),
+            Self::Int128(arr) => arr.len(),
             Self::UInt8(arr) => arr.len(),
             Self::UInt16(arr) => arr.len(),
             Self::UInt32(arr) => arr.len(),
             Self::UInt64(arr) => arr.len(),
+            Self::UInt128(arr) => arr.len(),
             Self::Decimal64(arr) => arr.get_primitive().len(),
             Self::Decimal128(arr) => arr.get_primitive().len(),
             Self::Date32(arr) => arr.len(),
@@ -210,10 +220,12 @@ impl Array {
             Self::Int16(arr) => arr.validity(),
             Self::Int32(arr) => arr.validity(),
             Self::Int64(arr) => arr.validity(),
+            Self::Int128(arr) => arr.validity(),
             Self::UInt8(arr) => arr.validity(),
             Self::UInt16(arr) => arr.validity(),
             Self::UInt32(arr) => arr.validity(),
             Self::UInt64(arr) => arr.validity(),
+            Self::UInt128(arr) => arr.validity(),
             Self::Decimal64(arr) => arr.get_primitive().validity(),
             Self::Decimal128(arr) => arr.get_primitive().validity(),
             Self::Date32(arr) => arr.validity(),
@@ -315,6 +327,9 @@ impl Array {
             DataType::Int64 => {
                 iter_scalars_for_type!(Vec::with_capacity(cap), Int64, PrimitiveArray, 0)
             }
+            DataType::Int128 => {
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int128, PrimitiveArray, 0)
+            }
             DataType::UInt8 => {
                 iter_scalars_for_type!(Vec::with_capacity(cap), UInt8, PrimitiveArray, 0)
             }
@@ -326,6 +341,9 @@ impl Array {
             }
             DataType::UInt64 => {
                 iter_scalars_for_type!(Vec::with_capacity(cap), UInt64, PrimitiveArray, 0)
+            }
+            DataType::UInt128 => {
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt128, PrimitiveArray, 0)
             }
             DataType::Decimal64(_meta) => {
                 unimplemented!()
@@ -403,6 +421,18 @@ impl Array {
                 "Cannot build a list array from struct scalars",
             )), // yet
         }
+    }
+}
+
+impl From<Decimal64Array> for Array {
+    fn from(value: Decimal64Array) -> Self {
+        Array::Decimal64(value)
+    }
+}
+
+impl From<Decimal128Array> for Array {
+    fn from(value: Decimal128Array) -> Self {
+        Array::Decimal128(value)
     }
 }
 

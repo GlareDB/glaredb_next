@@ -218,6 +218,7 @@ pub type UInt8Array = PrimitiveArray<u8>;
 pub type UInt16Array = PrimitiveArray<u16>;
 pub type UInt32Array = PrimitiveArray<u32>;
 pub type UInt64Array = PrimitiveArray<u64>;
+pub type UInt128Array = PrimitiveArray<u128>;
 pub type Float32Array = PrimitiveArray<f32>;
 pub type Float64Array = PrimitiveArray<f64>;
 pub type TimestampSecondsArray = PrimitiveArray<i64>;
@@ -272,11 +273,6 @@ impl<T> PrimitiveArray<T> {
     /// Get a reference to the underlying primitive values.
     pub fn values(&self) -> &PrimitiveStorage<T> {
         &self.values
-    }
-
-    /// Get a mutable reference to the underlying primitive values.
-    pub(crate) fn values_mut(&mut self) -> &mut PrimitiveStorage<T> {
-        &mut self.values
     }
 
     pub fn iter(&self) -> PrimitiveArrayIter<T> {

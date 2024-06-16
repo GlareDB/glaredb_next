@@ -5,14 +5,15 @@ use crate::array::{
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
     Interval, IntervalArray, LargeBinaryArray, LargeUtf8Array, NullArray,
     TimestampMicrosecondsArray, TimestampMillsecondsArray, TimestampNanosecondsArray,
-    TimestampSecondsArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+    TimestampSecondsArray, UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Utf8Array,
 };
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
-    Float32Formatter, Float64Formatter, Formatter, Int16Formatter, Int32Formatter, Int64Formatter,
-    Int8Formatter, IntervalFormatter, TimestampMicrosecondsFormatter,
+    Float32Formatter, Float64Formatter, Formatter, Int128Formatter, Int16Formatter, Int32Formatter,
+    Int64Formatter, Int8Formatter, IntervalFormatter, TimestampMicrosecondsFormatter,
     TimestampMillisecondsFormatter, TimestampNanosecondsFormatter, TimestampSecondsFormatter,
-    UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
+    UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
 use crate::datatype::{DataType, DecimalTypeMeta, TypeMeta};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
@@ -23,79 +24,33 @@ use std::fmt;
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScalarValue<'a> {
-    /// Represents `DataType::Null` (castable to/from any other type)
     Null,
-
-    /// True or false value
     Boolean(bool),
-
-    /// 32bit float
     Float32(f32),
-
-    /// 64bit float
     Float64(f64),
-
-    /// Signed 8bit int
     Int8(i8),
-
-    /// Signed 16bit int
     Int16(i16),
-
-    /// Signed 32bit int
     Int32(i32),
-
-    /// Signed 64bit int
     Int64(i64),
-
-    /// Unsigned 8bit int
+    Int128(i128),
     UInt8(u8),
-
-    /// Unsigned 16bit int
     UInt16(u16),
-
-    /// Unsigned 32bit int
     UInt32(u32),
-
-    /// Unsigned 64bit int
     UInt64(u64),
-
+    UInt128(u128),
     Decimal64(Decimal64Scalar),
     Decimal128(Decimal128Scalar),
-
-    /// A Date32 value.
     Date32(i32),
-
-    /// A Date64 value.
     Date64(i64),
-
-    /// Timestamp(s) value
     TimestampSeconds(i64),
-
-    /// Timestamp(ms) value
     TimestampMilliseconds(i64),
-
-    /// Timestamp(us) value
     TimestampMicroseconds(i64),
-
-    /// Timestamp(us) value
     TimestampNanoseconds(i64),
-
-    /// An interval
     Interval(Interval),
-
-    /// Utf-8 encoded string.
     Utf8(Cow<'a, str>),
-
-    /// Utf-8 encoded string representing a LargeString's arrow type.
     LargeUtf8(Cow<'a, str>),
-
-    /// Binary
     Binary(Cow<'a, [u8]>),
-
-    /// Large binary
     LargeBinary(Cow<'a, [u8]>),
-
-    /// A struct.
     Struct(Vec<ScalarValue<'a>>),
 }
 
@@ -112,10 +67,12 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::Int16(_) => DataType::Int16,
             ScalarValue::Int32(_) => DataType::Int32,
             ScalarValue::Int64(_) => DataType::Int64,
+            ScalarValue::Int128(_) => DataType::Int128,
             ScalarValue::UInt8(_) => DataType::UInt8,
             ScalarValue::UInt16(_) => DataType::UInt16,
             ScalarValue::UInt32(_) => DataType::UInt32,
             ScalarValue::UInt64(_) => DataType::UInt64,
+            ScalarValue::UInt128(_) => DataType::UInt128,
             ScalarValue::Decimal64(v) => {
                 DataType::Decimal64(TypeMeta::Some(DecimalTypeMeta::new(v.precision, v.scale)))
             }
@@ -147,10 +104,12 @@ impl<'a> ScalarValue<'a> {
             Self::Int16(v) => OwnedScalarValue::Int16(v),
             Self::Int32(v) => OwnedScalarValue::Int32(v),
             Self::Int64(v) => OwnedScalarValue::Int64(v),
+            Self::Int128(v) => OwnedScalarValue::Int128(v),
             Self::UInt8(v) => OwnedScalarValue::UInt8(v),
             Self::UInt16(v) => OwnedScalarValue::UInt16(v),
             Self::UInt32(v) => OwnedScalarValue::UInt32(v),
             Self::UInt64(v) => OwnedScalarValue::UInt64(v),
+            Self::UInt128(v) => OwnedScalarValue::UInt128(v),
             Self::Decimal64(v) => OwnedScalarValue::Decimal64(v),
             Self::Decimal128(v) => OwnedScalarValue::Decimal128(v),
             Self::Date32(v) => OwnedScalarValue::Date32(v),
@@ -187,10 +146,14 @@ impl<'a> ScalarValue<'a> {
             Self::Int16(v) => Array::Int16(Int16Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::Int32(v) => Array::Int32(Int32Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::Int64(v) => Array::Int64(Int64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int128(v) => Array::Int128(Int128Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt8(v) => Array::UInt8(UInt8Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt16(v) => Array::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt32(v) => Array::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt64(v) => Array::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::UInt128(v) => {
+                Array::UInt128(UInt128Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
             Self::Decimal64(v) => {
                 let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
                 Array::Decimal64(Decimal64Array::new(v.precision, v.scale, primitive))
@@ -331,10 +294,12 @@ impl fmt::Display for ScalarValue<'_> {
             Self::Int16(v) => Int16Formatter::default().write(v, f),
             Self::Int32(v) => Int32Formatter::default().write(v, f),
             Self::Int64(v) => Int64Formatter::default().write(v, f),
+            Self::Int128(v) => Int128Formatter::default().write(v, f),
             Self::UInt8(v) => UInt8Formatter::default().write(v, f),
             Self::UInt16(v) => UInt16Formatter::default().write(v, f),
             Self::UInt32(v) => UInt32Formatter::default().write(v, f),
             Self::UInt64(v) => UInt64Formatter::default().write(v, f),
+            Self::UInt128(v) => UInt128Formatter::default().write(v, f),
             Self::Decimal64(v) => Decimal64Formatter::new(v.precision, v.scale).write(&v.value, f),
             Self::Decimal128(v) => {
                 Decimal128Formatter::new(v.precision, v.scale).write(&v.value, f)

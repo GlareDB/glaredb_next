@@ -3,6 +3,7 @@ pub mod implicit;
 pub mod scalar;
 pub mod table;
 
+use fmtutil::IntoDisplayableSlice;
 use implicit::implicit_cast_score;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
@@ -167,7 +168,7 @@ impl CandidateSignature {
         buf.clear();
 
         for (have, want) in have.iter().zip(want.iter()) {
-            if have == want {
+            if have.eq_no_meta(want) {
                 buf.push(CastType::NoCastNeeded);
                 continue;
             }
@@ -210,14 +211,9 @@ pub fn specialize_check_num_args(
 /// handle.
 // TODO: Include valid signatures in the error
 pub fn invalid_input_types_error(func: &impl FunctionInfo, got: &[&DataType]) -> RayexecError {
-    let got_types = got
-        .iter()
-        .map(|d| d.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
     RayexecError::new(format!(
         "Got invalid type(s) '{}' for '{}'",
-        got_types,
+        got.displayable(),
         func.name()
     ))
 }

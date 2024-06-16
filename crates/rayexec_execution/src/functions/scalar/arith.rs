@@ -1,12 +1,14 @@
+use crate::functions::scalar::macros::{
+    primitive_binary_execute, primitive_binary_execute_no_wrap,
+};
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 
 use super::{GenericScalarFunction, ScalarFn, SpecializedScalarFunction};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
 use rayexec_bullet::array::{Interval, PrimitiveArray};
 use rayexec_bullet::datatype::{DataType, TypeMeta};
-use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -72,38 +74,6 @@ const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     },
 ];
 
-/// Macro for generating a specialized binary function that accepts two
-/// primitive arrays, and produces a single primitive array.
-///
-/// The operation should accept two inputs, producing a single output of the
-/// expected type.
-macro_rules! generate_specialized_binary_numeric {
-    ($name:ident, $first_variant:ident, $second_variant:ident, $output_variant:ident, $operation:expr) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub struct $name;
-
-        impl SpecializedScalarFunction for $name {
-            fn function_impl(&self) -> ScalarFn {
-                fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-                    let first = arrays[0];
-                    let second = arrays[1];
-                    Ok(match (first.as_ref(), second.as_ref()) {
-                        (Array::$first_variant(first), Array::$second_variant(second)) => {
-                            let mut buffer = Vec::with_capacity(first.len());
-                            let validity =
-                                BinaryExecutor::execute(first, second, $operation, &mut buffer)?;
-                            Array::$output_variant(PrimitiveArray::new(buffer, validity))
-                        }
-                        other => panic!("unexpected array type: {other:?}"),
-                    })
-                }
-
-                inner
-            }
-        }
-    };
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Add;
 
@@ -125,35 +95,100 @@ impl GenericScalarFunction for Add {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Float32, DataType::Float32) => Ok(Box::new(AddFloat32)),
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(AddFloat64)),
-            (DataType::Int8, DataType::Int8) => Ok(Box::new(AddInt8)),
-            (DataType::Int16, DataType::Int16) => Ok(Box::new(AddInt16)),
-            (DataType::Int32, DataType::Int32) => Ok(Box::new(AddInt32)),
-            (DataType::Int64, DataType::Int64) => Ok(Box::new(AddInt64)),
-            (DataType::UInt8, DataType::UInt8) => Ok(Box::new(AddUInt8)),
-            (DataType::UInt16, DataType::UInt16) => Ok(Box::new(AddUInt16)),
-            (DataType::UInt32, DataType::UInt32) => Ok(Box::new(AddUInt32)),
-            (DataType::UInt64, DataType::UInt64) => Ok(Box::new(AddUInt64)),
-            (DataType::Date32, DataType::Int64) => Ok(Box::new(AddDate32Int64)),
+            (DataType::Float32, DataType::Float32)
+            | (DataType::Float64, DataType::Float64)
+            | (DataType::Int8, DataType::Int8)
+            | (DataType::Int16, DataType::Int16)
+            | (DataType::Int32, DataType::Int32)
+            | (DataType::Int64, DataType::Int64)
+            | (DataType::UInt8, DataType::UInt8)
+            | (DataType::UInt16, DataType::UInt16)
+            | (DataType::UInt32, DataType::UInt32)
+            | (DataType::UInt64, DataType::UInt64)
+            | (DataType::Decimal64(_), DataType::Decimal64(_))
+            | (DataType::Decimal128(_), DataType::Decimal128(_))
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(AddPrimitiveSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-generate_specialized_binary_numeric!(AddFloat32, Float32, Float32, Float32, |a, b| a + b);
-generate_specialized_binary_numeric!(AddFloat64, Float64, Float64, Float64, |a, b| a + b);
-generate_specialized_binary_numeric!(AddInt8, Int8, Int8, Int8, |a, b| a + b);
-generate_specialized_binary_numeric!(AddInt16, Int16, Int16, Int16, |a, b| a + b);
-generate_specialized_binary_numeric!(AddInt32, Int32, Int32, Int32, |a, b| a + b);
-generate_specialized_binary_numeric!(AddInt64, Int64, Int64, Int64, |a, b| a + b);
-generate_specialized_binary_numeric!(AddUInt8, UInt8, UInt8, UInt8, |a, b| a + b);
-generate_specialized_binary_numeric!(AddUInt16, UInt16, UInt16, UInt16, |a, b| a + b);
-generate_specialized_binary_numeric!(AddUInt32, UInt32, UInt32, UInt32, |a, b| a + b);
-generate_specialized_binary_numeric!(AddUInt64, UInt64, UInt64, UInt64, |a, b| a + b);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AddPrimitiveSpecialized;
 
-// Date32 is stored as "days", so just add the values.
-generate_specialized_binary_numeric!(AddDate32Int64, Date32, Int64, Date32, |a, b| a + b as i32);
+impl SpecializedScalarFunction for AddPrimitiveSpecialized {
+    fn function_impl(&self) -> ScalarFn {
+        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
+            let first = arrays[0];
+            let second = arrays[1];
+            Ok(match (first.as_ref(), second.as_ref()) {
+                (Array::Int8(first), Array::Int8(second)) => {
+                    primitive_binary_execute!(first, second, Int8, |a, b| a + b)
+                }
+                (Array::Int16(first), Array::Int16(second)) => {
+                    primitive_binary_execute!(first, second, Int16, |a, b| a + b)
+                }
+                (Array::Int32(first), Array::Int32(second)) => {
+                    primitive_binary_execute!(first, second, Int32, |a, b| a + b)
+                }
+                (Array::Int64(first), Array::Int64(second)) => {
+                    primitive_binary_execute!(first, second, Int64, |a, b| a + b)
+                }
+                (Array::UInt8(first), Array::UInt8(second)) => {
+                    primitive_binary_execute!(first, second, UInt8, |a, b| a + b)
+                }
+                (Array::UInt16(first), Array::UInt16(second)) => {
+                    primitive_binary_execute!(first, second, UInt16, |a, b| a + b)
+                }
+                (Array::UInt32(first), Array::UInt32(second)) => {
+                    primitive_binary_execute!(first, second, UInt32, |a, b| a + b)
+                }
+                (Array::UInt64(first), Array::UInt64(second)) => {
+                    primitive_binary_execute!(first, second, UInt64, |a, b| a + b)
+                }
+                (Array::Float32(first), Array::Float32(second)) => {
+                    primitive_binary_execute!(first, second, Float32, |a, b| a + b)
+                }
+                (Array::Float64(first), Array::Float64(second)) => {
+                    primitive_binary_execute!(first, second, Float64, |a, b| a + b)
+                }
+                (Array::Decimal64(first), Array::Decimal64(second)) => {
+                    // TODO: Scale
+                    Decimal64Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a + b
+                        ),
+                    )
+                    .into()
+                }
+                (Array::Decimal128(first), Array::Decimal128(second)) => {
+                    // TODO: Scale
+                    Decimal128Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a + b
+                        ),
+                    )
+                    .into()
+                }
+                (Array::Date32(first), Array::Int64(second)) => {
+                    // Date32 is stored as "days", so just add the values.
+                    primitive_binary_execute!(first, second, Date32, |a, b| a + b as i32)
+                }
+                other => panic!("unexpected array type: {other:?}"),
+            })
+        }
+
+        inner
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sub;
@@ -176,34 +211,100 @@ impl GenericScalarFunction for Sub {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Float32, DataType::Float32) => Ok(Box::new(SubFloat32)),
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(SubFloat64)),
-            (DataType::Int8, DataType::Int8) => Ok(Box::new(SubInt8)),
-            (DataType::Int16, DataType::Int16) => Ok(Box::new(SubInt16)),
-            (DataType::Int32, DataType::Int32) => Ok(Box::new(SubInt32)),
-            (DataType::Int64, DataType::Int64) => Ok(Box::new(SubInt64)),
-            (DataType::UInt8, DataType::UInt8) => Ok(Box::new(SubUInt8)),
-            (DataType::UInt16, DataType::UInt16) => Ok(Box::new(SubUInt16)),
-            (DataType::UInt32, DataType::UInt32) => Ok(Box::new(SubUInt32)),
-            (DataType::UInt64, DataType::UInt64) => Ok(Box::new(SubUInt64)),
-            (DataType::Date32, DataType::Int64) => Ok(Box::new(SubDate32Int64)),
+            (DataType::Float32, DataType::Float32)
+            | (DataType::Float64, DataType::Float64)
+            | (DataType::Int8, DataType::Int8)
+            | (DataType::Int16, DataType::Int16)
+            | (DataType::Int32, DataType::Int32)
+            | (DataType::Int64, DataType::Int64)
+            | (DataType::UInt8, DataType::UInt8)
+            | (DataType::UInt16, DataType::UInt16)
+            | (DataType::UInt32, DataType::UInt32)
+            | (DataType::UInt64, DataType::UInt64)
+            | (DataType::Decimal64(_), DataType::Decimal64(_))
+            | (DataType::Decimal128(_), DataType::Decimal128(_))
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(SubPrimitiveSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-generate_specialized_binary_numeric!(SubFloat32, Float32, Float32, Float32, |a, b| a - b);
-generate_specialized_binary_numeric!(SubFloat64, Float64, Float64, Float64, |a, b| a - b);
-generate_specialized_binary_numeric!(SubInt8, Int8, Int8, Int8, |a, b| a - b);
-generate_specialized_binary_numeric!(SubInt16, Int16, Int16, Int16, |a, b| a - b);
-generate_specialized_binary_numeric!(SubInt32, Int32, Int32, Int32, |a, b| a - b);
-generate_specialized_binary_numeric!(SubInt64, Int64, Int64, Int64, |a, b| a - b);
-generate_specialized_binary_numeric!(SubUInt8, UInt8, UInt8, UInt8, |a, b| a - b);
-generate_specialized_binary_numeric!(SubUInt16, UInt16, UInt16, UInt16, |a, b| a - b);
-generate_specialized_binary_numeric!(SubUInt32, UInt32, UInt32, UInt32, |a, b| a - b);
-generate_specialized_binary_numeric!(SubUInt64, UInt64, UInt64, UInt64, |a, b| a - b);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SubPrimitiveSpecialized;
 
-generate_specialized_binary_numeric!(SubDate32Int64, Date32, Int64, Date32, |a, b| a - b as i32);
+impl SpecializedScalarFunction for SubPrimitiveSpecialized {
+    fn function_impl(&self) -> ScalarFn {
+        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
+            let first = arrays[0];
+            let second = arrays[1];
+            Ok(match (first.as_ref(), second.as_ref()) {
+                (Array::Int8(first), Array::Int8(second)) => {
+                    primitive_binary_execute!(first, second, Int8, |a, b| a - b)
+                }
+                (Array::Int16(first), Array::Int16(second)) => {
+                    primitive_binary_execute!(first, second, Int16, |a, b| a - b)
+                }
+                (Array::Int32(first), Array::Int32(second)) => {
+                    primitive_binary_execute!(first, second, Int32, |a, b| a - b)
+                }
+                (Array::Int64(first), Array::Int64(second)) => {
+                    primitive_binary_execute!(first, second, Int64, |a, b| a - b)
+                }
+                (Array::UInt8(first), Array::UInt8(second)) => {
+                    primitive_binary_execute!(first, second, UInt8, |a, b| a - b)
+                }
+                (Array::UInt16(first), Array::UInt16(second)) => {
+                    primitive_binary_execute!(first, second, UInt16, |a, b| a - b)
+                }
+                (Array::UInt32(first), Array::UInt32(second)) => {
+                    primitive_binary_execute!(first, second, UInt32, |a, b| a - b)
+                }
+                (Array::UInt64(first), Array::UInt64(second)) => {
+                    primitive_binary_execute!(first, second, UInt64, |a, b| a - b)
+                }
+                (Array::Float32(first), Array::Float32(second)) => {
+                    primitive_binary_execute!(first, second, Float32, |a, b| a - b)
+                }
+                (Array::Float64(first), Array::Float64(second)) => {
+                    primitive_binary_execute!(first, second, Float64, |a, b| a - b)
+                }
+                (Array::Decimal64(first), Array::Decimal64(second)) => {
+                    // TODO: Scale
+                    Decimal64Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a - b
+                        ),
+                    )
+                    .into()
+                }
+                (Array::Decimal128(first), Array::Decimal128(second)) => {
+                    // TODO: Scale
+                    Decimal128Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a - b
+                        ),
+                    )
+                    .into()
+                }
+                (Array::Date32(first), Array::Int64(second)) => {
+                    // Date32 is stored as "days", so just sub the values.
+                    primitive_binary_execute!(first, second, Date32, |a, b| a - b as i32)
+                }
+                other => panic!("unexpected array type: {other:?}"),
+            })
+        }
+
+        inner
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Div;
@@ -226,31 +327,97 @@ impl GenericScalarFunction for Div {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Float32, DataType::Float32) => Ok(Box::new(DivFloat32)),
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(DivFloat64)),
-            (DataType::Int8, DataType::Int8) => Ok(Box::new(DivInt8)),
-            (DataType::Int16, DataType::Int16) => Ok(Box::new(DivInt16)),
-            (DataType::Int32, DataType::Int32) => Ok(Box::new(DivInt32)),
-            (DataType::Int64, DataType::Int64) => Ok(Box::new(DivInt64)),
-            (DataType::UInt8, DataType::UInt8) => Ok(Box::new(DivUInt8)),
-            (DataType::UInt16, DataType::UInt16) => Ok(Box::new(DivUInt16)),
-            (DataType::UInt32, DataType::UInt32) => Ok(Box::new(DivUInt32)),
-            (DataType::UInt64, DataType::UInt64) => Ok(Box::new(DivUInt64)),
+            (DataType::Float32, DataType::Float32)
+            | (DataType::Float64, DataType::Float64)
+            | (DataType::Int8, DataType::Int8)
+            | (DataType::Int16, DataType::Int16)
+            | (DataType::Int32, DataType::Int32)
+            | (DataType::Int64, DataType::Int64)
+            | (DataType::UInt8, DataType::UInt8)
+            | (DataType::UInt16, DataType::UInt16)
+            | (DataType::UInt32, DataType::UInt32)
+            | (DataType::UInt64, DataType::UInt64)
+            | (DataType::Decimal64(_), DataType::Decimal64(_))
+            | (DataType::Decimal128(_), DataType::Decimal128(_))
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(DivPrimitiveSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-generate_specialized_binary_numeric!(DivFloat32, Float32, Float32, Float32, |a, b| a / b);
-generate_specialized_binary_numeric!(DivFloat64, Float64, Float64, Float64, |a, b| a / b);
-generate_specialized_binary_numeric!(DivInt8, Int8, Int8, Int8, |a, b| a / b);
-generate_specialized_binary_numeric!(DivInt16, Int16, Int16, Int16, |a, b| a / b);
-generate_specialized_binary_numeric!(DivInt32, Int32, Int32, Int32, |a, b| a / b);
-generate_specialized_binary_numeric!(DivInt64, Int64, Int64, Int64, |a, b| a / b);
-generate_specialized_binary_numeric!(DivUInt8, UInt8, UInt8, UInt8, |a, b| a / b);
-generate_specialized_binary_numeric!(DivUInt16, UInt16, UInt16, UInt16, |a, b| a / b);
-generate_specialized_binary_numeric!(DivUInt32, UInt32, UInt32, UInt32, |a, b| a / b);
-generate_specialized_binary_numeric!(DivUInt64, UInt64, UInt64, UInt64, |a, b| a / b);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DivPrimitiveSpecialized;
+
+impl SpecializedScalarFunction for DivPrimitiveSpecialized {
+    fn function_impl(&self) -> ScalarFn {
+        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
+            let first = arrays[0];
+            let second = arrays[1];
+            Ok(match (first.as_ref(), second.as_ref()) {
+                (Array::Int8(first), Array::Int8(second)) => {
+                    primitive_binary_execute!(first, second, Int8, |a, b| a / b)
+                }
+                (Array::Int16(first), Array::Int16(second)) => {
+                    primitive_binary_execute!(first, second, Int16, |a, b| a / b)
+                }
+                (Array::Int32(first), Array::Int32(second)) => {
+                    primitive_binary_execute!(first, second, Int32, |a, b| a / b)
+                }
+                (Array::Int64(first), Array::Int64(second)) => {
+                    primitive_binary_execute!(first, second, Int64, |a, b| a / b)
+                }
+                (Array::UInt8(first), Array::UInt8(second)) => {
+                    primitive_binary_execute!(first, second, UInt8, |a, b| a / b)
+                }
+                (Array::UInt16(first), Array::UInt16(second)) => {
+                    primitive_binary_execute!(first, second, UInt16, |a, b| a / b)
+                }
+                (Array::UInt32(first), Array::UInt32(second)) => {
+                    primitive_binary_execute!(first, second, UInt32, |a, b| a / b)
+                }
+                (Array::UInt64(first), Array::UInt64(second)) => {
+                    primitive_binary_execute!(first, second, UInt64, |a, b| a / b)
+                }
+                (Array::Float32(first), Array::Float32(second)) => {
+                    primitive_binary_execute!(first, second, Float32, |a, b| a / b)
+                }
+                (Array::Float64(first), Array::Float64(second)) => {
+                    primitive_binary_execute!(first, second, Float64, |a, b| a / b)
+                }
+                (Array::Decimal64(first), Array::Decimal64(second)) => {
+                    // TODO: Scale
+                    Decimal64Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a / b
+                        ),
+                    )
+                    .into()
+                }
+                (Array::Decimal128(first), Array::Decimal128(second)) => {
+                    // TODO: Scale
+                    Decimal128Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a / b
+                        ),
+                    )
+                    .into()
+                }
+
+                other => panic!("unexpected array type: {other:?}"),
+            })
+        }
+
+        inner
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mul;
@@ -273,44 +440,106 @@ impl GenericScalarFunction for Mul {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Float32, DataType::Float32) => Ok(Box::new(MulFloat32)),
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(MulFloat64)),
-            (DataType::Int8, DataType::Int8) => Ok(Box::new(MulInt8)),
-            (DataType::Int16, DataType::Int16) => Ok(Box::new(MulInt16)),
-            (DataType::Int32, DataType::Int32) => Ok(Box::new(MulInt32)),
-            (DataType::Int64, DataType::Int64) => Ok(Box::new(MulInt64)),
-            (DataType::UInt8, DataType::UInt8) => Ok(Box::new(MulUInt8)),
-            (DataType::UInt16, DataType::UInt16) => Ok(Box::new(MulUInt16)),
-            (DataType::UInt32, DataType::UInt32) => Ok(Box::new(MulUInt32)),
-            (DataType::UInt64, DataType::UInt64) => Ok(Box::new(MulUInt64)),
-            (DataType::Interval, DataType::Int64) => Ok(Box::new(MulIntervalInt64)),
+            (DataType::Float32, DataType::Float32)
+            | (DataType::Float64, DataType::Float64)
+            | (DataType::Int8, DataType::Int8)
+            | (DataType::Int16, DataType::Int16)
+            | (DataType::Int32, DataType::Int32)
+            | (DataType::Int64, DataType::Int64)
+            | (DataType::UInt8, DataType::UInt8)
+            | (DataType::UInt16, DataType::UInt16)
+            | (DataType::UInt32, DataType::UInt32)
+            | (DataType::UInt64, DataType::UInt64)
+            | (DataType::Date32, DataType::Int64)
+            | (DataType::Decimal64(_), DataType::Decimal64(_))
+            | (DataType::Decimal128(_), DataType::Decimal128(_))
+            | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulPrimitiveSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-generate_specialized_binary_numeric!(MulFloat32, Float32, Float32, Float32, |a, b| a * b);
-generate_specialized_binary_numeric!(MulFloat64, Float64, Float64, Float64, |a, b| a * b);
-generate_specialized_binary_numeric!(MulInt8, Int8, Int8, Int8, |a, b| a * b);
-generate_specialized_binary_numeric!(MulInt16, Int16, Int16, Int16, |a, b| a * b);
-generate_specialized_binary_numeric!(MulInt32, Int32, Int32, Int32, |a, b| a * b);
-generate_specialized_binary_numeric!(MulInt64, Int64, Int64, Int64, |a, b| a * b);
-generate_specialized_binary_numeric!(MulUInt8, UInt8, UInt8, UInt8, |a, b| a * b);
-generate_specialized_binary_numeric!(MulUInt16, UInt16, UInt16, UInt16, |a, b| a * b);
-generate_specialized_binary_numeric!(MulUInt32, UInt32, UInt32, UInt32, |a, b| a * b);
-generate_specialized_binary_numeric!(MulUInt64, UInt64, UInt64, UInt64, |a, b| a * b);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MulPrimitiveSpecialized;
 
-generate_specialized_binary_numeric!(
-    MulIntervalInt64,
-    Interval,
-    Int64,
-    Interval,
-    |interval, v| Interval {
-        months: interval.months * (v as i32),
-        days: interval.days * (v as i32),
-        nanos: interval.nanos * v,
+impl SpecializedScalarFunction for MulPrimitiveSpecialized {
+    fn function_impl(&self) -> ScalarFn {
+        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
+            let first = arrays[0];
+            let second = arrays[1];
+            Ok(match (first.as_ref(), second.as_ref()) {
+                (Array::Int8(first), Array::Int8(second)) => {
+                    primitive_binary_execute!(first, second, Int8, |a, b| a * b)
+                }
+                (Array::Int16(first), Array::Int16(second)) => {
+                    primitive_binary_execute!(first, second, Int16, |a, b| a * b)
+                }
+                (Array::Int32(first), Array::Int32(second)) => {
+                    primitive_binary_execute!(first, second, Int32, |a, b| a * b)
+                }
+                (Array::Int64(first), Array::Int64(second)) => {
+                    primitive_binary_execute!(first, second, Int64, |a, b| a * b)
+                }
+                (Array::UInt8(first), Array::UInt8(second)) => {
+                    primitive_binary_execute!(first, second, UInt8, |a, b| a * b)
+                }
+                (Array::UInt16(first), Array::UInt16(second)) => {
+                    primitive_binary_execute!(first, second, UInt16, |a, b| a * b)
+                }
+                (Array::UInt32(first), Array::UInt32(second)) => {
+                    primitive_binary_execute!(first, second, UInt32, |a, b| a * b)
+                }
+                (Array::UInt64(first), Array::UInt64(second)) => {
+                    primitive_binary_execute!(first, second, UInt64, |a, b| a * b)
+                }
+                (Array::Float32(first), Array::Float32(second)) => {
+                    primitive_binary_execute!(first, second, Float32, |a, b| a * b)
+                }
+                (Array::Float64(first), Array::Float64(second)) => {
+                    primitive_binary_execute!(first, second, Float64, |a, b| a * b)
+                }
+                (Array::Decimal64(first), Array::Decimal64(second)) => {
+                    // TODO: Scale
+                    Decimal64Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a * b
+                        ),
+                    )
+                    .into()
+                }
+                (Array::Decimal128(first), Array::Decimal128(second)) => {
+                    // TODO: Scale
+                    Decimal128Array::new(
+                        first.precision(),
+                        first.scale(),
+                        primitive_binary_execute_no_wrap!(
+                            first.get_primitive(),
+                            second.get_primitive(),
+                            |a, b| a * b
+                        ),
+                    )
+                    .into()
+                }
+                (Array::Interval(first), Array::Int64(second)) => {
+                    primitive_binary_execute!(first, second, Interval, |a, b| {
+                        Interval {
+                            months: a.months * (b as i32),
+                            days: a.days * (b as i32),
+                            nanos: a.nanos * b,
+                        }
+                    })
+                }
+                other => panic!("unexpected array type: {other:?}"),
+            })
+        }
+
+        inner
     }
-);
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rem;
@@ -333,31 +562,69 @@ impl GenericScalarFunction for Rem {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Float32, DataType::Float32) => Ok(Box::new(RemFloat32)),
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(RemFloat64)),
-            (DataType::Int8, DataType::Int8) => Ok(Box::new(RemInt8)),
-            (DataType::Int16, DataType::Int16) => Ok(Box::new(RemInt16)),
-            (DataType::Int32, DataType::Int32) => Ok(Box::new(RemInt32)),
-            (DataType::Int64, DataType::Int64) => Ok(Box::new(RemInt64)),
-            (DataType::UInt8, DataType::UInt8) => Ok(Box::new(RemUInt8)),
-            (DataType::UInt16, DataType::UInt16) => Ok(Box::new(RemUInt16)),
-            (DataType::UInt32, DataType::UInt32) => Ok(Box::new(RemUInt32)),
-            (DataType::UInt64, DataType::UInt64) => Ok(Box::new(RemUInt64)),
+            (DataType::Float32, DataType::Float32)
+            | (DataType::Float64, DataType::Float64)
+            | (DataType::Int8, DataType::Int8)
+            | (DataType::Int16, DataType::Int16)
+            | (DataType::Int32, DataType::Int32)
+            | (DataType::Int64, DataType::Int64)
+            | (DataType::UInt8, DataType::UInt8)
+            | (DataType::UInt16, DataType::UInt16)
+            | (DataType::UInt32, DataType::UInt32)
+            | (DataType::UInt64, DataType::UInt64)
+            | (DataType::Date32, DataType::Int64)
+            | (DataType::Interval, DataType::Int64) => Ok(Box::new(RemPrimitiveSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-generate_specialized_binary_numeric!(RemFloat32, Float32, Float32, Float32, |a, b| a % b);
-generate_specialized_binary_numeric!(RemFloat64, Float64, Float64, Float64, |a, b| a % b);
-generate_specialized_binary_numeric!(RemInt8, Int8, Int8, Int8, |a, b| a % b);
-generate_specialized_binary_numeric!(RemInt16, Int16, Int16, Int16, |a, b| a % b);
-generate_specialized_binary_numeric!(RemInt32, Int32, Int32, Int32, |a, b| a % b);
-generate_specialized_binary_numeric!(RemInt64, Int64, Int64, Int64, |a, b| a % b);
-generate_specialized_binary_numeric!(RemUInt8, UInt8, UInt8, UInt8, |a, b| a % b);
-generate_specialized_binary_numeric!(RemUInt16, UInt16, UInt16, UInt16, |a, b| a % b);
-generate_specialized_binary_numeric!(RemUInt32, UInt32, UInt32, UInt32, |a, b| a % b);
-generate_specialized_binary_numeric!(RemUInt64, UInt64, UInt64, UInt64, |a, b| a % b);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemPrimitiveSpecialized;
+
+impl SpecializedScalarFunction for RemPrimitiveSpecialized {
+    fn function_impl(&self) -> ScalarFn {
+        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
+            let first = arrays[0];
+            let second = arrays[1];
+            Ok(match (first.as_ref(), second.as_ref()) {
+                (Array::Int8(first), Array::Int8(second)) => {
+                    primitive_binary_execute!(first, second, Int8, |a, b| a % b)
+                }
+                (Array::Int16(first), Array::Int16(second)) => {
+                    primitive_binary_execute!(first, second, Int16, |a, b| a % b)
+                }
+                (Array::Int32(first), Array::Int32(second)) => {
+                    primitive_binary_execute!(first, second, Int32, |a, b| a % b)
+                }
+                (Array::Int64(first), Array::Int64(second)) => {
+                    primitive_binary_execute!(first, second, Int64, |a, b| a % b)
+                }
+                (Array::UInt8(first), Array::UInt8(second)) => {
+                    primitive_binary_execute!(first, second, UInt8, |a, b| a % b)
+                }
+                (Array::UInt16(first), Array::UInt16(second)) => {
+                    primitive_binary_execute!(first, second, UInt16, |a, b| a % b)
+                }
+                (Array::UInt32(first), Array::UInt32(second)) => {
+                    primitive_binary_execute!(first, second, UInt32, |a, b| a % b)
+                }
+                (Array::UInt64(first), Array::UInt64(second)) => {
+                    primitive_binary_execute!(first, second, UInt64, |a, b| a % b)
+                }
+                (Array::Float32(first), Array::Float32(second)) => {
+                    primitive_binary_execute!(first, second, Float32, |a, b| a % b)
+                }
+                (Array::Float64(first), Array::Float64(second)) => {
+                    primitive_binary_execute!(first, second, Float64, |a, b| a % b)
+                }
+                other => panic!("unexpected array type: {other:?}"),
+            })
+        }
+
+        inner
+    }
+}
 
 #[cfg(test)]
 mod tests {

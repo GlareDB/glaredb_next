@@ -7,6 +7,7 @@ edition = { workspace = true }
 rayexec_error = { path = "../rayexec_error" }
 rayexec_parser = { path = "../rayexec_parser" }
 rayexec_bullet = { path = "../rayexec_bullet" }
+fmtutil = { path = "../fmtutil" }
 
 ahash = { workspace = true }
 dyn-clone = "1.0.17"

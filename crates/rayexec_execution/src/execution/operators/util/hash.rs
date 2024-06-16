@@ -34,10 +34,12 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
             Array::Int16(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Int32(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Int64(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::Int128(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt8(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt16(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt32(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt64(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::UInt128(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Decimal64(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
             Array::Decimal128(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
             Array::Date32(arr) => hash_primitive(arr, hashes, combine_hash),
@@ -77,10 +79,12 @@ pub fn hash_row(row: &ScalarRow) -> Result<u64> {
             ScalarValue::Int16(v) => v.hash_one(),
             ScalarValue::Int32(v) => v.hash_one(),
             ScalarValue::Int64(v) => v.hash_one(),
+            ScalarValue::Int128(v) => v.hash_one(),
             ScalarValue::UInt8(v) => v.hash_one(),
             ScalarValue::UInt16(v) => v.hash_one(),
             ScalarValue::UInt32(v) => v.hash_one(),
             ScalarValue::UInt64(v) => v.hash_one(),
+            ScalarValue::UInt128(v) => v.hash_one(),
             ScalarValue::Decimal64(v) => v.value.hash_one(),
             ScalarValue::Decimal128(v) => v.value.hash_one(),
             ScalarValue::Date32(v) => v.hash_one(),
@@ -137,6 +141,7 @@ impl_hash_value!(u8);
 impl_hash_value!(u16);
 impl_hash_value!(u32);
 impl_hash_value!(u64);
+impl_hash_value!(u128);
 impl_hash_value!(str);
 impl_hash_value!([u8]);
 impl_hash_value!(Interval);

@@ -88,10 +88,12 @@ pub enum DataType {
     Int16,
     Int32,
     Int64,
+    Int128,
     UInt8,
     UInt16,
     UInt32,
     UInt64,
+    UInt128,
     Float32,
     Float64,
     /// 64-bit decimal.
@@ -157,6 +159,7 @@ impl DataType {
         match (self, other) {
             (DataType::Any(_), DataType::Any(_)) => true,
             (DataType::Null, DataType::Null) => true,
+            (DataType::Boolean, DataType::Boolean) => true,
             (DataType::Int8, DataType::Int8) => true,
             (DataType::Int16, DataType::Int16) => true,
             (DataType::Int32, DataType::Int32) => true,
@@ -197,10 +200,12 @@ impl fmt::Display for DataType {
             Self::Int16 => write!(f, "Int16"),
             Self::Int32 => write!(f, "Int32"),
             Self::Int64 => write!(f, "Int64"),
+            Self::Int128 => write!(f, "Int128"),
             Self::UInt8 => write!(f, "UInt8"),
             Self::UInt16 => write!(f, "UInt16"),
             Self::UInt32 => write!(f, "UInt32"),
             Self::UInt64 => write!(f, "UInt64"),
+            Self::UInt128 => write!(f, "UInt128"),
             Self::Float32 => write!(f, "Float32"),
             Self::Float64 => write!(f, "Float64"),
             Self::Decimal64(meta) => match meta {

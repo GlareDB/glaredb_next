@@ -73,8 +73,8 @@ const fn target_score(target: &DataType) -> i32 {
         DataType::UInt8 => 132,
         DataType::Float32 => 141,
         DataType::Float64 => 142,
-        DataType::Decimal128(_) => 151,
-        DataType::Decimal64(_) => 152,
+        DataType::Decimal64(_) => 151,
+        DataType::Decimal128(_) => 152,
         _ => 100,
     }
 }

@@ -1,0 +1,6 @@
+# Arith on Decimals (with casting)
+
+query T
+select 8 - '4.20'::decimal
+----
+3.80

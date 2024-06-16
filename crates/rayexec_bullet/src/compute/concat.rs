@@ -54,6 +54,10 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, Int64, datatype)?;
             Ok(Array::Int64(concat_primitive(arrs.as_slice())))
         }
+        DataType::Int128 => {
+            let arrs = collect_arrays_of_type!(arrays, Int128, datatype)?;
+            Ok(Array::Int128(concat_primitive(arrs.as_slice())))
+        }
         DataType::UInt8 => {
             let arrs = collect_arrays_of_type!(arrays, UInt8, datatype)?;
             Ok(Array::UInt8(concat_primitive(arrs.as_slice())))
@@ -69,6 +73,10 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
         DataType::UInt64 => {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
             Ok(Array::UInt64(concat_primitive(arrs.as_slice())))
+        }
+        DataType::UInt128 => {
+            let arrs = collect_arrays_of_type!(arrays, UInt128, datatype)?;
+            Ok(Array::UInt128(concat_primitive(arrs.as_slice())))
         }
         DataType::Decimal64(meta) => {
             let meta = meta.try_get_meta()?;

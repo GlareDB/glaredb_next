@@ -35,10 +35,12 @@ pub type Int8Formatter = DisplayFormatter<i8>;
 pub type Int16Formatter = DisplayFormatter<i16>;
 pub type Int32Formatter = DisplayFormatter<i32>;
 pub type Int64Formatter = DisplayFormatter<i64>;
+pub type Int128Formatter = DisplayFormatter<i128>;
 pub type UInt8Formatter = DisplayFormatter<u8>;
 pub type UInt16Formatter = DisplayFormatter<u16>;
 pub type UInt32Formatter = DisplayFormatter<u32>;
 pub type UInt64Formatter = DisplayFormatter<u64>;
+pub type UInt128Formatter = DisplayFormatter<u128>;
 pub type Float32Formatter = DisplayFormatter<f32>;
 pub type Float64Formatter = DisplayFormatter<f64>;
 

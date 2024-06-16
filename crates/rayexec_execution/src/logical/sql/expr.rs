@@ -1,3 +1,4 @@
+use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::array::Interval;
 use rayexec_bullet::compute::cast::scalar::cast_scalar;
 use rayexec_bullet::datatype::DataType;
@@ -408,9 +409,9 @@ impl<'a> ExpressionContext<'a> {
 
                 // TODO: Better error.
                 return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {:?}",
+                    "Invalid inputs to '{}': {}",
                     scalar.name(),
-                    input_datatypes,
+                    input_datatypes.displayable(),
                 )));
             }
 
@@ -460,9 +461,9 @@ impl<'a> ExpressionContext<'a> {
 
             if candidates.is_empty() {
                 return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {:?}",
+                    "Invalid inputs to '{}': {}",
                     agg.name(),
-                    input_datatypes,
+                    input_datatypes.displayable(),
                 )));
             }
 
