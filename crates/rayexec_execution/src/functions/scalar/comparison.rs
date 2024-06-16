@@ -165,89 +165,83 @@ impl GenericScalarFunction for Eq {
 pub struct EqSpecialized;
 
 impl SpecializedScalarFunction for EqSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Int8(first), Array::Int8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        == b)
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        == b)
-                }
-                (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Date32(first), Array::Date32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Date64(first), Array::Date64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Utf8(first), Array::Utf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::Binary(first), Array::Binary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a == b)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Int8(first), Array::Int8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a == b)
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a == b)
+            }
+            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Date32(first), Array::Date32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Date64(first), Array::Date64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Utf8(first), Array::Utf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::Binary(first), Array::Binary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a == b)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -304,89 +298,83 @@ impl GenericScalarFunction for Neq {
 pub struct NeqSpecialized;
 
 impl SpecializedScalarFunction for NeqSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Int8(first), Array::Int8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        != b)
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        != b)
-                }
-                (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Date32(first), Array::Date32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Date64(first), Array::Date64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Utf8(first), Array::Utf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::Binary(first), Array::Binary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a != b)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Int8(first), Array::Int8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a != b)
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a != b)
+            }
+            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Date32(first), Array::Date32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Date64(first), Array::Date64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Utf8(first), Array::Utf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::Binary(first), Array::Binary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a != b)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -439,87 +427,83 @@ impl GenericScalarFunction for Lt {
 pub struct LtSpecialized;
 
 impl SpecializedScalarFunction for LtSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Int8(first), Array::Int8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a < b)
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a < b)
-                }
-                (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Date32(first), Array::Date32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Date64(first), Array::Date64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Utf8(first), Array::Utf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::Binary(first), Array::Binary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a < b)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Int8(first), Array::Int8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a < b)
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a < b)
+            }
+            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Date32(first), Array::Date32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Date64(first), Array::Date64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Utf8(first), Array::Utf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::Binary(first), Array::Binary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a < b)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -572,89 +556,83 @@ impl GenericScalarFunction for LtEq {
 pub struct LtEqSpecialized;
 
 impl SpecializedScalarFunction for LtEqSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Int8(first), Array::Int8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        <= b)
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        <= b)
-                }
-                (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Date32(first), Array::Date32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Date64(first), Array::Date64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Utf8(first), Array::Utf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::Binary(first), Array::Binary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a <= b)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Int8(first), Array::Int8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a <= b)
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a <= b)
+            }
+            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Date32(first), Array::Date32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Date64(first), Array::Date64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Utf8(first), Array::Utf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::Binary(first), Array::Binary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a <= b)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -707,87 +685,83 @@ impl GenericScalarFunction for Gt {
 pub struct GtSpecialized;
 
 impl SpecializedScalarFunction for GtSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Int8(first), Array::Int8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a > b)
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a > b)
-                }
-                (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Date32(first), Array::Date32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Date64(first), Array::Date64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Utf8(first), Array::Utf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::Binary(first), Array::Binary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a > b)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Int8(first), Array::Int8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a > b)
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a > b)
+            }
+            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Date32(first), Array::Date32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Date64(first), Array::Date64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Utf8(first), Array::Utf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::Binary(first), Array::Binary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a > b)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -840,89 +814,83 @@ impl GenericScalarFunction for GtEq {
 pub struct GtEqSpecialized;
 
 impl SpecializedScalarFunction for GtEqSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Int8(first), Array::Int8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        >= b)
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale check
-                    cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a
-                        >= b)
-                }
-                (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Date32(first), Array::Date32(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Date64(first), Array::Date64(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Utf8(first), Array::Utf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::Binary(first), Array::Binary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                    cmp_binary_execute!(first, second, |a, b| a >= b)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Int8(first), Array::Int8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a >= b)
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale check
+                cmp_binary_execute!(first.get_primitive(), second.get_primitive(), |a, b| a >= b)
+            }
+            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Date32(first), Array::Date32(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Date64(first), Array::Date64(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Utf8(first), Array::Utf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::Binary(first), Array::Binary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
+                cmp_binary_execute!(first, second, |a, b| a >= b)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -939,7 +907,7 @@ mod tests {
 
         let specialized = Eq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
 
         assert_eq!(expected, out);
@@ -952,7 +920,7 @@ mod tests {
 
         let specialized = Neq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
 
         assert_eq!(expected, out);
@@ -965,7 +933,7 @@ mod tests {
 
         let specialized = Lt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
 
         assert_eq!(expected, out);
@@ -980,7 +948,7 @@ mod tests {
             .specialize(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, true, true]));
 
         assert_eq!(expected, out);
@@ -993,7 +961,7 @@ mod tests {
 
         let specialized = Gt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, false, false]));
 
         assert_eq!(expected, out);
@@ -1008,7 +976,7 @@ mod tests {
             .specialize(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
 
         assert_eq!(expected, out);

@@ -40,22 +40,17 @@ impl GenericScalarFunction for And {
 pub struct AndBool;
 
 impl SpecializedScalarFunction for AndBool {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-                    let validity =
-                        BinaryExecutor::execute(first, second, |a, b| a && b, &mut buffer)?;
-                    Array::Boolean(BooleanArray::new(buffer, validity))
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+                let validity = BinaryExecutor::execute(first, second, |a, b| a && b, &mut buffer)?;
+                Array::Boolean(BooleanArray::new(buffer, validity))
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -89,22 +84,17 @@ impl GenericScalarFunction for Or {
 pub struct OrBool;
 
 impl SpecializedScalarFunction for OrBool {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-                    let validity =
-                        BinaryExecutor::execute(first, second, |a, b| a || b, &mut buffer)?;
-                    Array::Boolean(BooleanArray::new(buffer, validity))
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+                let validity = BinaryExecutor::execute(first, second, |a, b| a || b, &mut buffer)?;
+                Array::Boolean(BooleanArray::new(buffer, validity))
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -125,7 +115,7 @@ mod tests {
             .specialize(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, false]));
 
         assert_eq!(expected, out);
@@ -142,7 +132,7 @@ mod tests {
             .specialize(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, true, false]));
 
         assert_eq!(expected, out);

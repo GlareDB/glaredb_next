@@ -47,26 +47,22 @@ impl GenericScalarFunction for Repeat {
 pub struct RepeatUtf8;
 
 impl SpecializedScalarFunction for RepeatUtf8 {
-    fn function_impl(&self) -> ScalarFn {
-        fn repeat_utf8(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let strings = arrays[0];
-            let nums = arrays[1];
-            Ok(match (strings.as_ref(), nums.as_ref()) {
-                (Array::Utf8(strings), Array::Int64(nums)) => {
-                    let mut buffer = VarlenValuesBuffer::default();
-                    let validity = BinaryExecutor::execute(
-                        strings,
-                        nums,
-                        |s, count| s.repeat(count as usize),
-                        &mut buffer,
-                    )?;
-                    Array::Utf8(VarlenArray::new(buffer, validity))
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        repeat_utf8
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let strings = arrays[0];
+        let nums = arrays[1];
+        Ok(match (strings.as_ref(), nums.as_ref()) {
+            (Array::Utf8(strings), Array::Int64(nums)) => {
+                let mut buffer = VarlenValuesBuffer::default();
+                let validity = BinaryExecutor::execute(
+                    strings,
+                    nums,
+                    |s, count| s.repeat(count as usize),
+                    &mut buffer,
+                )?;
+                Array::Utf8(VarlenArray::new(buffer, validity))
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -74,25 +70,21 @@ impl SpecializedScalarFunction for RepeatUtf8 {
 pub struct RepeatLargeUtf8;
 
 impl SpecializedScalarFunction for RepeatLargeUtf8 {
-    fn function_impl(&self) -> ScalarFn {
-        fn repeat_large_utf8(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let strings = arrays[0];
-            let nums = arrays[1];
-            Ok(match (strings.as_ref(), nums.as_ref()) {
-                (Array::LargeUtf8(strings), Array::Int64(nums)) => {
-                    let mut buffer = VarlenValuesBuffer::default();
-                    let validity = BinaryExecutor::execute(
-                        strings,
-                        nums,
-                        |s, count| s.repeat(count as usize),
-                        &mut buffer,
-                    )?;
-                    Array::LargeUtf8(VarlenArray::new(buffer, validity))
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        repeat_large_utf8
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let strings = arrays[0];
+        let nums = arrays[1];
+        Ok(match (strings.as_ref(), nums.as_ref()) {
+            (Array::LargeUtf8(strings), Array::Int64(nums)) => {
+                let mut buffer = VarlenValuesBuffer::default();
+                let validity = BinaryExecutor::execute(
+                    strings,
+                    nums,
+                    |s, count| s.repeat(count as usize),
+                    &mut buffer,
+                )?;
+                Array::LargeUtf8(VarlenArray::new(buffer, validity))
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }

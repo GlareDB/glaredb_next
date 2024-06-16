@@ -143,7 +143,7 @@ impl PhysicalScalarExpression {
                     .map(|input| input.eval(batch))
                     .collect::<Result<Vec<_>>>()?;
                 let refs: Vec<_> = inputs.iter().collect(); // Can I not?
-                let out = (function.function_impl())(&refs)?;
+                let out = function.execute(&refs)?;
 
                 // TODO: Do we want to Arc here? Should we allow batches to be mutable?
 

@@ -83,8 +83,8 @@ impl PartialEq for dyn GenericScalarFunction + '_ {
 /// `GenericScalarFunction` because this will be what's serialized when
 /// serializing pipelines for distributed execution.
 pub trait SpecializedScalarFunction: Debug + Sync + Send + DynClone {
-    /// Return the function pointer that implements this scalar function.
-    fn function_impl(&self) -> ScalarFn;
+    /// Execution the function array inputs.
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
 }
 
 impl Clone for Box<dyn SpecializedScalarFunction> {

@@ -45,21 +45,17 @@ impl GenericScalarFunction for IsNan {
 pub struct IsNanSpecialized;
 
 impl SpecializedScalarFunction for IsNanSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let array = arrays[0];
-            Ok(match array.as_ref() {
-                Array::Float32(input) => {
-                    primitive_unary_execute_bool!(input, |f| f.is_nan())
-                }
-                Array::Float64(input) => {
-                    primitive_unary_execute_bool!(input, |f| f.is_nan())
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let array = arrays[0];
+        Ok(match array.as_ref() {
+            Array::Float32(input) => {
+                primitive_unary_execute_bool!(input, |f| f.is_nan())
+            }
+            Array::Float64(input) => {
+                primitive_unary_execute_bool!(input, |f| f.is_nan())
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -103,21 +99,17 @@ impl GenericScalarFunction for Ceil {
 pub struct CeilSpecialized;
 
 impl SpecializedScalarFunction for CeilSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let array = arrays[0];
-            Ok(match array.as_ref() {
-                Array::Float32(input) => {
-                    primitive_unary_execute!(input, Float32, |f| f.ceil())
-                }
-                Array::Float64(input) => {
-                    primitive_unary_execute!(input, Float64, |f| f.ceil())
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let array = arrays[0];
+        Ok(match array.as_ref() {
+            Array::Float32(input) => {
+                primitive_unary_execute!(input, Float32, |f| f.ceil())
+            }
+            Array::Float64(input) => {
+                primitive_unary_execute!(input, Float64, |f| f.ceil())
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -157,20 +149,16 @@ impl GenericScalarFunction for Floor {
 pub struct FloorSpecialized;
 
 impl SpecializedScalarFunction for FloorSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let array = arrays[0];
-            Ok(match array.as_ref() {
-                Array::Float32(input) => {
-                    primitive_unary_execute!(input, Float32, |f| f.floor())
-                }
-                Array::Float64(input) => {
-                    primitive_unary_execute!(input, Float64, |f| f.floor())
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let array = arrays[0];
+        Ok(match array.as_ref() {
+            Array::Float32(input) => {
+                primitive_unary_execute!(input, Float32, |f| f.floor())
+            }
+            Array::Float64(input) => {
+                primitive_unary_execute!(input, Float64, |f| f.floor())
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }

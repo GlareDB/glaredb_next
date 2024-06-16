@@ -70,32 +70,28 @@ impl GenericScalarFunction for Negate {
 pub struct NegatePrimitiveSpecialized;
 
 impl SpecializedScalarFunction for NegatePrimitiveSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            Ok(match first.as_ref() {
-                Array::Int8(input) => {
-                    primitive_unary_execute!(input, Int8, |a| -a)
-                }
-                Array::Int16(input) => {
-                    primitive_unary_execute!(input, Int16, |a| -a)
-                }
-                Array::Int32(input) => {
-                    primitive_unary_execute!(input, Int32, |a| -a)
-                }
-                Array::Int64(input) => {
-                    primitive_unary_execute!(input, Int64, |a| -a)
-                }
-                Array::Float32(input) => {
-                    primitive_unary_execute!(input, Float32, |a| -a)
-                }
-                Array::Float64(input) => {
-                    primitive_unary_execute!(input, Float64, |a| -a)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        Ok(match first.as_ref() {
+            Array::Int8(input) => {
+                primitive_unary_execute!(input, Int8, |a| -a)
+            }
+            Array::Int16(input) => {
+                primitive_unary_execute!(input, Int16, |a| -a)
+            }
+            Array::Int32(input) => {
+                primitive_unary_execute!(input, Int32, |a| -a)
+            }
+            Array::Int64(input) => {
+                primitive_unary_execute!(input, Int64, |a| -a)
+            }
+            Array::Float32(input) => {
+                primitive_unary_execute!(input, Float32, |a| -a)
+            }
+            Array::Float64(input) => {
+                primitive_unary_execute!(input, Float64, |a| -a)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }

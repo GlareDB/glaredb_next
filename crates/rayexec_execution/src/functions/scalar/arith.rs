@@ -114,76 +114,72 @@ impl GenericScalarFunction for Add {
 pub struct AddPrimitiveSpecialized;
 
 impl SpecializedScalarFunction for AddPrimitiveSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Int8(first), Array::Int8(second)) => {
-                    primitive_binary_execute!(first, second, Int8, |a, b| a + b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    primitive_binary_execute!(first, second, Int16, |a, b| a + b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    primitive_binary_execute!(first, second, Int32, |a, b| a + b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    primitive_binary_execute!(first, second, Int64, |a, b| a + b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    primitive_binary_execute!(first, second, UInt8, |a, b| a + b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    primitive_binary_execute!(first, second, UInt16, |a, b| a + b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    primitive_binary_execute!(first, second, UInt32, |a, b| a + b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    primitive_binary_execute!(first, second, UInt64, |a, b| a + b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    primitive_binary_execute!(first, second, Float32, |a, b| a + b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    primitive_binary_execute!(first, second, Float64, |a, b| a + b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale
-                    Decimal64Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a + b
-                        ),
-                    )
-                    .into()
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale
-                    Decimal128Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a + b
-                        ),
-                    )
-                    .into()
-                }
-                (Array::Date32(first), Array::Int64(second)) => {
-                    // Date32 is stored as "days", so just add the values.
-                    primitive_binary_execute!(first, second, Date32, |a, b| a + b as i32)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Int8(first), Array::Int8(second)) => {
+                primitive_binary_execute!(first, second, Int8, |a, b| a + b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                primitive_binary_execute!(first, second, Int16, |a, b| a + b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                primitive_binary_execute!(first, second, Int32, |a, b| a + b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                primitive_binary_execute!(first, second, Int64, |a, b| a + b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                primitive_binary_execute!(first, second, UInt8, |a, b| a + b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                primitive_binary_execute!(first, second, UInt16, |a, b| a + b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                primitive_binary_execute!(first, second, UInt32, |a, b| a + b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                primitive_binary_execute!(first, second, UInt64, |a, b| a + b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                primitive_binary_execute!(first, second, Float32, |a, b| a + b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                primitive_binary_execute!(first, second, Float64, |a, b| a + b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale
+                Decimal64Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a + b
+                    ),
+                )
+                .into()
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale
+                Decimal128Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a + b
+                    ),
+                )
+                .into()
+            }
+            (Array::Date32(first), Array::Int64(second)) => {
+                // Date32 is stored as "days", so just add the values.
+                primitive_binary_execute!(first, second, Date32, |a, b| a + b as i32)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -230,76 +226,72 @@ impl GenericScalarFunction for Sub {
 pub struct SubPrimitiveSpecialized;
 
 impl SpecializedScalarFunction for SubPrimitiveSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Int8(first), Array::Int8(second)) => {
-                    primitive_binary_execute!(first, second, Int8, |a, b| a - b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    primitive_binary_execute!(first, second, Int16, |a, b| a - b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    primitive_binary_execute!(first, second, Int32, |a, b| a - b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    primitive_binary_execute!(first, second, Int64, |a, b| a - b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    primitive_binary_execute!(first, second, UInt8, |a, b| a - b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    primitive_binary_execute!(first, second, UInt16, |a, b| a - b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    primitive_binary_execute!(first, second, UInt32, |a, b| a - b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    primitive_binary_execute!(first, second, UInt64, |a, b| a - b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    primitive_binary_execute!(first, second, Float32, |a, b| a - b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    primitive_binary_execute!(first, second, Float64, |a, b| a - b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale
-                    Decimal64Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a - b
-                        ),
-                    )
-                    .into()
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale
-                    Decimal128Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a - b
-                        ),
-                    )
-                    .into()
-                }
-                (Array::Date32(first), Array::Int64(second)) => {
-                    // Date32 is stored as "days", so just sub the values.
-                    primitive_binary_execute!(first, second, Date32, |a, b| a - b as i32)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Int8(first), Array::Int8(second)) => {
+                primitive_binary_execute!(first, second, Int8, |a, b| a - b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                primitive_binary_execute!(first, second, Int16, |a, b| a - b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                primitive_binary_execute!(first, second, Int32, |a, b| a - b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                primitive_binary_execute!(first, second, Int64, |a, b| a - b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                primitive_binary_execute!(first, second, UInt8, |a, b| a - b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                primitive_binary_execute!(first, second, UInt16, |a, b| a - b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                primitive_binary_execute!(first, second, UInt32, |a, b| a - b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                primitive_binary_execute!(first, second, UInt64, |a, b| a - b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                primitive_binary_execute!(first, second, Float32, |a, b| a - b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                primitive_binary_execute!(first, second, Float64, |a, b| a - b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale
+                Decimal64Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a - b
+                    ),
+                )
+                .into()
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale
+                Decimal128Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a - b
+                    ),
+                )
+                .into()
+            }
+            (Array::Date32(first), Array::Int64(second)) => {
+                // Date32 is stored as "days", so just sub the values.
+                primitive_binary_execute!(first, second, Date32, |a, b| a - b as i32)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -346,73 +338,69 @@ impl GenericScalarFunction for Div {
 pub struct DivPrimitiveSpecialized;
 
 impl SpecializedScalarFunction for DivPrimitiveSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Int8(first), Array::Int8(second)) => {
-                    primitive_binary_execute!(first, second, Int8, |a, b| a / b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    primitive_binary_execute!(first, second, Int16, |a, b| a / b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    primitive_binary_execute!(first, second, Int32, |a, b| a / b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    primitive_binary_execute!(first, second, Int64, |a, b| a / b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    primitive_binary_execute!(first, second, UInt8, |a, b| a / b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    primitive_binary_execute!(first, second, UInt16, |a, b| a / b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    primitive_binary_execute!(first, second, UInt32, |a, b| a / b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    primitive_binary_execute!(first, second, UInt64, |a, b| a / b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    primitive_binary_execute!(first, second, Float32, |a, b| a / b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    primitive_binary_execute!(first, second, Float64, |a, b| a / b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale
-                    Decimal64Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a / b
-                        ),
-                    )
-                    .into()
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale
-                    Decimal128Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a / b
-                        ),
-                    )
-                    .into()
-                }
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Int8(first), Array::Int8(second)) => {
+                primitive_binary_execute!(first, second, Int8, |a, b| a / b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                primitive_binary_execute!(first, second, Int16, |a, b| a / b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                primitive_binary_execute!(first, second, Int32, |a, b| a / b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                primitive_binary_execute!(first, second, Int64, |a, b| a / b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                primitive_binary_execute!(first, second, UInt8, |a, b| a / b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                primitive_binary_execute!(first, second, UInt16, |a, b| a / b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                primitive_binary_execute!(first, second, UInt32, |a, b| a / b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                primitive_binary_execute!(first, second, UInt64, |a, b| a / b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                primitive_binary_execute!(first, second, Float32, |a, b| a / b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                primitive_binary_execute!(first, second, Float64, |a, b| a / b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale
+                Decimal64Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a / b
+                    ),
+                )
+                .into()
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale
+                Decimal128Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a / b
+                    ),
+                )
+                .into()
+            }
 
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -460,81 +448,77 @@ impl GenericScalarFunction for Mul {
 pub struct MulPrimitiveSpecialized;
 
 impl SpecializedScalarFunction for MulPrimitiveSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Int8(first), Array::Int8(second)) => {
-                    primitive_binary_execute!(first, second, Int8, |a, b| a * b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    primitive_binary_execute!(first, second, Int16, |a, b| a * b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    primitive_binary_execute!(first, second, Int32, |a, b| a * b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    primitive_binary_execute!(first, second, Int64, |a, b| a * b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    primitive_binary_execute!(first, second, UInt8, |a, b| a * b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    primitive_binary_execute!(first, second, UInt16, |a, b| a * b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    primitive_binary_execute!(first, second, UInt32, |a, b| a * b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    primitive_binary_execute!(first, second, UInt64, |a, b| a * b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    primitive_binary_execute!(first, second, Float32, |a, b| a * b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    primitive_binary_execute!(first, second, Float64, |a, b| a * b)
-                }
-                (Array::Decimal64(first), Array::Decimal64(second)) => {
-                    // TODO: Scale
-                    Decimal64Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a * b
-                        ),
-                    )
-                    .into()
-                }
-                (Array::Decimal128(first), Array::Decimal128(second)) => {
-                    // TODO: Scale
-                    Decimal128Array::new(
-                        first.precision(),
-                        first.scale(),
-                        primitive_binary_execute_no_wrap!(
-                            first.get_primitive(),
-                            second.get_primitive(),
-                            |a, b| a * b
-                        ),
-                    )
-                    .into()
-                }
-                (Array::Interval(first), Array::Int64(second)) => {
-                    primitive_binary_execute!(first, second, Interval, |a, b| {
-                        Interval {
-                            months: a.months * (b as i32),
-                            days: a.days * (b as i32),
-                            nanos: a.nanos * b,
-                        }
-                    })
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Int8(first), Array::Int8(second)) => {
+                primitive_binary_execute!(first, second, Int8, |a, b| a * b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                primitive_binary_execute!(first, second, Int16, |a, b| a * b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                primitive_binary_execute!(first, second, Int32, |a, b| a * b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                primitive_binary_execute!(first, second, Int64, |a, b| a * b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                primitive_binary_execute!(first, second, UInt8, |a, b| a * b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                primitive_binary_execute!(first, second, UInt16, |a, b| a * b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                primitive_binary_execute!(first, second, UInt32, |a, b| a * b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                primitive_binary_execute!(first, second, UInt64, |a, b| a * b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                primitive_binary_execute!(first, second, Float32, |a, b| a * b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                primitive_binary_execute!(first, second, Float64, |a, b| a * b)
+            }
+            (Array::Decimal64(first), Array::Decimal64(second)) => {
+                // TODO: Scale
+                Decimal64Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a * b
+                    ),
+                )
+                .into()
+            }
+            (Array::Decimal128(first), Array::Decimal128(second)) => {
+                // TODO: Scale
+                Decimal128Array::new(
+                    first.precision(),
+                    first.scale(),
+                    primitive_binary_execute_no_wrap!(
+                        first.get_primitive(),
+                        second.get_primitive(),
+                        |a, b| a * b
+                    ),
+                )
+                .into()
+            }
+            (Array::Interval(first), Array::Int64(second)) => {
+                primitive_binary_execute!(first, second, Interval, |a, b| {
+                    Interval {
+                        months: a.months * (b as i32),
+                        days: a.days * (b as i32),
+                        nanos: a.nanos * b,
+                    }
+                })
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -580,46 +564,42 @@ impl GenericScalarFunction for Rem {
 pub struct RemPrimitiveSpecialized;
 
 impl SpecializedScalarFunction for RemPrimitiveSpecialized {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Int8(first), Array::Int8(second)) => {
-                    primitive_binary_execute!(first, second, Int8, |a, b| a % b)
-                }
-                (Array::Int16(first), Array::Int16(second)) => {
-                    primitive_binary_execute!(first, second, Int16, |a, b| a % b)
-                }
-                (Array::Int32(first), Array::Int32(second)) => {
-                    primitive_binary_execute!(first, second, Int32, |a, b| a % b)
-                }
-                (Array::Int64(first), Array::Int64(second)) => {
-                    primitive_binary_execute!(first, second, Int64, |a, b| a % b)
-                }
-                (Array::UInt8(first), Array::UInt8(second)) => {
-                    primitive_binary_execute!(first, second, UInt8, |a, b| a % b)
-                }
-                (Array::UInt16(first), Array::UInt16(second)) => {
-                    primitive_binary_execute!(first, second, UInt16, |a, b| a % b)
-                }
-                (Array::UInt32(first), Array::UInt32(second)) => {
-                    primitive_binary_execute!(first, second, UInt32, |a, b| a % b)
-                }
-                (Array::UInt64(first), Array::UInt64(second)) => {
-                    primitive_binary_execute!(first, second, UInt64, |a, b| a % b)
-                }
-                (Array::Float32(first), Array::Float32(second)) => {
-                    primitive_binary_execute!(first, second, Float32, |a, b| a % b)
-                }
-                (Array::Float64(first), Array::Float64(second)) => {
-                    primitive_binary_execute!(first, second, Float64, |a, b| a % b)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Int8(first), Array::Int8(second)) => {
+                primitive_binary_execute!(first, second, Int8, |a, b| a % b)
+            }
+            (Array::Int16(first), Array::Int16(second)) => {
+                primitive_binary_execute!(first, second, Int16, |a, b| a % b)
+            }
+            (Array::Int32(first), Array::Int32(second)) => {
+                primitive_binary_execute!(first, second, Int32, |a, b| a % b)
+            }
+            (Array::Int64(first), Array::Int64(second)) => {
+                primitive_binary_execute!(first, second, Int64, |a, b| a % b)
+            }
+            (Array::UInt8(first), Array::UInt8(second)) => {
+                primitive_binary_execute!(first, second, UInt8, |a, b| a % b)
+            }
+            (Array::UInt16(first), Array::UInt16(second)) => {
+                primitive_binary_execute!(first, second, UInt16, |a, b| a % b)
+            }
+            (Array::UInt32(first), Array::UInt32(second)) => {
+                primitive_binary_execute!(first, second, UInt32, |a, b| a % b)
+            }
+            (Array::UInt64(first), Array::UInt64(second)) => {
+                primitive_binary_execute!(first, second, UInt64, |a, b| a % b)
+            }
+            (Array::Float32(first), Array::Float32(second)) => {
+                primitive_binary_execute!(first, second, Float32, |a, b| a % b)
+            }
+            (Array::Float64(first), Array::Float64(second)) => {
+                primitive_binary_execute!(first, second, Float64, |a, b| a % b)
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -636,7 +616,7 @@ mod tests {
 
         let specialized = Add.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([5, 7, 9]));
 
         assert_eq!(expected, out);
@@ -649,7 +629,7 @@ mod tests {
 
         let specialized = Sub.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([3, 3, 3]));
 
         assert_eq!(expected, out);
@@ -662,7 +642,7 @@ mod tests {
 
         let specialized = Div.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([4, 2, 2]));
 
         assert_eq!(expected, out);
@@ -675,7 +655,7 @@ mod tests {
 
         let specialized = Rem.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([0, 1, 0]));
 
         assert_eq!(expected, out);
@@ -688,7 +668,7 @@ mod tests {
 
         let specialized = Mul.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([4, 10, 18]));
 
         assert_eq!(expected, out);

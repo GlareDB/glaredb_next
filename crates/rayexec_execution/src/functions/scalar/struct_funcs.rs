@@ -36,40 +36,36 @@ impl GenericScalarFunction for StructPack {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StructPackDynamic;
-
-impl SpecializedScalarFunction for StructPackDynamic {
-    fn function_impl(&self) -> ScalarFn {
-        struct_pack
-    }
-}
-
 /// Creates a struct array from some input arrays.
 ///
 /// Key and values arrays are alternating.
 ///
 /// It's assumed key arrays are string arrays containing all of the same value.
-fn struct_pack(arrays: &[&Arc<Array>]) -> Result<Array> {
-    let keys = arrays
-        .iter()
-        .step_by(2)
-        .map(|arr| match arr.scalar(0).expect("scalar to exist") {
-            ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => Ok(v.to_string()),
-            other => Err(RayexecError::new(format!(
-                "Invalid value for struct key: {other}"
-            ))),
-        })
-        .collect::<Result<Vec<_>>>()?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructPackDynamic;
 
-    let values: Vec<_> = arrays
-        .iter()
-        .skip(1)
-        .step_by(2)
-        .map(|&arr| arr.clone())
-        .collect();
+impl SpecializedScalarFunction for StructPackDynamic {
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let keys = arrays
+            .iter()
+            .step_by(2)
+            .map(|arr| match arr.scalar(0).expect("scalar to exist") {
+                ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => Ok(v.to_string()),
+                other => Err(RayexecError::new(format!(
+                    "Invalid value for struct key: {other}"
+                ))),
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-    Ok(Array::Struct(StructArray::try_new(keys, values)?))
+        let values: Vec<_> = arrays
+            .iter()
+            .skip(1)
+            .step_by(2)
+            .map(|&arr| arr.clone())
+            .collect();
+
+        Ok(Array::Struct(StructArray::try_new(keys, values)?))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
