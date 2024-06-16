@@ -262,24 +262,15 @@ where
 
 impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenArray<A, O> {
     fn from_iter<T: IntoIterator<Item = &'a A>>(iter: T) -> Self {
-        let mut offsets: Vec<O> = vec![O::from_usize(0)];
-        let mut data: Vec<u8> = Vec::new();
+        let buffer = VarlenValuesBuffer::from_iter(iter);
+        VarlenArray::new(buffer, None)
+    }
+}
 
-        for item in iter.into_iter() {
-            data.extend(item.as_binary());
-            let offset = data.len();
-            offsets.push(O::from_usize(offset));
-        }
-
-        let offsets = PrimitiveStorage::from(offsets);
-        let data = PrimitiveStorage::from(data);
-
-        VarlenArray {
-            validity: None,
-            offsets,
-            data,
-            varlen_type: PhantomData,
-        }
+impl<O: OffsetIndex> FromIterator<String> for VarlenArray<str, O> {
+    fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
+        let buffer = VarlenValuesBuffer::from_iter(iter);
+        VarlenArray::new(buffer, None)
     }
 }
 

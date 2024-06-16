@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        AstParseable, Attach, CreateSchema, CreateTable, Detach, DropStatement, ExplainNode, Ident,
-        Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
+        AstParseable, Attach, CreateSchema, CreateTable, Describe, Detach, DropStatement,
+        ExplainNode, Ident, Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     meta::Raw,
@@ -88,6 +88,7 @@ impl Parser {
                     Keyword::SET => Ok(RawStatement::SetVariable(SetVariable::parse(self)?)),
                     Keyword::RESET => Ok(RawStatement::ResetVariable(ResetVariable::parse(self)?)),
                     Keyword::SHOW => Ok(RawStatement::ShowVariable(ShowVariable::parse(self)?)),
+                    Keyword::DESCRIBE => Ok(RawStatement::Describe(Describe::parse(self)?)),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(RawStatement::Query(QueryNode::parse(self)?))
                     }

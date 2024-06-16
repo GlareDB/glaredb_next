@@ -12,7 +12,7 @@ use crate::{
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
 };
 use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::field::{Field, TypeSchema};
+use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
@@ -55,6 +55,7 @@ pub enum LogicalOperator {
     Drop(DropEntry),
     Insert(Insert),
     Explain(Explain),
+    Describe(Describe),
 }
 
 impl LogicalOperator {
@@ -87,6 +88,7 @@ impl LogicalOperator {
             Self::Drop(n) => n.output_schema(outer),
             Self::Insert(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
+            Self::Describe(n) => n.output_schema(outer),
         }
     }
 
@@ -193,6 +195,7 @@ impl LogicalOperator {
             | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::Drop(_)
             | LogicalOperator::Scan(_)
+            | LogicalOperator::Describe(_)
             | LogicalOperator::TableFunction(_) => (),
         }
         post(self)?;
@@ -233,6 +236,7 @@ impl Explainable for LogicalOperator {
             Self::Drop(p) => p.explain_entry(conf),
             Self::Insert(p) => p.explain_entry(conf),
             Self::Explain(p) => p.explain_entry(conf),
+            Self::Describe(p) => p.explain_entry(conf),
         }
     }
 }
@@ -811,6 +815,23 @@ impl Explainable for Explain {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Describe {
+    pub schema: Schema,
+}
+
+impl LogicalNode for Describe {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::new(vec![DataType::Utf8, DataType::Utf8]))
+    }
+}
+
+impl Explainable for Describe {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Describe")
+    }
+}
+
 /// An expression that can exist in a logical plan.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalExpression {
@@ -1123,6 +1144,7 @@ impl LogicalExpression {
                 LogicalOperator::Explain(_) => (),
                 LogicalOperator::Drop(_) => (),
                 LogicalOperator::Empty => (),
+                LogicalOperator::Describe(_) => (),
             }
             Ok(())
         }

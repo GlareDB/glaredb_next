@@ -78,6 +78,7 @@ define_keywords!(
     DECADES,
     DECIMAL,
     DESC,
+    DESCRIBE,
     DETACH,
     DISTINCT,
     DISTRIBUTE,

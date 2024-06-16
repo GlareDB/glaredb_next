@@ -70,10 +70,23 @@ impl<'a> ExpressionContext<'a> {
         expr: ast::SelectExpr<Bound>,
     ) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
-            ast::SelectExpr::Expr(expr) => vec![ExpandedSelectExpr::Expr {
-                expr,
-                name: "?column?".to_string(),
-            }],
+            ast::SelectExpr::Expr(expr) => match &expr {
+                ast::Expr::Ident(ident) => vec![ExpandedSelectExpr::Expr {
+                    name: ident.as_normalized_string(),
+                    expr,
+                }],
+                ast::Expr::CompoundIdent(ident) => vec![ExpandedSelectExpr::Expr {
+                    name: ident
+                        .last()
+                        .map(|n| n.as_normalized_string())
+                        .unwrap_or_else(|| "?column?".to_string()),
+                    expr,
+                }],
+                _ => vec![ExpandedSelectExpr::Expr {
+                    expr,
+                    name: "?column?".to_string(),
+                }],
+            },
             ast::SelectExpr::AliasedExpr(expr, alias) => vec![ExpandedSelectExpr::Expr {
                 expr,
                 name: alias.into_normalized_string(),

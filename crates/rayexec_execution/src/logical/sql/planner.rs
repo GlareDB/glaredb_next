@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{borrow::BorrowMut, collections::HashMap};
 
 use super::{
     binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
@@ -14,19 +14,19 @@ use crate::{
     expr::scalar::BinaryOperator,
     functions::aggregate::count::Count,
     logical::operator::{
-        Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, DetachDatabase,
-        DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr, Insert, JoinType,
-        Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan,
-        SetVar, ShowVar, TableFunction, VariableOrAll,
+        Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
+        DetachDatabase, DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr,
+        Insert, JoinType, Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr,
+        Projection, ResetVar, Scan, SetVar, ShowVar, TableFunction, VariableOrAll,
     },
 };
 use rayexec_bullet::{
-    field::{Field, TypeSchema},
+    field::{Field, Schema, TypeSchema},
     scalar::OwnedScalarValue,
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
-    ast::{self, OrderByNulls, OrderByType},
+    ast::{self, FromBaseTable, OrderByNulls, OrderByType},
     statement::Statement,
 };
 use tracing::trace;
@@ -129,6 +129,36 @@ impl<'a> PlanContext<'a> {
             }
             Statement::Attach(attach) => self.plan_attach(attach),
             Statement::Detach(detach) => self.plan_detach(detach),
+            Statement::Describe(describe) => {
+                let plan = match describe {
+                    ast::Describe::Query(query) => self.plan_query(query)?,
+                    ast::Describe::Table(table) => {
+                        // TODO: Could be useful for `DESCRIBE <file>` too.
+                        // Could also be considered jank. I don't know yet.
+                        let from_node = ast::FromNode {
+                            alias: None,
+                            body: ast::FromNodeBody::BaseTable(FromBaseTable { reference: table }),
+                        };
+                        self.plan_from_node(from_node, Scope::empty())?
+                    }
+                };
+
+                let type_schema = plan.root.output_schema(&[])?; // TODO: Include outer schema
+                debug_assert_eq!(plan.scope.num_columns(), type_schema.types.len());
+
+                let schema = Schema::new(
+                    plan.scope
+                        .items
+                        .into_iter()
+                        .zip(type_schema.types.into_iter())
+                        .map(|(item, typ)| Field::new(item.column, typ, true)),
+                );
+
+                Ok(LogicalQuery {
+                    root: LogicalOperator::Describe(Describe { schema }),
+                    scope: Scope::with_columns(None, ["column_name", "datatype"]),
+                })
+            }
         }
     }
 
