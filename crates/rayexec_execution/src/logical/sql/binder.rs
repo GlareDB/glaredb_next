@@ -898,7 +898,7 @@ impl<'a> Binder<'a> {
 
                 if scale as i16 > prec as i16 {
                     return Err(RayexecError::new(
-                        "Decimal scale cannot be larger than scale",
+                        "Decimal scale cannot be larger than precision",
                     ));
                 }
 
