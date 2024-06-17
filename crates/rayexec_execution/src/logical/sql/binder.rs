@@ -276,8 +276,8 @@ impl<'a> Binder<'a> {
                 ast::Describe::Query(query) => Statement::Describe(ast::Describe::Query(
                     self.bind_query(query, &mut bind_data).await?,
                 )),
-                ast::Describe::Table(table) => Statement::Describe(ast::Describe::Table(
-                    self.resolve_table_or_cte(table, &bind_data).await?,
+                ast::Describe::FromNode(from) => Statement::Describe(ast::Describe::FromNode(
+                    self.bind_from(from, &mut bind_data).await?,
                 )),
             },
             Statement::Query(query) => {

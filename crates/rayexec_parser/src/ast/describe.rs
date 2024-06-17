@@ -2,13 +2,16 @@ use crate::meta::{AstMeta, Raw};
 use crate::{keywords::Keyword, parser::Parser};
 use rayexec_error::Result;
 
-use super::{AstParseable, ObjectReference, QueryNode};
+use super::{AstParseable, FromNode, QueryNode};
 
-// TODO: `DESCRIBE <file>` could be interesting.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Describe<T: AstMeta> {
+    /// DESCRIBE <query>
     Query(QueryNode<T>),
-    Table(T::TableReference),
+    /// DESCRIBE <table>
+    /// DESCRIBE <table-function>
+    /// DESCRIBE <file>
+    FromNode(FromNode<T>),
 }
 
 impl AstParseable for Describe<Raw> {
@@ -19,8 +22,8 @@ impl AstParseable for Describe<Raw> {
             let query = QueryNode::parse(parser)?;
             Ok(Describe::Query(query))
         } else {
-            let table = ObjectReference::parse(parser)?;
-            Ok(Describe::Table(table))
+            let from = FromNode::parse_base_from(parser)?;
+            Ok(Describe::FromNode(from))
         }
     }
 }

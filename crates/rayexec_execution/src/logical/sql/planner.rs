@@ -132,15 +132,7 @@ impl<'a> PlanContext<'a> {
             Statement::Describe(describe) => {
                 let plan = match describe {
                     ast::Describe::Query(query) => self.plan_query(query)?,
-                    ast::Describe::Table(table) => {
-                        // TODO: Could be useful for `DESCRIBE <file>` too.
-                        // Could also be considered jank. I don't know yet.
-                        let from_node = ast::FromNode {
-                            alias: None,
-                            body: ast::FromNodeBody::BaseTable(FromBaseTable { reference: table }),
-                        };
-                        self.plan_from_node(from_node, Scope::empty())?
-                    }
+                    ast::Describe::FromNode(from) => self.plan_from_node(from, Scope::empty())?,
                 };
 
                 let type_schema = plan.root.output_schema(&[])?; // TODO: Include outer schema
