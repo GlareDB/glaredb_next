@@ -70,21 +70,23 @@ impl<T: Display> Formatter for DecimalFormatter<T> {
     type Type = T;
     fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
         self.buf.clear();
-        if self.scale > 0 {
-            write!(&mut self.buf, "{val}").expect("string write to not fail");
-            if self.buf.len() <= self.scale as usize {
-                let pad = self.scale.unsigned_abs() as usize;
-                write!(buf, "0.{val:0>pad$}")
-            } else {
-                self.buf.insert(self.buf.len() - self.scale as usize, '.');
-                write!(buf, "{}", self.buf)
+        match self.scale {
+            scale if scale > 0 => {
+                write!(&mut self.buf, "{val}").expect("string write to not fail");
+                if self.buf.len() <= self.scale as usize {
+                    let pad = self.scale.unsigned_abs() as usize;
+                    write!(buf, "0.{val:0>pad$}")
+                } else {
+                    self.buf.insert(self.buf.len() - self.scale as usize, '.');
+                    write!(buf, "{}", self.buf)
+                }
             }
-        } else if self.scale < 0 {
-            write!(&mut self.buf, "{val}").expect("string write to not fail");
-            let pad = self.buf.len() + self.scale.unsigned_abs() as usize;
-            write!(buf, "{val:0<pad$}")
-        } else {
-            write!(buf, "{val}")
+            scale if scale < 0 => {
+                write!(&mut self.buf, "{val}").expect("string write to not fail");
+                let pad = self.buf.len() + self.scale.unsigned_abs() as usize;
+                write!(buf, "{val:0<pad$}")
+            }
+            _ => write!(buf, "{val}"),
         }
     }
 }
@@ -139,7 +141,7 @@ pub type TimestampNanosecondsFormatter = TimestampFormatter<DateTimeFromNanoseco
 impl<T: DateTimeFromTimestamp> Formatter for TimestampFormatter<T> {
     type Type = i64;
     fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
-        let datetime = T::from(*val).ok_or_else(|| fmt::Error)?;
+        let datetime = T::from(*val).ok_or(fmt::Error)?;
         write!(buf, "{datetime}")
     }
 }
@@ -150,8 +152,8 @@ pub struct Date32Formatter;
 impl Formatter for Date32Formatter {
     type Type = i32;
     fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
-        let datetime = DateTime::from_timestamp((*val as i64) * SECONDS_IN_DAY, 0)
-            .ok_or_else(|| fmt::Error)?;
+        let datetime =
+            DateTime::from_timestamp((*val as i64) * SECONDS_IN_DAY, 0).ok_or(fmt::Error)?;
         write!(buf, "{}", datetime.format("%Y-%m-%d"))
     }
 }
@@ -162,7 +164,7 @@ pub struct Date64Formatter;
 impl Formatter for Date64Formatter {
     type Type = i64;
     fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
-        let datetime = DateTime::from_timestamp_millis(*val).ok_or_else(|| fmt::Error)?;
+        let datetime = DateTime::from_timestamp_millis(*val).ok_or(fmt::Error)?;
         write!(buf, "{datetime}")
     }
 }
@@ -180,11 +182,11 @@ impl Formatter for IntervalFormatter {
 
         let mut nanos = val.nanos;
         let hours = nanos / Interval::NANOSECONDS_IN_HOUR;
-        nanos = nanos % Interval::NANOSECONDS_IN_HOUR;
+        nanos %= Interval::NANOSECONDS_IN_HOUR;
         let minutes = nanos / Interval::NANOSECONDS_IN_MINUTE;
-        nanos = nanos % Interval::NANOSECONDS_IN_MINUTE;
+        nanos %= Interval::NANOSECONDS_IN_MINUTE;
         let seconds = nanos / Interval::NANOSECONDS_IN_SECOND;
-        nanos = nanos % Interval::NANOSECONDS_IN_SECOND;
+        nanos %= Interval::NANOSECONDS_IN_SECOND;
         let millis = nanos / Interval::NANOSECONDS_IN_MILLISECOND;
 
         let mut pad = false;

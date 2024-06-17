@@ -94,13 +94,15 @@ fn decimal_type(precision: i32, scale: i32) -> Result<DataType> {
     }
 
     if precision <= Decimal64Type::MAX_PRECISION as i32 {
-        Ok(DataType::Decimal64(
-            DecimalTypeMeta::new(precision as u8, scale as i8).into(),
-        ))
+        Ok(DataType::Decimal64(DecimalTypeMeta::new(
+            precision as u8,
+            scale as i8,
+        )))
     } else if precision <= Decimal128Type::MAX_PRECISION as i32 {
-        Ok(DataType::Decimal128(
-            DecimalTypeMeta::new(precision as u8, scale as i8).into(),
-        ))
+        Ok(DataType::Decimal128(DecimalTypeMeta::new(
+            precision as u8,
+            scale as i8,
+        )))
     } else {
         Err(RayexecError::new(format!(
             "Decimal precision of {precision} is to high"

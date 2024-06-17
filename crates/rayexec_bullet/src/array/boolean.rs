@@ -40,9 +40,9 @@ impl FromIterator<bool> for BooleanValuesBuffer {
     }
 }
 
-impl Into<Bitmap> for BooleanValuesBuffer {
-    fn into(self) -> Bitmap {
-        self.bitmap
+impl From<BooleanValuesBuffer> for Bitmap {
+    fn from(value: BooleanValuesBuffer) -> Self {
+        value.bitmap
     }
 }
 

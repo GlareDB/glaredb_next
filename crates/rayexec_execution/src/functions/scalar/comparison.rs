@@ -430,7 +430,7 @@ impl SpecializedScalarFunction for LtSpecialized {
         let second = arrays[1];
         Ok(match (first.as_ref(), second.as_ref()) {
             (Array::Boolean(first), Array::Boolean(second)) => {
-                cmp_binary_execute!(first, second, |a, b| a < b)
+                cmp_binary_execute!(first, second, |a, b| !a & b)
             }
             (Array::Int8(first), Array::Int8(second)) => {
                 cmp_binary_execute!(first, second, |a, b| a < b)
@@ -688,7 +688,7 @@ impl SpecializedScalarFunction for GtSpecialized {
         let second = arrays[1];
         Ok(match (first.as_ref(), second.as_ref()) {
             (Array::Boolean(first), Array::Boolean(second)) => {
-                cmp_binary_execute!(first, second, |a, b| a > b)
+                cmp_binary_execute!(first, second, |a, b| a & !b)
             }
             (Array::Int8(first), Array::Int8(second)) => {
                 cmp_binary_execute!(first, second, |a, b| a > b)

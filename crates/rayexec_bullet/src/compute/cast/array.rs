@@ -453,8 +453,8 @@ where
     }
 
     // Scale everything.
-    let scale_amount =
-        <D::Primitive as NumCast>::from(10.pow(scale.abs() as u32)).expect("to be in range");
+    let scale_amount = <D::Primitive as NumCast>::from(10.pow(scale.unsigned_abs() as u32))
+        .expect("to be in range");
     if scale > 0 {
         new_vals.iter_mut().for_each(|v| *v = v.mul(scale_amount))
     } else {

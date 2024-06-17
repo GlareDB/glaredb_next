@@ -12,13 +12,13 @@ impl<'a, T: Display> IntoDisplayableSlice<T> for &'a [T] {
     }
 }
 
-impl<'a, T: Display> IntoDisplayableSlice<T> for [T] {
+impl<T: Display> IntoDisplayableSlice<T> for [T] {
     fn displayable(&self) -> DisplayableSlice<T> {
         DisplayableSlice { slice: self }
     }
 }
 
-impl<'a, T: Display> IntoDisplayableSlice<T> for Vec<T> {
+impl<T: Display> IntoDisplayableSlice<T> for Vec<T> {
     fn displayable(&self) -> DisplayableSlice<T> {
         DisplayableSlice { slice: self }
     }

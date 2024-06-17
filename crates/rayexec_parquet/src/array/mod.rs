@@ -410,10 +410,13 @@ where
     }
 
     pub fn take_def_levels(&mut self) -> Option<Vec<i16>> {
-        self.def_levels.as_mut().map(|v| std::mem::take(v))
+        // We want to take the inner array and replace it with an empty array.
+        // Calling `take` on an option would replace Some with None.
+        self.def_levels.as_mut().map(std::mem::take)
     }
 
     pub fn take_rep_levels(&mut self) -> Option<Vec<i16>> {
-        self.rep_levels.as_mut().map(|v| std::mem::take(v))
+        // See above.
+        self.rep_levels.as_mut().map(std::mem::take)
     }
 }

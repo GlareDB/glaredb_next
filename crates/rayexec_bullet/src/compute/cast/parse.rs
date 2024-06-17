@@ -5,12 +5,12 @@ use std::{fmt::Write, marker::PhantomData, str::FromStr};
 
 use crate::scalar::interval::Interval;
 
-pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 01, 01) {
+pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 1, 1) {
     Some(date) => date,
     _ => unreachable!(),
 };
 
-pub const EPOCH_DAYS_FROM_CE: i32 = 719163;
+pub const EPOCH_DAYS_FROM_CE: i32 = 719_163;
 
 pub const SECONDS_IN_DAY: i64 = 86_400;
 
@@ -116,7 +116,7 @@ impl<T: PrimInt> Parser for DecimalParser<T> {
         let mut iter = bs.iter();
 
         // Leading digits.
-        while let Some(b) = iter.next() {
+        for b in iter.by_ref() {
             match b {
                 b'0'..=b'9' => {
                     // Leading zero.
@@ -153,8 +153,8 @@ impl<T: PrimInt> Parser for DecimalParser<T> {
         }
 
         if self.scale < 0 {
-            digits -= self.scale.abs() as u8;
-            let exp = self.scale.abs() as u32;
+            digits -= self.scale.unsigned_abs();
+            let exp = self.scale.unsigned_abs() as u32;
             val = val.div(ten.pow(exp));
         }
 
@@ -162,8 +162,8 @@ impl<T: PrimInt> Parser for DecimalParser<T> {
             return None;
         }
 
-        if (decimals as i8) < self.scale {
-            let exp = (self.scale - (decimals as i8)) as u32;
+        if decimals < self.scale {
+            let exp = (self.scale - decimals) as u32;
             val = val.mul(ten.pow(exp));
         }
 

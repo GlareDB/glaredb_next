@@ -61,10 +61,9 @@ pub fn slice_boolean(arr: &BooleanArray, start: usize, count: usize) -> Result<B
         .take(count)
         .for_each(|val| buffer.push_value(val));
 
-    let validity = match arr.validity() {
-        Some(validity) => Some(Bitmap::from_iter(validity.iter().skip(start).take(count))),
-        None => None,
-    };
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(validity.iter().skip(start).take(count)));
 
     Ok(BooleanArray::new(buffer, validity))
 }
@@ -88,10 +87,9 @@ pub fn slice_primitive<T: Copy + Default>(
         .take(count)
         .for_each(|val| buffer.push_value(val));
 
-    let validity = match arr.validity() {
-        Some(validity) => Some(Bitmap::from_iter(validity.iter().skip(start).take(count))),
-        None => None,
-    };
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(validity.iter().skip(start).take(count)));
 
     Ok(PrimitiveArray::new(buffer, validity))
 }
@@ -115,10 +113,9 @@ pub fn slice_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
         .take(count)
         .for_each(|val| buffer.push_value(val));
 
-    let validity = match arr.validity() {
-        Some(validity) => Some(Bitmap::from_iter(validity.iter().skip(start).take(count))),
-        None => None,
-    };
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(validity.iter().skip(start).take(count)));
 
     Ok(VarlenArray::new(buffer, validity))
 }

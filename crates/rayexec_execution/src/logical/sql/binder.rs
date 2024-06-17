@@ -903,9 +903,9 @@ impl<'a> Binder<'a> {
                 }
 
                 if prec <= Decimal64Type::MAX_PRECISION {
-                    DataType::Decimal64(DecimalTypeMeta::new(prec, scale).into())
+                    DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
                 } else if prec <= Decimal128Type::MAX_PRECISION {
-                    DataType::Decimal128(DecimalTypeMeta::new(prec, scale).into())
+                    DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
                 } else {
                     return Err(RayexecError::new(
                         "Decimal precision too big for max decimal size",

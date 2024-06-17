@@ -142,7 +142,7 @@ impl<'a> PlanContext<'a> {
                     plan.scope
                         .items
                         .into_iter()
-                        .zip(type_schema.types.into_iter())
+                        .zip(type_schema.types)
                         .map(|(item, typ)| Field::new(item.column, typ, true)),
                 );
 

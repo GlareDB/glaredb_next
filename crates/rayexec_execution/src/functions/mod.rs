@@ -132,7 +132,7 @@ impl CandidateSignature {
                 unimplemented!()
             }
 
-            if !Self::compare_and_fill_types(inputs, &sig.input, &mut buf) {
+            if !Self::compare_and_fill_types(inputs, sig.input, &mut buf) {
                 continue;
             }
 
@@ -167,10 +167,7 @@ impl CandidateSignature {
 
             let score = implicit_cast_score(have, want);
             if score > 0 {
-                buf.push(CastType::Cast {
-                    to: want.clone(),
-                    score,
-                });
+                buf.push(CastType::Cast { to: want, score });
                 continue;
             }
 
