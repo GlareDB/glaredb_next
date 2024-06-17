@@ -98,7 +98,7 @@ pub trait FunctionInfo {
     ///
     /// The returned candidates will have info on which arguments need to be
     /// casted and which are fine to state as-is.
-    fn cadidate_signatures(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
+    fn candidate(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
         CandidateSignature::find_candidates(inputs, self.signatures())
     }
 }

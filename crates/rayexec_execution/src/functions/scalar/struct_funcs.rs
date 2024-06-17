@@ -23,7 +23,7 @@ impl FunctionInfo for StructPack {
         }]
     }
 
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
+    fn return_type_for_inputs(&self, _inputs: &[DataType]) -> Option<DataType> {
         // TODO: Check "key" types.
 
         unimplemented!()

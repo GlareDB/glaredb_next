@@ -1,8 +1,7 @@
 use crate::{
     array::{
-        Array, AsVarlenType, BooleanArray, BooleanArrayBuilder, BooleanValuesBuffer,
-        Decimal128Array, Decimal64Array, NullArray, OffsetIndex, PrimitiveArray,
-        PrimitiveArrayBuilder, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
+        Array, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array, NullArray,
+        OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
     compute::macros::collect_arrays_of_type,

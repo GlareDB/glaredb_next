@@ -1,5 +1,4 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::compute::cast::scalar::cast_scalar;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::interval::Interval;
 use rayexec_bullet::scalar::ScalarValue;
@@ -20,8 +19,6 @@ use super::{
 };
 
 /// An expanded select expression.
-// TODO: What does the below TODO mean?
-// TODO: Expand wildcard.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpandedSelectExpr {
     /// A typical expression. Can be a reference to a column, or a more complex
@@ -420,7 +417,7 @@ impl<'a> ExpressionContext<'a> {
             Ok(inputs)
         } else {
             // Try to find candidates that we can cast to.
-            let mut candidates = scalar.cadidate_signatures(&input_datatypes);
+            let mut candidates = scalar.candidate(&input_datatypes);
 
             if candidates.is_empty() {
                 // TODO: Do we want to fall through? Is it possible for a
@@ -478,7 +475,7 @@ impl<'a> ExpressionContext<'a> {
             Ok(inputs)
         } else {
             // Try to find candidates that we can cast to.
-            let mut candidates = agg.cadidate_signatures(&input_datatypes);
+            let mut candidates = agg.candidate(&input_datatypes);
 
             if candidates.is_empty() {
                 return Err(RayexecError::new(format!(

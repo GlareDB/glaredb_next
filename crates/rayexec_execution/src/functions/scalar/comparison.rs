@@ -1,12 +1,10 @@
 use super::{GenericScalarFunction, SpecializedScalarFunction};
-use crate::functions::scalar::macros::{cmp_binary_execute, primitive_binary_execute};
+use crate::functions::scalar::macros::cmp_binary_execute;
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
 use rayexec_bullet::array::Array;
-use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;

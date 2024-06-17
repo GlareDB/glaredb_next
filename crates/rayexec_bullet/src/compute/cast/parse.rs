@@ -1,7 +1,6 @@
 //! Parsing related utilities for casting from a string to other types.
 use chrono::{Datelike, NaiveDate};
 use num::PrimInt;
-use rayexec_error::RayexecError;
 use std::{fmt::Write, marker::PhantomData, str::FromStr};
 
 use crate::scalar::interval::Interval;

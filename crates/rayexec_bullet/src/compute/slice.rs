@@ -1,8 +1,7 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, BooleanArray, BooleanArrayBuilder, BooleanValuesBuffer, OffsetIndex,
-        PrimitiveArray, PrimitiveArrayBuilder, ValuesBuffer, VarlenArray, VarlenType,
-        VarlenValuesBuffer,
+        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, OffsetIndex, PrimitiveArray,
+        ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };

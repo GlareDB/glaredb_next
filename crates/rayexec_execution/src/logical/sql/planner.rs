@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, collections::HashMap};
+use std::collections::HashMap;
 
 use super::{
     binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
@@ -26,7 +26,7 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
-    ast::{self, FromBaseTable, OrderByNulls, OrderByType},
+    ast::{self, OrderByNulls, OrderByType},
     statement::Statement,
 };
 use tracing::trace;

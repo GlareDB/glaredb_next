@@ -3,9 +3,9 @@ use parquet::column::page::PageReader;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::{
-    Array, BooleanArray, Decimal128Array, Decimal64Array, Float32Array, Float64Array, Int16Array,
-    Int32Array, Int64Array, Int8Array, TimestampNanosecondsArray, UInt16Array, UInt32Array,
-    UInt64Array, UInt8Array,
+    Array, BooleanArray, Decimal64Array, Float32Array, Float64Array, Int16Array, Int32Array,
+    Int64Array, Int8Array, TimestampNanosecondsArray, UInt16Array, UInt32Array, UInt64Array,
+    UInt8Array,
 };
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;

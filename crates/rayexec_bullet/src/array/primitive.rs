@@ -1,9 +1,6 @@
 use crate::bitmap::Bitmap;
-use crate::compute::cast::format::IntervalFormatter;
 use crate::scalar::interval::Interval;
 use crate::storage::PrimitiveStorage;
-use std::fmt::{self, Debug};
-use std::hash::Hash;
 
 use super::{is_valid, ArrayAccessor};
 

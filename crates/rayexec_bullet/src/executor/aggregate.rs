@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 
 use crate::{
-    array::{validity::union_validities, ArrayAccessor, BooleanValuesBuffer, ValuesBuffer},
+    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
 };
 
