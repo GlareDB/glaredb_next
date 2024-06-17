@@ -1,6 +1,6 @@
 # DESCRIBE <parquet-file>
 
-query I
+query TT
 describe '../testdata/parquet/userdata0.parquet';
 ----
 registration_dttm  Timestamp(ns)
@@ -17,7 +17,7 @@ salary             Float64
 title              Utf8
 comments           Utf8
 
-query I
+query TT
 describe read_parquet('../testdata/parquet/userdata0.parquet');
 ----
 registration_dttm  Timestamp(ns)
