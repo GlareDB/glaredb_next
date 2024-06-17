@@ -4,7 +4,7 @@ use num::PrimInt;
 use rayexec_error::RayexecError;
 use std::{fmt::Write, marker::PhantomData, str::FromStr};
 
-use crate::array::Interval;
+use crate::scalar::interval::Interval;
 
 pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 01, 01) {
     Some(date) => date,

@@ -1,8 +1,8 @@
 use ahash::RandomState;
 use rayexec_bullet::{
-    array::{Array, BooleanArray, Interval, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
+    array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
     row::ScalarRow,
-    scalar::ScalarValue,
+    scalar::{interval::Interval, ScalarValue},
 };
 use rayexec_error::{RayexecError, Result};
 

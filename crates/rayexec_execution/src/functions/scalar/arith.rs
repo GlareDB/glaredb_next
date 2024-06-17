@@ -6,9 +6,9 @@ use crate::functions::{
 };
 
 use super::{GenericScalarFunction, SpecializedScalarFunction};
-use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
-use rayexec_bullet::array::{Interval, PrimitiveArray};
+use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::scalar::interval::Interval;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;

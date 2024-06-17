@@ -13,6 +13,7 @@ pub mod validity;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::{DataType, DecimalTypeMeta};
+use crate::scalar::interval::Interval;
 use crate::scalar::{
     decimal::{Decimal128Scalar, Decimal64Scalar},
     ScalarValue,

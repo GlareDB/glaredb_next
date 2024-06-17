@@ -1,7 +1,7 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::array::Interval;
 use rayexec_bullet::compute::cast::scalar::cast_scalar;
 use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::scalar::interval::Interval;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};

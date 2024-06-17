@@ -1,12 +1,12 @@
 pub mod decimal;
+pub mod interval;
 
 use crate::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    Interval, IntervalArray, LargeBinaryArray, LargeUtf8Array, NullArray,
-    TimestampMicrosecondsArray, TimestampMillsecondsArray, TimestampNanosecondsArray,
-    TimestampSecondsArray, UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
-    Utf8Array,
+    IntervalArray, LargeBinaryArray, LargeUtf8Array, NullArray, TimestampMicrosecondsArray,
+    TimestampMillsecondsArray, TimestampNanosecondsArray, TimestampSecondsArray, UInt128Array,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
 };
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
@@ -17,6 +17,7 @@ use crate::compute::cast::format::{
 };
 use crate::datatype::{DataType, DecimalTypeMeta};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
+use interval::Interval;
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
 use std::fmt;
