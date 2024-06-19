@@ -31,7 +31,7 @@ impl FunctionInfo for StructPack {
 }
 
 impl ScalarFunction for StructPack {
-    fn plan(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         Ok(Box::new(StructPackDynamic))
     }
 }
@@ -45,6 +45,14 @@ impl ScalarFunction for StructPack {
 pub struct StructPackDynamic;
 
 impl PlannedScalarFunction for StructPackDynamic {
+    fn name(&self) -> &'static str {
+        unimplemented!()
+    }
+
+    fn return_type(&self) -> DataType {
+        unimplemented!()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let keys = arrays
             .iter()
@@ -89,7 +97,7 @@ impl FunctionInfo for StructExtract {
 }
 
 impl ScalarFunction for StructExtract {
-    fn plan(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unimplemented!()
     }
 }

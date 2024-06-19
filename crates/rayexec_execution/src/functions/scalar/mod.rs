@@ -8,10 +8,13 @@ pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
+use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
+
+use crate::logical::operator::LogicalExpression;
 
 use super::FunctionInfo;
 
@@ -52,8 +55,37 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
 ///
 /// Generic scalar functions must be cheaply cloneable.
 pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    /// Specialize the function using the given input types.
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>>;
+    /// Plan a scalar function based on datatype inputs.
+    ///
+    /// The datatypes passed in correspond directly to the arguments to the
+    /// function. This is expected to error if the number of arguments or the
+    /// data types are incorrect.
+    ///
+    /// Most functions will only need to implement this as data types are often
+    /// times sufficient for function planning.
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>>;
+
+    /// Plan a scalar function based on expression inputs.
+    ///
+    /// This allows functions to check for constant expressions and generate a
+    /// function state for use throughout the entire query.
+    ///
+    /// Most functions won't need to implement this, and the default
+    /// implementation will forward to `plan_from_datatypes` by extracting the
+    /// data types from the function.
+    fn plan_from_expressions(
+        &self,
+        inputs: &[LogicalExpression],
+        operator_schema: &TypeSchema,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        // TODO: Are we going to need to pass in the outer schemas here?
+        let datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(operator_schema, &[]))
+            .collect::<Result<Vec<_>>>()?;
+
+        self.plan_from_datatypes(&datatypes)
+    }
 }
 
 impl Clone for Box<dyn ScalarFunction> {
@@ -80,6 +112,11 @@ impl PartialEq for dyn ScalarFunction + '_ {
 /// `GenericScalarFunction` because this will be what's serialized when
 /// serializing pipelines for distributed execution.
 pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
+    fn name(&self) -> &'static str;
+
+    /// Return type of the function.
+    fn return_type(&self) -> DataType;
+
     /// Execution the function array inputs.
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
 }

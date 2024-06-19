@@ -52,7 +52,7 @@ impl FunctionInfo for Negate {
 }
 
 impl ScalarFunction for Negate {
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int8
@@ -60,16 +60,28 @@ impl ScalarFunction for Negate {
             | DataType::Int32
             | DataType::Int64
             | DataType::Float32
-            | DataType::Float64 => Ok(Box::new(NegatePrimitiveSpecialized)),
+            | DataType::Float64 => Ok(Box::new(NegateImpl {
+                datatype: inputs[0].clone(),
+            })),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NegatePrimitiveSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NegateImpl {
+    datatype: DataType,
+}
 
-impl PlannedScalarFunction for NegatePrimitiveSpecialized {
+impl PlannedScalarFunction for NegateImpl {
+    fn name(&self) -> &'static str {
+        "negate_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         Ok(match first.as_ref() {

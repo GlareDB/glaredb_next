@@ -32,19 +32,27 @@ impl FunctionInfo for IsNan {
 }
 
 impl ScalarFunction for IsNan {
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanSpecialized)),
+            DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanImpl)),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNanSpecialized;
+pub struct IsNanImpl;
 
-impl PlannedScalarFunction for IsNanSpecialized {
+impl PlannedScalarFunction for IsNanImpl {
+    fn name(&self) -> &'static str {
+        "isnan_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {
@@ -86,19 +94,31 @@ impl FunctionInfo for Ceil {
 }
 
 impl ScalarFunction for Ceil {
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Float32 | DataType::Float64 => Ok(Box::new(CeilSpecialized)),
+            DataType::Float32 | DataType::Float64 => Ok(Box::new(CeilImpl {
+                datatype: inputs[0].clone(),
+            })),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CeilSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CeilImpl {
+    datatype: DataType,
+}
 
-impl PlannedScalarFunction for CeilSpecialized {
+impl PlannedScalarFunction for CeilImpl {
+    fn name(&self) -> &'static str {
+        "ceil_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {
@@ -136,19 +156,31 @@ impl FunctionInfo for Floor {
 }
 
 impl ScalarFunction for Floor {
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Float32 | DataType::Float64 => Ok(Box::new(FloorSpecialized)),
+            DataType::Float32 | DataType::Float64 => Ok(Box::new(FloorImpl {
+                datatype: inputs[0].clone(),
+            })),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FloorSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FloorImpl {
+    datatype: DataType,
+}
 
-impl PlannedScalarFunction for FloorSpecialized {
+impl PlannedScalarFunction for FloorImpl {
+    fn name(&self) -> &'static str {
+        "floor_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {

@@ -69,7 +69,7 @@ impl PhysicalScalarExpression {
                 let input = PhysicalScalarExpression::try_from_uncorrelated_expr(*expr, input)?;
 
                 let func = op.scalar_function();
-                let specialized = func.plan(&[datatype])?;
+                let specialized = func.plan_from_datatypes(&[datatype])?;
 
                 PhysicalScalarExpression::ScalarFunction {
                     function: specialized,
@@ -85,7 +85,7 @@ impl PhysicalScalarExpression {
 
                 let scalar_inputs = &[left_datatype, right_datatype];
                 let func = op.scalar_function();
-                let specialized = func.plan(scalar_inputs)?;
+                let specialized = func.plan_from_datatypes(scalar_inputs)?;
 
                 PhysicalScalarExpression::ScalarFunction {
                     function: specialized,
@@ -109,7 +109,7 @@ impl PhysicalScalarExpression {
                     .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, input))
                     .collect::<Result<Vec<_>>>()?;
 
-                let specialized = function.plan(&datatypes)?;
+                let specialized = function.plan_from_datatypes(&datatypes)?;
 
                 PhysicalScalarExpression::ScalarFunction {
                     function: specialized,

@@ -18,10 +18,6 @@ pub struct Signature {
     pub input: &'static [DataTypeId],
 
     /// The expected return type.
-    ///
-    /// Note that for some functions, this might return a compound type
-    /// `DataType::Struct(TypeMeta::None)` which might require further
-    /// refinement.
     pub return_type: DataTypeId,
 }
 

@@ -27,19 +27,27 @@ impl FunctionInfo for And {
 }
 
 impl ScalarFunction for And {
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndBool)),
+            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AndBool;
+pub struct AndImpl;
 
-impl PlannedScalarFunction for AndBool {
+impl PlannedScalarFunction for AndImpl {
+    fn name(&self) -> &'static str {
+        "and_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -71,19 +79,27 @@ impl FunctionInfo for Or {
 }
 
 impl ScalarFunction for Or {
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrBool)),
+            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OrBool;
+pub struct OrImpl;
 
-impl PlannedScalarFunction for OrBool {
+impl PlannedScalarFunction for OrImpl {
+    fn name(&self) -> &'static str {
+        "or_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -111,7 +127,9 @@ mod tests {
         ])));
         let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
 
-        let specialized = And.plan(&[DataType::Boolean, DataType::Boolean]).unwrap();
+        let specialized = And
+            .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
+            .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, false]));
@@ -126,7 +144,9 @@ mod tests {
         ])));
         let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
 
-        let specialized = Or.plan(&[DataType::Boolean, DataType::Boolean]).unwrap();
+        let specialized = Or
+            .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
+            .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, true, false]));
