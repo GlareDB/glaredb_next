@@ -5,7 +5,7 @@ use crate::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
     IntervalArray, LargeBinaryArray, LargeUtf8Array, NullArray, TimestampMicrosecondsArray,
-    TimestampMillsecondsArray, TimestampNanosecondsArray, TimestampSecondsArray, UInt128Array,
+    TimestampMillisecondsArray, TimestampNanosecondsArray, TimestampSecondsArray, UInt128Array,
     UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
 };
 use crate::compute::cast::format::{
@@ -169,7 +169,7 @@ impl<'a> ScalarValue<'a> {
                 std::iter::repeat(*v).take(n),
             )),
             Self::TimestampMilliseconds(v) => Array::TimestampMilliseconds(
-                TimestampMillsecondsArray::from_iter(std::iter::repeat(*v).take(n)),
+                TimestampMillisecondsArray::from_iter(std::iter::repeat(*v).take(n)),
             ),
             Self::TimestampMicroseconds(v) => Array::TimestampMicroseconds(
                 TimestampMicrosecondsArray::from_iter(std::iter::repeat(*v).take(n)),

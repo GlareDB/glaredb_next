@@ -138,7 +138,7 @@ pub type UInt128Array = PrimitiveArray<u128>;
 pub type Float32Array = PrimitiveArray<f32>;
 pub type Float64Array = PrimitiveArray<f64>;
 pub type TimestampSecondsArray = PrimitiveArray<i64>;
-pub type TimestampMillsecondsArray = PrimitiveArray<i64>;
+pub type TimestampMillisecondsArray = PrimitiveArray<i64>;
 pub type TimestampMicrosecondsArray = PrimitiveArray<i64>;
 pub type TimestampNanosecondsArray = PrimitiveArray<i64>;
 pub type Date32Array = PrimitiveArray<i32>;
@@ -332,15 +332,15 @@ impl<T> DecimalArray<T> {
         }
     }
 
-    pub fn get_primitive(&self) -> &PrimitiveArray<T> {
+    pub const fn get_primitive(&self) -> &PrimitiveArray<T> {
         &self.array
     }
 
-    pub fn precision(&self) -> u8 {
+    pub const fn precision(&self) -> u8 {
         self.precision
     }
 
-    pub fn scale(&self) -> i8 {
+    pub const fn scale(&self) -> i8 {
         self.scale
     }
 }

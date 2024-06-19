@@ -9,6 +9,7 @@ pub use primitive::*;
 pub mod varlen;
 pub use varlen::*;
 
+pub mod unwrap;
 pub mod validity;
 
 use crate::bitmap::Bitmap;
@@ -42,7 +43,7 @@ pub enum Array {
     Date32(Date32Array),
     Date64(Date64Array),
     TimestampSeconds(TimestampSecondsArray),
-    TimestampMilliseconds(TimestampMillsecondsArray),
+    TimestampMilliseconds(TimestampMillisecondsArray),
     TimestampMicroseconds(TimestampMicrosecondsArray),
     TimestampNanoseconds(TimestampNanosecondsArray),
     Interval(IntervalArray),
@@ -422,6 +423,61 @@ impl Array {
             )), // yet
         }
     }
+}
+
+macro_rules! implement_unwrap_array_type {
+    ($name:ident, $variant:ident, $ret:ty) => {
+        pub fn $name(&self) -> &$ret {
+            match self {
+                Self::$variant(arr) => arr,
+                other => panic!("unexpected array type: {}", other.datatype()),
+            }
+        }
+    };
+}
+
+impl Array {
+    implement_unwrap_array_type!(unwrap_boolean_array, Boolean, BooleanArray);
+    implement_unwrap_array_type!(unwrap_i8_array, Int8, Int8Array);
+    implement_unwrap_array_type!(unwrap_i16_array, Int16, Int16Array);
+    implement_unwrap_array_type!(unwrap_i32_array, Int32, Int32Array);
+    implement_unwrap_array_type!(unwrap_i64_array, Int64, Int64Array);
+    implement_unwrap_array_type!(unwrap_i128_array, Int128, Int128Array);
+    implement_unwrap_array_type!(unwrap_u8_array, UInt8, UInt8Array);
+    implement_unwrap_array_type!(unwrap_u16_array, UInt16, UInt16Array);
+    implement_unwrap_array_type!(unwrap_u32_array, UInt32, UInt32Array);
+    implement_unwrap_array_type!(unwrap_u64_array, UInt64, UInt64Array);
+    implement_unwrap_array_type!(unwrap_u128_array, UInt128, UInt128Array);
+    implement_unwrap_array_type!(unwrap_f32_array, Float32, Float32Array);
+    implement_unwrap_array_type!(unwrap_f64_array, Float64, Float64Array);
+    implement_unwrap_array_type!(unwrap_decimal64_array, Decimal64, Decimal64Array);
+    implement_unwrap_array_type!(unwrap_decimal128_array, Decimal128, Decimal128Array);
+    implement_unwrap_array_type!(unwrap_date32_array, Date32, Date32Array);
+    implement_unwrap_array_type!(unwrap_date64_array, Date64, Date64Array);
+    implement_unwrap_array_type!(
+        unwrap_timestamp_seconds_array,
+        TimestampSeconds,
+        TimestampSecondsArray
+    );
+    implement_unwrap_array_type!(
+        unwrap_timestamp_milliseconds_array,
+        TimestampMilliseconds,
+        TimestampMillisecondsArray
+    );
+    implement_unwrap_array_type!(
+        unwrap_timestamp_microseconds_array,
+        TimestampMicroseconds,
+        TimestampMicrosecondsArray
+    );
+    implement_unwrap_array_type!(
+        unwrap_timestamp_nanoseconds_array,
+        TimestampNanoseconds,
+        TimestampNanosecondsArray
+    );
+    implement_unwrap_array_type!(unwrap_utf8_array, Utf8, Utf8Array);
+    implement_unwrap_array_type!(unwrap_large_utf8_array, LargeUtf8, LargeUtf8Array);
+    implement_unwrap_array_type!(unwrap_binary_array, Binary, BinaryArray);
+    implement_unwrap_array_type!(unwrap_large_binary_array, LargeBinary, LargeBinaryArray);
 }
 
 impl From<Decimal64Array> for Array {

@@ -1,6 +1,7 @@
 pub mod arith;
 pub mod boolean;
 pub mod comparison;
+pub mod like;
 pub mod negate;
 pub mod numeric;
 pub mod string;
@@ -8,10 +9,15 @@ pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
+use rayexec_bullet::datatype::DataTypeId;
+use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+
+use crate::logical::operator::LogicalExpression;
 
 use super::FunctionInfo;
 
@@ -28,12 +34,12 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> =
         Box::new(boolean::And),
         Box::new(boolean::Or),
         // Comparison
-        Box::new(comparison::Eq),
-        Box::new(comparison::Neq),
-        Box::new(comparison::Lt),
-        Box::new(comparison::LtEq),
-        Box::new(comparison::Gt),
-        Box::new(comparison::GtEq),
+        // Box::new(comparison::Eq),
+        // Box::new(comparison::Neq),
+        // Box::new(comparison::Lt),
+        // Box::new(comparison::LtEq),
+        // Box::new(comparison::Gt),
+        // Box::new(comparison::GtEq),
         // Numeric
         Box::new(numeric::Ceil),
         Box::new(numeric::Floor),
@@ -46,6 +52,54 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> =
         Box::new(negate::Negate),
     ]
 });
+
+pub struct ScalarFunctionSet {
+    pub name: &'static str,
+    pub aliases: &'static [&'static str],
+    pub functions: HashMap<&'static [DataTypeId], Box<dyn ScalarFunction>>,
+}
+
+impl ScalarFunctionSet {
+    pub fn new(name: &'static str) -> Self {
+        ScalarFunctionSet {
+            name,
+            aliases: &[],
+            functions: HashMap::new(),
+        }
+    }
+
+    pub fn with_aliases(name: &'static str, aliases: &'static [&'static str]) -> Self {
+        ScalarFunctionSet {
+            name,
+            aliases,
+            functions: HashMap::new(),
+        }
+    }
+
+    pub fn add_function(&mut self, inputs: &'static [DataTypeId], func: Box<dyn ScalarFunction>) {
+        self.functions.insert(inputs, func);
+    }
+}
+
+pub trait ScalarFunction: Debug + Sync + Send + DynClone {
+    fn plan(
+        &self,
+        inputs: &[LogicalExpression],
+        operator_schema: &TypeSchema,
+    ) -> Result<Box<dyn PlannedScalarFunction>>;
+}
+
+impl Clone for Box<dyn ScalarFunction> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
+pub trait PlannedScalarFunction {
+    fn name(&self) -> &'static str;
+    fn return_type(&self) -> DataType;
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
+}
 
 /// A generic scalar function that can specialize into a more specific function
 /// depending on input types.

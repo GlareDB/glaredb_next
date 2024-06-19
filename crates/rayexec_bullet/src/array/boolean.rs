@@ -1,9 +1,9 @@
 use crate::bitmap::{Bitmap, BitmapIter};
 use std::fmt::Debug;
 
-use super::{ArrayAccessor, ValuesBuffer};
+use super::{Array, ArrayAccessor, ValuesBuffer};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct BooleanValuesBuffer {
     pub bitmap: Bitmap,
 }
