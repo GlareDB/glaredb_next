@@ -12,7 +12,7 @@ use crate::{
     },
     engine::vars::SessionVars,
     expr::scalar::BinaryOperator,
-    functions::aggregate::count::Count,
+    functions::aggregate::count::{Count, CountNonNullImpl},
     logical::operator::{
         Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
         DetachDatabase, DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr,
@@ -1149,7 +1149,7 @@ impl<'a> PlanContext<'a> {
                                 // projection that makes the final aggregate
                                 // represent COUNT(true).
                                 exprs: vec![LogicalExpression::Aggregate {
-                                    agg: Box::new(Count),
+                                    agg: Box::new(CountNonNullImpl),
                                     inputs: vec![LogicalExpression::new_column(0)],
                                     filter: None,
                                 }],
@@ -1213,7 +1213,7 @@ impl<'a> PlanContext<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::functions::aggregate::sum::Sum;
+    use crate::functions::aggregate::sum::{Sum, SumFloat64Impl};
 
     use super::*;
 
@@ -1221,7 +1221,7 @@ mod tests {
     fn extract_aggregates_only_aggregate() {
         let mut selects = vec![(
             LogicalExpression::Aggregate {
-                agg: Box::new(Sum),
+                agg: Box::new(SumFloat64Impl),
                 inputs: vec![LogicalExpression::new_column(0)],
                 filter: None,
             },
@@ -1231,7 +1231,7 @@ mod tests {
         let out = PlanContext::extract_aggregates(&mut selects).unwrap();
 
         let expect_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(Sum),
+            agg: Box::new(SumFloat64Impl),
             inputs: vec![LogicalExpression::new_column(0)],
             filter: None,
         }];
@@ -1247,7 +1247,7 @@ mod tests {
             (LogicalExpression::new_column(1), false),
             (
                 LogicalExpression::Aggregate {
-                    agg: Box::new(Sum),
+                    agg: Box::new(SumFloat64Impl),
                     inputs: vec![LogicalExpression::new_column(0)],
                     filter: None,
                 },
@@ -1258,7 +1258,7 @@ mod tests {
         let out = PlanContext::extract_aggregates(&mut selects).unwrap();
 
         let expect_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(Sum),
+            agg: Box::new(SumFloat64Impl),
             inputs: vec![LogicalExpression::new_column(0)],
             filter: None,
         }];
@@ -1302,7 +1302,7 @@ mod tests {
             (LogicalExpression::new_column(0), false),
             (
                 LogicalExpression::Aggregate {
-                    agg: Box::new(Sum),
+                    agg: Box::new(SumFloat64Impl),
                     inputs: vec![LogicalExpression::new_column(1)],
                     filter: None,
                 },
@@ -1316,7 +1316,7 @@ mod tests {
         let got_groups = PlanContext::extract_group_by_exprs(&mut selects, group_by, 1).unwrap();
 
         let expected_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(Sum),
+            agg: Box::new(SumFloat64Impl),
             inputs: vec![LogicalExpression::new_column(1)],
             filter: None,
         }];

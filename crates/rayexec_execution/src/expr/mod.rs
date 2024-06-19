@@ -185,7 +185,7 @@ pub struct PhysicalAggregateExpression {
 impl PhysicalAggregateExpression {
     pub fn try_from_logical_expression(
         expr: LogicalExpression,
-        input: &TypeSchema,
+        _input: &TypeSchema, // TODO: Do wil still need this?
     ) -> Result<Self> {
         Ok(match expr {
             LogicalExpression::Aggregate {
@@ -198,13 +198,10 @@ impl PhysicalAggregateExpression {
                     other => Err(RayexecError::new(format!("Physical aggregate expressions must be constructed with uncorrelated column inputs, got: {other}"))),
                 }).collect::<Result<Vec<_>>>()?;
 
-                let input_types = column_indices.iter().map(|idx| input.types.get(*idx).cloned().ok_or_else(|| RayexecError::new(format!("Attempted to get a column outside the type schema, got: {idx}, max: {}", input.types.len() -1)))).collect::<Result<Vec<_>>>()?;
-                let output_type = agg.return_type_for_inputs(&input_types).ok_or_else(|| RayexecError::new("Failed to get return type for aggregate while converting to physical expression"))?;
-
-                let specialized = agg.plan(&input_types)?;
+                let output_type = agg.return_type();
 
                 PhysicalAggregateExpression {
-                    function: specialized,
+                    function: agg,
                     column_indices,
                     output_type,
                 }

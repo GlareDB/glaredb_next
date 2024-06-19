@@ -23,13 +23,13 @@ order by
 ----
 l_returnflag    Utf8
 l_linestatus    Utf8
-sum_qty         Decimal64(18, 9)
-sum_base_price  Decimal64(18, 9)
+sum_qty         Decimal64(15, 2)
+sum_base_price  Decimal64(15, 2)
 sum_disc_price  Decimal64(18, 9)
 sum_charge      Decimal64(18, 9)
-avg_qty         Decimal64(18, 9)
-avg_price       Decimal64(18, 9)
-avg_disc        Decimal64(18, 9)
+avg_qty         Decimal64(15, 2)
+avg_price       Decimal64(15, 2)
+avg_disc        Decimal64(15, 2)
 count_order     Int64
 
 query TT

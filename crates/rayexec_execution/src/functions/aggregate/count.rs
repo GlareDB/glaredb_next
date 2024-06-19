@@ -28,18 +28,21 @@ impl FunctionInfo for Count {
 }
 
 impl AggregateFunction for Count {
-    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn plan_from_datatypes(
+        &self,
+        inputs: &[DataType],
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
         if inputs.len() != 1 {
             return Err(RayexecError::new("Expected 1 input"));
         }
-        Ok(Box::new(CountNonNull))
+        Ok(Box::new(CountNonNullImpl))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CountNonNull;
+pub struct CountNonNullImpl;
 
-impl CountNonNull {
+impl CountNonNullImpl {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -58,7 +61,15 @@ impl CountNonNull {
     }
 }
 
-impl PlannedAggregateFunction for CountNonNull {
+impl PlannedAggregateFunction for CountNonNullImpl {
+    fn name(&self) -> &'static str {
+        "count_non_null_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Int64
+    }
+
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }

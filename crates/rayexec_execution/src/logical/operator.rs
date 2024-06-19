@@ -4,8 +4,8 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
-use crate::functions::aggregate::AggregateFunction;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
+use crate::functions::scalar::PlannedScalarFunction;
 use crate::functions::table::InitializedTableFunction;
 use crate::{
     engine::vars::SessionVar,
@@ -878,7 +878,7 @@ pub enum LogicalExpression {
     /// An aggregate function.
     Aggregate {
         /// The function.
-        agg: Box<dyn AggregateFunction>,
+        agg: Box<dyn PlannedAggregateFunction>,
 
         /// Input expressions to the aggragate.
         inputs: Vec<LogicalExpression>,
@@ -1000,23 +1000,7 @@ impl LogicalExpression {
             LogicalExpression::Literal(lit) => lit.datatype(),
             LogicalExpression::ScalarFunction { function, .. } => function.return_type(),
             LogicalExpression::Cast { to, .. } => to.clone(),
-            LogicalExpression::Aggregate {
-                agg,
-                inputs,
-                filter: _,
-            } => {
-                let datatypes = inputs
-                    .iter()
-                    .map(|input| input.datatype(current, outer))
-                    .collect::<Result<Vec<_>>>()?;
-
-                agg.return_type_for_inputs(&datatypes).ok_or_else(|| {
-                    RayexecError::new(format!(
-                        "Failed to find correct signature for '{}'",
-                        agg.name()
-                    ))
-                })?
-            }
+            LogicalExpression::Aggregate { agg, .. } => agg.return_type(),
             LogicalExpression::Unary { op, expr } => {
                 let datatype = expr.datatype(current, outer)?;
                 op.scalar_function()

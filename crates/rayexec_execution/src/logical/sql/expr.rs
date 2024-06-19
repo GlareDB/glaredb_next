@@ -192,6 +192,7 @@ impl<'a> ExpressionContext<'a> {
                     BoundFunctionReference::Aggregate(agg) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
+                        let agg = agg.plan_from_expressions(&inputs, &self.input)?;
 
                         Ok(LogicalExpression::Aggregate {
                             agg,
