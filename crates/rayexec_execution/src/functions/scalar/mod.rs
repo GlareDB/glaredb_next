@@ -1,6 +1,7 @@
 pub mod arith;
 pub mod boolean;
 pub mod comparison;
+pub mod like;
 pub mod negate;
 pub mod numeric;
 pub mod string;
@@ -75,7 +76,7 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// data types from the function.
     fn plan_from_expressions(
         &self,
-        inputs: &[LogicalExpression],
+        inputs: &[&LogicalExpression],
         operator_schema: &TypeSchema,
     ) -> Result<Box<dyn PlannedScalarFunction>> {
         // TODO: Are we going to need to pass in the outer schemas here?

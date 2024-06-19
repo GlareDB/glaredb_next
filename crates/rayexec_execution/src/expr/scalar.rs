@@ -2,7 +2,15 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::fmt;
 
-use crate::functions::scalar::{arith, boolean, comparison, negate, ScalarFunction};
+use crate::functions::scalar::{
+    arith, boolean, comparison, negate, PlannedScalarFunction, ScalarFunction,
+};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlannedUnaryOperator {
+    pub op: UnaryOperator,
+    pub scalar: Box<dyn PlannedScalarFunction>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnaryOperator {
@@ -32,6 +40,12 @@ impl fmt::Display for UnaryOperator {
             Self::Negate => write!(f, "-"),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlannedBinaryOperator {
+    pub op: BinaryOperator,
+    pub scalar: Box<dyn PlannedScalarFunction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

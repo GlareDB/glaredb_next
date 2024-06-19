@@ -6,7 +6,9 @@ use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::expr::scalar::{BinaryOperator, UnaryOperator};
+use crate::expr::scalar::{
+    BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator, UnaryOperator,
+};
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::ScalarFunction;
 use crate::functions::CastType;
@@ -140,8 +142,12 @@ impl<'a> ExpressionContext<'a> {
                     ast::UnaryOperator::Not => unimplemented!(),
                 };
 
+                let scalar = op
+                    .scalar_function()
+                    .plan_from_expressions(&[&expr], &self.input)?;
+
                 Ok(LogicalExpression::Unary {
-                    op,
+                    op: PlannedUnaryOperator { op, scalar },
                     expr: Box::new(expr),
                 })
             }
@@ -150,12 +156,18 @@ impl<'a> ExpressionContext<'a> {
                 let left = self.plan_expression(*left)?;
                 let right = self.plan_expression(*right)?;
 
-                let mut out =
+                let mut inputs =
                     self.apply_casts_for_scalar_function(op.scalar_function(), vec![left, right])?;
-                let [right, left] = [out.pop().unwrap(), out.pop().unwrap()];
+
+                let right = inputs.pop().unwrap();
+                let left = inputs.pop().unwrap();
+
+                let scalar = op
+                    .scalar_function()
+                    .plan_from_expressions(&[&left, &right], &self.input)?;
 
                 Ok(LogicalExpression::Binary {
-                    op,
+                    op: PlannedBinaryOperator { op, scalar },
                     left: Box::new(left),
                     right: Box::new(right),
                 })
@@ -185,7 +197,9 @@ impl<'a> ExpressionContext<'a> {
                     BoundFunctionReference::Scalar(scalar) => {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
-                        let function = scalar.plan_from_expressions(&inputs, &self.input)?;
+
+                        let refs: Vec<_> = inputs.iter().collect();
+                        let function = scalar.plan_from_expressions(&refs, &self.input)?;
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
@@ -286,11 +300,18 @@ impl<'a> ExpressionContext<'a> {
                             }
                         };
 
+                        let interval =
+                            LogicalExpression::Literal(ScalarValue::Interval(const_interval));
+
+                        let op = BinaryOperator::Multiply;
+                        // Plan `mul(<interval>, <expr>)`
+                        let scalar = op
+                            .scalar_function()
+                            .plan_from_expressions(&[&interval, &expr], &self.input)?;
+
                         Ok(LogicalExpression::Binary {
-                            op: BinaryOperator::Multiply,
-                            left: Box::new(LogicalExpression::Literal(ScalarValue::Interval(
-                                const_interval,
-                            ))),
+                            op: PlannedBinaryOperator { op, scalar },
+                            left: Box::new(interval),
                             right: Box::new(expr),
                         })
                     }
@@ -411,7 +432,7 @@ impl<'a> ExpressionContext<'a> {
             .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
             .collect::<Result<Vec<_>>>()?;
 
-        if scalar.return_type_for_inputs(&input_datatypes).is_some() {
+        if scalar.exact_signature(&input_datatypes).is_some() {
             // Exact
             Ok(inputs)
         } else {
@@ -469,7 +490,7 @@ impl<'a> ExpressionContext<'a> {
             .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
             .collect::<Result<Vec<_>>>()?;
 
-        if agg.return_type_for_inputs(&input_datatypes).is_some() {
+        if agg.exact_signature(&input_datatypes).is_some() {
             // Exact
             Ok(inputs)
         } else {

@@ -65,30 +65,19 @@ impl PhysicalScalarExpression {
             }
             LogicalExpression::Literal(lit) => PhysicalScalarExpression::Literal(lit),
             LogicalExpression::Unary { op, expr } => {
-                let datatype = expr.datatype(input, &[])?;
                 let input = PhysicalScalarExpression::try_from_uncorrelated_expr(*expr, input)?;
 
-                let func = op.scalar_function();
-                let specialized = func.plan_from_datatypes(&[datatype])?;
-
                 PhysicalScalarExpression::ScalarFunction {
-                    function: specialized,
+                    function: op.scalar,
                     inputs: vec![input],
                 }
             }
             LogicalExpression::Binary { op, left, right } => {
-                let left_datatype = left.datatype(input, &[])?;
-                let right_datatype = right.datatype(input, &[])?;
-
                 let left = PhysicalScalarExpression::try_from_uncorrelated_expr(*left, input)?;
                 let right = PhysicalScalarExpression::try_from_uncorrelated_expr(*right, input)?;
 
-                let scalar_inputs = &[left_datatype, right_datatype];
-                let func = op.scalar_function();
-                let specialized = func.plan_from_datatypes(scalar_inputs)?;
-
                 PhysicalScalarExpression::ScalarFunction {
-                    function: specialized,
+                    function: op.scalar,
                     inputs: vec![left, right],
                 }
             }

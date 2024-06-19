@@ -1,5 +1,5 @@
 use crate::{
-    expr::scalar::BinaryOperator,
+    expr::scalar::{BinaryOperator, PlannedBinaryOperator},
     logical::operator::{EqualityJoin, LogicalExpression, LogicalOperator},
 };
 use rayexec_error::Result;
@@ -40,7 +40,11 @@ impl JoinOrderRule {
                         // More sophisticated exprs can be represented to adding an
                         // additional projection to the input.
                         if let LogicalExpression::Binary {
-                            op: BinaryOperator::Eq,
+                            op:
+                                PlannedBinaryOperator {
+                                    op: BinaryOperator::Eq,
+                                    ..
+                                },
                             left,
                             right,
                         } = &expr
@@ -115,7 +119,11 @@ impl JoinOrderRule {
 fn split_conjuctive(expr: LogicalExpression, outputs: &mut Vec<LogicalExpression>) {
     match expr {
         LogicalExpression::Binary {
-            op: BinaryOperator::And,
+            op:
+                PlannedBinaryOperator {
+                    op: BinaryOperator::And,
+                    ..
+                },
             left,
             right,
         } => {

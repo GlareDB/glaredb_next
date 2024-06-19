@@ -11,8 +11,8 @@ use crate::{
         drop::{DropInfo, DropObject},
     },
     engine::vars::SessionVars,
-    expr::scalar::BinaryOperator,
-    functions::aggregate::count::{Count, CountNonNullImpl},
+    expr::scalar::{BinaryOperator, PlannedBinaryOperator},
+    functions::aggregate::count::CountNonNullImpl,
     logical::operator::{
         Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
         DetachDatabase, DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr,
@@ -21,6 +21,7 @@ use crate::{
     },
 };
 use rayexec_bullet::{
+    datatype::DataType,
     field::{Field, Schema, TypeSchema},
     scalar::OwnedScalarValue,
 };
@@ -1131,9 +1132,25 @@ impl<'a> PlanContext<'a> {
 
                             *expr = LogicalExpression::Binary {
                                 op: if *not_exists {
-                                    BinaryOperator::NotEq
+                                    PlannedBinaryOperator {
+                                        op: BinaryOperator::NotEq,
+                                        scalar: BinaryOperator::NotEq
+                                            .scalar_function()
+                                            .plan_from_datatypes(&[
+                                                DataType::Int64,
+                                                DataType::Int64,
+                                            ])?,
+                                    }
                                 } else {
-                                    BinaryOperator::Eq
+                                    PlannedBinaryOperator {
+                                        op: BinaryOperator::Eq,
+                                        scalar: BinaryOperator::Eq
+                                            .scalar_function()
+                                            .plan_from_datatypes(&[
+                                                DataType::Int64,
+                                                DataType::Int64,
+                                            ])?,
+                                    }
                                 },
                                 left: Box::new(LogicalExpression::new_column(curr_input_cols)),
                                 right: Box::new(LogicalExpression::Literal(

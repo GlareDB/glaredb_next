@@ -73,21 +73,11 @@ pub trait FunctionInfo {
     /// function given some inputs, and how we should handle implicit casting.
     fn signatures(&self) -> &[Signature];
 
-    /// Get the return type for this function if the inputs have an exact
-    /// signature match.
+    /// Get the signature for a function if it's an exact match for the inputs.
     ///
     /// If there are no exact signatures for these types, None will be retuned.
-    ///
-    /// This can be overridden to allow for working with more complex types
-    /// (like extracting a field from a struct).
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
-        let sig = self
-            .signatures()
-            .iter()
-            .find(|sig| sig.exact_match(inputs))?;
-        let datatype = DataType::try_default_datatype(sig.return_type).ok()?;
-
-        Some(datatype)
+    fn exact_signature(&self, inputs: &[DataType]) -> Option<&Signature> {
+        self.signatures().iter().find(|sig| sig.exact_match(inputs))
     }
 
     /// Get candidate signatures for this function given the input datatypes.

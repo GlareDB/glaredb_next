@@ -4,6 +4,7 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
+use crate::expr::scalar::{PlannedBinaryOperator, PlannedUnaryOperator};
 use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::functions::table::InitializedTableFunction;
@@ -858,13 +859,13 @@ pub enum LogicalExpression {
 
     /// Unary operator.
     Unary {
-        op: UnaryOperator,
+        op: PlannedUnaryOperator,
         expr: Box<LogicalExpression>,
     },
 
     /// Binary operator.
     Binary {
-        op: BinaryOperator,
+        op: PlannedBinaryOperator,
         left: Box<LogicalExpression>,
         right: Box<LogicalExpression>,
     },
@@ -928,8 +929,8 @@ impl fmt::Display for LogicalExpression {
             ),
             Self::Cast { to, expr } => write!(f, "CAST({expr}, {to})"),
             Self::Literal(val) => write!(f, "{val}"),
-            Self::Unary { op, expr } => write!(f, "{op}{expr}"),
-            Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
+            Self::Unary { op, expr } => write!(f, "{}{expr}", op.op),
+            Self::Binary { op, left, right } => write!(f, "{left}{}{right}", op.op),
             Self::Variadic { .. } => write!(f, "VARIADIC TODO"),
             Self::Aggregate {
                 agg,
@@ -1001,24 +1002,8 @@ impl LogicalExpression {
             LogicalExpression::ScalarFunction { function, .. } => function.return_type(),
             LogicalExpression::Cast { to, .. } => to.clone(),
             LogicalExpression::Aggregate { agg, .. } => agg.return_type(),
-            LogicalExpression::Unary { op, expr } => {
-                let datatype = expr.datatype(current, outer)?;
-                op.scalar_function()
-                    .return_type_for_inputs(&[datatype])
-                    .ok_or_else(|| {
-                        RayexecError::new("Failed to get correct signature for scalar function")
-                    })?
-            }
-            LogicalExpression::Binary { op, left, right } => {
-                let left = left.datatype(current, outer)?;
-                let right = right.datatype(current, outer)?;
-
-                op.scalar_function()
-                    .return_type_for_inputs(&[left, right])
-                    .ok_or_else(|| {
-                        RayexecError::new("Failed to get correct signature for scalar function")
-                    })?
-            }
+            LogicalExpression::Unary { op, .. } => op.scalar.return_type(),
+            LogicalExpression::Binary { op, .. } => op.scalar.return_type(),
             LogicalExpression::Subquery(subquery) => {
                 // TODO: Do we just need outer, or do we want current + outer?
                 let mut schema = subquery.output_schema(outer)?;

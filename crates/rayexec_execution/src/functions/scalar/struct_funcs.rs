@@ -22,12 +22,6 @@ impl FunctionInfo for StructPack {
             return_type: DataTypeId::Struct,
         }]
     }
-
-    fn return_type_for_inputs(&self, _inputs: &[DataType]) -> Option<DataType> {
-        // TODO: Check "key" types.
-
-        unimplemented!()
-    }
 }
 
 impl ScalarFunction for StructPack {
@@ -89,10 +83,6 @@ impl FunctionInfo for StructExtract {
             input: &[DataTypeId::Struct],
             return_type: DataTypeId::Any,
         }]
-    }
-
-    fn return_type_for_inputs(&self, _inputs: &[DataType]) -> Option<DataType> {
-        unimplemented!()
     }
 }
 
