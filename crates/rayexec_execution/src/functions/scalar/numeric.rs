@@ -1,8 +1,6 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::scalar::macros::{primitive_unary_execute, primitive_unary_execute_bool};
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
@@ -33,7 +31,7 @@ impl FunctionInfo for IsNan {
 
 impl ScalarFunction for IsNan {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 1)?;
+        plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanImpl)),
             other => Err(invalid_input_types_error(self, &[other])),
@@ -95,7 +93,7 @@ impl FunctionInfo for Ceil {
 
 impl ScalarFunction for Ceil {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 1)?;
+        plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 | DataType::Float64 => Ok(Box::new(CeilImpl {
                 datatype: inputs[0].clone(),
@@ -157,7 +155,7 @@ impl FunctionInfo for Floor {
 
 impl ScalarFunction for Floor {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 1)?;
+        plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 | DataType::Float64 => Ok(Box::new(FloorImpl {
                 datatype: inputs[0].clone(),

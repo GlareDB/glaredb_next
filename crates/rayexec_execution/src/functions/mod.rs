@@ -18,6 +18,10 @@ pub struct Signature {
     pub input: &'static [DataTypeId],
 
     /// The expected return type.
+    ///
+    /// This is purely informational (and could be used for documentation). The
+    /// concrete data type is determined by the planned function, which is what
+    /// gets used during planning.
     pub return_type: DataTypeId,
 }
 
@@ -166,9 +170,9 @@ impl CandidateSignature {
 
 /// Check the number of arguments provided, erroring if it doesn't match the
 /// expected number of arguments.
-pub fn specialize_check_num_args(
+pub fn plan_check_num_args<T>(
     func: &impl FunctionInfo,
-    inputs: &[DataType],
+    inputs: &[T],
     expected: usize,
 ) -> Result<()> {
     if inputs.len() != expected {

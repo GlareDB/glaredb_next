@@ -1,7 +1,5 @@
 use crate::functions::scalar::macros::primitive_unary_execute;
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
@@ -53,7 +51,7 @@ impl FunctionInfo for Negate {
 
 impl ScalarFunction for Negate {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 1)?;
+        plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int8
             | DataType::Int16

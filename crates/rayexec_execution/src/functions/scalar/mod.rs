@@ -44,6 +44,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(numeric::IsNan),
         // String
         Box::new(string::Repeat),
+        // Like
+        Box::new(like::Like),
         // Struct
         Box::new(struct_funcs::StructPack),
         // Unary

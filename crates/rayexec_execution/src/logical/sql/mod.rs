@@ -32,5 +32,4 @@ pub mod binder;
 pub mod planner;
 pub mod scope;
 
-mod consteval;
 mod expr;

@@ -1,8 +1,6 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::scalar::macros::cmp_binary_execute;
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
@@ -129,7 +127,7 @@ impl FunctionInfo for Eq {
 
 impl ScalarFunction for Eq {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -270,7 +268,7 @@ impl FunctionInfo for Neq {
 
 impl ScalarFunction for Neq {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -407,7 +405,7 @@ impl FunctionInfo for Lt {
 
 impl ScalarFunction for Lt {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -544,7 +542,7 @@ impl FunctionInfo for LtEq {
 
 impl ScalarFunction for LtEq {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -681,7 +679,7 @@ impl FunctionInfo for Gt {
 
 impl ScalarFunction for Gt {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -818,7 +816,7 @@ impl FunctionInfo for GtEq {
 
 impl ScalarFunction for GtEq {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)

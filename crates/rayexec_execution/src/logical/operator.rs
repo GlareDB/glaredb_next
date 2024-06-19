@@ -1020,6 +1020,23 @@ impl LogicalExpression {
         })
     }
 
+    /// Checks if this is a constant expression.
+    pub fn is_constant(&self) -> bool {
+        match self {
+            Self::ColumnRef(_) => false,
+            Self::Literal(_) => true,
+            Self::ScalarFunction { inputs, .. } => inputs.iter().all(|expr| expr.is_constant()),
+            Self::Cast { expr, .. } => expr.is_constant(),
+            Self::Unary { expr, .. } => expr.is_constant(),
+            Self::Binary { left, right, .. } => left.is_constant() && right.is_constant(),
+            Self::Variadic { exprs, .. } => exprs.iter().all(|expr| expr.is_constant()),
+            Self::Aggregate { inputs, .. } => inputs.iter().all(|expr| expr.is_constant()),
+            Self::Subquery(_) => false,
+            Self::Exists { .. } => false,
+            Self::Case { .. } => false,
+        }
+    }
+
     pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
     where
         F: FnMut(&mut LogicalExpression) -> Result<()>,

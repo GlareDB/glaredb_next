@@ -1,9 +1,7 @@
 use crate::functions::scalar::macros::{
     primitive_binary_execute, primitive_binary_execute_no_wrap,
 };
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 use super::{PlannedScalarFunction, ScalarFunction};
 use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
@@ -90,7 +88,7 @@ impl FunctionInfo for Add {
 
 impl ScalarFunction for Add {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -214,7 +212,7 @@ impl FunctionInfo for Sub {
 
 impl ScalarFunction for Sub {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -338,7 +336,7 @@ impl FunctionInfo for Div {
 
 impl ScalarFunction for Div {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -459,7 +457,7 @@ impl FunctionInfo for Mul {
 
 impl ScalarFunction for Mul {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -593,7 +591,7 @@ impl FunctionInfo for Rem {
 
 impl ScalarFunction for Rem {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)

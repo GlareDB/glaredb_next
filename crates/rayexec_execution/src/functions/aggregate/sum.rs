@@ -1,7 +1,5 @@
 use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use num_traits::CheckedAdd;
 use rayexec_bullet::{
     array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
@@ -47,7 +45,7 @@ impl AggregateFunction for Sum {
         &self,
         inputs: &[DataType],
     ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        specialize_check_num_args(self, inputs, 1)?;
+        plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(SumInt64Impl)),
             DataType::Float64 => Ok(Box::new(SumFloat64Impl)),

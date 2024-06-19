@@ -1,7 +1,5 @@
 use super::{PlannedScalarFunction, ScalarFunction};
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
@@ -28,7 +26,7 @@ impl FunctionInfo for And {
 
 impl ScalarFunction for And {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
@@ -80,7 +78,7 @@ impl FunctionInfo for Or {
 
 impl ScalarFunction for Or {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),

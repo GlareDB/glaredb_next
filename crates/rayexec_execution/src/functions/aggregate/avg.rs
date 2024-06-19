@@ -7,9 +7,7 @@ use rayexec_bullet::{
 };
 
 use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_error::Result;
 use std::vec;
 use std::{fmt::Debug, ops::AddAssign};
@@ -49,7 +47,7 @@ impl AggregateFunction for Avg {
         &self,
         inputs: &[DataType],
     ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        specialize_check_num_args(self, inputs, 1)?;
+        plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(AvgInt64Impl)),
             DataType::Float64 => Ok(Box::new(AvgFloat64Impl)),
