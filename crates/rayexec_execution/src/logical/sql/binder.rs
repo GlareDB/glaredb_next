@@ -22,7 +22,7 @@ use crate::{
     engine::EngineRuntime,
     functions::{
         aggregate::GenericAggregateFunction,
-        scalar::GenericScalarFunction,
+        scalar::ScalarFunction,
         table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs},
     },
     logical::sql::expr::ExpressionContext,
@@ -53,7 +53,7 @@ impl AstMeta for Bound {
 // need to be extended.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
-    Scalar(Box<dyn GenericScalarFunction>),
+    Scalar(Box<dyn ScalarFunction>),
     Aggregate(Box<dyn GenericAggregateFunction>),
 }
 

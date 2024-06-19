@@ -1,4 +1,4 @@
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::scalar::macros::{primitive_unary_execute, primitive_unary_execute_bool};
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
@@ -31,8 +31,8 @@ impl FunctionInfo for IsNan {
     }
 }
 
-impl GenericScalarFunction for IsNan {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for IsNan {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanSpecialized)),
@@ -44,7 +44,7 @@ impl GenericScalarFunction for IsNan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsNanSpecialized;
 
-impl SpecializedScalarFunction for IsNanSpecialized {
+impl PlannedScalarFunction for IsNanSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {
@@ -85,8 +85,8 @@ impl FunctionInfo for Ceil {
     }
 }
 
-impl GenericScalarFunction for Ceil {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Ceil {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 | DataType::Float64 => Ok(Box::new(CeilSpecialized)),
@@ -98,7 +98,7 @@ impl GenericScalarFunction for Ceil {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CeilSpecialized;
 
-impl SpecializedScalarFunction for CeilSpecialized {
+impl PlannedScalarFunction for CeilSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {
@@ -135,8 +135,8 @@ impl FunctionInfo for Floor {
     }
 }
 
-impl GenericScalarFunction for Floor {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Floor {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 | DataType::Float64 => Ok(Box::new(FloorSpecialized)),
@@ -148,7 +148,7 @@ impl GenericScalarFunction for Floor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FloorSpecialized;
 
-impl SpecializedScalarFunction for FloorSpecialized {
+impl PlannedScalarFunction for FloorSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {

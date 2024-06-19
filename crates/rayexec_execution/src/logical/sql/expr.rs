@@ -8,7 +8,7 @@ use rayexec_parser::ast;
 
 use crate::expr::scalar::{BinaryOperator, UnaryOperator};
 use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::GenericScalarFunction;
+use crate::functions::scalar::ScalarFunction;
 use crate::functions::CastType;
 use crate::logical::operator::LogicalExpression;
 
@@ -404,7 +404,7 @@ impl<'a> ExpressionContext<'a> {
     /// scalar function.
     fn apply_casts_for_scalar_function(
         &self,
-        scalar: &dyn GenericScalarFunction,
+        scalar: &dyn ScalarFunction,
         inputs: Vec<LogicalExpression>,
     ) -> Result<Vec<LogicalExpression>> {
         let input_datatypes = inputs

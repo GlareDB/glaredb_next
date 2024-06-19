@@ -1,7 +1,7 @@
 pub mod scalar;
 
 use crate::functions::aggregate::SpecializedAggregateFunction;
-use crate::functions::scalar::SpecializedScalarFunction;
+use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::operator::LogicalExpression;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
@@ -28,7 +28,7 @@ pub enum PhysicalScalarExpression {
     /// A scalar function.
     ScalarFunction {
         /// The specialized function we'll be calling.
-        function: Box<dyn SpecializedScalarFunction>,
+        function: Box<dyn PlannedScalarFunction>,
 
         /// Column inputs into the function.
         inputs: Vec<PhysicalScalarExpression>,
@@ -69,7 +69,7 @@ impl PhysicalScalarExpression {
                 let input = PhysicalScalarExpression::try_from_uncorrelated_expr(*expr, input)?;
 
                 let func = op.scalar_function();
-                let specialized = func.specialize(&[datatype])?;
+                let specialized = func.plan(&[datatype])?;
 
                 PhysicalScalarExpression::ScalarFunction {
                     function: specialized,
@@ -85,7 +85,7 @@ impl PhysicalScalarExpression {
 
                 let scalar_inputs = &[left_datatype, right_datatype];
                 let func = op.scalar_function();
-                let specialized = func.specialize(scalar_inputs)?;
+                let specialized = func.plan(scalar_inputs)?;
 
                 PhysicalScalarExpression::ScalarFunction {
                     function: specialized,
@@ -109,7 +109,7 @@ impl PhysicalScalarExpression {
                     .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, input))
                     .collect::<Result<Vec<_>>>()?;
 
-                let specialized = function.specialize(&datatypes)?;
+                let specialized = function.plan(&datatypes)?;
 
                 PhysicalScalarExpression::ScalarFunction {
                     function: specialized,

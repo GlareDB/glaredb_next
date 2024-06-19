@@ -1,4 +1,4 @@
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
@@ -32,8 +32,8 @@ impl FunctionInfo for Repeat {
     }
 }
 
-impl GenericScalarFunction for Repeat {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Repeat {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Int64) => Ok(Box::new(RepeatUtf8)),
@@ -46,7 +46,7 @@ impl GenericScalarFunction for Repeat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepeatUtf8;
 
-impl SpecializedScalarFunction for RepeatUtf8 {
+impl PlannedScalarFunction for RepeatUtf8 {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let strings = arrays[0];
         let nums = arrays[1];
@@ -69,7 +69,7 @@ impl SpecializedScalarFunction for RepeatUtf8 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepeatLargeUtf8;
 
-impl SpecializedScalarFunction for RepeatLargeUtf8 {
+impl PlannedScalarFunction for RepeatLargeUtf8 {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let strings = arrays[0];
         let nums = arrays[1];

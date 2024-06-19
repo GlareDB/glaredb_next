@@ -5,7 +5,7 @@ use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::GenericScalarFunction;
+use crate::functions::scalar::ScalarFunction;
 use crate::functions::table::InitializedTableFunction;
 use crate::{
     engine::vars::SessionVar,
@@ -846,7 +846,7 @@ pub enum LogicalExpression {
 
     /// A function that returns a single value.
     ScalarFunction {
-        function: Box<dyn GenericScalarFunction>,
+        function: Box<dyn ScalarFunction>,
         inputs: Vec<LogicalExpression>,
     },
 

@@ -16,7 +16,7 @@ use std::sync::Arc;
 use super::FunctionInfo;
 
 // List of all scalar functions.
-pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
+pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::new(|| {
     vec![
         // Arith
         Box::new(arith::Add),
@@ -51,25 +51,25 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> =
 /// depending on input types.
 ///
 /// Generic scalar functions must be cheaply cloneable.
-pub trait GenericScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// Specialize the function using the given input types.
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>>;
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>>;
 }
 
-impl Clone for Box<dyn GenericScalarFunction> {
+impl Clone for Box<dyn ScalarFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl PartialEq<dyn GenericScalarFunction> for Box<dyn GenericScalarFunction + '_> {
-    fn eq(&self, other: &dyn GenericScalarFunction) -> bool {
+impl PartialEq<dyn ScalarFunction> for Box<dyn ScalarFunction + '_> {
+    fn eq(&self, other: &dyn ScalarFunction) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn GenericScalarFunction + '_ {
-    fn eq(&self, other: &dyn GenericScalarFunction) -> bool {
+impl PartialEq for dyn ScalarFunction + '_ {
+    fn eq(&self, other: &dyn ScalarFunction) -> bool {
         self.name() == other.name() && self.signatures() == other.signatures()
     }
 }
@@ -79,12 +79,12 @@ impl PartialEq for dyn GenericScalarFunction + '_ {
 /// We're using a trait instead of returning the function pointer directly from
 /// `GenericScalarFunction` because this will be what's serialized when
 /// serializing pipelines for distributed execution.
-pub trait SpecializedScalarFunction: Debug + Sync + Send + DynClone {
+pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// Execution the function array inputs.
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
 }
 
-impl Clone for Box<dyn SpecializedScalarFunction> {
+impl Clone for Box<dyn PlannedScalarFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
@@ -158,9 +158,9 @@ mod tests {
 
     #[test]
     fn sanity_eq_check() {
-        let fn1 = Box::new(arith::Add) as Box<dyn GenericScalarFunction>;
-        let fn2 = Box::new(arith::Sub) as Box<dyn GenericScalarFunction>;
-        let fn3 = Box::new(arith::Sub) as Box<dyn GenericScalarFunction>;
+        let fn1 = Box::new(arith::Add) as Box<dyn ScalarFunction>;
+        let fn2 = Box::new(arith::Sub) as Box<dyn ScalarFunction>;
+        let fn3 = Box::new(arith::Sub) as Box<dyn ScalarFunction>;
 
         assert_ne!(fn1, fn2);
         assert_eq!(fn2, fn3);

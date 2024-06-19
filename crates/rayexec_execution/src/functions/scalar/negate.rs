@@ -7,7 +7,7 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use std::sync::Arc;
 
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Negate;
@@ -51,8 +51,8 @@ impl FunctionInfo for Negate {
     }
 }
 
-impl GenericScalarFunction for Negate {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Negate {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int8
@@ -69,7 +69,7 @@ impl GenericScalarFunction for Negate {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NegatePrimitiveSpecialized;
 
-impl SpecializedScalarFunction for NegatePrimitiveSpecialized {
+impl PlannedScalarFunction for NegatePrimitiveSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         Ok(match first.as_ref() {

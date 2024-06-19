@@ -1,4 +1,4 @@
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::StructArray;
@@ -30,8 +30,8 @@ impl FunctionInfo for StructPack {
     }
 }
 
-impl GenericScalarFunction for StructPack {
-    fn specialize(&self, _inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for StructPack {
+    fn plan(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         Ok(Box::new(StructPackDynamic))
     }
 }
@@ -44,7 +44,7 @@ impl GenericScalarFunction for StructPack {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructPackDynamic;
 
-impl SpecializedScalarFunction for StructPackDynamic {
+impl PlannedScalarFunction for StructPackDynamic {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let keys = arrays
             .iter()
@@ -88,8 +88,8 @@ impl FunctionInfo for StructExtract {
     }
 }
 
-impl GenericScalarFunction for StructExtract {
-    fn specialize(&self, _inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for StructExtract {
+    fn plan(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unimplemented!()
     }
 }

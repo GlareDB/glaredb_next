@@ -1,4 +1,4 @@
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::scalar::macros::cmp_binary_execute;
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
@@ -127,8 +127,8 @@ impl FunctionInfo for Eq {
     }
 }
 
-impl GenericScalarFunction for Eq {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Eq {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -162,7 +162,7 @@ impl GenericScalarFunction for Eq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EqSpecialized;
 
-impl SpecializedScalarFunction for EqSpecialized {
+impl PlannedScalarFunction for EqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -260,8 +260,8 @@ impl FunctionInfo for Neq {
     }
 }
 
-impl GenericScalarFunction for Neq {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Neq {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -295,7 +295,7 @@ impl GenericScalarFunction for Neq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NeqSpecialized;
 
-impl SpecializedScalarFunction for NeqSpecialized {
+impl PlannedScalarFunction for NeqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -389,8 +389,8 @@ impl FunctionInfo for Lt {
     }
 }
 
-impl GenericScalarFunction for Lt {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Lt {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -424,7 +424,7 @@ impl GenericScalarFunction for Lt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LtSpecialized;
 
-impl SpecializedScalarFunction for LtSpecialized {
+impl PlannedScalarFunction for LtSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -518,8 +518,8 @@ impl FunctionInfo for LtEq {
     }
 }
 
-impl GenericScalarFunction for LtEq {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for LtEq {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -553,7 +553,7 @@ impl GenericScalarFunction for LtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LtEqSpecialized;
 
-impl SpecializedScalarFunction for LtEqSpecialized {
+impl PlannedScalarFunction for LtEqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -647,8 +647,8 @@ impl FunctionInfo for Gt {
     }
 }
 
-impl GenericScalarFunction for Gt {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for Gt {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -682,7 +682,7 @@ impl GenericScalarFunction for Gt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GtSpecialized;
 
-impl SpecializedScalarFunction for GtSpecialized {
+impl PlannedScalarFunction for GtSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -776,8 +776,8 @@ impl FunctionInfo for GtEq {
     }
 }
 
-impl GenericScalarFunction for GtEq {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for GtEq {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -811,7 +811,7 @@ impl GenericScalarFunction for GtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GtEqSpecialized;
 
-impl SpecializedScalarFunction for GtEqSpecialized {
+impl PlannedScalarFunction for GtEqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -903,7 +903,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Eq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Eq.plan(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
@@ -916,7 +916,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Neq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Neq.plan(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
@@ -929,7 +929,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Lt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Lt.plan(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
@@ -942,9 +942,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = LtEq
-            .specialize(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+        let specialized = LtEq.plan(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, true, true]));
@@ -957,7 +955,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Gt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Gt.plan(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, false, false]));
@@ -970,9 +968,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = GtEq
-            .specialize(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+        let specialized = GtEq.plan(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));

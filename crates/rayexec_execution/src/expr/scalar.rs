@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::fmt;
 
-use crate::functions::scalar::{arith, boolean, comparison, negate, GenericScalarFunction};
+use crate::functions::scalar::{arith, boolean, comparison, negate, ScalarFunction};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnaryOperator {
@@ -14,7 +14,7 @@ pub enum UnaryOperator {
 }
 
 impl UnaryOperator {
-    pub fn scalar_function(&self) -> &dyn GenericScalarFunction {
+    pub fn scalar_function(&self) -> &dyn ScalarFunction {
         match self {
             Self::Negate => &negate::Negate,
             other => unimplemented!("{other}"),
@@ -73,7 +73,7 @@ impl fmt::Display for BinaryOperator {
 
 impl BinaryOperator {
     /// Get the scalar function that represents this binary operator.
-    pub fn scalar_function(&self) -> &dyn GenericScalarFunction {
+    pub fn scalar_function(&self) -> &dyn ScalarFunction {
         match self {
             Self::Eq => &comparison::Eq,
             Self::NotEq => &comparison::Neq,
