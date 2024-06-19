@@ -21,7 +21,7 @@ use crate::{
     datasource::FileHandlers,
     engine::EngineRuntime,
     functions::{
-        aggregate::GenericAggregateFunction,
+        aggregate::AggregateFunction,
         scalar::ScalarFunction,
         table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs},
     },
@@ -54,7 +54,7 @@ impl AstMeta for Bound {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
     Scalar(Box<dyn ScalarFunction>),
-    Aggregate(Box<dyn GenericAggregateFunction>),
+    Aggregate(Box<dyn AggregateFunction>),
 }
 
 /// References a CTE that can be found in `BindData`.

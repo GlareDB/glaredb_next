@@ -1,6 +1,6 @@
 pub mod scalar;
 
-use crate::functions::aggregate::SpecializedAggregateFunction;
+use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::operator::LogicalExpression;
 use rayexec_bullet::compute::cast::array::cast_array;
@@ -172,7 +172,7 @@ impl fmt::Display for PhysicalScalarExpression {
 #[derive(Debug)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
-    pub function: Box<dyn SpecializedAggregateFunction>,
+    pub function: Box<dyn PlannedAggregateFunction>,
 
     /// Column indices for the input we'll be aggregating on.
     pub column_indices: Vec<usize>,
@@ -201,7 +201,7 @@ impl PhysicalAggregateExpression {
                 let input_types = column_indices.iter().map(|idx| input.types.get(*idx).cloned().ok_or_else(|| RayexecError::new(format!("Attempted to get a column outside the type schema, got: {idx}, max: {}", input.types.len() -1)))).collect::<Result<Vec<_>>>()?;
                 let output_type = agg.return_type_for_inputs(&input_types).ok_or_else(|| RayexecError::new("Failed to get return type for aggregate while converting to physical expression"))?;
 
-                let specialized = agg.specialize(&input_types)?;
+                let specialized = agg.plan(&input_types)?;
 
                 PhysicalAggregateExpression {
                     function: specialized,

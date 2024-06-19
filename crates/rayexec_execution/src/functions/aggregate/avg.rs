@@ -6,9 +6,7 @@ use rayexec_bullet::{
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 
-use super::{
-    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
-};
+use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
@@ -46,8 +44,8 @@ impl FunctionInfo for Avg {
     }
 }
 
-impl GenericAggregateFunction for Avg {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
+impl AggregateFunction for Avg {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedAggregateFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(AvgI64Specialized)),
@@ -94,7 +92,7 @@ impl AvgDecimal64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for AvgDecimal64Specialized {
+impl PlannedAggregateFunction for AvgDecimal64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -135,7 +133,7 @@ impl AvgDecimal128Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for AvgDecimal128Specialized {
+impl PlannedAggregateFunction for AvgDecimal128Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -173,7 +171,7 @@ impl AvgF64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for AvgF64Specialized {
+impl PlannedAggregateFunction for AvgF64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
@@ -203,7 +201,7 @@ impl AvgI64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for AvgI64Specialized {
+impl PlannedAggregateFunction for AvgI64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }

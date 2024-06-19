@@ -9,9 +9,7 @@ use std::vec;
 
 use crate::functions::{FunctionInfo, Signature};
 
-use super::{
-    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
-};
+use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Count;
@@ -29,8 +27,8 @@ impl FunctionInfo for Count {
     }
 }
 
-impl GenericAggregateFunction for Count {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
+impl AggregateFunction for Count {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedAggregateFunction>> {
         if inputs.len() != 1 {
             return Err(RayexecError::new("Expected 1 input"));
         }
@@ -60,7 +58,7 @@ impl CountNonNull {
     }
 }
 
-impl SpecializedAggregateFunction for CountNonNull {
+impl PlannedAggregateFunction for CountNonNull {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }

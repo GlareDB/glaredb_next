@@ -1,6 +1,4 @@
-use super::{
-    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
-};
+use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
@@ -44,8 +42,8 @@ impl FunctionInfo for Sum {
     }
 }
 
-impl GenericAggregateFunction for Sum {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
+impl AggregateFunction for Sum {
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedAggregateFunction>> {
         specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(SumInt64Specialized)),
@@ -87,7 +85,7 @@ impl SumInt64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumInt64Specialized {
+impl PlannedAggregateFunction for SumInt64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
@@ -117,7 +115,7 @@ impl SumFloat64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumFloat64Specialized {
+impl PlannedAggregateFunction for SumFloat64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
@@ -152,7 +150,7 @@ impl SumDecimal64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumDecimal64Specialized {
+impl PlannedAggregateFunction for SumDecimal64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -193,7 +191,7 @@ impl SumDecimal128Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumDecimal128Specialized {
+impl PlannedAggregateFunction for SumDecimal128Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -276,7 +274,7 @@ mod tests {
         let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
         let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan(&[DataType::Int64]).unwrap();
 
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
@@ -330,7 +328,7 @@ mod tests {
         let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
         let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan(&[DataType::Int64]).unwrap();
 
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
@@ -399,7 +397,7 @@ mod tests {
         let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4]));
         let partition_2_vals = &Array::Int64(Int64Array::from_iter([5, 6, 7, 8]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan(&[DataType::Int64]).unwrap();
 
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
@@ -445,7 +443,7 @@ mod tests {
         // multiple times until states are exhausted.
         let vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan(&[DataType::Int64]).unwrap();
         let mut states = specialized.new_grouped_state();
 
         states.new_group();

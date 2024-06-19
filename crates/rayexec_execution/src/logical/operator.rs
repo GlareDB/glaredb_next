@@ -4,7 +4,7 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
-use crate::functions::aggregate::GenericAggregateFunction;
+use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::table::InitializedTableFunction;
 use crate::{
@@ -878,7 +878,7 @@ pub enum LogicalExpression {
     /// An aggregate function.
     Aggregate {
         /// The function.
-        agg: Box<dyn GenericAggregateFunction>,
+        agg: Box<dyn AggregateFunction>,
 
         /// Input expressions to the aggragate.
         inputs: Vec<LogicalExpression>,

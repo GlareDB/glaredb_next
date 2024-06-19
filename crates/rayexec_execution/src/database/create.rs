@@ -1,5 +1,5 @@
 //! Various create messages/structs.
-use crate::functions::{aggregate::GenericAggregateFunction, scalar::ScalarFunction};
+use crate::functions::{aggregate::AggregateFunction, scalar::ScalarFunction};
 use rayexec_bullet::field::Field;
 
 /// Behavior on create conflict.
@@ -43,6 +43,6 @@ pub struct CreateScalarFunctionInfo {
 #[derive(Debug, PartialEq)]
 pub struct CreateAggregateFunctionInfo {
     pub name: String,
-    pub implementation: Box<dyn GenericAggregateFunction>,
+    pub implementation: Box<dyn AggregateFunction>,
     pub on_conflict: OnConflict,
 }

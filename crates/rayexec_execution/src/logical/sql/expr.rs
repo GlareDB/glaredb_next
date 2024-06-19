@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::expr::scalar::{BinaryOperator, UnaryOperator};
-use crate::functions::aggregate::GenericAggregateFunction;
+use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::ScalarFunction;
 use crate::functions::CastType;
 use crate::logical::operator::LogicalExpression;
@@ -460,7 +460,7 @@ impl<'a> ExpressionContext<'a> {
     // TODO: Reduce dupliation with the scalar one.
     fn apply_casts_for_aggregate_function(
         &self,
-        agg: &dyn GenericAggregateFunction,
+        agg: &dyn AggregateFunction,
         inputs: Vec<LogicalExpression>,
     ) -> Result<Vec<LogicalExpression>> {
         let input_datatypes = inputs

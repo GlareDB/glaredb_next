@@ -19,41 +19,40 @@ use std::{
 
 use super::FunctionInfo;
 
-pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
-    Lazy::new(|| {
-        vec![
-            Box::new(sum::Sum),
-            Box::new(avg::Avg),
-            Box::new(count::Count),
-        ]
-    });
+pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = Lazy::new(|| {
+    vec![
+        Box::new(sum::Sum),
+        Box::new(avg::Avg),
+        Box::new(count::Count),
+    ]
+});
 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
-pub trait GenericAggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// Specialize into an aggregate function specific to handling these inputs.
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>>;
+    fn plan(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedAggregateFunction>>;
 }
 
-impl Clone for Box<dyn GenericAggregateFunction> {
+impl Clone for Box<dyn AggregateFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl PartialEq<dyn GenericAggregateFunction> for Box<dyn GenericAggregateFunction + '_> {
-    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
+impl PartialEq<dyn AggregateFunction> for Box<dyn AggregateFunction + '_> {
+    fn eq(&self, other: &dyn AggregateFunction) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn GenericAggregateFunction + '_ {
-    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
+impl PartialEq for dyn AggregateFunction + '_ {
+    fn eq(&self, other: &dyn AggregateFunction) -> bool {
         self.name() == other.name() && self.signatures() == other.signatures()
     }
 }
 
-pub trait SpecializedAggregateFunction: Debug + Sync + Send + DynClone {
+pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
     /// Create a new `GroupedStates` that's able to hold the aggregate state for
     /// multiple groups.
     fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
