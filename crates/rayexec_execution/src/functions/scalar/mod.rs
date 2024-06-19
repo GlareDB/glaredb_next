@@ -121,6 +121,18 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
 }
 
+impl PartialEq<dyn PlannedScalarFunction> for Box<dyn PlannedScalarFunction + '_> {
+    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn PlannedScalarFunction + '_ {
+    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
+        self.name() == other.name() && self.return_type() == other.return_type()
+    }
+}
+
 impl Clone for Box<dyn PlannedScalarFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)

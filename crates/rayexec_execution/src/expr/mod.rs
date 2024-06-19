@@ -99,22 +99,12 @@ impl PhysicalScalarExpression {
                 )?),
             },
             LogicalExpression::ScalarFunction { function, inputs } => {
-                let datatypes = inputs
-                    .iter()
-                    .map(|arg| arg.datatype(input, &[]))
-                    .collect::<Result<Vec<_>>>()?;
-
                 let inputs = inputs
                     .into_iter()
                     .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, input))
                     .collect::<Result<Vec<_>>>()?;
 
-                let specialized = function.plan_from_datatypes(&datatypes)?;
-
-                PhysicalScalarExpression::ScalarFunction {
-                    function: specialized,
-                    inputs,
-                }
+                PhysicalScalarExpression::ScalarFunction { function, inputs }
             }
             other => unimplemented!("{other:?}"),
         })

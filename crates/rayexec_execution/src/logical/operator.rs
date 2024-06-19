@@ -5,7 +5,7 @@ use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::table::InitializedTableFunction;
 use crate::{
     engine::vars::SessionVar,
@@ -846,7 +846,7 @@ pub enum LogicalExpression {
 
     /// A function that returns a single value.
     ScalarFunction {
-        function: Box<dyn ScalarFunction>,
+        function: Box<dyn PlannedScalarFunction>,
         inputs: Vec<LogicalExpression>,
     },
 
@@ -998,19 +998,7 @@ impl LogicalExpression {
                 }
             }
             LogicalExpression::Literal(lit) => lit.datatype(),
-            LogicalExpression::ScalarFunction { function, inputs } => {
-                let datatypes = inputs
-                    .iter()
-                    .map(|input| input.datatype(current, outer))
-                    .collect::<Result<Vec<_>>>()?;
-
-                function.return_type_for_inputs(&datatypes).ok_or_else(|| {
-                    RayexecError::new(format!(
-                        "Failed to find correct signature for '{}'",
-                        function.name()
-                    ))
-                })?
-            }
+            LogicalExpression::ScalarFunction { function, .. } => function.return_type(),
             LogicalExpression::Cast { to, .. } => to.clone(),
             LogicalExpression::Aggregate {
                 agg,

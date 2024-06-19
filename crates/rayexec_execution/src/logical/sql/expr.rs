@@ -185,11 +185,9 @@ impl<'a> ExpressionContext<'a> {
                     BoundFunctionReference::Scalar(scalar) => {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
+                        let function = scalar.plan_from_expressions(&inputs, &self.input)?;
 
-                        Ok(LogicalExpression::ScalarFunction {
-                            function: scalar,
-                            inputs,
-                        })
+                        Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
                     BoundFunctionReference::Aggregate(agg) => {
                         let inputs =
