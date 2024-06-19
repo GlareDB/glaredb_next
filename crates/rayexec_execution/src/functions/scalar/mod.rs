@@ -25,11 +25,11 @@ use super::FunctionInfo;
 pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
     vec![
         // Arith
-        Box::new(arith::Add),
-        Box::new(arith::Sub),
-        Box::new(arith::Mul),
-        Box::new(arith::Div),
-        Box::new(arith::Rem),
+        // Box::new(arith::Add),
+        // Box::new(arith::Sub),
+        // Box::new(arith::Mul),
+        // Box::new(arith::Div),
+        // Box::new(arith::Rem),
         // Boolean
         Box::new(boolean::And),
         Box::new(boolean::Or),
@@ -99,6 +99,18 @@ pub trait PlannedScalarFunction {
     fn name(&self) -> &'static str;
     fn return_type(&self) -> DataType;
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
+}
+
+impl PartialEq<dyn PlannedScalarFunction> for Box<dyn PlannedScalarFunction + '_> {
+    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn PlannedScalarFunction + '_ {
+    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
+        self.name() == other.name() && self.return_type() == other.return_type()
+    }
 }
 
 /// A generic scalar function that can specialize into a more specific function

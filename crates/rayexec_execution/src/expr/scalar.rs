@@ -74,21 +74,22 @@ impl fmt::Display for BinaryOperator {
 impl BinaryOperator {
     /// Get the scalar function that represents this binary operator.
     pub fn scalar_function(&self) -> &dyn GenericScalarFunction {
-        match self {
-            Self::Eq => &comparison::Eq,
-            Self::NotEq => &comparison::Neq,
-            Self::Lt => &comparison::Lt,
-            Self::LtEq => &comparison::LtEq,
-            Self::Gt => &comparison::Gt,
-            Self::GtEq => &comparison::GtEq,
-            Self::Plus => &arith::Add,
-            Self::Minus => &arith::Sub,
-            Self::Multiply => &arith::Mul,
-            Self::Divide => &arith::Div,
-            Self::Modulo => &arith::Rem,
-            Self::And => &boolean::And,
-            Self::Or => &boolean::Or,
-        }
+        unimplemented!()
+        // match self {
+        //     Self::Eq => &comparison::Eq,
+        //     Self::NotEq => &comparison::Neq,
+        //     Self::Lt => &comparison::Lt,
+        //     Self::LtEq => &comparison::LtEq,
+        //     Self::Gt => &comparison::Gt,
+        //     Self::GtEq => &comparison::GtEq,
+        //     Self::Plus => &arith::Add,
+        //     Self::Minus => &arith::Sub,
+        //     Self::Multiply => &arith::Mul,
+        //     Self::Divide => &arith::Div,
+        //     Self::Modulo => &arith::Rem,
+        //     Self::And => &boolean::And,
+        //     Self::Or => &boolean::Or,
+        // }
     }
 }
 

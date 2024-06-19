@@ -2,12 +2,35 @@ use crate::functions::scalar::macros::primitive_unary_execute;
 use crate::functions::{
     invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
+use crate::logical::operator::LogicalExpression;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataType, DataTypeId, PrimitiveType};
+use rayexec_bullet::field::TypeSchema;
 use rayexec_error::Result;
 use std::sync::Arc;
 
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{GenericScalarFunction, ScalarFunction, SpecializedScalarFunction};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NegateFunction<P: PrimitiveType> {
+    typ: P,
+}
+
+impl<P: PrimitiveType> NegateFunction<P> {
+    const fn new(typ: P) -> Self {
+        NegateFunction { typ }
+    }
+}
+
+impl<P: PrimitiveType> ScalarFunction for NegateFunction<P> {
+    fn plan(
+        &self,
+        inputs: &[LogicalExpression],
+        operator_schema: &TypeSchema,
+    ) -> Result<Box<dyn super::PlannedScalarFunction>> {
+        unimplemented!()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Negate;

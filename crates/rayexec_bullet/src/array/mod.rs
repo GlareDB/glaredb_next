@@ -9,7 +9,6 @@ pub use primitive::*;
 pub mod varlen;
 pub use varlen::*;
 
-pub mod unwrap;
 pub mod validity;
 
 use crate::bitmap::Bitmap;

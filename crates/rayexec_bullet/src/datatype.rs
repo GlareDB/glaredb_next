@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Debug};
 
 use rayexec_error::{RayexecError, Result};
 
@@ -301,4 +301,141 @@ impl fmt::Display for DataType {
             DataType::List(meta) => write!(f, "List[{}]", meta.datatype),
         }
     }
+}
+
+pub trait PrimitiveType: Debug + Clone + Copy + Sync + Send + 'static {
+    const DATATYPE: DataType;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeBoolean;
+
+impl PrimitiveType for PrimitiveTypeBoolean {
+    const DATATYPE: DataType = DataType::Boolean;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeInt8;
+
+impl PrimitiveType for PrimitiveTypeInt8 {
+    const DATATYPE: DataType = DataType::Int8;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeInt16;
+
+impl PrimitiveType for PrimitiveTypeInt16 {
+    const DATATYPE: DataType = DataType::Int16;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeInt32;
+
+impl PrimitiveType for PrimitiveTypeInt32 {
+    const DATATYPE: DataType = DataType::Int32;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeInt64;
+
+impl PrimitiveType for PrimitiveTypeInt64 {
+    const DATATYPE: DataType = DataType::Int64;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeInt128;
+
+impl PrimitiveType for PrimitiveTypeInt128 {
+    const DATATYPE: DataType = DataType::Int128;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeUInt8;
+
+impl PrimitiveType for PrimitiveTypeUInt8 {
+    const DATATYPE: DataType = DataType::UInt8;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeUInt16;
+
+impl PrimitiveType for PrimitiveTypeUInt16 {
+    const DATATYPE: DataType = DataType::UInt16;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeUInt32;
+
+impl PrimitiveType for PrimitiveTypeUInt32 {
+    const DATATYPE: DataType = DataType::UInt32;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeUInt64;
+
+impl PrimitiveType for PrimitiveTypeUInt64 {
+    const DATATYPE: DataType = DataType::UInt64;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeUInt128;
+
+impl PrimitiveType for PrimitiveTypeUInt128 {
+    const DATATYPE: DataType = DataType::UInt128;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeFloat32;
+
+impl PrimitiveType for PrimitiveTypeFloat32 {
+    const DATATYPE: DataType = DataType::Float32;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeFloat64;
+
+impl PrimitiveType for PrimitiveTypeFloat64 {
+    const DATATYPE: DataType = DataType::Float64;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeTimestampSeconds;
+
+impl PrimitiveType for PrimitiveTypeTimestampSeconds {
+    const DATATYPE: DataType = DataType::TimestampSeconds;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeTimestampMilliseconds;
+
+impl PrimitiveType for PrimitiveTypeTimestampMilliseconds {
+    const DATATYPE: DataType = DataType::TimestampMilliseconds;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeTimestampMicroseconds;
+
+impl PrimitiveType for PrimitiveTypeTimestampMicroseconds {
+    const DATATYPE: DataType = DataType::TimestampMicroseconds;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeTimestampNanoseconds;
+
+impl PrimitiveType for PrimitiveTypeTimestampNanoseconds {
+    const DATATYPE: DataType = DataType::TimestampNanoseconds;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeDate32;
+
+impl PrimitiveType for PrimitiveTypeDate32 {
+    const DATATYPE: DataType = DataType::Date32;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrimitiveTypeDate64;
+
+impl PrimitiveType for PrimitiveTypeDate64 {
+    const DATATYPE: DataType = DataType::Date64;
 }
