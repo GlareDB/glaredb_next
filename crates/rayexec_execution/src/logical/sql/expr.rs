@@ -10,7 +10,7 @@ use crate::expr::scalar::{
     BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator, UnaryOperator,
 };
 use crate::functions::aggregate::AggregateFunction;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
 use crate::logical::operator::LogicalExpression;
 
@@ -320,6 +320,29 @@ impl<'a> ExpressionContext<'a> {
                         expr: Box::new(expr),
                     }),
                 }
+            }
+            ast::Expr::Like {
+                not_like,
+                case_insensitive,
+                expr,
+                pattern,
+            } => {
+                if not_like {
+                    unimplemented!()
+                }
+                if case_insensitive {
+                    unimplemented!()
+                }
+
+                let expr = self.plan_expression(*expr)?;
+                let pattern = self.plan_expression(*pattern)?;
+
+                let scalar = like::Like.plan_from_expressions(&[&expr, &pattern], &self.input)?;
+
+                Ok(LogicalExpression::ScalarFunction {
+                    function: scalar,
+                    inputs: vec![expr, pattern],
+                })
             }
 
             other => unimplemented!("{other:?}"),

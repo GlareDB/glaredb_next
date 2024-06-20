@@ -1240,6 +1240,21 @@ impl<'a> ExpressionBinder<'a> {
                     trailing,
                 }))
             }
+            ast::Expr::Like {
+                not_like,
+                case_insensitive,
+                expr,
+                pattern,
+            } => {
+                let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
+                let pattern = Box::pin(self.bind_expression(*pattern, bind_data)).await?;
+                Ok(ast::Expr::Like {
+                    not_like,
+                    case_insensitive,
+                    expr: Box::new(expr),
+                    pattern: Box::new(pattern),
+                })
+            }
             other => unimplemented!("{other:?}"),
         }
     }

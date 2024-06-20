@@ -3,7 +3,7 @@ use rayexec_parser::ast;
 use std::fmt;
 
 use crate::functions::scalar::{
-    arith, boolean, comparison, negate, PlannedScalarFunction, ScalarFunction,
+    arith, boolean, comparison, like, negate, PlannedScalarFunction, ScalarFunction,
 };
 
 #[derive(Debug, Clone, PartialEq)]
