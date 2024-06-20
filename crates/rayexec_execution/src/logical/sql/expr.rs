@@ -14,10 +14,11 @@ use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
 use crate::logical::operator::LogicalExpression;
 
+use super::query::QueryNodePlanner;
 use super::{
     binder::{Bound, BoundFunctionReference},
     planner::PlanContext,
-    scope::{Scope, TableReference},
+    scope::{FromScope, TableReference},
 };
 
 /// An expanded select expression.
@@ -47,18 +48,18 @@ pub enum ExpandedSelectExpr {
 /// Context for planning expressions.
 #[derive(Debug, Clone)]
 pub struct ExpressionContext<'a> {
-    /// Plan context containing this expression.
-    pub plan_context: &'a PlanContext<'a>,
+    /// Planer for the query containing this expression.
+    pub planner: &'a QueryNodePlanner<'a>,
     /// Scope for this expression.
-    pub scope: &'a Scope,
+    pub scope: &'a FromScope,
     /// Schema of input that this expression will be executed on.
     pub input: &'a TypeSchema,
 }
 
 impl<'a> ExpressionContext<'a> {
-    pub fn new(plan_context: &'a PlanContext, scope: &'a Scope, input: &'a TypeSchema) -> Self {
+    pub fn new(planner: &'a QueryNodePlanner, scope: &'a FromScope, input: &'a TypeSchema) -> Self {
         ExpressionContext {
-            plan_context,
+            planner,
             scope,
             input,
         }
@@ -223,7 +224,7 @@ impl<'a> ExpressionContext<'a> {
                 }
             }
             ast::Expr::Subquery(subquery) => {
-                let mut nested = self.plan_context.nested(self.scope.clone());
+                let mut nested = self.planner.nested(self.scope.clone());
                 let subquery = nested.plan_query(*subquery)?;
                 // We can ignore scope, as it's only relevant to planning of the
                 // subquery, which is complete.
@@ -233,7 +234,7 @@ impl<'a> ExpressionContext<'a> {
                 subquery,
                 not_exists,
             } => {
-                let mut nested = self.plan_context.nested(self.scope.clone());
+                let mut nested = self.planner.nested(self.scope.clone());
                 let subquery = nested.plan_query(*subquery)?;
                 Ok(LogicalExpression::Exists {
                     not_exists,
@@ -392,7 +393,7 @@ impl<'a> ExpressionContext<'a> {
         let val = ident.into_normalized_string();
         match self
             .scope
-            .resolve_column(&self.plan_context.outer_scopes, None, &val)?
+            .resolve_column(&self.planner.outer_scopes, None, &val)?
         {
             Some(col) => Ok(LogicalExpression::ColumnRef(col)),
             None => Err(RayexecError::new(format!(
@@ -434,7 +435,7 @@ impl<'a> ExpressionContext<'a> {
                     database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
                 };
                 match self.scope.resolve_column(
-                    &self.plan_context.outer_scopes,
+                    &self.planner.outer_scopes,
                     Some(&table_ref),
                     &col,
                 )? {

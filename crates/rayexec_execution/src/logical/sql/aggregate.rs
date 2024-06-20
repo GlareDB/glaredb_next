@@ -251,7 +251,7 @@ impl AggregatePlanner {
 
 #[cfg(test)]
 mod tests {
-    use crate::functions::aggregate::sum::{Sum, SumFloat64Impl};
+    use crate::functions::aggregate::sum::SumFloat64Impl;
 
     use super::*;
 

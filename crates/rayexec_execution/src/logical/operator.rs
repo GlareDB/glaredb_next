@@ -6,13 +6,10 @@ use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::expr::scalar::{PlannedBinaryOperator, PlannedUnaryOperator};
-use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
+use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::functions::table::InitializedTableFunction;
-use crate::{
-    engine::vars::SessionVar,
-    expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
-};
+use crate::{engine::vars::SessionVar, expr::scalar::VariadicOperator};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;

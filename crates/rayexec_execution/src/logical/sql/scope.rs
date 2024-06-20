@@ -64,17 +64,17 @@ pub struct ScopeColumn {
     pub column: String,
 }
 
-/// Provides a scope for a part of a SQL query.
+/// Provides a scope items introduced in the FROM clause of a query.
 #[derive(Debug, Clone)]
-pub struct Scope {
+pub struct FromScope {
     /// Items in scope.
     pub items: Vec<ScopeColumn>,
 }
 
-impl Scope {
+impl FromScope {
     /// Create a new empty scope.
     pub const fn empty() -> Self {
-        Scope { items: Vec::new() }
+        FromScope { items: Vec::new() }
     }
 
     /// Create a new scope with the given columns for a table.
@@ -83,7 +83,7 @@ impl Scope {
         S: Into<String>,
         I: IntoIterator<Item = S>,
     {
-        let mut scope = Scope::empty();
+        let mut scope = FromScope::empty();
         scope.add_columns(alias, columns);
         scope
     }
@@ -113,7 +113,7 @@ impl Scope {
     /// exists no columns.
     pub fn resolve_column(
         &self,
-        outer: &[Scope],
+        outer: &[FromScope],
         _table: Option<&TableReference>,
         column: &str,
     ) -> Result<Option<ColumnRef>> {
@@ -175,7 +175,7 @@ impl Scope {
     /// Merge another scope into this one.
     ///
     /// Errors on duplicate table aliases.
-    pub fn merge(mut self, mut right: Scope) -> Result<Self> {
+    pub fn merge(mut self, mut right: FromScope) -> Result<Self> {
         let left_aliases: HashSet<_> = self.table_aliases_iter().collect();
         for alias in right.table_aliases_iter() {
             if left_aliases.contains(alias) {

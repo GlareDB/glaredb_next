@@ -34,4 +34,5 @@ pub mod scope;
 
 mod aggregate;
 mod expr;
+mod query;
 mod subquery;
