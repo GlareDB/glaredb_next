@@ -57,6 +57,15 @@ pub enum BoundFunctionReference {
     Aggregate(Box<dyn AggregateFunction>),
 }
 
+impl BoundFunctionReference {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Scalar(scalar) => scalar.name(),
+            Self::Aggregate(agg) => agg.name(),
+        }
+    }
+}
+
 /// References a CTE that can be found in `BindData`.
 ///
 /// Note that this doesn't hold the CTE itself since it may be referenced more

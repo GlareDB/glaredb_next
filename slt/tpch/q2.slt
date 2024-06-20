@@ -15,6 +15,7 @@ DESCRIBE SELECT
             AND n_regionkey = r_regionkey
             AND r_name = 'EUROPE'
 ----
+min  Decimal64(15,2)
 
 query TT
 DESCRIBE SELECT

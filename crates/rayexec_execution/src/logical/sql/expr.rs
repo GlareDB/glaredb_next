@@ -81,6 +81,12 @@ impl<'a> ExpressionContext<'a> {
                         .unwrap_or_else(|| "?column?".to_string()),
                     expr,
                 }],
+                ast::Expr::Function(ast::Function { reference, .. }) => {
+                    vec![ExpandedSelectExpr::Expr {
+                        name: reference.name().to_string(),
+                        expr,
+                    }]
+                }
                 _ => vec![ExpandedSelectExpr::Expr {
                     expr,
                     name: "?column?".to_string(),
