@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
+    aggregate::AggregatePlanner,
     binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
     expr::{ExpandedSelectExpr, ExpressionContext},
     scope::{ColumnRef, Scope, TableReference},
@@ -12,20 +13,14 @@ use crate::{
         drop::{DropInfo, DropObject},
     },
     engine::vars::SessionVars,
-    expr::scalar::{BinaryOperator, PlannedBinaryOperator},
-    functions::aggregate::count::CountNonNullImpl,
     logical::operator::{
-        Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
-        DetachDatabase, DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr,
-        Insert, JoinType, Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr,
-        Projection, ResetVar, Scan, SetVar, ShowVar, TableFunction, VariableOrAll,
+        AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe, DetachDatabase,
+        DropEntry, Explain, ExplainFormat, ExpressionList, Filter, Insert, JoinType, Limit,
+        LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan, SetVar,
+        ShowVar, TableFunction, VariableOrAll,
     },
 };
-use rayexec_bullet::{
-    datatype::DataType,
-    field::{Field, Schema, TypeSchema},
-    scalar::OwnedScalarValue,
-};
+use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -510,74 +505,14 @@ impl<'a> PlanContext<'a> {
 
         num_appended += Self::append_order_by_exprs(&mut select_exprs, &mut order_by_exprs)?;
 
-        // Convert select expressions into (expression, modified) pairs. This
-        // let's us skip trying to modify expressions in
-        // `extract_group_by_exprs` if it's been modified by
-        // `extract_aggregates`.
-        let mut select_exprs: Vec<(LogicalExpression, bool)> =
-            select_exprs.into_iter().map(|e| (e, false)).collect();
-
         // GROUP BY
-        let aggregates = Self::extract_aggregates(&mut select_exprs)?;
-        let grouping_expr = match select.group_by {
-            Some(group_by) => match group_by {
-                ast::GroupByNode::All => unimplemented!(),
-                ast::GroupByNode::Exprs { mut exprs } => {
-                    let expr = match exprs.len() {
-                        1 => exprs.pop().unwrap(),
-                        _ => {
-                            return Err(RayexecError::new("Invalid number of group by expressions"))
-                        }
-                    };
 
-                    // Group by has access to everything we've planned so far.
-                    let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
-
-                    let plan_exprs = |exprs: Vec<ast::Expr<Bound>>| {
-                        exprs
-                            .into_iter()
-                            .map(|e| expr_ctx.plan_expression(e))
-                            .collect::<Result<Vec<_>>>()
-                    };
-
-                    match expr {
-                        ast::GroupByExpr::Expr(exprs) => {
-                            let exprs = plan_exprs(exprs)?;
-                            Some(GroupingExpr::GroupBy(Self::extract_group_by_exprs(
-                                &mut select_exprs,
-                                exprs,
-                                aggregates.len(),
-                            )?))
-                        }
-                        ast::GroupByExpr::Rollup(exprs) => {
-                            let exprs = plan_exprs(exprs)?;
-                            Some(GroupingExpr::Rollup(Self::extract_group_by_exprs(
-                                &mut select_exprs,
-                                exprs,
-                                aggregates.len(),
-                            )?))
-                        }
-                        ast::GroupByExpr::Cube(exprs) => {
-                            let exprs = plan_exprs(exprs)?;
-                            Some(GroupingExpr::Cube(Self::extract_group_by_exprs(
-                                &mut select_exprs,
-                                exprs,
-                                aggregates.len(),
-                            )?))
-                        }
-                        ast::GroupByExpr::GroupingSets(_) => unimplemented!("grouping sets"),
-                    }
-                }
-            },
-            None => None,
-        };
-
-        if !aggregates.is_empty() || grouping_expr.is_some() {
-            plan = Self::build_aggregate(aggregates, grouping_expr, plan)?;
-        }
+        // Group by has access to everything we've planned so far.
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
+        plan.root =
+            AggregatePlanner.plan(expr_ctx, &mut select_exprs, plan.root, select.group_by)?;
 
         // Project the full select list.
-        let select_exprs: Vec<_> = select_exprs.into_iter().map(|(expr, _)| expr).collect();
         plan = LogicalQuery {
             root: LogicalOperator::Projection(Projection {
                 exprs: select_exprs.clone(),
@@ -899,140 +834,6 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    /// Builds an aggregate node in the plan.
-    ///
-    /// Inputs to the aggregation will be placed in a pre-projection.
-    fn build_aggregate(
-        mut agg_exprs: Vec<LogicalExpression>,
-        mut grouping_expr: Option<GroupingExpr>,
-        current: LogicalQuery,
-    ) -> Result<LogicalQuery> {
-        let mut projections = Vec::with_capacity(agg_exprs.len());
-        for agg_expr in agg_exprs.iter_mut() {
-            match agg_expr {
-                LogicalExpression::Aggregate { inputs, .. } => {
-                    let idx = projections.len();
-                    let new_inputs = (0..inputs.len())
-                        .map(|i| LogicalExpression::new_column(idx + i))
-                        .collect();
-                    let mut old = std::mem::replace(inputs, new_inputs);
-                    projections.append(&mut old);
-                }
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Unexpected logical expression: {other:?}"
-                    )))
-                }
-            }
-        }
-
-        if let Some(grouping_expr) = &mut grouping_expr {
-            for expr in grouping_expr.expressions_mut() {
-                let idx = projections.len();
-                let old = std::mem::replace(expr, LogicalExpression::new_column(idx));
-                projections.push(old);
-            }
-        }
-
-        let projection = LogicalOperator::Projection(Projection {
-            exprs: projections,
-            input: Box::new(current.root),
-        });
-
-        Ok(LogicalQuery {
-            root: LogicalOperator::Aggregate(Aggregate {
-                exprs: agg_exprs,
-                grouping_expr,
-                input: Box::new(projection),
-            }),
-            scope: current.scope,
-        })
-    }
-
-    /// Extract aggregates functions from the logical select list, returning them.
-    ///
-    /// This will replace the aggregate expression in `exprs` with a column
-    /// reference that points to column position in the returned aggregate list.
-    fn extract_aggregates(
-        exprs: &mut [(LogicalExpression, bool)],
-    ) -> Result<Vec<LogicalExpression>> {
-        let mut aggs = Vec::new();
-        for (expr, modified) in exprs {
-            let mut in_aggregate = false;
-            expr.walk_mut_pre(&mut |expr| {
-                if expr.is_aggregate() {
-                    if in_aggregate {
-                        return Err(RayexecError::new("Cannot nest aggregate functions"));
-                    }
-                    in_aggregate = true;
-
-                    let column_ref = LogicalExpression::new_column(aggs.len());
-                    let agg = std::mem::replace(expr, column_ref);
-                    *modified = true;
-                    aggs.push(agg);
-                }
-                Ok(())
-            })?;
-        }
-
-        Ok(aggs)
-    }
-
-    /// Extract group by expressions from both the select list, and the
-    /// expressions in the GROUP BY clause.
-    ///
-    /// When a select expression matches exactly one of the group by
-    /// expressions, it will be updated with a column reference pointing to that
-    /// expression.
-    fn extract_group_by_exprs(
-        select_exprs: &mut [(LogicalExpression, bool)],
-        group_by_exprs: Vec<LogicalExpression>,
-        offset: usize,
-    ) -> Result<Vec<LogicalExpression>> {
-        let mut groups = Vec::new();
-        for group_by_expr in group_by_exprs {
-            // TODO: Select aliases
-            //
-            // This is valid:
-            // SELECT c1 / 100 AS my_alias, SUM(c2) FROM t1 GROUP BY my_alias
-
-            // Extract expressions from the select that equal our group by
-            // expression, and replace with a column reference.
-            let mut group_added = false;
-            for (expr, modified) in select_exprs.iter_mut() {
-                // If this select expression was previously modified, skip it
-                // since it should already be pointing to the right thing.
-                if *modified {
-                    continue;
-                }
-
-                if expr == &group_by_expr {
-                    if !group_added {
-                        let column_ref = LogicalExpression::new_column(groups.len() + offset);
-                        let group = std::mem::replace(expr, column_ref);
-                        groups.push(group);
-                        group_added = true;
-                    } else {
-                        // We're already tracking the group. Just find the
-                        // existing index, and replace the expression.
-                        let group_idx = groups.iter().position(|g| g == expr).unwrap();
-                        let column_ref = LogicalExpression::new_column(group_idx + offset);
-                        *expr = column_ref;
-                    }
-
-                    *modified = true;
-                }
-            }
-
-            if !group_added {
-                // Group not referenced in select. Go ahead and add it.
-                groups.push(group_by_expr);
-            }
-        }
-
-        Ok(groups)
-    }
-
     /// Appends new expressions that need to be added to the plan for order by
     /// expressions. The order by expression will be rewritten to point to the
     /// new expression, or to an expression already in the select exprs.
@@ -1080,126 +881,5 @@ impl<'a> PlanContext<'a> {
         select_exprs.push(orig);
 
         Ok(1)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::functions::aggregate::sum::{Sum, SumFloat64Impl};
-
-    use super::*;
-
-    #[test]
-    fn extract_aggregates_only_aggregate() {
-        let mut selects = vec![(
-            LogicalExpression::Aggregate {
-                agg: Box::new(SumFloat64Impl),
-                inputs: vec![LogicalExpression::new_column(0)],
-                filter: None,
-            },
-            false,
-        )];
-
-        let out = PlanContext::extract_aggregates(&mut selects).unwrap();
-
-        let expect_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(SumFloat64Impl),
-            inputs: vec![LogicalExpression::new_column(0)],
-            filter: None,
-        }];
-        assert_eq!(expect_aggs, out);
-
-        let expected_selects = vec![(LogicalExpression::new_column(0), true)];
-        assert_eq!(expected_selects, selects);
-    }
-
-    #[test]
-    fn extract_aggregates_with_other_expressions() {
-        let mut selects = vec![
-            (LogicalExpression::new_column(1), false),
-            (
-                LogicalExpression::Aggregate {
-                    agg: Box::new(SumFloat64Impl),
-                    inputs: vec![LogicalExpression::new_column(0)],
-                    filter: None,
-                },
-                false,
-            ),
-        ];
-
-        let out = PlanContext::extract_aggregates(&mut selects).unwrap();
-
-        let expect_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(SumFloat64Impl),
-            inputs: vec![LogicalExpression::new_column(0)],
-            filter: None,
-        }];
-        assert_eq!(expect_aggs, out);
-
-        let expected_selects = vec![
-            (LogicalExpression::new_column(1), false),
-            (LogicalExpression::new_column(0), true),
-        ];
-        assert_eq!(expected_selects, selects);
-    }
-
-    #[test]
-    fn extract_group_by_single() {
-        let mut selects = vec![
-            (LogicalExpression::new_column(1), false),
-            (LogicalExpression::new_column(0), false),
-        ];
-
-        let group_by = vec![LogicalExpression::new_column(0)];
-
-        let out = PlanContext::extract_group_by_exprs(&mut selects, group_by, 2).unwrap();
-
-        let expected_group_by = vec![LogicalExpression::new_column(0)];
-        assert_eq!(expected_group_by, out);
-
-        let expected_selects = vec![
-            (LogicalExpression::new_column(1), false),
-            (LogicalExpression::new_column(2), true),
-        ];
-        assert_eq!(expected_selects, selects);
-    }
-
-    #[test]
-    fn extract_aggregate_and_group_by() {
-        // t1(c1, c2)
-        //
-        // SELECT c1, sum(c2) FROM t1 GROUP BY c1
-
-        let mut selects = vec![
-            (LogicalExpression::new_column(0), false),
-            (
-                LogicalExpression::Aggregate {
-                    agg: Box::new(SumFloat64Impl),
-                    inputs: vec![LogicalExpression::new_column(1)],
-                    filter: None,
-                },
-                false,
-            ),
-        ];
-
-        let group_by = vec![LogicalExpression::new_column(0)];
-
-        let got_aggs = PlanContext::extract_aggregates(&mut selects).unwrap();
-        let got_groups = PlanContext::extract_group_by_exprs(&mut selects, group_by, 1).unwrap();
-
-        let expected_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(SumFloat64Impl),
-            inputs: vec![LogicalExpression::new_column(1)],
-            filter: None,
-        }];
-        let expected_groups = vec![LogicalExpression::new_column(0)];
-        let expected_selects = vec![
-            (LogicalExpression::new_column(1), true),
-            (LogicalExpression::new_column(0), true),
-        ];
-
-        assert_eq!(expected_aggs, got_aggs);
-        assert_eq!(expected_groups, got_groups);
-        assert_eq!(expected_selects, selects);
     }
 }

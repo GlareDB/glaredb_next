@@ -11,7 +11,7 @@ use crate::{
             drop::PhysicalDrop,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
-            hash_aggregate::{grouping_set::GroupingSets, PhysicalHashAggregate},
+            hash_aggregate::PhysicalHashAggregate,
             insert::PhysicalInsert,
             join::{
                 hash_join::PhysicalHashJoin,
@@ -35,7 +35,10 @@ use crate::{
         pipeline::{Pipeline, PipelineId},
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
-    logical::operator::{self, LogicalOperator},
+    logical::{
+        grouping_set::GroupingSets,
+        operator::{self, LogicalOperator},
+    },
 };
 use rayexec_bullet::{
     array::{Array, Utf8Array},
@@ -596,21 +599,16 @@ impl BuildState {
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
-        let mut agg_exprs = Vec::with_capacity(agg.exprs.len());
-        for expr in agg.exprs.into_iter() {
+        let mut agg_exprs = Vec::with_capacity(agg.aggregates.len());
+        for expr in agg.aggregates.into_iter() {
             let agg_expr =
                 PhysicalAggregateExpression::try_from_logical_expression(expr, &input_schema)?;
             agg_exprs.push(agg_expr);
         }
 
-        match agg.grouping_expr {
-            Some(expr) => {
+        match agg.grouping_sets {
+            Some(grouping_sets) => {
                 // If we're working with groups, push a hash aggregate operator.
-
-                // Compute the grouping sets based on the grouping expression. It's
-                // expected that this plan only has uncorrelated column references as
-                // expressions.
-                let grouping_sets = GroupingSets::try_from_grouping_expr(expr)?;
 
                 let group_types: Vec<_> = grouping_sets
                     .columns()

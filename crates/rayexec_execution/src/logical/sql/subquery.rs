@@ -8,8 +8,6 @@ use crate::{
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
 use rayexec_error::Result;
 
-use super::planner::PlanContext;
-
 /// Logic for flattening and planning subqueries.
 #[derive(Debug, Clone, Copy)]
 pub struct SubqueryPlanner;
@@ -24,7 +22,7 @@ impl SubqueryPlanner {
                     }
                 }
                 LogicalOperator::Aggregate(p) => {
-                    for expr in &mut p.exprs {
+                    for expr in &mut p.aggregates {
                         self.plan_subquery_expr(expr, &mut p.input)?;
                     }
                 }
@@ -165,12 +163,13 @@ impl SubqueryPlanner {
                     // This currently just includes a 'true'
                     // projection that makes the final aggregate
                     // represent COUNT(true).
-                    exprs: vec![LogicalExpression::Aggregate {
+                    aggregates: vec![LogicalExpression::Aggregate {
                         agg: Box::new(CountNonNullImpl),
                         inputs: vec![LogicalExpression::new_column(0)],
                         filter: None,
                     }],
-                    grouping_expr: None,
+                    grouping_sets: None,
+                    group_exprs: Vec::new(),
                     input: Box::new(LogicalOperator::Limit(Limit {
                         offset: None,
                         limit: 1,

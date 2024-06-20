@@ -1,4 +1,5 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
+use super::grouping_set::GroupingSets;
 use super::sql::scope::ColumnRef;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
@@ -518,32 +519,39 @@ impl Explainable for ExpressionList {
     }
 }
 
+/// An aggregate node containing some number of aggregates, and optional groups.
+///
+/// The output schema of the this node is [aggregate_columns, group_columns]. A
+/// projection above this node should be used to reorder the columns as needed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Aggregate {
-    pub exprs: Vec<LogicalExpression>,
-    pub grouping_expr: Option<GroupingExpr>,
+    /// Aggregate functions calls.
+    ///
+    /// During planning, the aggregate function calls will be replaced with
+    /// column references.
+    pub aggregates: Vec<LogicalExpression>,
+
+    /// Expressions in the GROUP BY clauses.
+    ///
+    /// Empty indicates we'll be computing an aggregate over a single group.
+    pub group_exprs: Vec<LogicalExpression>,
+
+    /// Optional grouping set.
+    pub grouping_sets: Option<GroupingSets>,
+
+    /// Input to the aggregate.
     pub input: Box<LogicalOperator>,
 }
 
 impl LogicalNode for Aggregate {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let current = self.input.output_schema(outer)?;
-        let mut types = self
-            .exprs
+        let types = self
+            .aggregates
             .iter()
+            .chain(self.group_exprs.iter())
             .map(|expr| expr.datatype(&current, outer))
             .collect::<Result<Vec<_>>>()?;
-
-        let mut grouping_types = match &self.grouping_expr {
-            Some(grouping) => grouping
-                .expressions()
-                .iter()
-                .map(|expr| expr.datatype(&current, outer))
-                .collect::<Result<Vec<_>>>()?,
-            None => Vec::new(),
-        };
-
-        types.append(&mut grouping_types);
 
         Ok(TypeSchema::new(types))
     }
@@ -551,51 +559,15 @@ impl LogicalNode for Aggregate {
 
 impl Explainable for Aggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let mut outputs = self.exprs.clone();
-        if let Some(grouping) = &self.grouping_expr {
-            outputs.extend(grouping.expressions().iter().cloned());
+        let mut ent = ExplainEntry::new("Aggregate")
+            .with_values("aggregates", &self.aggregates)
+            .with_values("group_exprs", &self.group_exprs);
+
+        if let Some(grouping_set) = &self.grouping_sets {
+            ent = ent.with_value("grouping_sets", grouping_set.num_groups());
         }
 
-        let mut ent = ExplainEntry::new("Aggregate").with_values("outputs", &outputs);
-        match self.grouping_expr.as_ref() {
-            Some(GroupingExpr::GroupBy(exprs)) => ent = ent.with_values("GROUP BY", exprs),
-            Some(GroupingExpr::Rollup(exprs)) => ent = ent.with_values("ROLLUP", exprs),
-            Some(GroupingExpr::Cube(exprs)) => ent = ent.with_values("CUBE", exprs),
-            None => (),
-        }
         ent
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GroupingExpr {
-    /// Group by a single set of columns.
-    GroupBy(Vec<LogicalExpression>),
-    /// Group by a column rollup.
-    Rollup(Vec<LogicalExpression>),
-    /// Group by a powerset of the columns.
-    Cube(Vec<LogicalExpression>),
-}
-
-impl GroupingExpr {
-    /// Get mutable references to the input expressions.
-    ///
-    /// This is used to allow modifying the expression to point to a
-    /// pre-projection into the aggregate.
-    pub fn expressions_mut(&mut self) -> &mut [LogicalExpression] {
-        match self {
-            Self::GroupBy(ref mut exprs) => exprs.as_mut_slice(),
-            Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
-            Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
-        }
-    }
-
-    pub fn expressions(&self) -> &[LogicalExpression] {
-        match self {
-            Self::GroupBy(ref exprs) => exprs.as_slice(),
-            Self::Rollup(ref exprs) => exprs.as_slice(),
-            Self::Cube(ref exprs) => exprs.as_slice(),
-        }
     }
 }
 
@@ -1081,19 +1053,8 @@ impl LogicalExpression {
                 }
                 LogicalOperator::Filter(p) => p.predicate.walk_mut(pre, post)?,
                 LogicalOperator::Aggregate(p) => {
-                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?;
-                    match &mut p.grouping_expr {
-                        Some(GroupingExpr::GroupBy(v)) => {
-                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                        }
-                        Some(GroupingExpr::Rollup(v)) => {
-                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                        }
-                        Some(GroupingExpr::Cube(v)) => {
-                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                        }
-                        _ => (),
-                    }
+                    LogicalExpression::walk_mut_many(&mut p.aggregates, pre, post)?;
+                    LogicalExpression::walk_mut_many(&mut p.group_exprs, pre, post)?;
                 }
                 LogicalOperator::Order(p) => {
                     for expr in &mut p.exprs {
