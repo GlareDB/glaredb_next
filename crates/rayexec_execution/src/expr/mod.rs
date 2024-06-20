@@ -95,6 +95,12 @@ impl PhysicalScalarExpression {
 
                 PhysicalScalarExpression::ScalarFunction { function, inputs }
             }
+            LogicalExpression::Subquery(_) | LogicalExpression::Exists { .. } => {
+                // Should have already been taken care of during planning.
+                return Err(RayexecError::new(
+                    "Cannot convert a subquery into a physical expression",
+                ));
+            }
             other => unimplemented!("{other:?}"),
         })
     }

@@ -1020,6 +1020,11 @@ impl LogicalExpression {
         })
     }
 
+    /// Checks if this expression has a subquery component.
+    pub fn is_subquery(&self) -> bool {
+        matches!(self, Self::Subquery(_) | Self::Exists { .. })
+    }
+
     /// Checks if this is a constant expression.
     pub fn is_constant(&self) -> bool {
         match self {

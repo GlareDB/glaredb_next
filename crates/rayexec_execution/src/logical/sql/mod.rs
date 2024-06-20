@@ -33,3 +33,4 @@ pub mod planner;
 pub mod scope;
 
 mod expr;
+mod subquery;
