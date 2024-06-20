@@ -1,7 +1,7 @@
 use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::{
-    array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
+    array::{Array, Decimal128Array, Decimal64Array, DecimalArray, PrimitiveArray},
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
@@ -43,6 +43,8 @@ impl AggregateFunction for Min {
             | DataType::UInt64
             | DataType::Float32
             | DataType::Float64
+            | DataType::Decimal64(_)
+            | DataType::Decimal128(_)
             | DataType::TimestampSeconds
             | DataType::TimestampMilliseconds
             | DataType::TimestampMicroseconds
@@ -87,6 +89,8 @@ impl AggregateFunction for Max {
             | DataType::UInt64
             | DataType::Float32
             | DataType::Float64
+            | DataType::Decimal64(_)
+            | DataType::Decimal128(_)
             | DataType::TimestampSeconds
             | DataType::TimestampMilliseconds
             | DataType::TimestampMicroseconds
@@ -120,6 +124,36 @@ macro_rules! create_primitive_grouped_state {
             },
         ))
     };
+}
+
+macro_rules! create_decimal_grouped_state {
+    ($variant:ident, $state:ty, $precision:expr, $scale:expr) => {{
+        let precision = $precision.clone();
+        let scale = $scale.clone();
+        Box::new(DefaultGroupedStates::new(
+            |row_selection: &Bitmap,
+             arrays: &[&Array],
+             mapping: &[usize],
+             states: &mut [$state]| {
+                match &arrays[0] {
+                    Array::$variant(arr) => UnaryNonNullUpdater::update(
+                        row_selection,
+                        arr.get_primitive(),
+                        mapping,
+                        states,
+                    ),
+                    other => panic!("unexpected array type: {other:?}"),
+                }
+            },
+            move |states: vec::Drain<$state>| {
+                let mut buffer = Vec::with_capacity(states.len());
+                let mut bitmap = Bitmap::with_capacity(states.len());
+                StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+                let arr = PrimitiveArray::new(buffer, Some(bitmap));
+                Ok(Array::$variant(DecimalArray::new(precision, scale, arr)))
+            },
+        ))
+    }};
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,6 +194,17 @@ impl PlannedAggregateFunction for MinPrimitiveImpl {
             }
             DataType::TimestampNanoseconds => {
                 create_primitive_grouped_state!(TimestampNanoseconds, MinState<i64>)
+            }
+            DataType::Decimal64(meta) => {
+                create_decimal_grouped_state!(Decimal64, MinState<i64>, meta.precision, meta.scale)
+            }
+            DataType::Decimal128(meta) => {
+                create_decimal_grouped_state!(
+                    Decimal128,
+                    MinState<i128>,
+                    meta.precision,
+                    meta.scale
+                )
             }
             datatype => panic!("unexpected datatype {datatype}"),
         }
@@ -204,6 +249,17 @@ impl PlannedAggregateFunction for MaxPrimitiveImpl {
             }
             DataType::TimestampNanoseconds => {
                 create_primitive_grouped_state!(TimestampNanoseconds, MaxState<i64>)
+            }
+            DataType::Decimal64(meta) => {
+                create_decimal_grouped_state!(Decimal64, MaxState<i64>, meta.precision, meta.scale)
+            }
+            DataType::Decimal128(meta) => {
+                create_decimal_grouped_state!(
+                    Decimal128,
+                    MaxState<i128>,
+                    meta.precision,
+                    meta.scale
+                )
             }
             datatype => panic!("unexpected datatype {datatype}"),
         }
