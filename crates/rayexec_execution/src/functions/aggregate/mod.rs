@@ -1,6 +1,7 @@
 pub mod avg;
 pub mod count;
 pub mod covar;
+pub mod minmax;
 pub mod sum;
 
 use dyn_clone::DynClone;
@@ -27,6 +28,8 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
         Box::new(sum::Sum),
         Box::new(avg::Avg),
         Box::new(count::Count),
+        Box::new(minmax::Min),
+        Box::new(minmax::Max),
     ]
 });
 

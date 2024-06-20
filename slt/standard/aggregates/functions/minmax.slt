@@ -1,0 +1,21 @@
+# MIN/MAX
+
+query I
+select min(2);
+----
+2
+
+query I
+select max(2);
+----
+2
+
+query I
+select min(a) from generate_series(4,20,2) as g(a);
+----
+4
+
+query I
+select max(a) from generate_series(4,20,2) as g(a);
+----
+20

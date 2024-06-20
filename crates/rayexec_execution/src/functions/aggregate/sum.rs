@@ -241,24 +241,24 @@ impl PlannedAggregateFunction for SumDecimal128Impl {
 #[derive(Debug, Default)]
 pub struct SumStateCheckedAdd<T> {
     sum: T,
-    at_least_one: bool,
+    set: bool,
 }
 
 impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAdd<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
-        self.at_least_one = self.at_least_one || other.at_least_one;
+        self.set = self.set || other.set;
         Ok(())
     }
 
     fn update(&mut self, input: T) -> Result<()> {
         self.sum = self.sum.checked_add(&input).unwrap_or_default(); // TODO
-        self.at_least_one = true;
+        self.set = true;
         Ok(())
     }
 
     fn finalize(self) -> Result<(T, bool)> {
-        if self.at_least_one {
+        if self.set {
             Ok((self.sum, true))
         } else {
             Ok((T::default(), false))
@@ -269,24 +269,24 @@ impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAd
 #[derive(Debug, Default)]
 pub struct SumStateAdd<T> {
     sum: T,
-    at_least_one: bool,
+    valid: bool,
 }
 
 impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum += other.sum;
-        self.at_least_one = self.at_least_one || other.at_least_one;
+        self.valid = self.valid || other.valid;
         Ok(())
     }
 
     fn update(&mut self, input: T) -> Result<()> {
         self.sum += input;
-        self.at_least_one = true;
+        self.valid = true;
         Ok(())
     }
 
     fn finalize(self) -> Result<(T, bool)> {
-        if self.at_least_one {
+        if self.valid {
             Ok((self.sum, true))
         } else {
             Ok((T::default(), false))
