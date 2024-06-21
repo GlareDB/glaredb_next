@@ -1,25 +1,24 @@
-# Error source: query failed: Invalid inputs to '>=': [Date32, Utf8]
+# Correlated
 
-query TT
-describe select
+query TI
+DESCRIBE SELECT
     o_orderpriority,
-    count(*) as order_count
-from
+    count(*) AS order_count
+FROM
     '../submodules/testdata/tpch_sf0.1/orders.parquet' orders
-where
-        o_orderdate >= '1993-07-01'
-  and o_orderdate < date '1993-07-01' + interval '3' month
-  and exists (
-        select
+WHERE
+    o_orderdate >= CAST('1993-07-01' AS date)
+    AND o_orderdate < CAST('1993-10-01' AS date)
+    AND EXISTS (
+        SELECT
             *
-        from
+        FROM
             '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
-        where
-                l_orderkey = o_orderkey
-          and l_commitdate < l_receiptdate
-    )
-group by
+        WHERE
+            l_orderkey = o_orderkey
+            AND l_commitdate < l_receiptdate)
+GROUP BY
     o_orderpriority
-order by
+ORDER BY
     o_orderpriority;
 ----
