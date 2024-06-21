@@ -98,10 +98,10 @@ impl<'a> QueryNodePlanner<'a> {
         };
 
         let from_type_schema = plan.root.output_schema(&[])?;
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
 
         // Handle WHERE
         if let Some(where_expr) = select.where_expr {
-            let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
             let mut expr = expr_ctx.plan_expression(where_expr)?;
             SubqueryPlanner.plan_subquery_expr(&mut expr, &mut plan.root)?;
 
@@ -112,22 +112,26 @@ impl<'a> QueryNodePlanner<'a> {
             });
         }
 
-        // Expand projections.
-        // TODO: Error on wildcards if no from.
-        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
-        let mut projections = Vec::new();
-        for select_proj in select.projections {
-            let mut expanded = expr_ctx.expand_select_expr(select_proj)?;
-            projections.append(&mut expanded);
+        // Expand SELECT.
+        let projections = expr_ctx.expand_all_select_exprs(select.projections)?;
+        if projections.is_empty() {
+            return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
         }
 
         // Add projections to plan using previously expanded select items.
         let mut select_exprs = Vec::with_capacity(projections.len());
         let mut names = Vec::with_capacity(projections.len());
-        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
-        for proj in projections {
+        let mut alias_map = HashMap::new();
+        for (idx, proj) in projections.into_iter().enumerate() {
             match proj {
-                ExpandedSelectExpr::Expr { expr, name } => {
+                ExpandedSelectExpr::Expr {
+                    expr,
+                    name,
+                    explicit_alias,
+                } => {
+                    if explicit_alias {
+                        alias_map.insert(name.clone(), idx);
+                    }
                     let expr = expr_ctx.plan_expression(expr)?;
                     select_exprs.push(expr);
                     names.push(name);
@@ -182,7 +186,7 @@ impl<'a> QueryNodePlanner<'a> {
         plan.root = AggregatePlanner.plan(
             expr_ctx,
             &mut select_exprs,
-            &HashMap::new(),
+            &alias_map,
             plan.root,
             select.group_by,
         )?;

@@ -84,7 +84,7 @@ impl AggregatePlanner {
                     let exprs = ast_exprs
                         .into_iter()
                         .map(|expr| {
-                            self.plan_group_by_expr(&expr_ctx, alias_map, select_list, expr)
+                            expr_ctx.plan_expression_with_select_list(alias_map, select_list, expr)
                         })
                         .collect::<Result<Vec<_>>>()?;
 
@@ -108,43 +108,6 @@ impl AggregatePlanner {
         }
 
         Ok(plan)
-    }
-
-    /// Plans an expression found in the GROUP BY clause.
-    ///
-    /// Two special cases:
-    ///
-    /// 1. An alias from the select list can be used.
-    /// 2. An ordinal corresponding to an item in the select list can be used.
-    fn plan_group_by_expr(
-        &self,
-        expr_ctx: &ExpressionContext,
-        alias_map: &HashMap<String, usize>,
-        select_list: &[LogicalExpression],
-        expr: ast::Expr<Bound>,
-    ) -> Result<LogicalExpression> {
-        if let ast::Expr::Literal(ast::Literal::Number(s)) = expr {
-            let n = s
-                .parse::<i64>()
-                .map_err(|_| RayexecError::new(format!("Failed to parse '{s}' into a number")))?;
-            if n < 1 || n as usize > select_list.len() {
-                return Err(RayexecError::new(format!(
-                    "GROUP BY ordinal out of range, expected 1 - {}",
-                    select_list.len()
-                )))?;
-            }
-
-            return Ok(select_list[n as usize].clone());
-        }
-
-        if let ast::Expr::Ident(ident) = &expr {
-            let s = ident.as_normalized_string();
-            if let Some(idx) = alias_map.get(&s) {
-                return Ok(select_list[*idx].clone());
-            }
-        }
-
-        expr_ctx.plan_expression(expr)
     }
 
     /// Builds an aggregate node in the plan.

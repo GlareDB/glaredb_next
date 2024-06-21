@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::interval::Interval;
@@ -17,7 +19,6 @@ use crate::logical::operator::LogicalExpression;
 use super::query::QueryNodePlanner;
 use super::{
     binder::{Bound, BoundFunctionReference},
-    planner::PlanContext,
     scope::{Scope, TableReference},
 };
 
@@ -33,6 +34,12 @@ pub enum ExpandedSelectExpr {
         /// expression. If this references a column, then the name will just
         /// match that column.
         name: String,
+        /// Whether or not the user explicity provided us an alias.
+        ///
+        /// For GROUP BY and ORDER BY, aliases from the select list may be used
+        /// as references. This let's us determine if `name` is an alias that we
+        /// should looke for when resolving a reference.
+        explicit_alias: bool,
     },
     /// An index of a column in the current scope. This is needed for wildcards
     /// since they're expanded to match some number of columns in the current
@@ -65,6 +72,18 @@ impl<'a> ExpressionContext<'a> {
         }
     }
 
+    pub fn expand_all_select_exprs(
+        &self,
+        exprs: impl IntoIterator<Item = ast::SelectExpr<Bound>>,
+    ) -> Result<Vec<ExpandedSelectExpr>> {
+        let mut expanded = Vec::new();
+        for expr in exprs {
+            let mut ex = self.expand_select_expr(expr)?;
+            expanded.append(&mut ex);
+        }
+        Ok(expanded)
+    }
+
     pub fn expand_select_expr(
         &self,
         expr: ast::SelectExpr<Bound>,
@@ -74,6 +93,7 @@ impl<'a> ExpressionContext<'a> {
                 ast::Expr::Ident(ident) => vec![ExpandedSelectExpr::Expr {
                     name: ident.as_normalized_string(),
                     expr,
+                    explicit_alias: false,
                 }],
                 ast::Expr::CompoundIdent(ident) => vec![ExpandedSelectExpr::Expr {
                     name: ident
@@ -81,21 +101,25 @@ impl<'a> ExpressionContext<'a> {
                         .map(|n| n.as_normalized_string())
                         .unwrap_or_else(|| "?column?".to_string()),
                     expr,
+                    explicit_alias: false,
                 }],
                 ast::Expr::Function(ast::Function { reference, .. }) => {
                     vec![ExpandedSelectExpr::Expr {
                         name: reference.name().to_string(),
                         expr,
+                        explicit_alias: false,
                     }]
                 }
                 _ => vec![ExpandedSelectExpr::Expr {
                     expr,
                     name: "?column?".to_string(),
+                    explicit_alias: false,
                 }],
             },
             ast::SelectExpr::AliasedExpr(expr, alias) => vec![ExpandedSelectExpr::Expr {
                 expr,
                 name: alias.into_normalized_string(),
+                explicit_alias: true,
             }],
             ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
@@ -356,6 +380,49 @@ impl<'a> ExpressionContext<'a> {
         }
     }
 
+    /// Attempt to plan an expression with the possibility of it pointing to an
+    /// already planned expression in the select list.
+    ///
+    /// This allows GROUP BY and ORDER BY to reference columns in the output by
+    /// either its alias, or by its ordinal.
+    ///
+    /// If an alias and scoped column both exist with the same name, the scoped
+    /// column will take precedence.
+    pub fn plan_expression_with_select_list(
+        &self,
+        alias_map: &HashMap<String, usize>,
+        planned: &[LogicalExpression],
+        expr: ast::Expr<Bound>,
+    ) -> Result<LogicalExpression> {
+        if let ast::Expr::Literal(ast::Literal::Number(s)) = expr {
+            let n = s
+                .parse::<i64>()
+                .map_err(|_| RayexecError::new(format!("Failed to parse '{s}' into a number")))?;
+            if n < 1 || n as usize > planned.len() {
+                return Err(RayexecError::new(format!(
+                    "Column out of range, expected 1 - {}",
+                    planned.len()
+                )))?;
+            }
+
+            return Ok(planned[n as usize - 1].clone());
+        }
+
+        match expr {
+            ast::Expr::Ident(ident) => match self.plan_ident(ident.clone()) {
+                Ok(expr) => Ok(expr),
+                Err(e) => {
+                    let s = ident.as_normalized_string();
+                    if let Some(idx) = alias_map.get(&s) {
+                        return Ok(planned[*idx].clone());
+                    }
+                    Err(e)
+                }
+            },
+            other => self.plan_expression(other),
+        }
+    }
+
     /// Plan a sql literal
     pub(crate) fn plan_literal(literal: ast::Literal<Bound>) -> Result<LogicalExpression> {
         Ok(match literal {
@@ -389,7 +456,7 @@ impl<'a> ExpressionContext<'a> {
     ///
     /// Assumed to be a column name either in the current scope or one of the
     /// outer scopes.
-    fn plan_ident(&self, ident: ast::Ident) -> Result<LogicalExpression> {
+    pub(crate) fn plan_ident(&self, ident: ast::Ident) -> Result<LogicalExpression> {
         let val = ident.into_normalized_string();
         match self
             .scope
