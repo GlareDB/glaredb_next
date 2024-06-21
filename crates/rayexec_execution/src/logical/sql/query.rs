@@ -165,7 +165,11 @@ impl<'a> QueryNodePlanner<'a> {
         let mut order_by_exprs = order_by
             .into_iter()
             .map(|order_by| {
-                let expr = expr_ctx.plan_expression(order_by.expr)?;
+                let expr = expr_ctx.plan_expression_with_select_list(
+                    &alias_map,
+                    &select_exprs,
+                    order_by.expr,
+                )?;
                 Ok(OrderByExpr {
                     expr,
                     desc: matches!(order_by.typ.unwrap_or(OrderByType::Asc), OrderByType::Desc),
