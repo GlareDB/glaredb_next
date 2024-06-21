@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use super::{
     aggregate::AggregatePlanner,
     binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
     expr::{ExpandedSelectExpr, ExpressionContext},
     planner::LogicalQuery,
-    scope::{ColumnRef, FromScope, TableReference},
+    scope::{ColumnRef, Scope, TableReference},
     subquery::SubqueryPlanner,
 };
 use crate::logical::operator::{
@@ -14,14 +16,14 @@ use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
 
-const EMPTY_SCOPE: &FromScope = &FromScope::empty();
+const EMPTY_SCOPE: &Scope = &Scope::empty();
 const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 
 /// Plans query nodes.
 #[derive(Debug, Clone)]
 pub struct QueryNodePlanner<'a> {
     /// Outer scopes relative to the query we're currently planning.
-    pub outer_scopes: Vec<FromScope>,
+    pub outer_scopes: Vec<Scope>,
     /// Data collected during binding (table references, functions, etc).
     pub bind_data: &'a BindData,
 }
@@ -35,7 +37,7 @@ impl<'a> QueryNodePlanner<'a> {
     }
 
     /// Create a new nested plan context for planning subqueries.
-    pub fn nested(&self, outer: FromScope) -> Self {
+    pub fn nested(&self, outer: Scope) -> Self {
         QueryNodePlanner {
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
@@ -88,10 +90,10 @@ impl<'a> QueryNodePlanner<'a> {
     ) -> Result<LogicalQuery> {
         // Handle FROM
         let mut plan = match select.from {
-            Some(from) => self.plan_from_node(from, FromScope::empty())?,
+            Some(from) => self.plan_from_node(from, Scope::empty())?,
             None => LogicalQuery {
                 root: LogicalOperator::Empty,
-                scope: FromScope::empty(),
+                scope: Scope::empty(),
             },
         };
 
@@ -124,11 +126,6 @@ impl<'a> QueryNodePlanner<'a> {
         let mut names = Vec::with_capacity(projections.len());
         let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         for proj in projections {
-            // TODO: I feel like we should be modifying the scope here?
-            //
-            // I believe it would help with this query (ambiguous name a):
-            //
-            // with cte1 as (select 4 as a) select t1.a + t2.a from cte1 as t1, cte1 as t2
             match proj {
                 ExpandedSelectExpr::Expr { expr, name } => {
                     let expr = expr_ctx.plan_expression(expr)?;
@@ -182,8 +179,13 @@ impl<'a> QueryNodePlanner<'a> {
 
         // Group by has access to everything we've planned so far.
         let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
-        plan.root =
-            AggregatePlanner.plan(expr_ctx, &mut select_exprs, plan.root, select.group_by)?;
+        plan.root = AggregatePlanner.plan(
+            expr_ctx,
+            &mut select_exprs,
+            &HashMap::new(),
+            plan.root,
+            select.group_by,
+        )?;
 
         // Project the full select list.
         plan = LogicalQuery {
@@ -236,7 +238,7 @@ impl<'a> QueryNodePlanner<'a> {
         plan.root = SubqueryPlanner.flatten(plan.root)?;
 
         // Cleaned scope containing only output columns in the final output.
-        plan.scope = FromScope::with_columns(None, names);
+        plan.scope = Scope::with_columns(None, names);
 
         Ok(plan)
     }
@@ -244,7 +246,7 @@ impl<'a> QueryNodePlanner<'a> {
     pub fn plan_from_node(
         &self,
         from: ast::FromNode<Bound>,
-        current_scope: FromScope,
+        current_scope: Scope,
     ) -> Result<LogicalQuery> {
         // Plan the "body" of the FROM.
         let body = match from.body {
@@ -264,7 +266,7 @@ impl<'a> QueryNodePlanner<'a> {
                             schema: Some(schema.clone()),
                             table: entry.name.clone(),
                         };
-                        let scope = FromScope::with_columns(
+                        let scope = Scope::with_columns(
                             Some(scope_reference),
                             entry.columns.iter().map(|f| f.name.clone()),
                         );
@@ -338,7 +340,7 @@ impl<'a> QueryNodePlanner<'a> {
                     schema: None,
                     table: reference.name,
                 };
-                let scope = FromScope::with_columns(
+                let scope = Scope::with_columns(
                     Some(scope_reference),
                     reference.func.schema().fields.into_iter().map(|f| f.name),
                 );
@@ -360,14 +362,14 @@ impl<'a> QueryNodePlanner<'a> {
             }) => {
                 // Plan left side of join.
                 let left_nested = self.nested(current_scope.clone());
-                let left_plan = left_nested.plan_from_node(*left, FromScope::empty())?; // TODO: Determine if should be empty.
+                let left_plan = left_nested.plan_from_node(*left, Scope::empty())?; // TODO: Determine if should be empty.
 
                 // Plan right side of join.
                 //
                 // Note this uses a plan context that has the "left" scope as
                 // its outer scope.
                 let right_nested = left_nested.nested(left_plan.scope.clone());
-                let right_plan = right_nested.plan_from_node(*right, FromScope::empty())?; // TODO: Determine if this should be empty.
+                let right_plan = right_nested.plan_from_node(*right, Scope::empty())?; // TODO: Determine if this should be empty.
 
                 match join_condition {
                     ast::JoinCondition::On(on) => {
@@ -433,7 +435,7 @@ impl<'a> QueryNodePlanner<'a> {
     }
 
     /// Apply table and column aliases to a scope.
-    fn apply_alias(mut scope: FromScope, alias: Option<ast::FromAlias>) -> Result<FromScope> {
+    fn apply_alias(mut scope: Scope, alias: Option<ast::FromAlias>) -> Result<Scope> {
         Ok(match alias {
             Some(ast::FromAlias { alias, columns }) => {
                 let reference = TableReference {
@@ -498,7 +500,7 @@ impl<'a> QueryNodePlanner<'a> {
         let operator = LogicalOperator::ExpressionList(ExpressionList { rows: exprs });
 
         // Generate output scope with appropriate column names.
-        let mut scope = FromScope::empty();
+        let mut scope = Scope::empty();
         scope.add_columns(None, (0..num_cols).map(|i| format!("column{}", i + 1)));
 
         Ok(LogicalQuery {

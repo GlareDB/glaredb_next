@@ -18,7 +18,7 @@ use super::query::QueryNodePlanner;
 use super::{
     binder::{Bound, BoundFunctionReference},
     planner::PlanContext,
-    scope::{FromScope, TableReference},
+    scope::{Scope, TableReference},
 };
 
 /// An expanded select expression.
@@ -51,13 +51,13 @@ pub struct ExpressionContext<'a> {
     /// Planer for the query containing this expression.
     pub planner: &'a QueryNodePlanner<'a>,
     /// Scope for this expression.
-    pub scope: &'a FromScope,
+    pub scope: &'a Scope,
     /// Schema of input that this expression will be executed on.
     pub input: &'a TypeSchema,
 }
 
 impl<'a> ExpressionContext<'a> {
-    pub fn new(planner: &'a QueryNodePlanner, scope: &'a FromScope, input: &'a TypeSchema) -> Self {
+    pub fn new(planner: &'a QueryNodePlanner, scope: &'a Scope, input: &'a TypeSchema) -> Self {
         ExpressionContext {
             planner,
             scope,

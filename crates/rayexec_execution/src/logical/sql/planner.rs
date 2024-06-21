@@ -4,7 +4,7 @@ use super::{
     aggregate::AggregatePlanner,
     binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
     expr::{ExpandedSelectExpr, ExpressionContext},
-    scope::{ColumnRef, FromScope, TableReference},
+    scope::{ColumnRef, Scope, TableReference},
     subquery::SubqueryPlanner,
 };
 use crate::{
@@ -31,7 +31,7 @@ use rayexec_parser::{
 };
 use tracing::trace;
 
-const EMPTY_SCOPE: &FromScope = &FromScope::empty();
+const EMPTY_SCOPE: &Scope = &Scope::empty();
 const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 
 #[derive(Debug)]
@@ -40,7 +40,7 @@ pub struct LogicalQuery {
     pub root: LogicalOperator,
 
     /// The final scope of the query.
-    pub scope: FromScope,
+    pub scope: Scope,
 }
 
 #[derive(Debug, Clone)]
@@ -49,7 +49,7 @@ pub struct PlanContext<'a> {
     pub vars: &'a SessionVars,
 
     /// Scopes outside this context.
-    pub outer_scopes: Vec<FromScope>,
+    pub outer_scopes: Vec<Scope>,
 
     pub bind_data: &'a BindData,
 }
@@ -83,7 +83,7 @@ impl<'a> PlanContext<'a> {
                         format,
                         input: Box::new(plan.root),
                     }),
-                    scope: FromScope::empty(),
+                    scope: Scope::empty(),
                 })
             }
             Statement::Query(query) => {
@@ -106,13 +106,13 @@ impl<'a> PlanContext<'a> {
                         name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
                     }),
-                    scope: FromScope::empty(),
+                    scope: Scope::empty(),
                 })
             }
             Statement::ShowVariable(ast::ShowVariable { mut reference }) => {
                 let name = reference.pop()?; // TODO: Allow compound references?
                 let var = self.vars.get_var(&name)?;
-                let scope = FromScope::with_columns(None, [name.clone()]);
+                let scope = Scope::with_columns(None, [name.clone()]);
                 Ok(LogicalQuery {
                     root: LogicalOperator::ShowVar(ShowVar { var: var.clone() }),
                     scope,
@@ -129,7 +129,7 @@ impl<'a> PlanContext<'a> {
                 };
                 Ok(LogicalQuery {
                     root: LogicalOperator::ResetVar(ResetVar { var }),
-                    scope: FromScope::empty(),
+                    scope: Scope::empty(),
                 })
             }
             Statement::Attach(attach) => self.plan_attach(attach),
@@ -139,7 +139,7 @@ impl<'a> PlanContext<'a> {
                 let plan = match describe {
                     ast::Describe::Query(query) => planner.plan_query(query)?,
                     ast::Describe::FromNode(from) => {
-                        planner.plan_from_node(from, FromScope::empty())?
+                        planner.plan_from_node(from, Scope::empty())?
                     }
                 };
 
@@ -156,7 +156,7 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: LogicalOperator::Describe(Describe { schema }),
-                    scope: FromScope::with_columns(None, ["column_name", "datatype"]),
+                    scope: Scope::with_columns(None, ["column_name", "datatype"]),
                 })
             }
         }
@@ -202,7 +202,7 @@ impl<'a> PlanContext<'a> {
                         name,
                         options,
                     }),
-                    scope: FromScope::empty(),
+                    scope: Scope::empty(),
                 })
             }
             ast::AttachType::Table => Err(RayexecError::new("Attach tables not yet supported")),
@@ -222,7 +222,7 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: LogicalOperator::DetachDatabase(DetachDatabase { name }),
-                    scope: FromScope::empty(),
+                    scope: Scope::empty(),
                 })
             }
             ast::AttachType::Table => Err(RayexecError::new("Detach tables not yet supported")),
@@ -248,7 +248,7 @@ impl<'a> PlanContext<'a> {
                 table: entry,
                 input: Box::new(source.root),
             }),
-            scope: FromScope::empty(),
+            scope: Scope::empty(),
         })
     }
 
@@ -272,7 +272,7 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: plan,
-                    scope: FromScope::empty(),
+                    scope: Scope::empty(),
                 })
             }
             _other => unimplemented!(),
@@ -294,7 +294,7 @@ impl<'a> PlanContext<'a> {
                 name: schema,
                 on_conflict,
             }),
-            scope: FromScope::empty(),
+            scope: Scope::empty(),
         })
     }
 
@@ -368,7 +368,7 @@ impl<'a> PlanContext<'a> {
                 on_conflict,
                 input,
             }),
-            scope: FromScope::empty(),
+            scope: Scope::empty(),
         })
     }
 }

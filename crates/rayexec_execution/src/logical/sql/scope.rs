@@ -37,6 +37,21 @@ pub struct TableReference {
     pub table: String,
 }
 
+impl TableReference {
+    fn matches(&self, other: &TableReference) -> bool {
+        match (&self.database, &other.database) {
+            (Some(a), Some(b)) if a != b => return false,
+            _ => (),
+        }
+        match (&self.schema, &other.schema) {
+            (Some(a), Some(b)) if a != b => return false,
+            _ => (),
+        }
+
+        self.table == other.table
+    }
+}
+
 impl fmt::Display for TableReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(database) = &self.database {
@@ -66,15 +81,15 @@ pub struct ScopeColumn {
 
 /// Provides a scope items introduced in the FROM clause of a query.
 #[derive(Debug, Clone)]
-pub struct FromScope {
+pub struct Scope {
     /// Items in scope.
     pub items: Vec<ScopeColumn>,
 }
 
-impl FromScope {
+impl Scope {
     /// Create a new empty scope.
     pub const fn empty() -> Self {
-        FromScope { items: Vec::new() }
+        Scope { items: Vec::new() }
     }
 
     /// Create a new scope with the given columns for a table.
@@ -83,7 +98,7 @@ impl FromScope {
         S: Into<String>,
         I: IntoIterator<Item = S>,
     {
-        let mut scope = FromScope::empty();
+        let mut scope = Scope::empty();
         scope.add_columns(alias, columns);
         scope
     }
@@ -113,11 +128,11 @@ impl FromScope {
     /// exists no columns.
     pub fn resolve_column(
         &self,
-        outer: &[FromScope],
-        _table: Option<&TableReference>,
+        outer: &[Scope],
+        table: Option<&TableReference>,
         column: &str,
     ) -> Result<Option<ColumnRef>> {
-        if let Some(idx) = self.column_index(None, column)? {
+        if let Some(idx) = self.column_index(table, column)? {
             // Column found in this scope.
             return Ok(Some(ColumnRef {
                 scope_level: 0,
@@ -127,7 +142,7 @@ impl FromScope {
 
         // Search outer scopes.
         for (scope_level, scope) in outer.iter().enumerate() {
-            if let Some(idx) = scope.column_index(None, column)? {
+            if let Some(idx) = scope.column_index(table, column)? {
                 // Column found in outer scope.
                 return Ok(Some(ColumnRef {
                     scope_level: scope_level + 1,
@@ -148,11 +163,8 @@ impl FromScope {
     ///
     /// Errors if multiple columns with the same name are found.
     fn column_index(&self, alias: Option<&TableReference>, column: &str) -> Result<Option<usize>> {
-        // TODO: This should return true when the scoped column is like
-        // 'catalog.schema.table.col', but the request for resolving a column is
-        // only 'schema.table.col'.
         let pred = |item: &ScopeColumn| match (alias, &item.alias) {
-            (Some(alias), Some(item_alias)) => item_alias == alias && item.column == column,
+            (Some(alias), Some(item_alias)) => alias.matches(item_alias) && item.column == column,
             (Some(_), None) => false,
             (None, _) => item.column == column,
         };
@@ -175,7 +187,7 @@ impl FromScope {
     /// Merge another scope into this one.
     ///
     /// Errors on duplicate table aliases.
-    pub fn merge(mut self, mut right: FromScope) -> Result<Self> {
+    pub fn merge(mut self, mut right: Scope) -> Result<Self> {
         let left_aliases: HashSet<_> = self.table_aliases_iter().collect();
         for alias in right.table_aliases_iter() {
             if left_aliases.contains(alias) {
