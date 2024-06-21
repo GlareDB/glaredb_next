@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::logical::{
+    expr::LogicalExpression,
     grouping_set::GroupingSets,
-    operator::{Aggregate, LogicalExpression, LogicalOperator, Projection},
+    operator::{Aggregate, LogicalOperator, Projection},
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;

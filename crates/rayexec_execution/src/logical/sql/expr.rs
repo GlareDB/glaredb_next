@@ -14,7 +14,7 @@ use crate::expr::scalar::{
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
-use crate::logical::operator::LogicalExpression;
+use crate::logical::expr::LogicalExpression;
 
 use super::query::QueryNodePlanner;
 use super::{

@@ -19,7 +19,7 @@ use std::{
     vec,
 };
 
-use crate::logical::operator::LogicalExpression;
+use crate::logical::expr::LogicalExpression;
 
 use super::FunctionInfo;
 

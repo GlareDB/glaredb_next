@@ -8,9 +8,10 @@ use super::{
     scope::{ColumnRef, Scope, TableReference},
     subquery::SubqueryPlanner,
 };
+use crate::logical::expr::LogicalExpression;
 use crate::logical::operator::{
-    AnyJoin, CrossJoin, ExpressionList, Filter, JoinType, Limit, LogicalExpression,
-    LogicalOperator, Order, OrderByExpr, Projection, Scan, TableFunction,
+    AnyJoin, CrossJoin, ExpressionList, Filter, JoinType, Limit, LogicalOperator, Order,
+    OrderByExpr, Projection, Scan, TableFunction,
 };
 use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};

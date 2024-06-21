@@ -12,7 +12,7 @@ use crate::{
         invalid_input_types_error, plan_check_num_args,
         scalar::macros::primitive_unary_execute_bool, FunctionInfo, Signature,
     },
-    logical::{consteval::ConstEval, operator::LogicalExpression},
+    logical::{consteval::ConstEval, expr::LogicalExpression},
 };
 
 use super::{comparison::EqImpl, PlannedScalarFunction, ScalarFunction};

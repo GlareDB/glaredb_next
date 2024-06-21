@@ -15,7 +15,7 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::logical::operator::LogicalExpression;
+use crate::logical::expr::LogicalExpression;
 
 use super::FunctionInfo;
 

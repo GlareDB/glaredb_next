@@ -1,7 +1,7 @@
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 
-use crate::logical::operator::LogicalExpression;
+use crate::logical::expr::LogicalExpression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FoldedExpression {

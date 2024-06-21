@@ -14,11 +14,12 @@ use crate::{
     },
     engine::vars::SessionVars,
     logical::{
+        expr::LogicalExpression,
         operator::{
             AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
             DetachDatabase, DropEntry, Explain, ExplainFormat, ExpressionList, Filter, Insert,
-            JoinType, Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection,
-            ResetVar, Scan, SetVar, ShowVar, TableFunction, VariableOrAll,
+            JoinType, Limit, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan,
+            SetVar, ShowVar, TableFunction, VariableOrAll,
         },
         sql::query::QueryNodePlanner,
     },

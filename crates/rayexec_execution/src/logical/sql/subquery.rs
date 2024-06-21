@@ -1,9 +1,8 @@
 use crate::{
     expr::scalar::{BinaryOperator, PlannedBinaryOperator},
     functions::aggregate::count::CountNonNullImpl,
-    logical::operator::{
-        Aggregate, CrossJoin, Limit, LogicalExpression, LogicalOperator, Projection,
-    },
+    logical::expr::LogicalExpression,
+    logical::operator::{Aggregate, CrossJoin, Limit, LogicalOperator, Projection},
 };
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
 use rayexec_error::Result;
