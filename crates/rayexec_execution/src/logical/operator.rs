@@ -17,6 +17,7 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 pub trait LogicalNode {
     /// Get the output type schema of the operator.

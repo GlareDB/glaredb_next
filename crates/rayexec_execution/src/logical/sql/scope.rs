@@ -4,7 +4,8 @@ use std::collections::HashSet;
 use std::fmt;
 use std::hash::Hash;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Reference to a column in some scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ColumnRef {
     /// Scope level for where this column exists.
     ///

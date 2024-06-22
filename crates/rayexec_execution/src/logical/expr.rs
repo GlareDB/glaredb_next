@@ -386,12 +386,16 @@ impl LogicalExpression {
         Ok(())
     }
 
-    fn walk_mut_many<F1, F2>(exprs: &mut [Self], pre: &mut F1, post: &mut F2) -> Result<()>
+    pub fn walk_mut_many<'a, F1, F2>(
+        exprs: impl IntoIterator<Item = &'a mut Self>,
+        pre: &mut F1,
+        post: &mut F2,
+    ) -> Result<()>
     where
         F1: FnMut(&mut LogicalExpression) -> Result<()>,
         F2: FnMut(&mut LogicalExpression) -> Result<()>,
     {
-        for expr in exprs.iter_mut() {
+        for expr in exprs {
             expr.walk_mut(pre, post)?;
         }
         Ok(())
