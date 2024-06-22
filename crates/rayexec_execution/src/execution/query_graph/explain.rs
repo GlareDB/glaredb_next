@@ -96,6 +96,12 @@ impl ExplainNode {
                     Self::walk_logical(&p.right, conf),
                 ]
             }
+            LogicalOperator::DependentJoin(p) => {
+                vec![
+                    Self::walk_logical(&p.left, conf),
+                    Self::walk_logical(&p.right, conf),
+                ]
+            }
             LogicalOperator::Limit(p) => vec![Self::walk_logical(&p.input, conf)],
             LogicalOperator::CreateTableAs(p) => vec![Self::walk_logical(&p.input, conf)],
             LogicalOperator::Insert(p) => vec![Self::walk_logical(&p.input, conf)],

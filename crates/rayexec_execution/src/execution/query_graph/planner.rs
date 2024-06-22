@@ -179,6 +179,9 @@ impl BuildState {
             LogicalOperator::CrossJoin(join) => self.push_cross_join(conf, join),
             LogicalOperator::AnyJoin(join) => self.push_any_join(conf, join),
             LogicalOperator::EqualityJoin(join) => self.push_equality_join(conf, join),
+            LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
+                "Dependent joins cannot be made into a physical pipeline",
+            )),
             LogicalOperator::Empty => self.push_empty(conf),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
             LogicalOperator::Limit(limit) => self.push_limit(conf, limit),

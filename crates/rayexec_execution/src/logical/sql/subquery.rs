@@ -1,11 +1,15 @@
 use crate::{
     expr::scalar::{BinaryOperator, PlannedBinaryOperator},
     functions::aggregate::count::CountNonNullImpl,
-    logical::expr::LogicalExpression,
-    logical::operator::{Aggregate, CrossJoin, Limit, LogicalOperator, Projection},
+    logical::{
+        expr::{LogicalExpression, Subquery},
+        operator::{Aggregate, CrossJoin, Limit, LogicalOperator, Projection},
+    },
 };
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
 use rayexec_error::Result;
+
+use super::scope::ColumnRef;
 
 /// Logic for flattening and planning subqueries.
 #[derive(Debug, Clone, Copy)]
@@ -52,9 +56,9 @@ impl SubqueryPlanner {
         let mut num_cols = schema.types.len();
 
         expr.walk_mut_post(&mut |expr| {
-            if expr.is_subquery() {
+            if let LogicalExpression::Subquery(subquery) = expr {
                 // TODO: Correlated check
-                self.plan_uncorrelated(expr, input, num_cols)?;
+                *expr = self.plan_uncorrelated(subquery, input, num_cols)?;
                 num_cols += 1;
             }
             Ok(())
@@ -74,29 +78,26 @@ impl SubqueryPlanner {
 
     /// Plans a single uncorrelated subquery expression.
     ///
-    /// The subquery will be flattened into the original input operator.
+    /// The subquery will be flattened into the original input operator, and a
+    /// new expression will be returned referencing the flattened result.
     ///
     /// `input_columns` is the number of columns that `input` will originally
     /// produce.
     fn plan_uncorrelated(
         &self,
-        expr: &mut LogicalExpression,
+        subquery: &mut Subquery,
         input: &mut LogicalOperator,
         input_columns: usize,
-    ) -> Result<()> {
-        match expr {
-            expr @ LogicalExpression::Subquery(_) => {
+    ) -> Result<LogicalExpression> {
+        let root = subquery.take_root();
+        match subquery {
+            Subquery::Scalar { .. } => {
                 // Normal subquery.
                 //
                 // Cross join the subquery with the original input, replace
                 // the subquery expression with a reference to the new
                 // column.
                 let column_ref = LogicalExpression::new_column(input_columns);
-                let orig = std::mem::replace(expr, column_ref);
-                let subquery = match orig {
-                    LogicalExpression::Subquery(e) => e,
-                    _ => unreachable!(),
-                };
 
                 // TODO: We should check that the subquery produces one
                 // column around here.
@@ -105,7 +106,7 @@ impl SubqueryPlanner {
                 let subquery = LogicalOperator::Limit(Limit {
                     offset: None,
                     limit: 1,
-                    input: subquery,
+                    input: root,
                 });
 
                 let orig_input = Box::new(std::mem::replace(input, LogicalOperator::Empty));
@@ -113,8 +114,10 @@ impl SubqueryPlanner {
                     left: orig_input,
                     right: Box::new(subquery),
                 });
+
+                Ok(column_ref)
             }
-            expr @ LogicalExpression::Exists { .. } => {
+            Subquery::Exists { negated, .. } => {
                 // Exists subquery.
                 //
                 // EXISTS -> COUNT(*) == 1
@@ -123,20 +126,8 @@ impl SubqueryPlanner {
                 // Cross join with existing input. Replace original subquery expression
                 // with reference to new column.
 
-                let (subquery, not_exists) = match expr {
-                    LogicalExpression::Exists {
-                        not_exists,
-                        subquery,
-                    } => {
-                        let subquery =
-                            std::mem::replace(subquery, Box::new(LogicalOperator::Empty));
-                        (subquery, not_exists)
-                    }
-                    _ => unreachable!("variant checked in outer match"),
-                };
-
-                *expr = LogicalExpression::Binary {
-                    op: if *not_exists {
+                let expr = LogicalExpression::Binary {
+                    op: if *negated {
                         PlannedBinaryOperator {
                             op: BinaryOperator::NotEq,
                             scalar: BinaryOperator::NotEq
@@ -176,7 +167,7 @@ impl SubqueryPlanner {
                             exprs: vec![LogicalExpression::Literal(OwnedScalarValue::Boolean(
                                 true,
                             ))],
-                            input: subquery,
+                            input: root,
                         })),
                     })),
                 });
@@ -186,9 +177,10 @@ impl SubqueryPlanner {
                     left: orig_input,
                     right: Box::new(subquery),
                 });
+
+                Ok(expr)
             }
-            _ => (),
+            Subquery::Any { .. } => unimplemented!(),
         }
-        Ok(())
     }
 }

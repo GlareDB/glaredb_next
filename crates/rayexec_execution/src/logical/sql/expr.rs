@@ -14,7 +14,7 @@ use crate::expr::scalar::{
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
-use crate::logical::expr::LogicalExpression;
+use crate::logical::expr::{LogicalExpression, Subquery};
 
 use super::query::QueryNodePlanner;
 use super::{
@@ -252,7 +252,9 @@ impl<'a> ExpressionContext<'a> {
                 let subquery = nested.plan_query(*subquery)?;
                 // We can ignore scope, as it's only relevant to planning of the
                 // subquery, which is complete.
-                Ok(LogicalExpression::Subquery(Box::new(subquery.root)))
+                Ok(LogicalExpression::Subquery(Subquery::Scalar {
+                    root: Box::new(subquery.root),
+                }))
             }
             ast::Expr::Exists {
                 subquery,
@@ -260,10 +262,10 @@ impl<'a> ExpressionContext<'a> {
             } => {
                 let mut nested = self.planner.nested(self.scope.clone());
                 let subquery = nested.plan_query(*subquery)?;
-                Ok(LogicalExpression::Exists {
-                    not_exists,
-                    subquery: Box::new(subquery.root),
-                })
+                Ok(LogicalExpression::Subquery(Subquery::Exists {
+                    root: Box::new(subquery.root),
+                    negated: not_exists,
+                }))
             }
             ast::Expr::Nested(expr) => self.plan_expression(*expr),
             ast::Expr::TypedString { datatype, value } => {

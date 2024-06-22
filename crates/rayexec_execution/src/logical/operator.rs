@@ -39,6 +39,7 @@ pub enum LogicalOperator {
     AnyJoin(AnyJoin),
     EqualityJoin(EqualityJoin),
     CrossJoin(CrossJoin),
+    DependentJoin(DependentJoin),
     Limit(Limit),
     Scan(Scan),
     TableFunction(TableFunction),
@@ -72,6 +73,7 @@ impl LogicalOperator {
             Self::AnyJoin(n) => n.output_schema(outer),
             Self::EqualityJoin(n) => n.output_schema(outer),
             Self::CrossJoin(n) => n.output_schema(outer),
+            Self::DependentJoin(n) => n.output_schema(outer),
             Self::Limit(n) => n.output_schema(outer),
             Self::Scan(n) => n.output_schema(outer),
             Self::TableFunction(n) => n.output_schema(outer),
@@ -151,6 +153,15 @@ impl LogicalOperator {
                 p.right.walk_mut(pre, post)?;
                 post(&mut p.right)?;
             }
+            LogicalOperator::DependentJoin(p) => {
+                pre(&mut p.left)?;
+                p.left.walk_mut(pre, post)?;
+                post(&mut p.left)?;
+
+                pre(&mut p.right)?;
+                p.right.walk_mut(pre, post)?;
+                post(&mut p.right)?;
+            }
             LogicalOperator::AnyJoin(p) => {
                 pre(&mut p.left)?;
                 p.left.walk_mut(pre, post)?;
@@ -220,6 +231,7 @@ impl Explainable for LogicalOperator {
             Self::AnyJoin(p) => p.explain_entry(conf),
             Self::EqualityJoin(p) => p.explain_entry(conf),
             Self::CrossJoin(p) => p.explain_entry(conf),
+            Self::DependentJoin(p) => p.explain_entry(conf),
             Self::Limit(p) => p.explain_entry(conf),
             Self::Scan(p) => p.explain_entry(conf),
             Self::TableFunction(p) => p.explain_entry(conf),
@@ -421,6 +433,29 @@ impl LogicalNode for CrossJoin {
 impl Explainable for CrossJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CrossJoin")
+    }
+}
+
+/// A join where columns from the left side of the join depend on columns on the
+/// right.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DependentJoin {
+    pub left: Box<LogicalOperator>,
+    pub right: Box<LogicalOperator>,
+    pub on: LogicalExpression,
+}
+
+impl LogicalNode for DependentJoin {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        let left = self.left.output_schema(outer)?;
+        let right = self.right.output_schema(outer)?;
+        Ok(left.merge(right))
+    }
+}
+
+impl Explainable for DependentJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("DependentJoin")
     }
 }
 

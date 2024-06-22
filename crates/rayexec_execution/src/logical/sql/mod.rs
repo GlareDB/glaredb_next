@@ -33,6 +33,7 @@ pub mod planner;
 pub mod scope;
 
 mod aggregate;
+mod decorrelate;
 mod expr;
 mod query;
 mod subquery;

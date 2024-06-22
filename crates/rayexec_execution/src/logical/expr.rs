@@ -10,6 +10,40 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
+/// Types of subqueries that can exist in expressions.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Subquery {
+    /// Scalar subquery
+    Scalar { root: Box<LogicalOperator> },
+    /// An EXISTS subquery, possibly negated.
+    Exists {
+        root: Box<LogicalOperator>,
+        negated: bool,
+    },
+    /// An ANY or IN subquery.
+    Any { root: Box<LogicalOperator> },
+}
+
+impl Subquery {
+    /// Takes the operator root for the subquery, replacing it with an empty
+    /// operator.
+    pub fn take_root(&mut self) -> Box<LogicalOperator> {
+        match self {
+            Self::Scalar { root } => std::mem::replace(root, Box::new(LogicalOperator::Empty)),
+            Self::Exists { root, .. } => std::mem::replace(root, Box::new(LogicalOperator::Empty)),
+            Self::Any { root } => std::mem::replace(root, Box::new(LogicalOperator::Empty)),
+        }
+    }
+
+    pub fn get_root_mut(&mut self) -> &mut LogicalOperator {
+        match self {
+            Self::Scalar { root } => root,
+            Self::Exists { root, .. } => root,
+            Self::Any { root } => root,
+        }
+    }
+}
+
 /// An expression that can exist in a logical plan.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalExpression {
@@ -65,14 +99,8 @@ pub enum LogicalExpression {
         filter: Option<Box<LogicalExpression>>,
     },
 
-    /// A scalar subquery.
-    Subquery(Box<LogicalOperator>),
-
-    /// An exists/not exists subquery.
-    Exists {
-        not_exists: bool,
-        subquery: Box<LogicalOperator>,
-    },
+    /// A subquery.
+    Subquery(Subquery),
 
     /// Case expressions.
     Case {
@@ -130,7 +158,6 @@ impl fmt::Display for LogicalExpression {
                 Ok(())
             }
             Self::Subquery(_) => write!(f, "SUBQUERY TODO"),
-            Self::Exists { .. } => write!(f, "EXISTS TODO"),
             Self::Case { .. } => write!(f, "CASE TODO"),
         }
     }
@@ -181,25 +208,33 @@ impl LogicalExpression {
             LogicalExpression::Aggregate { agg, .. } => agg.return_type(),
             LogicalExpression::Unary { op, .. } => op.scalar.return_type(),
             LogicalExpression::Binary { op, .. } => op.scalar.return_type(),
-            LogicalExpression::Subquery(subquery) => {
-                // TODO: Do we just need outer, or do we want current + outer?
-                let mut schema = subquery.output_schema(outer)?;
-                match schema.types.len() {
-                    1 => schema.types.pop().unwrap(),
-                    other => {
-                        return Err(RayexecError::new(format!(
-                            "Scalar subqueries should return 1 value, got {other}",
-                        )))
+            LogicalExpression::Subquery(subquery) => match subquery {
+                Subquery::Scalar { root } => {
+                    // TODO: Do we just need outer, or do we want current + outer?
+                    let mut schema = root.output_schema(outer)?;
+                    match schema.types.len() {
+                        1 => schema.types.pop().unwrap(),
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Scalar subqueries should return 1 value, got {other}",
+                            )))
+                        }
                     }
                 }
-            }
+                Subquery::Any { .. } | Subquery::Exists { .. } => DataType::Boolean,
+            },
             _ => unimplemented!(),
         })
     }
 
     /// Checks if this expression has a subquery component.
     pub fn is_subquery(&self) -> bool {
-        matches!(self, Self::Subquery(_) | Self::Exists { .. })
+        matches!(self, Self::Subquery(_))
+    }
+
+    /// Checks if this expressions contains a reference to an outer scope.
+    pub fn is_correlated(&self) -> bool {
+        unimplemented!()
     }
 
     /// Checks if this is a constant expression.
@@ -214,7 +249,6 @@ impl LogicalExpression {
             Self::Variadic { exprs, .. } => exprs.iter().all(|expr| expr.is_constant()),
             Self::Aggregate { inputs, .. } => inputs.iter().all(|expr| expr.is_constant()),
             Self::Subquery(_) => false,
-            Self::Exists { .. } => false,
             Self::Case { .. } => false,
         }
     }
@@ -269,6 +303,7 @@ impl LogicalExpression {
                 LogicalOperator::AnyJoin(p) => p.on.walk_mut(pre, post)?,
                 LogicalOperator::EqualityJoin(_) => (),
                 LogicalOperator::CrossJoin(_) => (),
+                LogicalOperator::DependentJoin(_) => (),
                 LogicalOperator::Limit(_) => (),
                 LogicalOperator::Scan(_) => (),
                 LogicalOperator::TableFunction(_) => (),
@@ -337,10 +372,12 @@ impl LogicalExpression {
                 }
             }
             Self::ColumnRef(_) | Self::Literal(_) => (),
-            Self::Subquery(subquery) | Self::Exists { subquery, .. } => {
+            Self::Subquery(subquery) => {
                 // We only care about the expressions in the plan, so it's
                 // sufficient to walk the operators only once on the way down.
-                subquery.walk_mut_pre(&mut |plan| walk_subquery(plan, pre, post))?;
+                subquery
+                    .get_root_mut()
+                    .walk_mut_pre(&mut |plan| walk_subquery(plan, pre, post))?;
             }
             Self::Case { .. } => unimplemented!(),
         }
