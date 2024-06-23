@@ -481,16 +481,26 @@ impl Explainable for Limit {
 pub struct MaterializedScan {
     /// Index of the materialized plan in the query context.
     pub idx: usize,
+
+    /// Compute type schema of the underlying materialized plan.
+    // TODO: This currently exists on the operator to avoid needing to pass the
+    // QueryContext into `output_schema`. I actually think storing the schema is
+    // preferred to what we're currently doing where we compute it every time,
+    // but everything else needs to change in order to make it all consistent.
+    //
+    // I also believe that we can remove the `outer` stuff with my current plan
+    // for subqueries, but that's stil tbd.
+    pub schema: TypeSchema,
 }
 
 impl LogicalNode for MaterializedScan {
-    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
-        unimplemented!()
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(self.schema.clone())
     }
 }
 
 impl Explainable for MaterializedScan {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MaterializedScan").with_value("idx", &self.idx)
     }
 }

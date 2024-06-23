@@ -1,0 +1,21 @@
+# Materialized CTEs
+
+query I
+with cte1 as materialized (select 4) select * from cte1;
+----
+4
+
+# Multiple uses
+query II
+with cte1 as materialized (select 4 as a) select * from cte1 as t1, cte1 as t2;
+----
+4  4
+
+# Materialized call to random(). Multiple scans of the cte should result in the
+# same value. Compare this with the cte test in random.slt.
+query B
+with rand_cte as materialized (select random())
+  select a == b
+  from rand_cte t1(a), rand_cte t2(b);
+----
+true

@@ -14,6 +14,7 @@ use crate::expr::scalar::{
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
+use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
 use super::query::QueryNodePlanner;
@@ -160,13 +161,17 @@ impl<'a> ExpressionContext<'a> {
     }
 
     /// Converts an AST expression to a logical expression.
-    pub fn plan_expression(&self, expr: ast::Expr<Bound>) -> Result<LogicalExpression> {
+    pub fn plan_expression(
+        &self,
+        context: &mut QueryContext,
+        expr: ast::Expr<Bound>,
+    ) -> Result<LogicalExpression> {
         match expr {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
             ast::Expr::Literal(literal) => Self::plan_literal(literal),
             ast::Expr::UnaryExpr { op, expr } => {
-                let expr = self.plan_expression(*expr)?;
+                let expr = self.plan_expression(context, *expr)?;
                 let op = match op {
                     ast::UnaryOperator::Plus => return Ok(expr), // Nothing to do.
                     ast::UnaryOperator::Minus => UnaryOperator::Negate,
@@ -184,8 +189,8 @@ impl<'a> ExpressionContext<'a> {
             }
             ast::Expr::BinaryExpr { left, op, right } => {
                 let op = BinaryOperator::try_from(op)?;
-                let left = self.plan_expression(*left)?;
-                let right = self.plan_expression(*right)?;
+                let left = self.plan_expression(context, *left)?;
+                let right = self.plan_expression(context, *right)?;
 
                 let mut inputs =
                     self.apply_casts_for_scalar_function(op.scalar_function(), vec![left, right])?;
@@ -209,7 +214,9 @@ impl<'a> ExpressionContext<'a> {
                     .into_iter()
                     .map(|arg| match arg {
                         ast::FunctionArg::Unnamed { arg } => match arg {
-                            ast::FunctionArgExpr::Expr(expr) => Ok(self.plan_expression(expr)?),
+                            ast::FunctionArgExpr::Expr(expr) => {
+                                Ok(self.plan_expression(context, expr)?)
+                            }
                             ast::FunctionArgExpr::Wildcard => {
                                 // Binder should have handled removing '*' from
                                 // function calls.
@@ -249,13 +256,7 @@ impl<'a> ExpressionContext<'a> {
             }
             ast::Expr::Subquery(subquery) => {
                 let mut nested = self.planner.nested(self.scope.clone());
-                let subquery = nested.plan_query(*subquery)?;
-
-                if !subquery.context.materialized.is_empty() {
-                    return Err(RayexecError::new(
-                        "Query context merging not yet implemented",
-                    ));
-                }
+                let subquery = nested.plan_query(context, *subquery)?;
 
                 // We can ignore scope, as it's only relevant to planning of the
                 // subquery, which is complete.
@@ -268,20 +269,14 @@ impl<'a> ExpressionContext<'a> {
                 not_exists,
             } => {
                 let mut nested = self.planner.nested(self.scope.clone());
-                let subquery = nested.plan_query(*subquery)?;
-
-                if !subquery.context.materialized.is_empty() {
-                    return Err(RayexecError::new(
-                        "Query context merging not yet implemented",
-                    ));
-                }
+                let subquery = nested.plan_query(context, *subquery)?;
 
                 Ok(LogicalExpression::Subquery(Subquery::Exists {
                     root: Box::new(subquery.root),
                     negated: not_exists,
                 }))
             }
-            ast::Expr::Nested(expr) => self.plan_expression(*expr),
+            ast::Expr::Nested(expr) => self.plan_expression(context, *expr),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.into());
                 // TODO: Add this back. Currently doing this to avoid having to
@@ -294,7 +289,7 @@ impl<'a> ExpressionContext<'a> {
                 })
             }
             ast::Expr::Cast { datatype, expr } => {
-                let expr = self.plan_expression(*expr)?;
+                let expr = self.plan_expression(context, *expr)?;
                 Ok(LogicalExpression::Cast {
                     to: datatype,
                     expr: Box::new(expr),
@@ -310,7 +305,7 @@ impl<'a> ExpressionContext<'a> {
                         "Leading unit in interval not yet supported",
                     ));
                 }
-                let expr = self.plan_expression(*value)?;
+                let expr = self.plan_expression(context, *value)?;
 
                 match trailing {
                     Some(trailing) => {
@@ -381,8 +376,8 @@ impl<'a> ExpressionContext<'a> {
                     unimplemented!()
                 }
 
-                let expr = self.plan_expression(*expr)?;
-                let pattern = self.plan_expression(*pattern)?;
+                let expr = self.plan_expression(context, *expr)?;
+                let pattern = self.plan_expression(context, *pattern)?;
 
                 let scalar = like::Like.plan_from_expressions(&[&expr, &pattern], &self.input)?;
 
@@ -406,6 +401,7 @@ impl<'a> ExpressionContext<'a> {
     /// column will take precedence.
     pub fn plan_expression_with_select_list(
         &self,
+        context: &mut QueryContext,
         alias_map: &HashMap<String, usize>,
         planned: &[LogicalExpression],
         expr: ast::Expr<Bound>,
@@ -435,7 +431,7 @@ impl<'a> ExpressionContext<'a> {
                     Err(e)
                 }
             },
-            other => self.plan_expression(other),
+            other => self.plan_expression(context, other),
         }
     }
 

@@ -4,6 +4,7 @@ pub mod comparison;
 pub mod like;
 pub mod negate;
 pub mod numeric;
+pub mod random;
 pub mod string;
 pub mod struct_funcs;
 
@@ -50,6 +51,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(struct_funcs::StructPack),
         // Unary
         Box::new(negate::Negate),
+        // Random
+        Box::new(random::Random),
     ]
 });
 
@@ -121,6 +124,10 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     fn return_type(&self) -> DataType;
 
     /// Execution the function array inputs.
+    ///
+    /// For functions that accept no input (e.g. random), an array of length one
+    /// should be returned. During evaluation, this one element array will be
+    /// extended to be of the appropriate size.
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
 }
 

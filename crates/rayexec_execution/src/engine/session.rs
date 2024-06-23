@@ -122,7 +122,8 @@ impl Session {
         )
         .bind_statement(stmt)
         .await?;
-        let mut logical = PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
+        let (mut logical, context) =
+            PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
 
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
@@ -188,7 +189,7 @@ impl Session {
                 }
                 planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
             }
-            root => planner.create_graph(root, logical.context, query_sink)?,
+            root => planner.create_graph(root, context, query_sink)?,
         };
 
         self.runtime

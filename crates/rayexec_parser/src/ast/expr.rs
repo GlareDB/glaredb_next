@@ -601,8 +601,13 @@ impl Expr<Raw> {
                 return Err(RayexecError::new("Cannot have wildcard function call"));
             }
 
-            let args = parser.parse_comma_separated(FunctionArg::parse)?;
-            parser.expect_token(&Token::RightParen)?;
+            let args = if parser.consume_token(&Token::RightParen) {
+                Vec::new()
+            } else {
+                let args = parser.parse_comma_separated(FunctionArg::parse)?;
+                parser.expect_token(&Token::RightParen)?;
+                args
+            };
 
             // FILTER (WHERE <expr>)
             let filter = if parser.parse_keyword(Keyword::FILTER) {
@@ -809,6 +814,17 @@ mod tests {
             args: vec![FunctionArg::Unnamed {
                 arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("my_col"))),
             }],
+            filter: None,
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn function_call_no_args() {
+        let expr: Expr<_> = parse_ast("random()").unwrap();
+        let expected = Expr::Function(Function {
+            reference: ObjectReference(vec![Ident::from_string("random")]),
+            args: Vec::new(),
             filter: None,
         });
         assert_eq!(expected, expr);

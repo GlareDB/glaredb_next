@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::logical::{
+    context::QueryContext,
     expr::LogicalExpression,
     grouping_set::GroupingSets,
     operator::{Aggregate, LogicalOperator, Projection},
@@ -24,6 +25,7 @@ impl AggregatePlanner {
     /// modified to point to the result of `AVG(a)`.
     pub fn plan(
         &self,
+        context: &mut QueryContext,
         expr_ctx: ExpressionContext,
         select_list: &mut [LogicalExpression],
         alias_map: &HashMap<String, usize>,
@@ -85,7 +87,12 @@ impl AggregatePlanner {
                     let exprs = ast_exprs
                         .into_iter()
                         .map(|expr| {
-                            expr_ctx.plan_expression_with_select_list(alias_map, select_list, expr)
+                            expr_ctx.plan_expression_with_select_list(
+                                context,
+                                alias_map,
+                                select_list,
+                                expr,
+                            )
                         })
                         .collect::<Result<Vec<_>>>()?;
 

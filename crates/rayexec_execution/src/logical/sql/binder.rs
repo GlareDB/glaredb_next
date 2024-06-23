@@ -70,7 +70,7 @@ impl BoundFunctionReference {
 ///
 /// Note that this doesn't hold the CTE itself since it may be referenced more
 /// than once in a query.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoundCteReference {
     /// Index into the CTE map.
     pub idx: usize,

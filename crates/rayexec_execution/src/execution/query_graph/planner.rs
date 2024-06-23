@@ -126,17 +126,48 @@ impl<'a> QueryGraphPlanner<'a> {
         let mut build_state = BuildState::new();
 
         // Build materialized plans first.
-        build_state.plan_materialized(&self.conf, context)?;
+        let mut materializations = build_state.plan_materializations(&self.conf, context)?;
         // Plan the rest.
-        build_state.walk(&self.conf, plan)?;
+        build_state.walk(&self.conf, &mut materializations, plan)?;
         // Finish everything off with the final results sink.
         build_state.push_query_sink(&self.conf, sink)?;
 
         assert!(build_state.in_progress.is_none());
+        assert!(
+            !materializations.has_remaining_pipelines(),
+            "remaining pipelines in materializations: {materializations:?}"
+        );
 
         let pipelines = build_state.completed;
 
         Ok(QueryGraph { pipelines })
+    }
+}
+
+#[derive(Debug, Default)]
+struct Materializations {
+    /// Source pipelines for `MaterializeScan` operators.
+    ///
+    /// Key corresponds to the index of the materialized plan in the
+    /// QueryContext. Since multiple pipelines can read from the same
+    /// materialization, each key has a vec of pipelines that we take from.
+    materialize_sources: HashMap<usize, Vec<Pipeline>>,
+}
+
+impl Materializations {
+    /// Checks if there's any pipelines still in the map.
+    ///
+    /// This is used as a debugging check. After planning the entire query, all
+    /// pending pipelines should have been consumed. If there's still pipelines,
+    /// that means we're not accuratately tracking the number of materialized
+    /// scans.
+    fn has_remaining_pipelines(&self) -> bool {
+        for pipelines in self.materialize_sources.values() {
+            if !pipelines.is_empty() {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -163,13 +194,6 @@ struct BuildState {
     /// Completed pipelines.
     completed: Vec<Pipeline>,
 
-    /// Source pipelines for `MaterializeScan` operators.
-    ///
-    /// Key corresponds to the index of the materialized plan in the
-    /// QueryContext. Since multiple pipelines can read from the same
-    /// materialization, each key has a vec of pipelines that we take from.
-    materialize_sources: HashMap<usize, Vec<Pipeline>>,
-
     /// Next id to use for new pipelines in the graph.
     next_pipeline_id: PipelineId,
 }
@@ -179,14 +203,13 @@ impl BuildState {
         BuildState {
             in_progress: None,
             completed: Vec::new(),
-            materialize_sources: HashMap::new(),
             next_pipeline_id: PipelineId(0),
         }
     }
 
     /// Plans all materialized logical plans in the query context.
     ///
-    /// For each materialize plan, this will do things:
+    /// For each materialize plan, this will do two things:
     ///
     /// 1. Build the complete pipeline representing a plan whose sink will be a
     ///    PhysicalMaterialize. This pipeline will be placed in `completed`.
@@ -195,10 +218,20 @@ impl BuildState {
     ///    `materialize_sources`. When we reach a MaterializeScan during
     ///    planning, we will take the corresponding pipeline from
     ///    `materialize_sources` and build on top of that.
-    fn plan_materialized(&mut self, conf: &BuildConfig, context: QueryContext) -> Result<()> {
+    ///
+    /// A materialized plan may depend on earlier materialized plans. What gets
+    /// returned is the set of materializations that should be used in the rest
+    /// of the plan.
+    fn plan_materializations(
+        &mut self,
+        conf: &BuildConfig,
+        context: QueryContext,
+    ) -> Result<Materializations> {
+        let mut materializations = Materializations::default();
+
         for materialized in context.materialized {
             // Generate the pipeline(s) for this plan.
-            self.walk(conf, materialized.root)?;
+            self.walk(conf, &mut materializations, materialized.root)?;
 
             // Finish off the pipeline with a PhysicalMaterialize as the sink.
             let mut pipeline = self.in_progress.take().ok_or_else(|| {
@@ -237,41 +270,50 @@ impl BuildState {
                 partial_pipelines.push(pipeline);
             }
 
-            let existing = self
+            let existing = materializations
                 .materialize_sources
                 .insert(materialized.idx, partial_pipelines);
             assert!(existing.is_none());
         }
 
-        Ok(())
+        Ok(materializations)
     }
 
     /// Walk a logical plan, creating pipelines along the way.
     ///
     /// Pipeline creation is done in a depth-first approach.
-    fn walk(&mut self, conf: &BuildConfig, plan: LogicalOperator) -> Result<()> {
+    fn walk(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        plan: LogicalOperator,
+    ) -> Result<()> {
         match plan {
-            LogicalOperator::Projection(proj) => self.push_project(conf, proj),
-            LogicalOperator::Filter(filter) => self.push_filter(conf, filter),
+            LogicalOperator::Projection(proj) => self.push_project(conf, materializations, proj),
+            LogicalOperator::Filter(filter) => self.push_filter(conf, materializations, filter),
             LogicalOperator::ExpressionList(values) => self.push_values(conf, values),
-            LogicalOperator::CrossJoin(join) => self.push_cross_join(conf, join),
-            LogicalOperator::AnyJoin(join) => self.push_any_join(conf, join),
-            LogicalOperator::EqualityJoin(join) => self.push_equality_join(conf, join),
+            LogicalOperator::CrossJoin(join) => self.push_cross_join(conf, materializations, join),
+            LogicalOperator::AnyJoin(join) => self.push_any_join(conf, materializations, join),
+            LogicalOperator::EqualityJoin(join) => {
+                self.push_equality_join(conf, materializations, join)
+            }
             LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
                 "Dependent joins cannot be made into a physical pipeline",
             )),
             LogicalOperator::Empty => self.push_empty(conf),
-            LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
-            LogicalOperator::Limit(limit) => self.push_limit(conf, limit),
-            LogicalOperator::Order(order) => self.push_global_sort(conf, order),
+            LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, materializations, agg),
+            LogicalOperator::Limit(limit) => self.push_limit(conf, materializations, limit),
+            LogicalOperator::Order(order) => self.push_global_sort(conf, materializations, order),
             LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, show_var),
-            LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
+            LogicalOperator::Explain(explain) => self.push_explain(conf, materializations, explain),
             LogicalOperator::Describe(describe) => self.push_describe(conf, describe),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
             LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),
             LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
-            LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
-            LogicalOperator::MaterializedScan(scan) => self.push_materialized_scan(conf, scan),
+            LogicalOperator::Insert(insert) => self.push_insert(conf, materializations, insert),
+            LogicalOperator::MaterializedScan(scan) => {
+                self.push_materialized_scan(conf, materializations, scan)
+            }
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
             LogicalOperator::TableFunction(table_func) => {
                 self.push_table_function(conf, table_func)
@@ -356,8 +398,13 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_insert(&mut self, conf: &BuildConfig, insert: operator::Insert) -> Result<()> {
-        self.walk(conf, *insert.input)?;
+    fn push_insert(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        insert: operator::Insert,
+    ) -> Result<()> {
+        self.walk(conf, materializations, *insert.input)?;
 
         // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
         let physical = Arc::new(PhysicalInsert::new("temp", "temp", insert.table));
@@ -401,14 +448,15 @@ impl BuildState {
 
     fn push_materialized_scan(
         &mut self,
-        conf: &BuildConfig,
+        _conf: &BuildConfig,
+        materializations: &mut Materializations,
         scan: operator::MaterializedScan,
     ) -> Result<()> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let pipeline = match self.materialize_sources.get_mut(&scan.idx) {
+        let pipeline = match materializations.materialize_sources.get_mut(&scan.idx) {
             Some(pipelines) => pipelines.pop().ok_or_else(|| {
                 RayexecError::new("Invalid number of pipelines created for materialized plan")
             })?,
@@ -550,7 +598,12 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_explain(&mut self, conf: &BuildConfig, explain: operator::Explain) -> Result<()> {
+    fn push_explain(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        explain: operator::Explain,
+    ) -> Result<()> {
         if explain.analyze {
             unimplemented!()
         }
@@ -559,7 +612,7 @@ impl BuildState {
             format_logical_plan_for_explain(&explain.input, explain.format, explain.verbose)?;
 
         // Build up the pipeline.
-        self.walk(conf, *explain.input)?;
+        self.walk(conf, materializations, *explain.input)?;
 
         // And then take it, we'll be discarding this for non-analyze explains.
         let current = self
@@ -616,9 +669,14 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_global_sort(&mut self, conf: &BuildConfig, order: operator::Order) -> Result<()> {
+    fn push_global_sort(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        order: operator::Order,
+    ) -> Result<()> {
         let input_schema = order.input.output_schema(&[])?;
-        self.walk(conf, *order.input)?;
+        self.walk(conf, materializations, *order.input)?;
 
         let exprs = order
             .exprs
@@ -682,8 +740,13 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_limit(&mut self, conf: &BuildConfig, limit: operator::Limit) -> Result<()> {
-        self.walk(conf, *limit.input)?;
+    fn push_limit(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        limit: operator::Limit,
+    ) -> Result<()> {
+        self.walk(conf, materializations, *limit.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -701,9 +764,14 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_aggregate(&mut self, conf: &BuildConfig, agg: operator::Aggregate) -> Result<()> {
+    fn push_aggregate(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        agg: operator::Aggregate,
+    ) -> Result<()> {
         let input_schema = agg.input.output_schema(&[])?;
-        self.walk(conf, *agg.input)?;
+        self.walk(conf, materializations, *agg.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -797,9 +865,14 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_project(&mut self, conf: &BuildConfig, project: operator::Projection) -> Result<()> {
+    fn push_project(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        project: operator::Projection,
+    ) -> Result<()> {
         let input_schema = project.input.output_schema(&[])?;
-        self.walk(conf, *project.input)?;
+        self.walk(conf, materializations, *project.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -819,9 +892,14 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_filter(&mut self, conf: &BuildConfig, filter: operator::Filter) -> Result<()> {
+    fn push_filter(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        filter: operator::Filter,
+    ) -> Result<()> {
         let input_schema = filter.input.output_schema(&[])?;
-        self.walk(conf, *filter.input)?;
+        self.walk(conf, materializations, *filter.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -842,16 +920,17 @@ impl BuildState {
     fn push_equality_join(
         &mut self,
         conf: &BuildConfig,
+        materializations: &mut Materializations,
         join: operator::EqualityJoin,
     ) -> Result<()> {
         // Build up all inputs on the right (probe) side. This is going to
         // continue with the the current pipeline.
-        self.walk(conf, *join.right)?;
+        self.walk(conf, materializations, *join.right)?;
 
         // Build up the left (build) side in a separate pipeline. This will feed
         // into the currently pipeline at the join operator.
         let mut left_state = BuildState::new();
-        left_state.walk(conf, *join.left)?;
+        left_state.walk(conf, materializations, *join.left)?;
 
         // Take any completed pipelines from the left side and put them in our
         // list.
@@ -902,7 +981,12 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_any_join(&mut self, conf: &BuildConfig, join: operator::AnyJoin) -> Result<()> {
+    fn push_any_join(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        join: operator::AnyJoin,
+    ) -> Result<()> {
         let left_schema = join.left.output_schema(&[])?;
         let right_schema = join.right.output_schema(&[])?;
         let input_schema = left_schema.merge(right_schema);
@@ -919,11 +1003,22 @@ impl BuildState {
             }
         };
 
-        self.push_nl_join(conf, *join.left, *join.right, Some(filter))
+        self.push_nl_join(
+            conf,
+            materializations,
+            *join.left,
+            *join.right,
+            Some(filter),
+        )
     }
 
-    fn push_cross_join(&mut self, conf: &BuildConfig, join: operator::CrossJoin) -> Result<()> {
-        self.push_nl_join(conf, *join.left, *join.right, None)
+    fn push_cross_join(
+        &mut self,
+        conf: &BuildConfig,
+        materializations: &mut Materializations,
+        join: operator::CrossJoin,
+    ) -> Result<()> {
+        self.push_nl_join(conf, materializations, *join.left, *join.right, None)
     }
 
     /// Push a nest loop join.
@@ -934,6 +1029,7 @@ impl BuildState {
     fn push_nl_join(
         &mut self,
         conf: &BuildConfig,
+        materializations: &mut Materializations,
         left: operator::LogicalOperator,
         right: operator::LogicalOperator,
         filter: Option<PhysicalScalarExpression>,
@@ -943,12 +1039,12 @@ impl BuildState {
         }
 
         // Continue to build up all the inputs into the right side.
-        self.walk(conf, right)?;
+        self.walk(conf, materializations, right)?;
 
         // Create a completely independent pipeline (or pipelines) for left
         // side.
         let mut left_state = BuildState::new();
-        left_state.walk(conf, left)?;
+        left_state.walk(conf, materializations, left)?;
 
         // Take completed pipelines from the left and merge them into this
         // state's completed set of pipelines.

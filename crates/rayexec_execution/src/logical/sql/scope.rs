@@ -66,7 +66,7 @@ impl fmt::Display for TableReference {
 }
 
 /// An item in a scope with an optional alias.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ScopeColumn {
     /// Alias of the table containing this column, either user provided or the
     /// table name itself.
@@ -81,7 +81,7 @@ pub struct ScopeColumn {
 }
 
 /// Provides a scope items introduced in the FROM clause of a query.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Scope {
     /// Items in scope.
     pub items: Vec<ScopeColumn>,

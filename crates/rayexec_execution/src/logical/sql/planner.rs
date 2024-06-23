@@ -27,10 +27,7 @@ use crate::{
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::{
-    ast::{self, OrderByNulls, OrderByType, QueryNode},
-    statement::Statement,
-};
+use rayexec_parser::{ast, statement::Statement};
 use tracing::trace;
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();
@@ -40,10 +37,6 @@ const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 pub struct LogicalQuery {
     /// Root of the query.
     pub root: LogicalOperator,
-
-    /// Additional query data, e.g. materializations.
-    pub context: QueryContext,
-
     /// The final scope of the query.
     pub scope: Scope,
 }
@@ -52,79 +45,72 @@ pub struct LogicalQuery {
 pub struct PlanContext<'a> {
     /// Session variables.
     pub vars: &'a SessionVars,
-
-    /// Scopes outside this context.
-    pub outer_scopes: Vec<Scope>,
-
     pub bind_data: &'a BindData,
 }
 
 impl<'a> PlanContext<'a> {
     pub fn new(vars: &'a SessionVars, bind_data: &'a BindData) -> Self {
-        PlanContext {
-            vars,
-            outer_scopes: Vec::new(),
-            bind_data,
-        }
+        PlanContext { vars, bind_data }
     }
 
-    pub fn plan_statement(mut self, stmt: Statement<Bound>) -> Result<LogicalQuery> {
+    pub fn plan_statement(
+        mut self,
+        stmt: Statement<Bound>,
+    ) -> Result<(LogicalQuery, QueryContext)> {
         trace!("planning statement");
-        match stmt {
+        let mut context = QueryContext::new();
+        let query = match stmt {
             Statement::Explain(explain) => {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
                 let plan = match explain.body {
-                    ast::ExplainBody::Query(query) => planner.plan_query(query)?,
+                    ast::ExplainBody::Query(query) => planner.plan_query(&mut context, query)?,
                 };
                 let format = match explain.output {
                     Some(ast::ExplainOutput::Text) => ExplainFormat::Text,
                     Some(ast::ExplainOutput::Json) => ExplainFormat::Json,
                     None => ExplainFormat::Text,
                 };
-                Ok(LogicalQuery {
+                LogicalQuery {
                     root: LogicalOperator::Explain(Explain {
                         analyze: explain.analyze,
                         verbose: explain.verbose,
                         format,
                         input: Box::new(plan.root),
                     }),
-                    context: plan.context,
                     scope: Scope::empty(),
-                })
+                }
             }
             Statement::Query(query) => {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
-                planner.plan_query(query)
+                planner.plan_query(&mut context, query)?
             }
-            Statement::CreateTable(create) => self.plan_create_table(create),
-            Statement::CreateSchema(create) => self.plan_create_schema(create),
-            Statement::Drop(drop) => self.plan_drop(drop),
-            Statement::Insert(insert) => self.plan_insert(insert),
+            Statement::CreateTable(create) => self.plan_create_table(&mut context, create)?,
+            Statement::CreateSchema(create) => self.plan_create_schema(create)?,
+            Statement::Drop(drop) => self.plan_drop(drop)?,
+            Statement::Insert(insert) => self.plan_insert(&mut context, insert)?,
             Statement::SetVariable(ast::SetVariable {
                 mut reference,
                 value,
             }) => {
                 let planner = QueryNodePlanner::new(self.bind_data);
                 let expr_ctx = ExpressionContext::new(&planner, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
-                let expr = expr_ctx.plan_expression(value)?;
-                Ok(LogicalQuery {
+                let expr = expr_ctx.plan_expression(&mut context, value)?;
+                LogicalQuery {
                     root: LogicalOperator::SetVar(SetVar {
                         name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
                     }),
-                    context: QueryContext::new(),
                     scope: Scope::empty(),
-                })
+                }
             }
             Statement::ShowVariable(ast::ShowVariable { mut reference }) => {
                 let name = reference.pop()?; // TODO: Allow compound references?
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
-                Ok(LogicalQuery {
+                LogicalQuery {
                     root: LogicalOperator::ShowVar(ShowVar { var: var.clone() }),
-                    context: QueryContext::new(),
                     scope,
-                })
+                }
             }
             Statement::ResetVariable(ast::ResetVariable { var }) => {
                 let var = match var {
@@ -135,20 +121,19 @@ impl<'a> PlanContext<'a> {
                     }
                     ast::VariableOrAll::All => VariableOrAll::All,
                 };
-                Ok(LogicalQuery {
+                LogicalQuery {
                     root: LogicalOperator::ResetVar(ResetVar { var }),
-                    context: QueryContext::new(),
                     scope: Scope::empty(),
-                })
+                }
             }
-            Statement::Attach(attach) => self.plan_attach(attach),
-            Statement::Detach(detach) => self.plan_detach(detach),
+            Statement::Attach(attach) => self.plan_attach(attach)?,
+            Statement::Detach(detach) => self.plan_detach(detach)?,
             Statement::Describe(describe) => {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
                 let plan = match describe {
-                    ast::Describe::Query(query) => planner.plan_query(query)?,
+                    ast::Describe::Query(query) => planner.plan_query(&mut context, query)?,
                     ast::Describe::FromNode(from) => {
-                        planner.plan_from_node(from, Scope::empty())?
+                        planner.plan_from_node(&mut context, from, Scope::empty())?
                     }
                 };
 
@@ -163,13 +148,14 @@ impl<'a> PlanContext<'a> {
                         .map(|(item, typ)| Field::new(item.column, typ, true)),
                 );
 
-                Ok(LogicalQuery {
+                LogicalQuery {
                     root: LogicalOperator::Describe(Describe { schema }),
-                    context: plan.context,
                     scope: Scope::with_columns(None, ["column_name", "datatype"]),
-                })
+                }
             }
-        }
+        };
+
+        Ok((query, context))
     }
 
     fn plan_attach(&mut self, mut attach: ast::Attach<Bound>) -> Result<LogicalQuery> {
@@ -181,7 +167,7 @@ impl<'a> PlanContext<'a> {
 
                 for (k, v) in attach.options {
                     let k = k.into_normalized_string();
-                    let v = match expr_ctx.plan_expression(v)? {
+                    let v = match expr_ctx.plan_expression(&mut QueryContext::new(), v)? {
                         LogicalExpression::Literal(v) => v,
                         other => {
                             return Err(RayexecError::new(format!(
@@ -212,7 +198,6 @@ impl<'a> PlanContext<'a> {
                         name,
                         options,
                     }),
-                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -233,7 +218,6 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: LogicalOperator::DetachDatabase(DetachDatabase { name }),
-                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -241,9 +225,13 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_insert(&mut self, insert: ast::Insert<Bound>) -> Result<LogicalQuery> {
+    fn plan_insert(
+        &mut self,
+        context: &mut QueryContext,
+        insert: ast::Insert<Bound>,
+    ) -> Result<LogicalQuery> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
-        let source = planner.plan_query(insert.source)?;
+        let source = planner.plan_query(context, insert.source)?;
 
         let entry = match insert.table {
             BoundTableOrCteReference::Table { entry, .. } => entry,
@@ -260,7 +248,6 @@ impl<'a> PlanContext<'a> {
                 table: entry,
                 input: Box::new(source.root),
             }),
-            context: source.context,
             scope: Scope::empty(),
         })
     }
@@ -285,7 +272,6 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: plan,
-                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -308,12 +294,15 @@ impl<'a> PlanContext<'a> {
                 name: schema,
                 on_conflict,
             }),
-            context: QueryContext::new(),
             scope: Scope::empty(),
         })
     }
 
-    fn plan_create_table(&mut self, mut create: ast::CreateTable<Bound>) -> Result<LogicalQuery> {
+    fn plan_create_table(
+        &mut self,
+        context: &mut QueryContext,
+        mut create: ast::CreateTable<Bound>,
+    ) -> Result<LogicalQuery> {
         let on_conflict = match (create.or_replace, create.if_not_exists) {
             (true, false) => OnConflict::Replace,
             (false, true) => OnConflict::Ignore,
@@ -346,7 +335,7 @@ impl<'a> PlanContext<'a> {
                 }
 
                 let mut planner = QueryNodePlanner::new(self.bind_data);
-                let input = planner.plan_query(source)?;
+                let input = planner.plan_query(context, source)?;
                 let type_schema = input.root.output_schema(&[])?; // Source input to table should not depend on any outer queries.
 
                 if type_schema.types.len() != input.scope.items.len() {
@@ -383,7 +372,6 @@ impl<'a> PlanContext<'a> {
                 on_conflict,
                 input,
             }),
-            context: QueryContext::new(),
             scope: Scope::empty(),
         })
     }

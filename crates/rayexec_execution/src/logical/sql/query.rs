@@ -47,26 +47,32 @@ impl<'a> QueryNodePlanner<'a> {
         }
     }
 
-    pub fn plan_query(&mut self, query: ast::QueryNode<Bound>) -> Result<LogicalQuery> {
+    pub fn plan_query(
+        &mut self,
+        context: &mut QueryContext,
+        query: ast::QueryNode<Bound>,
+    ) -> Result<LogicalQuery> {
         let mut planned = match query.body {
-            ast::QueryNodeBody::Select(select) => self.plan_select(*select, query.order_by)?,
+            ast::QueryNodeBody::Select(select) => {
+                self.plan_select(context, *select, query.order_by)?
+            }
             ast::QueryNodeBody::Set {
                 left: _,
                 right: _,
                 operation: _,
             } => unimplemented!(),
-            ast::QueryNodeBody::Values(values) => self.plan_values(values)?,
+            ast::QueryNodeBody::Values(values) => self.plan_values(context, values)?,
         };
 
         // Handle LIMIT/OFFSET
         let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
         if let Some(limit_expr) = query.limit.limit {
-            let expr = expr_ctx.plan_expression(limit_expr)?;
+            let expr = expr_ctx.plan_expression(context, limit_expr)?;
             let limit = expr.try_into_scalar()?.try_as_i64()? as usize;
 
             let offset = match query.limit.offset {
                 Some(offset_expr) => {
-                    let expr = expr_ctx.plan_expression(offset_expr)?;
+                    let expr = expr_ctx.plan_expression(context, offset_expr)?;
                     let offset = expr.try_into_scalar()?.try_as_i64()?;
                     Some(offset as usize)
                 }
@@ -86,15 +92,15 @@ impl<'a> QueryNodePlanner<'a> {
 
     fn plan_select(
         &mut self,
+        context: &mut QueryContext,
         select: ast::SelectNode<Bound>,
         order_by: Vec<ast::OrderByNode<Bound>>,
     ) -> Result<LogicalQuery> {
         // Handle FROM
         let mut plan = match select.from {
-            Some(from) => self.plan_from_node(from, Scope::empty())?,
+            Some(from) => self.plan_from_node(context, from, Scope::empty())?,
             None => LogicalQuery {
                 root: LogicalOperator::Empty,
-                context: QueryContext::new(),
                 scope: Scope::empty(),
             },
         };
@@ -104,7 +110,7 @@ impl<'a> QueryNodePlanner<'a> {
 
         // Handle WHERE
         if let Some(where_expr) = select.where_expr {
-            let mut expr = expr_ctx.plan_expression(where_expr)?;
+            let mut expr = expr_ctx.plan_expression(context, where_expr)?;
             SubqueryPlanner.plan_subquery_expr(&mut expr, &mut plan.root)?;
 
             // Add filter to the plan, does not change the scope.
@@ -134,7 +140,7 @@ impl<'a> QueryNodePlanner<'a> {
                     if explicit_alias {
                         alias_map.insert(name.clone(), idx);
                     }
-                    let expr = expr_ctx.plan_expression(expr)?;
+                    let expr = expr_ctx.plan_expression(context, expr)?;
                     select_exprs.push(expr);
                     names.push(name);
                 }
@@ -157,7 +163,7 @@ impl<'a> QueryNodePlanner<'a> {
         let mut num_appended = 0;
         let having_expr = match select.having {
             Some(expr) => {
-                let mut expr = expr_ctx.plan_expression(expr)?;
+                let mut expr = expr_ctx.plan_expression(context, expr)?;
                 num_appended += Self::append_hidden(&mut select_exprs, &mut expr)?;
                 Some(expr)
             }
@@ -168,6 +174,7 @@ impl<'a> QueryNodePlanner<'a> {
             .into_iter()
             .map(|order_by| {
                 let expr = expr_ctx.plan_expression_with_select_list(
+                    context,
                     &alias_map,
                     &select_exprs,
                     order_by.expr,
@@ -190,6 +197,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Group by has access to everything we've planned so far.
         let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         plan.root = AggregatePlanner.plan(
+            context,
             expr_ctx,
             &mut select_exprs,
             &alias_map,
@@ -203,7 +211,6 @@ impl<'a> QueryNodePlanner<'a> {
                 exprs: select_exprs.clone(),
                 input: Box::new(plan.root),
             }),
-            context: plan.context,
             scope: plan.scope,
         };
 
@@ -214,7 +221,6 @@ impl<'a> QueryNodePlanner<'a> {
                     predicate: expr,
                     input: Box::new(plan.root),
                 }),
-                context: plan.context,
                 scope: plan.scope,
             }
         }
@@ -226,7 +232,6 @@ impl<'a> QueryNodePlanner<'a> {
                     exprs: order_by_exprs,
                     input: Box::new(plan.root),
                 }),
-                context: plan.context,
                 scope: plan.scope,
             }
         }
@@ -243,7 +248,6 @@ impl<'a> QueryNodePlanner<'a> {
                     exprs: projections,
                     input: Box::new(plan.root),
                 }),
-                context: plan.context,
                 scope: plan.scope,
             };
         }
@@ -259,6 +263,7 @@ impl<'a> QueryNodePlanner<'a> {
 
     pub fn plan_from_node(
         &self,
+        context: &mut QueryContext,
         from: ast::FromNode<Bound>,
         current_scope: Scope,
     ) -> Result<LogicalQuery> {
@@ -290,64 +295,17 @@ impl<'a> QueryNodePlanner<'a> {
                                 schema,
                                 source: entry,
                             }),
-                            context: QueryContext::new(),
                             scope,
                         }
                     }
-                    BoundTableOrCteReference::Cte(BoundCteReference { idx }) => {
-                        let cte = self.bind_data.ctes.get(idx).ok_or_else(|| {
-                            RayexecError::new(format!("Missing bound CTE at index {idx}"))
-                        })?;
-
-                        if cte.materialized {
-                            // Will probably just be a variant of our recursive
-                            // CTE support with a "materialized" operator.
-                            return Err(RayexecError::new(
-                                "Materialized CTEs not currently supported",
-                            ));
-                        }
-
-                        let scope_reference = TableReference {
-                            database: None,
-                            schema: None,
-                            table: cte.name.clone(),
-                        };
-
-                        // TODO: Unsure how we want to set the scope for recursive yet.
-
-                        // Plan CTE body...
-                        let mut nested = self.nested(current_scope);
-                        let mut query = nested.plan_query(cte.body.clone())?;
-
-                        // Update resulting scope items with new cte reference.
-                        query
-                            .scope
-                            .iter_mut()
-                            .for_each(|item| item.alias = Some(scope_reference.clone()));
-
-                        // Apply user provided aliases.
-                        if let Some(aliases) = cte.column_aliases.as_ref() {
-                            if aliases.len() > query.scope.items.len() {
-                                return Err(RayexecError::new(format!(
-                                    "Expected at most {} column aliases, received {}",
-                                    query.scope.items.len(),
-                                    aliases.len()
-                                )))?;
-                            }
-
-                            for (item, alias) in query.scope.iter_mut().zip(aliases.iter()) {
-                                item.column = alias.as_normalized_string();
-                            }
-                        }
-
-                        // And return it. It's now usable elsewhere in the plan.
-                        query
+                    BoundTableOrCteReference::Cte(bound) => {
+                        self.plan_cte_body(context, bound, current_scope)?
                     }
                 }
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
                 let mut nested = self.nested(current_scope);
-                nested.plan_query(query)?
+                nested.plan_query(context, query)?
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args: _ }) => {
                 let scope_reference = TableReference {
@@ -366,7 +324,6 @@ impl<'a> QueryNodePlanner<'a> {
 
                 LogicalQuery {
                     root: operator,
-                    context: QueryContext::new(),
                     scope,
                 }
             }
@@ -378,14 +335,14 @@ impl<'a> QueryNodePlanner<'a> {
             }) => {
                 // Plan left side of join.
                 let left_nested = self.nested(current_scope.clone());
-                let left_plan = left_nested.plan_from_node(*left, Scope::empty())?; // TODO: Determine if should be empty.
+                let left_plan = left_nested.plan_from_node(context, *left, Scope::empty())?; // TODO: Determine if should be empty.
 
                 // Plan right side of join.
                 //
                 // Note this uses a plan context that has the "left" scope as
                 // its outer scope.
                 let right_nested = left_nested.nested(left_plan.scope.clone());
-                let right_plan = right_nested.plan_from_node(*right, Scope::empty())?; // TODO: Determine if this should be empty.
+                let right_plan = right_nested.plan_from_node(context, *right, Scope::empty())?; // TODO: Determine if this should be empty.
 
                 match join_condition {
                     ast::JoinCondition::On(on) => {
@@ -396,7 +353,7 @@ impl<'a> QueryNodePlanner<'a> {
                         let expr_ctx =
                             ExpressionContext::new(&left_nested, &merged, &merged_schema);
 
-                        let on_expr = expr_ctx.plan_expression(on)?;
+                        let on_expr = expr_ctx.plan_expression(context, on)?;
 
                         let join_type = match join_type {
                             ast::JoinType::Inner => JoinType::Inner,
@@ -408,19 +365,6 @@ impl<'a> QueryNodePlanner<'a> {
                             _ => unimplemented!(),
                         };
 
-                        let context = match (
-                            left_plan.context.materialized.is_empty(),
-                            right_plan.context.materialized.is_empty(),
-                        ) {
-                            (false, false) => {
-                                // TODO: Implement it.
-                                return Err(RayexecError::new("Context merging unimplemented"));
-                            }
-                            (false, true) => left_plan.context,
-                            (true, false) => right_plan.context,
-                            (true, true) => QueryContext::new(),
-                        };
-
                         LogicalQuery {
                             root: LogicalOperator::AnyJoin(AnyJoin {
                                 left: Box::new(left_plan.root),
@@ -428,7 +372,6 @@ impl<'a> QueryNodePlanner<'a> {
                                 join_type,
                                 on: on_expr,
                             }),
-                            context,
                             scope: merged,
                         }
                     }
@@ -436,25 +379,11 @@ impl<'a> QueryNodePlanner<'a> {
                         ast::JoinType::Cross => {
                             let merged = left_plan.scope.merge(right_plan.scope)?;
 
-                            let context = match (
-                                left_plan.context.materialized.is_empty(),
-                                right_plan.context.materialized.is_empty(),
-                            ) {
-                                (false, false) => {
-                                    // TODO: Implement it.
-                                    return Err(RayexecError::new("Context merging unimplemented"));
-                                }
-                                (false, true) => left_plan.context,
-                                (true, false) => right_plan.context,
-                                (true, true) => QueryContext::new(),
-                            };
-
                             LogicalQuery {
                                 root: LogicalOperator::CrossJoin(CrossJoin {
                                     left: Box::new(left_plan.root),
                                     right: Box::new(right_plan.root),
                                 }),
-                                context,
                                 scope: merged,
                             }
                         }
@@ -475,9 +404,82 @@ impl<'a> QueryNodePlanner<'a> {
 
         Ok(LogicalQuery {
             root: body.root,
-            context: body.context,
             scope: aliased_scope,
         })
+    }
+
+    /// Plans the body of a CTE, handling if the CTE is materialized or not.
+    fn plan_cte_body(
+        &self,
+        context: &mut QueryContext,
+        bound: BoundCteReference,
+        current_scope: Scope,
+    ) -> Result<LogicalQuery> {
+        let cte = self.bind_data.ctes.get(bound.idx).ok_or_else(|| {
+            RayexecError::new(format!("Missing bound CTE at index {}", bound.idx))
+        })?;
+
+        if cte.materialized {
+            // Check if we already have a materialized plan for
+            // this CTE.
+            if let Some(reference) = context.get_materialized_cte_reference(&bound).cloned() {
+                // We do, use it.
+                // TODO: Zero clue what to use for outer.
+                let scan = context.generate_scan_for_idx(reference.materialized_idx, &[])?;
+                return Ok(LogicalQuery {
+                    root: LogicalOperator::MaterializedScan(scan),
+                    scope: reference.scope,
+                });
+            }
+
+            // Otherwise continue to plan it. We'll add the materialized plan at the end.
+        }
+
+        // Plan CTE body...
+        let mut nested = self.nested(current_scope);
+        let mut query = nested.plan_query(context, cte.body.clone())?;
+
+        let scope_reference = TableReference {
+            database: None,
+            schema: None,
+            table: cte.name.clone(),
+        };
+
+        // TODO: Unsure how we want to set the scope for recursive yet.
+
+        // Update resulting scope items with new cte reference.
+        query
+            .scope
+            .iter_mut()
+            .for_each(|item| item.alias = Some(scope_reference.clone()));
+
+        // Apply user provided aliases.
+        if let Some(aliases) = cte.column_aliases.as_ref() {
+            if aliases.len() > query.scope.items.len() {
+                return Err(RayexecError::new(format!(
+                    "Expected at most {} column aliases, received {}",
+                    query.scope.items.len(),
+                    aliases.len()
+                )))?;
+            }
+
+            for (item, alias) in query.scope.iter_mut().zip(aliases.iter()) {
+                item.column = alias.as_normalized_string();
+            }
+        }
+
+        // If materialized, add it to the context and return a scan for it.
+        if cte.materialized {
+            let idx = context.push_materialized_cte(bound, query.root, query.scope.clone());
+            let scan = context.generate_scan_for_idx(idx, &[])?; // TODO: Again not sure about outer.
+            return Ok(LogicalQuery {
+                root: LogicalOperator::MaterializedScan(scan),
+                scope: query.scope,
+            });
+        }
+
+        // Otherwise just return the plan as-is, it'll be inlined into the parent plan.
+        Ok(query)
     }
 
     /// Apply table and column aliases to a scope.
@@ -524,7 +526,11 @@ impl<'a> QueryNodePlanner<'a> {
         })
     }
 
-    fn plan_values(&self, values: ast::Values<Bound>) -> Result<LogicalQuery> {
+    fn plan_values(
+        &self,
+        context: &mut QueryContext,
+        values: ast::Values<Bound>,
+    ) -> Result<LogicalQuery> {
         if values.rows.is_empty() {
             return Err(RayexecError::new("Empty VALUES expression"));
         }
@@ -538,7 +544,7 @@ impl<'a> QueryNodePlanner<'a> {
             .map(|col_vals| {
                 col_vals
                     .into_iter()
-                    .map(|col_expr| expr_ctx.plan_expression(col_expr))
+                    .map(|col_expr| expr_ctx.plan_expression(context, col_expr))
                     .collect::<Result<Vec<_>>>()
             })
             .collect::<Result<Vec<Vec<LogicalExpression>>>>()?;
@@ -551,7 +557,6 @@ impl<'a> QueryNodePlanner<'a> {
 
         Ok(LogicalQuery {
             root: operator,
-            context: QueryContext::new(),
             scope,
         })
     }
