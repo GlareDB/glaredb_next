@@ -9,6 +9,7 @@ pub mod hash_aggregate;
 pub mod insert;
 pub mod join;
 pub mod limit;
+pub mod materialize;
 pub mod project;
 pub mod query_sink;
 pub mod repartition;
@@ -28,6 +29,9 @@ use create_schema::CreateSchemaPartitionState;
 use create_table::CreateTablePartitionState;
 use drop::DropPartitionState;
 use insert::InsertPartitionState;
+use materialize::{
+    MaterializeOperatorState, MaterializePullPartitionState, MaterializePushPartitionState,
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use scan::ScanPartitionState;
@@ -79,6 +83,8 @@ pub enum PartitionState {
     MergeSortedPull(MergeSortedPullPartitionState),
     LocalSort(LocalSortPartitionState),
     Limit(LimitPartitionState),
+    MaterializePush(MaterializePushPartitionState),
+    MaterializePull(MaterializePullPartitionState),
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
@@ -101,6 +107,7 @@ pub enum OperatorState {
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
     MergeSorted(MergeSortedOperatorState),
+    Materialize(MaterializeOperatorState),
     None,
 }
 
