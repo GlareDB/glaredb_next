@@ -58,9 +58,11 @@ impl PhysicalMaterialize {
     /// partitions for that pipeline.
     pub fn create_states(
         &self,
+        input_partitions: usize,
         output_pipeline_partitions: Vec<usize>,
     ) -> (
         MaterializeOperatorState,
+        Vec<MaterializePushPartitionState>,
         Vec<Vec<MaterializePullPartitionState>>,
     ) {
         let shared_states: Vec<_> = output_pipeline_partitions
@@ -92,7 +94,11 @@ impl PhysicalMaterialize {
             pull_pipeline_states.push(states)
         }
 
-        (operator_state, pull_pipeline_states)
+        let push_states = (0..input_partitions)
+            .map(|_| MaterializePushPartitionState {})
+            .collect();
+
+        (operator_state, push_states, pull_pipeline_states)
     }
 }
 

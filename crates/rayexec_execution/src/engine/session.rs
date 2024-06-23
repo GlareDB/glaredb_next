@@ -13,6 +13,7 @@ use crate::{
         sink::QuerySink,
     },
     logical::{
+        context::QueryContext,
         operator::{LogicalOperator, ResetVar, VariableOrAll},
         sql::{binder::Binder, planner::PlanContext},
     },
@@ -137,7 +138,12 @@ impl Session {
 
         let query_graph = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
-                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
+                // Here to avoid lifetime issues.
+                let empty = planner.create_graph(
+                    LogicalOperator::Empty,
+                    QueryContext::new(),
+                    query_sink,
+                )?;
 
                 // TODO: No clue if we want to do this here. What happens during
                 // hybrid exec?
@@ -149,7 +155,11 @@ impl Session {
                 empty
             }
             LogicalOperator::DetachDatabase(detach) => {
-                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
+                let empty = planner.create_graph(
+                    LogicalOperator::Empty,
+                    QueryContext::new(),
+                    query_sink,
+                )?; // Here to avoid lifetime issues.
                 self.context.detach_catalog(&detach.name)?;
                 empty
             }
@@ -168,7 +178,7 @@ impl Session {
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
-                planner.create_graph(LogicalOperator::Empty, query_sink)?
+                planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
             }
             LogicalOperator::ResetVar(ResetVar { var }) => {
                 // Same TODO as above.
@@ -176,9 +186,9 @@ impl Session {
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
-                planner.create_graph(LogicalOperator::Empty, query_sink)?
+                planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
             }
-            root => planner.create_graph(root, query_sink)?,
+            root => planner.create_graph(root, logical.context, query_sink)?,
         };
 
         self.runtime
