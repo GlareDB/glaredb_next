@@ -250,6 +250,13 @@ impl<'a> ExpressionContext<'a> {
             ast::Expr::Subquery(subquery) => {
                 let mut nested = self.planner.nested(self.scope.clone());
                 let subquery = nested.plan_query(*subquery)?;
+
+                if !subquery.context.materialized.is_empty() {
+                    return Err(RayexecError::new(
+                        "Query context merging not yet implemented",
+                    ));
+                }
+
                 // We can ignore scope, as it's only relevant to planning of the
                 // subquery, which is complete.
                 Ok(LogicalExpression::Subquery(Subquery::Scalar {
@@ -262,6 +269,13 @@ impl<'a> ExpressionContext<'a> {
             } => {
                 let mut nested = self.planner.nested(self.scope.clone());
                 let subquery = nested.plan_query(*subquery)?;
+
+                if !subquery.context.materialized.is_empty() {
+                    return Err(RayexecError::new(
+                        "Query context merging not yet implemented",
+                    ));
+                }
+
                 Ok(LogicalExpression::Subquery(Subquery::Exists {
                     root: Box::new(subquery.root),
                     negated: not_exists,

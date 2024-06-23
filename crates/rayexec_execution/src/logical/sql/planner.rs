@@ -14,6 +14,7 @@ use crate::{
     },
     engine::vars::SessionVars,
     logical::{
+        context::QueryContext,
         expr::LogicalExpression,
         operator::{
             AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
@@ -39,6 +40,9 @@ const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 pub struct LogicalQuery {
     /// Root of the query.
     pub root: LogicalOperator,
+
+    /// Additional query data, e.g. materializations.
+    pub context: QueryContext,
 
     /// The final scope of the query.
     pub scope: Scope,
@@ -84,6 +88,7 @@ impl<'a> PlanContext<'a> {
                         format,
                         input: Box::new(plan.root),
                     }),
+                    context: plan.context,
                     scope: Scope::empty(),
                 })
             }
@@ -107,6 +112,7 @@ impl<'a> PlanContext<'a> {
                         name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
                     }),
+                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -116,6 +122,7 @@ impl<'a> PlanContext<'a> {
                 let scope = Scope::with_columns(None, [name.clone()]);
                 Ok(LogicalQuery {
                     root: LogicalOperator::ShowVar(ShowVar { var: var.clone() }),
+                    context: QueryContext::new(),
                     scope,
                 })
             }
@@ -130,6 +137,7 @@ impl<'a> PlanContext<'a> {
                 };
                 Ok(LogicalQuery {
                     root: LogicalOperator::ResetVar(ResetVar { var }),
+                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -157,6 +165,7 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: LogicalOperator::Describe(Describe { schema }),
+                    context: plan.context,
                     scope: Scope::with_columns(None, ["column_name", "datatype"]),
                 })
             }
@@ -203,6 +212,7 @@ impl<'a> PlanContext<'a> {
                         name,
                         options,
                     }),
+                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -223,6 +233,7 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: LogicalOperator::DetachDatabase(DetachDatabase { name }),
+                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -249,6 +260,7 @@ impl<'a> PlanContext<'a> {
                 table: entry,
                 input: Box::new(source.root),
             }),
+            context: source.context,
             scope: Scope::empty(),
         })
     }
@@ -273,6 +285,7 @@ impl<'a> PlanContext<'a> {
 
                 Ok(LogicalQuery {
                     root: plan,
+                    context: QueryContext::new(),
                     scope: Scope::empty(),
                 })
             }
@@ -295,6 +308,7 @@ impl<'a> PlanContext<'a> {
                 name: schema,
                 on_conflict,
             }),
+            context: QueryContext::new(),
             scope: Scope::empty(),
         })
     }
@@ -369,6 +383,7 @@ impl<'a> PlanContext<'a> {
                 on_conflict,
                 input,
             }),
+            context: QueryContext::new(),
             scope: Scope::empty(),
         })
     }

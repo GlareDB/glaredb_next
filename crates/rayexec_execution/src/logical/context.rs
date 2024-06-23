@@ -23,6 +23,12 @@ pub struct QueryContext {
 }
 
 impl QueryContext {
+    pub const fn new() -> Self {
+        QueryContext {
+            materialized: Vec::new(),
+        }
+    }
+
     /// Push a plan for materialization.
     ///
     /// The index of the plan within the query context will be returned.

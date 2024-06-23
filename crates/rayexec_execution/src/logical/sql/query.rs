@@ -8,11 +8,11 @@ use super::{
     scope::{ColumnRef, Scope, TableReference},
     subquery::SubqueryPlanner,
 };
-use crate::logical::expr::LogicalExpression;
 use crate::logical::operator::{
     AnyJoin, CrossJoin, ExpressionList, Filter, JoinType, Limit, LogicalOperator, Order,
     OrderByExpr, Projection, Scan, TableFunction,
 };
+use crate::logical::{context::QueryContext, expr::LogicalExpression};
 use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
@@ -94,6 +94,7 @@ impl<'a> QueryNodePlanner<'a> {
             Some(from) => self.plan_from_node(from, Scope::empty())?,
             None => LogicalQuery {
                 root: LogicalOperator::Empty,
+                context: QueryContext::new(),
                 scope: Scope::empty(),
             },
         };
@@ -202,6 +203,7 @@ impl<'a> QueryNodePlanner<'a> {
                 exprs: select_exprs.clone(),
                 input: Box::new(plan.root),
             }),
+            context: plan.context,
             scope: plan.scope,
         };
 
@@ -212,6 +214,7 @@ impl<'a> QueryNodePlanner<'a> {
                     predicate: expr,
                     input: Box::new(plan.root),
                 }),
+                context: plan.context,
                 scope: plan.scope,
             }
         }
@@ -223,6 +226,7 @@ impl<'a> QueryNodePlanner<'a> {
                     exprs: order_by_exprs,
                     input: Box::new(plan.root),
                 }),
+                context: plan.context,
                 scope: plan.scope,
             }
         }
@@ -239,6 +243,7 @@ impl<'a> QueryNodePlanner<'a> {
                     exprs: projections,
                     input: Box::new(plan.root),
                 }),
+                context: plan.context,
                 scope: plan.scope,
             };
         }
@@ -285,6 +290,7 @@ impl<'a> QueryNodePlanner<'a> {
                                 schema,
                                 source: entry,
                             }),
+                            context: QueryContext::new(),
                             scope,
                         }
                     }
@@ -360,6 +366,7 @@ impl<'a> QueryNodePlanner<'a> {
 
                 LogicalQuery {
                     root: operator,
+                    context: QueryContext::new(),
                     scope,
                 }
             }
@@ -401,6 +408,19 @@ impl<'a> QueryNodePlanner<'a> {
                             _ => unimplemented!(),
                         };
 
+                        let context = match (
+                            left_plan.context.materialized.is_empty(),
+                            right_plan.context.materialized.is_empty(),
+                        ) {
+                            (false, false) => {
+                                // TODO: Implement it.
+                                return Err(RayexecError::new("Context merging unimplemented"));
+                            }
+                            (false, true) => left_plan.context,
+                            (true, false) => right_plan.context,
+                            (true, true) => QueryContext::new(),
+                        };
+
                         LogicalQuery {
                             root: LogicalOperator::AnyJoin(AnyJoin {
                                 left: Box::new(left_plan.root),
@@ -408,17 +428,33 @@ impl<'a> QueryNodePlanner<'a> {
                                 join_type,
                                 on: on_expr,
                             }),
+                            context,
                             scope: merged,
                         }
                     }
                     ast::JoinCondition::None => match join_type {
                         ast::JoinType::Cross => {
                             let merged = left_plan.scope.merge(right_plan.scope)?;
+
+                            let context = match (
+                                left_plan.context.materialized.is_empty(),
+                                right_plan.context.materialized.is_empty(),
+                            ) {
+                                (false, false) => {
+                                    // TODO: Implement it.
+                                    return Err(RayexecError::new("Context merging unimplemented"));
+                                }
+                                (false, true) => left_plan.context,
+                                (true, false) => right_plan.context,
+                                (true, true) => QueryContext::new(),
+                            };
+
                             LogicalQuery {
                                 root: LogicalOperator::CrossJoin(CrossJoin {
                                     left: Box::new(left_plan.root),
                                     right: Box::new(right_plan.root),
                                 }),
+                                context,
                                 scope: merged,
                             }
                         }
@@ -439,6 +475,7 @@ impl<'a> QueryNodePlanner<'a> {
 
         Ok(LogicalQuery {
             root: body.root,
+            context: body.context,
             scope: aliased_scope,
         })
     }
@@ -514,6 +551,7 @@ impl<'a> QueryNodePlanner<'a> {
 
         Ok(LogicalQuery {
             root: operator,
+            context: QueryContext::new(),
             scope,
         })
     }
