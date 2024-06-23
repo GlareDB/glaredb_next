@@ -111,6 +111,7 @@ impl ExplainNode {
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)
             | LogicalOperator::ResetVar(_)
+            | LogicalOperator::MaterializedScan(_)
             | LogicalOperator::Scan(_)
             | LogicalOperator::TableFunction(_)
             | LogicalOperator::Drop(_)

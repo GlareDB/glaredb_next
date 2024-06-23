@@ -1,23 +1,18 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
-use super::sql::scope::ColumnRef;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
+use crate::engine::vars::SessionVar;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
-use crate::expr::scalar::{PlannedBinaryOperator, PlannedUnaryOperator};
-use crate::functions::aggregate::PlannedAggregateFunction;
-use crate::functions::scalar::PlannedScalarFunction;
 use crate::functions::table::InitializedTableFunction;
-use crate::{engine::vars::SessionVar, expr::scalar::VariadicOperator};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::{Hash, Hasher};
 
 pub trait LogicalNode {
     /// Get the output type schema of the operator.
@@ -42,6 +37,7 @@ pub enum LogicalOperator {
     CrossJoin(CrossJoin),
     DependentJoin(DependentJoin),
     Limit(Limit),
+    MaterializedScan(MaterializedScan),
     Scan(Scan),
     TableFunction(TableFunction),
     ExpressionList(ExpressionList),
@@ -76,6 +72,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => n.output_schema(outer),
             Self::DependentJoin(n) => n.output_schema(outer),
             Self::Limit(n) => n.output_schema(outer),
+            Self::MaterializedScan(n) => n.output_schema(outer),
             Self::Scan(n) => n.output_schema(outer),
             Self::TableFunction(n) => n.output_schema(outer),
             Self::ExpressionList(n) => n.output_schema(outer),
@@ -206,6 +203,7 @@ impl LogicalOperator {
             | LogicalOperator::AttachDatabase(_)
             | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::Drop(_)
+            | LogicalOperator::MaterializedScan(_)
             | LogicalOperator::Scan(_)
             | LogicalOperator::Describe(_)
             | LogicalOperator::TableFunction(_) => (),
@@ -234,6 +232,7 @@ impl Explainable for LogicalOperator {
             Self::CrossJoin(p) => p.explain_entry(conf),
             Self::DependentJoin(p) => p.explain_entry(conf),
             Self::Limit(p) => p.explain_entry(conf),
+            Self::MaterializedScan(p) => p.explain_entry(conf),
             Self::Scan(p) => p.explain_entry(conf),
             Self::TableFunction(p) => p.explain_entry(conf),
             Self::ExpressionList(p) => p.explain_entry(conf),
@@ -437,13 +436,11 @@ impl Explainable for CrossJoin {
     }
 }
 
-/// A join where columns from the left side of the join depend on columns on the
-/// right.
+/// A join where the right input has columns that depend on output in the left.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DependentJoin {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
-    pub on: LogicalExpression,
 }
 
 impl LogicalNode for DependentJoin {
@@ -476,6 +473,25 @@ impl LogicalNode for Limit {
 impl Explainable for Limit {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Limit")
+    }
+}
+
+/// A scan of a materialized plan.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterializedScan {
+    /// Index of the materialized plan in the query context.
+    pub idx: usize,
+}
+
+impl LogicalNode for MaterializedScan {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        unimplemented!()
+    }
+}
+
+impl Explainable for MaterializedScan {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("MaterializedScan").with_value("idx", &self.idx)
     }
 }
 

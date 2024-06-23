@@ -18,10 +18,14 @@ impl SubqueryDecorrelator {
         input: &mut LogicalOperator,
         num_input_cols: usize,
     ) -> Result<LogicalExpression> {
-        let root = subquery.take_root();
+        let mut root = *subquery.take_root();
         match subquery {
             Subquery::Scalar { .. } => {
                 // TODO: Delim left (input)
+
+                let mut dep_push_down = DependentJoinPushDown::new(num_input_cols);
+                dep_push_down.find_correlated_columns(&mut root)?;
+                dep_push_down.push_down(&mut root)?;
 
                 unimplemented!()
             }
@@ -149,28 +153,39 @@ impl DependentJoinPushDown {
         )
     }
 
+    /// Rewrites correlated columns in the given expressions, returning the
+    /// number of expressions that were rewritten.
     fn rewrite_correlated_columns<'a>(
         &self,
         exprs: impl IntoIterator<Item = &'a mut LogicalExpression>,
-    ) -> Result<()> {
+    ) -> Result<usize> {
+        let mut num_rewritten = 0;
         LogicalExpression::walk_mut_many(
             exprs,
             &mut |expr| match expr {
                 LogicalExpression::ColumnRef(col) if col.scope_level > 0 => {
                     *expr = LogicalExpression::ColumnRef(self.decorrelated_ref(*col));
+                    num_rewritten += 1;
                     Ok(())
                 }
                 _ => Ok(()),
             },
             &mut |_| Ok(()),
-        )
+        )?;
+        Ok(num_rewritten)
     }
 
+    /// Push down dependent joins.
     fn push_down(&self, root: &mut LogicalOperator) -> Result<()> {
-        root.walk_mut_pre(&mut |plan| match plan {
+        root.walk_mut_post(&mut |plan| match plan {
             LogicalOperator::Filter(Filter { predicate, .. }) => {
-                self.rewrite_correlated_columns([predicate])?;
+                // Filter is simple, don't need to do anything special.
+                let _ = self.rewrite_correlated_columns([predicate])?;
                 Ok(())
+            }
+            LogicalOperator::Projection(Projection { exprs, .. }) => {
+                let num_rewritten = self.rewrite_correlated_columns(exprs)?;
+                unimplemented!()
             }
             _ => unimplemented!(),
         })?;
