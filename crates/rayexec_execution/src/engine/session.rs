@@ -7,7 +7,6 @@ use rayexec_parser::{parser, statement::RawStatement};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
-    engine::result_stream::unpartitioned_result_stream,
     execution::query_graph::{
         planner::{QueryGraphDebugConfig, QueryGraphPlanner},
         sink::QuerySink,
@@ -21,16 +20,11 @@ use crate::{
 };
 
 use super::{
-    result_stream::ResultStream,
+    result::ExecutionResult,
+    stream::QueryStream,
     vars::{SessionVars, VarAccessor},
     DataSourceRegistry, EngineRuntime,
 };
-
-#[derive(Debug)]
-pub struct ExecutionResult {
-    pub output_schema: Schema,
-    pub stream: ResultStream,
-}
 
 #[derive(Debug)]
 pub struct Session {
@@ -128,14 +122,14 @@ impl Session {
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
 
-        let (result_stream, result_sink) = unpartitioned_result_stream();
+        let query_stream = QueryStream::new();
         let planner = QueryGraphPlanner::new(
             &self.context,
             &self.runtime,
             VarAccessor::new(&self.vars).partitions(),
             QueryGraphDebugConfig::new(&self.vars),
         );
-        let query_sink = QuerySink::new([result_sink]);
+        let query_sink = QuerySink::new([Box::new(query_stream.sink()) as _]);
 
         let query_graph = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
@@ -192,13 +186,12 @@ impl Session {
             root => planner.create_graph(root, context, query_sink)?,
         };
 
-        self.runtime
-            .scheduler
-            .spawn_query_graph(query_graph, result_stream.errors_send_channel());
+        let handle = self.runtime.scheduler.spawn_query_graph(query_graph);
 
         Ok(ExecutionResult {
             output_schema: Schema::empty(), // TODO
-            stream: result_stream,
+            stream: query_stream,
+            handle,
         })
     }
 }

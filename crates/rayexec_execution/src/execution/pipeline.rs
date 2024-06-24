@@ -1,6 +1,9 @@
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{
+    metrics::{OperatorMetrics, PartitionPipelineMetrics},
+    operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::{
@@ -87,6 +90,7 @@ impl Pipeline {
                 physical: physical.clone(),
                 operator_state: operator_state.clone(),
                 partition_state,
+                metrics: OperatorMetrics::default(),
             });
 
         for (operator, partition_pipeline) in operators.zip(self.partitions.iter_mut()) {
@@ -124,7 +128,6 @@ pub struct PartitionPipeline {
     /// Information about the pipeline.
     ///
     /// Should only be used for debugging/logging.
-    #[allow(dead_code)]
     info: PartitionPipelineInfo,
 
     /// State of this pipeline.
@@ -158,11 +161,26 @@ impl PartitionPipeline {
             pull_start_idx: 0,
         }
     }
+
+    /// Take the current set of metrics for the operators.
+    ///
+    /// This will replace the existing metrics with a fresh set.
+    pub fn take_metrics(&mut self) -> PartitionPipelineMetrics {
+        let metrics = self
+            .operators
+            .iter_mut()
+            .map(|op_state| std::mem::take(&mut op_state.metrics))
+            .collect();
+        PartitionPipelineMetrics {
+            info: self.info,
+            operator_metrics: metrics,
+        }
+    }
 }
 
 /// Information about a partition pipeline.
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct PartitionPipelineInfo {
+pub struct PartitionPipelineInfo {
     pipeline: PipelineId,
     partition: usize,
 }
@@ -177,6 +195,9 @@ pub(crate) struct OperatorWithState {
 
     /// The state for this operator that's exclusive to this partition.
     partition_state: PartitionState,
+
+    /// Metrics for tracking execution time at various states.
+    metrics: OperatorMetrics,
 }
 
 pub(crate) enum PipelinePartitionState {
@@ -245,6 +266,7 @@ impl PartitionPipeline {
                         .operators
                         .get_mut(*operator_idx)
                         .expect("operator to exist");
+                    operator.metrics.pull_metrics.total_pulls += 1;
                     let poll_pull = operator.physical.poll_pull(
                         cx,
                         &mut operator.partition_state,
@@ -260,7 +282,10 @@ impl PartitionPipeline {
                             };
                             continue;
                         }
-                        Ok(PollPull::Pending) => return Poll::Pending,
+                        Ok(PollPull::Pending) => {
+                            operator.metrics.pull_metrics.pending_count += 1;
+                            return Poll::Pending;
+                        }
                         Ok(PollPull::Exhausted) => {
                             // This operator is exhausted, we're never going to
                             // pull from it again.
@@ -315,6 +340,7 @@ impl PartitionPipeline {
                         .operators
                         .get_mut(*operator_idx)
                         .expect("operator to exist");
+                    operator.metrics.push_metrics.total_pushes += 1;
                     let poll_push = operator.physical.poll_push(
                         cx,
                         &mut operator.partition_state,
@@ -355,6 +381,7 @@ impl PartitionPipeline {
                                 batch,
                                 operator_idx: *operator_idx,
                             };
+                            operator.metrics.push_metrics.pending_count += 1;
                             return Poll::Pending;
                         }
                         Ok(PollPush::Break) => {

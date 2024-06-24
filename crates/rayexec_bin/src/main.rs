@@ -53,15 +53,13 @@ async fn inner(runtime: Arc<EngineRuntime>) -> Result<()> {
 
     let outputs = session.simple(&query).await?;
 
-    for output in outputs {
-        let results = output.stream.collect::<Vec<_>>().await;
-        let batches = results.into_iter().collect::<Result<Vec<_>>>()?;
-
+    for mut output in outputs {
         println!("----");
         println!("INPUT: {query}");
         println!("OUTPUT SCHEMA: {:?}", output.output_schema);
 
-        for batch in batches.into_iter() {
+        while let Some(result) = output.next().await {
+            let batch = result?;
             let out = ugly_print(&output.output_schema, &[batch])?;
             println!("{out}");
         }
