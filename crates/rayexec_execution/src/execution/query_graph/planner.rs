@@ -123,6 +123,13 @@ impl<'a> QueryGraphPlanner<'a> {
         context: QueryContext,
         sink: QuerySink,
     ) -> Result<QueryGraph> {
+        // For debug checking. If we're an actual plan, assert that we've
+        // consumed all pipelines after building the graph.
+        //
+        // Skipping describe because it doens't actually walk the plan, it just
+        // gets the top-level schema.
+        let expect_consume_all = !matches!(plan, operator::LogicalOperator::Describe(_));
+
         let mut build_state = BuildState::new();
 
         // Build materialized plans first.
@@ -133,10 +140,13 @@ impl<'a> QueryGraphPlanner<'a> {
         build_state.push_query_sink(&self.conf, sink)?;
 
         assert!(build_state.in_progress.is_none());
-        assert!(
-            !materializations.has_remaining_pipelines(),
-            "remaining pipelines in materializations: {materializations:?}"
-        );
+
+        if expect_consume_all {
+            assert!(
+                !materializations.has_remaining_pipelines(),
+                "remaining pipelines in materializations: {materializations:?}"
+            );
+        }
 
         let pipelines = build_state.completed;
 

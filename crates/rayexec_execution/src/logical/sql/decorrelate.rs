@@ -1,8 +1,12 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    hash::{DefaultHasher, Hasher},
+};
 
 use crate::logical::{
+    context::QueryContext,
     expr::{LogicalExpression, Subquery},
-    operator::{Filter, LogicalOperator, Projection},
+    operator::{Aggregate, CrossJoin, Filter, LogicalOperator, Projection},
 };
 use rayexec_error::Result;
 
@@ -14,18 +18,37 @@ pub struct SubqueryDecorrelator {}
 impl SubqueryDecorrelator {
     pub fn plan_correlated(
         &mut self,
+        context: &mut QueryContext,
         subquery: &mut Subquery,
         input: &mut LogicalOperator,
-        num_input_cols: usize,
+        subquery_cols: usize,
     ) -> Result<LogicalExpression> {
         let mut root = *subquery.take_root();
         match subquery {
             Subquery::Scalar { .. } => {
-                // TODO: Delim left (input)
+                // Dependent join on input and subquery root.
 
-                let mut dep_push_down = DependentJoinPushDown::new(num_input_cols);
+                // Materialize the original input. It'll be fed into the pushed
+                // down dependent join, as well as the output of subquery.
+                let orig = std::mem::replace(input, LogicalOperator::Empty);
+                let idx = context.push_plan_for_materialization(orig);
+                let scan = context.generate_scan_for_idx(idx, &[])?; // wtf goes in outer?
+                *input = LogicalOperator::MaterializedScan(scan);
+
+                let mut dep_push_down = DependentJoinPushDown::new(subquery_cols);
+                // Figure out which columns we'll be decorrelating.
                 dep_push_down.find_correlated_columns(&mut root)?;
-                dep_push_down.push_down(&mut root)?;
+
+                // "Push" down the dependent join
+                //
+                // Note we may end up generating more than one materialized scan
+                // in cases where we're pushing down through joins or set
+                // operations where both sides have correlations.
+                dep_push_down.push_down(context, idx, &mut root)?;
+
+                // TODO: Build join columns. Left: materialized scan, right:
+                // materialized scan offset + generated column indices in push
+                // down.
 
                 unimplemented!()
             }
@@ -35,6 +58,21 @@ impl SubqueryDecorrelator {
             }
             Subquery::Any { .. } => unimplemented!(),
         }
+    }
+}
+
+// TODO: Determine if this is fine.
+#[derive(Debug, Default)]
+struct LogicalOperatorRefMap<V>(HashMap<*const LogicalOperator, V>);
+
+impl<V: Copy> LogicalOperatorRefMap<V> {
+    fn insert(&mut self, operator: &LogicalOperator, value: V) {
+        self.0.insert(operator as _, value);
+    }
+
+    fn get(&self, operator: &LogicalOperator) -> Option<V> {
+        let ptr = operator as *const LogicalOperator;
+        self.0.get(&ptr).copied()
     }
 }
 
@@ -54,19 +92,23 @@ struct DependentJoinPushDown {
     /// compute the new decorrelated column references quickly.
     lateral_offsets: BTreeMap<usize, usize>,
 
-    /// Number of columns from the original input plan.
+    /// Number of columns in the subquery.
     ///
-    /// This is used to compute the offset for the new column refs as we push
-    /// down the dependent joins.
-    num_input_cols: usize,
+    /// This is used to determine the column indices for the materialized joins.
+    subquery_cols: usize,
+
+    /// Hash map for tracking if a logical operator contains any correlated
+    /// columns, or if any of its children does.
+    has_correlations: LogicalOperatorRefMap<bool>,
 }
 
 impl DependentJoinPushDown {
-    fn new(num_input_cols: usize) -> Self {
+    fn new(subquery_cols: usize) -> Self {
         DependentJoinPushDown {
             correlated: BTreeMap::new(),
             lateral_offsets: BTreeMap::new(),
-            num_input_cols,
+            subquery_cols,
+            has_correlations: LogicalOperatorRefMap::default(),
         }
     }
 
@@ -77,21 +119,40 @@ impl DependentJoinPushDown {
     /// how many joins we're working with, which let's us replace the correlated
     /// columns during the push down.
     fn find_correlated_columns(&mut self, root: &mut LogicalOperator) -> Result<()> {
-        root.walk_mut_pre(&mut |plan| {
-            match plan {
-                LogicalOperator::Projection(Projection { exprs, .. }) => {
-                    self.add_any_correlated_columns(exprs)?;
+        // Walk post to determine correlations in children first.
+        root.walk_mut_post(&mut |plan| {
+            let has_correlation = match plan {
+                LogicalOperator::Projection(Projection { exprs, input }) => {
+                    let has_correlation = self.add_any_correlated_columns(exprs)?;
+                    has_correlation || self.has_correlations.get(input).unwrap_or(false)
                 }
-                LogicalOperator::Filter(Filter { predicate, .. }) => {
-                    self.add_any_correlated_columns([predicate])?;
+                LogicalOperator::Filter(Filter { predicate, input }) => {
+                    let has_correlation = self.add_any_correlated_columns([predicate])?;
+                    has_correlation || self.has_correlations.get(input).unwrap_or(false)
                 }
-                _ => (), // TODO: More
-            }
+                LogicalOperator::Aggregate(Aggregate {
+                    aggregates,
+                    group_exprs,
+                    input,
+                    ..
+                }) => {
+                    let mut has_correlation = self.add_any_correlated_columns(aggregates)?;
+                    has_correlation |= self.add_any_correlated_columns(group_exprs)?;
+                    has_correlation || self.has_correlations.get(input).unwrap_or(false)
+                }
+                LogicalOperator::MaterializedScan(_)
+                | LogicalOperator::Scan(_)
+                | LogicalOperator::TableFunction(_) => false,
+                _ => true, // TODO: More
+            };
+
+            self.has_correlations.insert(plan, has_correlation);
+
             Ok(())
         })?;
 
-        // First lateral starts at the end of the original input.
-        let mut curr_offset = self.num_input_cols;
+        // First lateral starts at the end of the original subquery columns.
+        let mut curr_offset = self.subquery_cols;
         for (lateral, cols) in &self.correlated {
             self.lateral_offsets.insert(*lateral, curr_offset);
             // Subsequent laterals get added to the right.
@@ -125,16 +186,20 @@ impl DependentJoinPushDown {
 
     /// Iterate and walk all the given expression, inserting correlated columns
     /// into the `correlated` map as they're encountered.
+    ///
+    /// Returns true if there was a correlation.
     fn add_any_correlated_columns<'a>(
         &mut self,
         exprs: impl IntoIterator<Item = &'a mut LogicalExpression>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         use std::collections::btree_map::Entry;
 
+        let mut has_correlation = false;
         LogicalExpression::walk_mut_many(
             exprs,
             &mut |expr| match expr {
                 LogicalExpression::ColumnRef(col) if col.scope_level > 0 => {
+                    has_correlation = true;
                     match self.correlated.entry(col.scope_level) {
                         Entry::Vacant(ent) => {
                             let mut cols = BTreeSet::new();
@@ -150,7 +215,9 @@ impl DependentJoinPushDown {
                 _ => Ok(()),
             },
             &mut |_| Ok(()),
-        )
+        )?;
+
+        Ok(has_correlation)
     }
 
     /// Rewrites correlated columns in the given expressions, returning the
@@ -176,19 +243,39 @@ impl DependentJoinPushDown {
     }
 
     /// Push down dependent joins.
-    fn push_down(&self, root: &mut LogicalOperator) -> Result<()> {
-        root.walk_mut_post(&mut |plan| match plan {
+    fn push_down(
+        &self,
+        context: &mut QueryContext,
+        materialized_idx: usize,
+        plan: &mut LogicalOperator,
+    ) -> Result<()> {
+        // Note we're not using the `walk_` methods since the logic in this is a
+        // bit more involved.
+
+        if !self.has_correlations.get(plan).expect("correlation bool") {
+            // Operator (and children) don't have correlations. Cross join it
+            // with the materialized outer plan.
+            let scan = context.generate_scan_for_idx(materialized_idx, &[])?;
+            let orig = std::mem::replace(plan, LogicalOperator::Empty);
+            *plan = LogicalOperator::CrossJoin(CrossJoin {
+                left: Box::new(orig),
+                right: Box::new(LogicalOperator::MaterializedScan(scan)),
+            });
+
+            return Ok(());
+        }
+
+        match plan {
             LogicalOperator::Filter(Filter { predicate, .. }) => {
                 // Filter is simple, don't need to do anything special.
                 let _ = self.rewrite_correlated_columns([predicate])?;
-                Ok(())
             }
             LogicalOperator::Projection(Projection { exprs, .. }) => {
-                let num_rewritten = self.rewrite_correlated_columns(exprs)?;
-                unimplemented!()
+                // yolo
+                let _ = self.rewrite_correlated_columns(exprs)?;
             }
             _ => unimplemented!(),
-        })?;
+        }
 
         unimplemented!()
     }
