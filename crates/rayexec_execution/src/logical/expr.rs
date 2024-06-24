@@ -1,4 +1,4 @@
-use super::operator::LogicalOperator;
+use super::operator::{Filter, LogicalOperator, Projection};
 use super::sql::scope::ColumnRef;
 use crate::expr::scalar::VariadicOperator;
 use crate::expr::scalar::{PlannedBinaryOperator, PlannedUnaryOperator};
@@ -41,6 +41,26 @@ impl Subquery {
             Self::Exists { root, .. } => root,
             Self::Any { root } => root,
         }
+    }
+
+    pub fn is_correlated(&mut self) -> Result<bool> {
+        let mut correlated = false;
+        self.get_root_mut().walk_mut_pre(&mut |plan| {
+            match plan {
+                LogicalOperator::Projection(Projection { exprs, .. }) => {
+                    exprs
+                        .iter_mut()
+                        .for_each(|expr| correlated |= expr.is_correlated());
+                }
+                LogicalOperator::Filter(Filter { predicate, .. }) => {
+                    correlated = predicate.is_correlated();
+                }
+                _ => (), // TODO: The others
+            }
+            Ok(())
+        })?;
+
+        Ok(correlated)
     }
 }
 
@@ -234,7 +254,20 @@ impl LogicalExpression {
 
     /// Checks if this expressions contains a reference to an outer scope.
     pub fn is_correlated(&self) -> bool {
-        unimplemented!()
+        // Note the slight differen from `is_constant`. An expression is
+        // correlated if _any_ of the expressions are correlated.
+        match self {
+            Self::ColumnRef(col) => col.scope_level > 0,
+            Self::Literal(_) => false,
+            Self::ScalarFunction { inputs, .. } => inputs.iter().any(|expr| expr.is_correlated()),
+            Self::Cast { expr, .. } => expr.is_correlated(),
+            Self::Unary { expr, .. } => expr.is_correlated(),
+            Self::Binary { left, right, .. } => left.is_correlated() || right.is_correlated(),
+            Self::Variadic { exprs, .. } => exprs.iter().any(|expr| expr.is_correlated()),
+            Self::Aggregate { inputs, .. } => inputs.iter().any(|expr| expr.is_correlated()),
+            Self::Subquery(_) => false,
+            Self::Case { .. } => false,
+        }
     }
 
     /// Checks if this is a constant expression.

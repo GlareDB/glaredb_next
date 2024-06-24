@@ -23,8 +23,12 @@ const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 /// Plans query nodes.
 #[derive(Debug, Clone)]
 pub struct QueryNodePlanner<'a> {
+    /// Outer schemas relative to the query we're currently planning.
+    pub outer_schemas: Vec<TypeSchema>,
+
     /// Outer scopes relative to the query we're currently planning.
     pub outer_scopes: Vec<Scope>,
+
     /// Data collected during binding (table references, functions, etc).
     pub bind_data: &'a BindData,
 }
@@ -32,15 +36,19 @@ pub struct QueryNodePlanner<'a> {
 impl<'a> QueryNodePlanner<'a> {
     pub fn new(bind_data: &'a BindData) -> Self {
         QueryNodePlanner {
+            outer_schemas: Vec::new(),
             outer_scopes: Vec::new(),
             bind_data,
         }
     }
 
     /// Create a new nested plan context for planning subqueries.
-    pub fn nested(&self, outer: Scope) -> Self {
+    pub fn nested(&self, outer_schema: TypeSchema, outer_scope: Scope) -> Self {
         QueryNodePlanner {
-            outer_scopes: std::iter::once(outer)
+            outer_schemas: std::iter::once(outer_schema)
+                .chain(self.outer_schemas.clone())
+                .collect(),
+            outer_scopes: std::iter::once(outer_scope)
                 .chain(self.outer_scopes.clone())
                 .collect(),
             bind_data: self.bind_data,
@@ -98,7 +106,9 @@ impl<'a> QueryNodePlanner<'a> {
     ) -> Result<LogicalQuery> {
         // Handle FROM
         let mut plan = match select.from {
-            Some(from) => self.plan_from_node(context, from, Scope::empty())?,
+            Some(from) => {
+                self.plan_from_node(context, from, TypeSchema::empty(), Scope::empty())?
+            }
             None => LogicalQuery {
                 root: LogicalOperator::Empty,
                 scope: Scope::empty(),
@@ -110,8 +120,8 @@ impl<'a> QueryNodePlanner<'a> {
 
         // Handle WHERE
         if let Some(where_expr) = select.where_expr {
-            let mut expr = expr_ctx.plan_expression(context, where_expr)?;
-            SubqueryPlanner.plan_subquery_expr(&mut expr, &mut plan.root)?;
+            let expr = expr_ctx.plan_expression(context, where_expr)?;
+            // SubqueryPlanner.plan_subquery_expr(&mut expr, &mut plan.root)?;
 
             // Add filter to the plan, does not change the scope.
             plan.root = LogicalOperator::Filter(Filter {
@@ -253,7 +263,7 @@ impl<'a> QueryNodePlanner<'a> {
         }
 
         // Flatten subqueries;
-        plan.root = SubqueryPlanner.flatten(plan.root)?;
+        plan.root = SubqueryPlanner.flatten(context, plan.root)?;
 
         // Cleaned scope containing only output columns in the final output.
         plan.scope = Scope::with_columns(None, names);
@@ -265,6 +275,7 @@ impl<'a> QueryNodePlanner<'a> {
         &self,
         context: &mut QueryContext,
         from: ast::FromNode<Bound>,
+        current_schema: TypeSchema,
         current_scope: Scope,
     ) -> Result<LogicalQuery> {
         // Plan the "body" of the FROM.
@@ -299,12 +310,12 @@ impl<'a> QueryNodePlanner<'a> {
                         }
                     }
                     BoundTableOrCteReference::Cte(bound) => {
-                        self.plan_cte_body(context, bound, current_scope)?
+                        self.plan_cte_body(context, bound, current_schema, current_scope)?
                     }
                 }
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
-                let mut nested = self.nested(current_scope);
+                let mut nested = self.nested(current_schema, current_scope);
                 nested.plan_query(context, query)?
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args: _ }) => {
@@ -334,15 +345,26 @@ impl<'a> QueryNodePlanner<'a> {
                 join_condition,
             }) => {
                 // Plan left side of join.
-                let left_nested = self.nested(current_scope.clone());
-                let left_plan = left_nested.plan_from_node(context, *left, Scope::empty())?; // TODO: Determine if should be empty.
+                let left_nested = self.nested(current_schema.clone(), current_scope.clone());
+                let left_plan = left_nested.plan_from_node(
+                    context,
+                    *left,
+                    TypeSchema::empty(),
+                    Scope::empty(),
+                )?; // TODO: Determine if should be empty.
 
                 // Plan right side of join.
                 //
                 // Note this uses a plan context that has the "left" scope as
                 // its outer scope.
-                let right_nested = left_nested.nested(left_plan.scope.clone());
-                let right_plan = right_nested.plan_from_node(context, *right, Scope::empty())?; // TODO: Determine if this should be empty.
+                // TODO: Schema
+                let right_nested = left_nested.nested(TypeSchema::empty(), left_plan.scope.clone());
+                let right_plan = right_nested.plan_from_node(
+                    context,
+                    *right,
+                    TypeSchema::empty(),
+                    Scope::empty(),
+                )?; // TODO: Determine if this should be empty.
 
                 match join_condition {
                     ast::JoinCondition::On(on) => {
@@ -413,6 +435,7 @@ impl<'a> QueryNodePlanner<'a> {
         &self,
         context: &mut QueryContext,
         bound: BoundCteReference,
+        current_schema: TypeSchema,
         current_scope: Scope,
     ) -> Result<LogicalQuery> {
         let cte = self.bind_data.ctes.get(bound.idx).ok_or_else(|| {
@@ -436,7 +459,7 @@ impl<'a> QueryNodePlanner<'a> {
         }
 
         // Plan CTE body...
-        let mut nested = self.nested(current_scope);
+        let mut nested = self.nested(current_schema, current_scope);
         let mut query = nested.plan_query(context, cte.body.clone())?;
 
         let scope_reference = TableReference {

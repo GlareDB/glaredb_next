@@ -24,7 +24,7 @@ use crate::{
             materialize::PhysicalMaterialize,
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
-            repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
+            round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             scan::PhysicalScan,
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
@@ -619,7 +619,7 @@ impl BuildState {
         }
 
         let formatted_logical =
-            format_logical_plan_for_explain(&explain.input, explain.format, explain.verbose)?;
+            format_logical_plan_for_explain(None, &explain.input, explain.format, explain.verbose)?;
 
         // Build up the pipeline.
         self.walk(conf, materializations, *explain.input)?;

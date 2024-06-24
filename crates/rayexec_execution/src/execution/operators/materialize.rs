@@ -189,7 +189,7 @@ impl PhysicalOperator for PhysicalMaterialize {
 }
 
 impl Explainable for PhysicalMaterialize {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("PhysicalMaterialize")
     }
 }

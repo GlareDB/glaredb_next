@@ -8,6 +8,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
+use tracing::trace;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct PipelineId(pub usize);
@@ -229,6 +230,12 @@ impl PartitionPipeline {
     /// they've not been exhausted. An example operator that would emit a Break
     /// is LIMIT.
     pub fn poll_execute(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>> {
+        trace!(
+            pipeline_id = %self.info.pipeline.0,
+            partition = %self.info.partition,
+            "executing partition pipeline",
+        );
+
         let state = &mut self.state;
 
         loop {

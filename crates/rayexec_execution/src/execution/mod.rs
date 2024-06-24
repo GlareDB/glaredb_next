@@ -2,3 +2,4 @@
 pub mod operators;
 pub mod pipeline;
 pub mod query_graph;
+pub mod metrics;

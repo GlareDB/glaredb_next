@@ -6,13 +6,13 @@ use std::{
 use crate::logical::{
     context::QueryContext,
     expr::{LogicalExpression, Subquery},
-    operator::{Aggregate, CrossJoin, Filter, LogicalOperator, Projection},
+    operator::{Aggregate, CrossJoin, EqualityJoin, Filter, JoinType, LogicalOperator, Projection},
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use super::scope::ColumnRef;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SubqueryDecorrelator {}
 
 impl SubqueryDecorrelator {
@@ -21,6 +21,7 @@ impl SubqueryDecorrelator {
         context: &mut QueryContext,
         subquery: &mut Subquery,
         input: &mut LogicalOperator,
+        input_cols: usize,
         subquery_cols: usize,
     ) -> Result<LogicalExpression> {
         let mut root = *subquery.take_root();
@@ -30,12 +31,12 @@ impl SubqueryDecorrelator {
 
                 // Materialize the original input. It'll be fed into the pushed
                 // down dependent join, as well as the output of subquery.
+                // TODO: Eliminate duplicates in original
                 let orig = std::mem::replace(input, LogicalOperator::Empty);
                 let idx = context.push_plan_for_materialization(orig);
                 let scan = context.generate_scan_for_idx(idx, &[])?; // wtf goes in outer?
-                *input = LogicalOperator::MaterializedScan(scan);
 
-                let mut dep_push_down = DependentJoinPushDown::new(subquery_cols);
+                let mut dep_push_down = DependentJoinPushDown::new();
                 // Figure out which columns we'll be decorrelating.
                 dep_push_down.find_correlated_columns(&mut root)?;
 
@@ -50,7 +51,20 @@ impl SubqueryDecorrelator {
                 // materialized scan offset + generated column indices in push
                 // down.
 
-                unimplemented!()
+                // TODO: NULL == NULL when available
+                *input = LogicalOperator::EqualityJoin(EqualityJoin {
+                    left: Box::new(LogicalOperator::MaterializedScan(scan)),
+                    right: Box::new(root),
+                    join_type: JoinType::Inner,
+                    left_on: vec![0],  // TODO
+                    right_on: vec![0], // TODO
+                });
+
+                println!("PLAN:\n{}", input.debug_explain(Some(context)));
+
+                let expr = LogicalExpression::new_column(input_cols);
+
+                Ok(expr)
             }
             Subquery::Exists { negated, .. } => {
                 //
@@ -92,22 +106,16 @@ struct DependentJoinPushDown {
     /// compute the new decorrelated column references quickly.
     lateral_offsets: BTreeMap<usize, usize>,
 
-    /// Number of columns in the subquery.
-    ///
-    /// This is used to determine the column indices for the materialized joins.
-    subquery_cols: usize,
-
     /// Hash map for tracking if a logical operator contains any correlated
     /// columns, or if any of its children does.
     has_correlations: LogicalOperatorRefMap<bool>,
 }
 
 impl DependentJoinPushDown {
-    fn new(subquery_cols: usize) -> Self {
+    fn new() -> Self {
         DependentJoinPushDown {
             correlated: BTreeMap::new(),
             lateral_offsets: BTreeMap::new(),
-            subquery_cols,
             has_correlations: LogicalOperatorRefMap::default(),
         }
     }
@@ -141,6 +149,7 @@ impl DependentJoinPushDown {
                     has_correlation || self.has_correlations.get(input).unwrap_or(false)
                 }
                 LogicalOperator::MaterializedScan(_)
+                | LogicalOperator::Empty
                 | LogicalOperator::Scan(_)
                 | LogicalOperator::TableFunction(_) => false,
                 _ => true, // TODO: More
@@ -151,8 +160,7 @@ impl DependentJoinPushDown {
             Ok(())
         })?;
 
-        // First lateral starts at the end of the original subquery columns.
-        let mut curr_offset = self.subquery_cols;
+        let mut curr_offset = 0;
         for (lateral, cols) in &self.correlated {
             self.lateral_offsets.insert(*lateral, curr_offset);
             // Subsequent laterals get added to the right.
@@ -266,17 +274,24 @@ impl DependentJoinPushDown {
         }
 
         match plan {
-            LogicalOperator::Filter(Filter { predicate, .. }) => {
+            LogicalOperator::Filter(Filter { predicate, input }) => {
+                self.push_down(context, materialized_idx, input)?;
                 // Filter is simple, don't need to do anything special.
                 let _ = self.rewrite_correlated_columns([predicate])?;
             }
-            LogicalOperator::Projection(Projection { exprs, .. }) => {
+            LogicalOperator::Projection(Projection { exprs, input }) => {
+                self.push_down(context, materialized_idx, input)?;
                 // yolo
                 let _ = self.rewrite_correlated_columns(exprs)?;
             }
-            _ => unimplemented!(),
+            other => {
+                // TODO: More operators
+                return Err(RayexecError::new(format!(
+                    "Unimplemented dependent join push down for operator: {other:?}"
+                )));
+            }
         }
 
-        unimplemented!()
+        Ok(())
     }
 }

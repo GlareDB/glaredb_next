@@ -1,3 +1,4 @@
+use super::context::QueryContext;
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
@@ -215,8 +216,8 @@ impl LogicalOperator {
 
     /// Return the explain string for a plan. Useful for println debugging.
     #[allow(dead_code)]
-    pub(crate) fn debug_explain(&self) -> String {
-        format_logical_plan_for_explain(self, ExplainFormat::Text, true).unwrap()
+    pub(crate) fn debug_explain(&self, context: Option<&QueryContext>) -> String {
+        format_logical_plan_for_explain(context, self, ExplainFormat::Text, true).unwrap()
     }
 }
 
@@ -397,6 +398,7 @@ pub struct EqualityJoin {
     pub left_on: Vec<usize>,
     pub right_on: Vec<usize>,
     // TODO: Filter
+    // TODO: NULL == NULL
 }
 
 impl LogicalNode for EqualityJoin {
@@ -501,7 +503,9 @@ impl LogicalNode for MaterializedScan {
 
 impl Explainable for MaterializedScan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("MaterializedScan").with_value("idx", &self.idx)
+        ExplainEntry::new("MaterializedScan")
+            .with_value("idx", &self.idx)
+            .with_values("column_types", &self.schema.types)
     }
 }
 
@@ -524,7 +528,10 @@ impl LogicalNode for Scan {
 
 impl Explainable for Scan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Scan").with_value("source", &self.source.name)
+        let column_types = self.source.columns.iter().map(|c| c.datatype.clone());
+        ExplainEntry::new("Scan")
+            .with_value("source", &self.source.name)
+            .with_values("column_types", column_types)
     }
 }
 

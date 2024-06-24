@@ -58,7 +58,7 @@ impl PhysicalScalarExpression {
                     return Err(RayexecError::new(format!(
                         "Invalid column index '{}', max index: '{}'",
                         col,
-                        input.types.len() - 1
+                        input.types.len() as i64 - 1 // Cast to i64 in case input we pass in has 0 columns.
                     )));
                 }
                 PhysicalScalarExpression::Column(col)

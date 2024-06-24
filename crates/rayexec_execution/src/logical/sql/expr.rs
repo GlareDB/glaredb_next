@@ -255,7 +255,7 @@ impl<'a> ExpressionContext<'a> {
                 }
             }
             ast::Expr::Subquery(subquery) => {
-                let mut nested = self.planner.nested(self.scope.clone());
+                let mut nested = self.planner.nested(self.input.clone(), self.scope.clone());
                 let subquery = nested.plan_query(context, *subquery)?;
 
                 // We can ignore scope, as it's only relevant to planning of the
@@ -268,7 +268,7 @@ impl<'a> ExpressionContext<'a> {
                 subquery,
                 not_exists,
             } => {
-                let mut nested = self.planner.nested(self.scope.clone());
+                let mut nested = self.planner.nested(self.input.clone(), self.scope.clone());
                 let subquery = nested.plan_query(context, *subquery)?;
 
                 Ok(LogicalExpression::Subquery(Subquery::Exists {
@@ -538,7 +538,7 @@ impl<'a> ExpressionContext<'a> {
     ) -> Result<Vec<LogicalExpression>> {
         let input_datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
+            .map(|expr| expr.datatype(self.input, &self.planner.outer_schemas))
             .collect::<Result<Vec<_>>>()?;
 
         if scalar.exact_signature(&input_datatypes).is_some() {

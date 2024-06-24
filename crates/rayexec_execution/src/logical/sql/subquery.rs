@@ -2,6 +2,7 @@ use crate::{
     expr::scalar::{BinaryOperator, PlannedBinaryOperator},
     functions::aggregate::count::CountNonNullImpl,
     logical::{
+        context::QueryContext,
         expr::{LogicalExpression, Subquery},
         operator::{Aggregate, CrossJoin, Limit, LogicalOperator, Projection},
     },
@@ -9,28 +10,32 @@ use crate::{
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
 use rayexec_error::Result;
 
-use super::scope::ColumnRef;
+use super::{decorrelate::SubqueryDecorrelator, scope::ColumnRef};
 
 /// Logic for flattening and planning subqueries.
 #[derive(Debug, Clone, Copy)]
 pub struct SubqueryPlanner;
 
 impl SubqueryPlanner {
-    pub fn flatten(&self, mut plan: LogicalOperator) -> Result<LogicalOperator> {
+    pub fn flatten(
+        &self,
+        context: &mut QueryContext,
+        mut plan: LogicalOperator,
+    ) -> Result<LogicalOperator> {
         plan.walk_mut_post(&mut |plan| {
             match plan {
                 LogicalOperator::Projection(p) => {
                     for expr in &mut p.exprs {
-                        self.plan_subquery_expr(expr, &mut p.input)?;
+                        self.plan_subquery_expr(context, expr, &mut p.input)?;
                     }
                 }
                 LogicalOperator::Aggregate(p) => {
                     for expr in &mut p.aggregates {
-                        self.plan_subquery_expr(expr, &mut p.input)?;
+                        self.plan_subquery_expr(context, expr, &mut p.input)?;
                     }
                 }
                 LogicalOperator::Filter(p) => {
-                    self.plan_subquery_expr(&mut p.predicate, &mut p.input)?;
+                    self.plan_subquery_expr(context, &mut p.predicate, &mut p.input)?;
                 }
                 _other => (),
             };
@@ -49,6 +54,7 @@ impl SubqueryPlanner {
     /// subquery as a child.
     pub fn plan_subquery_expr(
         &self,
+        context: &mut QueryContext,
         expr: &mut LogicalExpression,
         input: &mut LogicalOperator,
     ) -> Result<()> {
@@ -57,23 +63,18 @@ impl SubqueryPlanner {
 
         expr.walk_mut_post(&mut |expr| {
             if let LogicalExpression::Subquery(subquery) = expr {
-                // TODO: Correlated check
-                *expr = self.plan_uncorrelated(subquery, input, num_cols)?;
+                if subquery.is_correlated()? {
+                    *expr = SubqueryDecorrelator::default()
+                        .plan_correlated(context, subquery, input, num_cols, 1)?;
+                } else {
+                    *expr = self.plan_uncorrelated(subquery, input, num_cols)?;
+                }
                 num_cols += 1;
             }
             Ok(())
         })?;
 
         Ok(())
-    }
-
-    fn plan_correlated(
-        &self,
-        expr: &mut LogicalExpression,
-        input: &mut LogicalOperator,
-        input_columns: usize,
-    ) -> Result<()> {
-        unimplemented!()
     }
 
     /// Plans a single uncorrelated subquery expression.

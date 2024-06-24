@@ -132,9 +132,12 @@ impl<'a> PlanContext<'a> {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
                 let plan = match describe {
                     ast::Describe::Query(query) => planner.plan_query(&mut context, query)?,
-                    ast::Describe::FromNode(from) => {
-                        planner.plan_from_node(&mut context, from, Scope::empty())?
-                    }
+                    ast::Describe::FromNode(from) => planner.plan_from_node(
+                        &mut context,
+                        from,
+                        TypeSchema::empty(),
+                        Scope::empty(),
+                    )?,
                 };
 
                 let type_schema = plan.root.output_schema(&[])?; // TODO: Include outer schema

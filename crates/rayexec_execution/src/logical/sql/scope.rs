@@ -24,7 +24,9 @@ impl ColumnRef {
     /// scope (scope_level == 0).
     pub fn try_as_uncorrelated(&self) -> Result<usize> {
         if self.scope_level != 0 {
-            return Err(RayexecError::new("Column is not uncorrelated"));
+            return Err(RayexecError::new(format!(
+                "Column is not uncorrelated: {self:?}"
+            )));
         }
         Ok(self.item_idx)
     }
