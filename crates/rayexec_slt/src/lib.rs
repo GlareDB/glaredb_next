@@ -148,7 +148,7 @@ impl sqllogictest::AsyncDB for TestSession {
         loop {
             // Each pull on the stream has a 5 sec timeout. If it takes longer than
             // 5 secs, we can assume that the query is stuck.
-            let timeout = tokio::time::timeout(Duration::from_secs(5), results[0].next());
+            let timeout = tokio::time::timeout(Duration::from_secs(5), results[0].stream.next());
 
             match timeout.await {
                 Ok(Some(result)) => {

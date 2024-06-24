@@ -1,15 +1,14 @@
-use crate::execution::{metrics::PartitionPipelineMetrics, pipeline::PartitionPipeline};
+use crate::{
+    engine::result::ErrorSink,
+    execution::{metrics::PartitionPipelineMetrics, pipeline::PartitionPipeline},
+};
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
 use rayon::ThreadPool;
 use std::{
-    sync::{
-        mpsc::{self, SendError},
-        Arc,
-    },
+    sync::{mpsc, Arc},
     task::{Context, Poll, Wake, Waker},
 };
-use tracing::debug;
 
 /// State shared by the partition pipeline task and the waker.
 #[derive(Debug)]
@@ -18,12 +17,8 @@ pub(crate) struct TaskState {
     /// query's been canceled.
     pub(crate) pipeline: Mutex<(PartitionPipeline, bool)>,
 
-    /// Channel for sending errors that happen during execution.
-    ///
-    /// This isn't a oneshot since the same channel is shared across many
-    /// partition pipelines that make up a query, and we want the option to
-    /// collect them all, even if only first is shown to the user.
-    pub(crate) errors: mpsc::Sender<RayexecError>,
+    /// Error sink for any errors that occur during execution.
+    pub(crate) errors: ErrorSink,
 
     /// Optional channel for sending pipeline metrics once they complete.
     pub(crate) metrics: mpsc::Sender<PartitionPipelineMetrics>,
@@ -46,8 +41,9 @@ impl PartitionPipelineTask {
         let mut pipeline = self.state.pipeline.lock();
 
         if pipeline.1 {
-            // Don't care about the error.
-            let _ = self.state.errors.send(RayexecError::new("query canceled"));
+            self.state
+                .errors
+                .push_error(RayexecError::new("Query canceled"));
             return;
         }
 
@@ -65,9 +61,8 @@ impl PartitionPipelineTask {
                     continue;
                 }
                 Poll::Ready(Some(Err(e))) => {
-                    if let Err(SendError(e)) = self.state.errors.send(e) {
-                        debug!(%e, "errors receiver disconnected");
-                    }
+                    self.state.errors.push_error(e);
+                    return;
                 }
                 Poll::Pending => {
                     // Exit the loop. Waker was already stored in the pending

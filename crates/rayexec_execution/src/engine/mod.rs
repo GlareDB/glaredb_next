@@ -1,7 +1,6 @@
 pub mod modify;
 pub mod result;
 pub mod session;
-pub mod stream;
 pub mod vars;
 
 use rayexec_error::{Result, ResultExt};

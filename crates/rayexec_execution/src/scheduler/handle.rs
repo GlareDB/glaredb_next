@@ -1,6 +1,5 @@
 use crate::execution::metrics::PartitionPipelineMetrics;
 use parking_lot::Mutex;
-use rayexec_error::RayexecError;
 use std::sync::mpsc;
 use std::sync::Arc;
 
@@ -11,13 +10,6 @@ use super::query::{PartitionPipelineTask, TaskState};
 pub struct QueryHandle {
     /// Registered task states for all pipelines in a query.
     pub(crate) states: Mutex<Vec<Arc<TaskState>>>,
-
-    /// Channel for sending errors that happen during execution.
-    ///
-    /// This isn't a oneshot since the same channel is shared across many
-    /// partition pipelines that make up a query, and we want the option to
-    /// collect them all, even if only first is shown to the user.
-    pub(crate) errors: (mpsc::Sender<RayexecError>, mpsc::Receiver<RayexecError>),
 
     /// Channel for sending metrics once a partition pipeline completes.
     pub(crate) metrics: (

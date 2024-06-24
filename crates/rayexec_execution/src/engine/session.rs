@@ -20,8 +20,7 @@ use crate::{
 };
 
 use super::{
-    result::ExecutionResult,
-    stream::QueryStream,
+    result::{ExecutionResult, ResultAdapterStream},
     vars::{SessionVars, VarAccessor},
     DataSourceRegistry, EngineRuntime,
 };
@@ -122,14 +121,14 @@ impl Session {
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
 
-        let query_stream = QueryStream::new();
+        let mut adapter_stream = ResultAdapterStream::new();
         let planner = QueryGraphPlanner::new(
             &self.context,
             &self.runtime,
             VarAccessor::new(&self.vars).partitions(),
             QueryGraphDebugConfig::new(&self.vars),
         );
-        let query_sink = QuerySink::new([Box::new(query_stream.sink()) as _]);
+        let query_sink = QuerySink::new([Box::new(adapter_stream.partition_sink()) as _]);
 
         let query_graph = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
@@ -186,11 +185,14 @@ impl Session {
             root => planner.create_graph(root, context, query_sink)?,
         };
 
-        let handle = self.runtime.scheduler.spawn_query_graph(query_graph);
+        let handle = self
+            .runtime
+            .scheduler
+            .spawn_query_graph(query_graph, adapter_stream.error_sink());
 
         Ok(ExecutionResult {
             output_schema: Schema::empty(), // TODO
-            stream: query_stream,
+            stream: adapter_stream,
             handle,
         })
     }

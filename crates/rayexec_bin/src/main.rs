@@ -58,7 +58,7 @@ async fn inner(runtime: Arc<EngineRuntime>) -> Result<()> {
         println!("INPUT: {query}");
         println!("OUTPUT SCHEMA: {:?}", output.output_schema);
 
-        while let Some(result) = output.next().await {
+        while let Some(result) = output.stream.next().await {
             let batch = result?;
             let out = ugly_print(&output.output_schema, &[batch])?;
             println!("{out}");
