@@ -243,13 +243,18 @@ impl<'a> PlanContext<'a> {
             }
         };
 
+        let table_type_schema = TypeSchema::new(entry.columns.iter().map(|c| c.datatype.clone()));
+        let source_schema = source.root.output_schema(&planner.outer_schemas)?;
+
+        let input = Self::apply_cast_for_insert(&table_type_schema, &source_schema, source.root)?;
+
         // TODO: Handle specified columns. If provided, insert a projection that
         // maps the columns to the right position.
 
         Ok(LogicalQuery {
             root: LogicalOperator::Insert(Insert {
                 table: entry,
-                input: Box::new(source.root),
+                input: Box::new(input),
             }),
             scope: Scope::empty(),
         })
@@ -377,5 +382,60 @@ impl<'a> PlanContext<'a> {
             }),
             scope: Scope::empty(),
         })
+    }
+
+    /// Applies a projection cast to a root operator for use when inserting into
+    /// a table.
+    ///
+    /// Errors if the number of columns in the plan does not match the number of
+    /// types in the schema.
+    ///
+    /// If no casting is needed, the returned plan will be unchanged.
+    fn apply_cast_for_insert(
+        cast_to: &TypeSchema,
+        root_schema: &TypeSchema,
+        root: LogicalOperator,
+    ) -> Result<LogicalOperator> {
+        // TODO: This will be where we put the projections for default values too.
+
+        if cast_to.types.len() != root_schema.types.len() {
+            return Err(RayexecError::new(format!(
+                "Invalid number of inputs. Expected {}, got {}",
+                cast_to.types.len(),
+                root_schema.types.len()
+            )));
+        }
+
+        let mut projections = Vec::with_capacity(root_schema.types.len());
+        let mut num_casts = 0;
+        for (col_idx, (want, have)) in cast_to
+            .types
+            .iter()
+            .zip(root_schema.types.iter())
+            .enumerate()
+        {
+            if want == have {
+                // No cast needed, just project the column.
+                projections.push(LogicalExpression::new_column(col_idx));
+            } else {
+                // Need to cast.
+                projections.push(LogicalExpression::Cast {
+                    to: want.clone(),
+                    expr: Box::new(LogicalExpression::new_column(col_idx)),
+                });
+                num_casts += 1;
+            }
+        }
+
+        if num_casts == 0 {
+            // No casting needed, just return the original plan.
+            return Ok(root);
+        }
+
+        // Otherwise apply projection.
+        Ok(LogicalOperator::Projection(Projection {
+            exprs: projections,
+            input: Box::new(root),
+        }))
     }
 }

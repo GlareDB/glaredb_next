@@ -37,6 +37,14 @@ pub type Date32Array = PrimitiveArray<i32>;
 pub type Date64Array = PrimitiveArray<i64>;
 pub type IntervalArray = PrimitiveArray<Interval>;
 
+impl<T: Default + Clone> PrimitiveArray<T> {
+    pub fn new_nulls(len: usize) -> Self {
+        let values = vec![T::default(); len];
+        let validity = Bitmap::all_false(len);
+        Self::new(values, Some(validity))
+    }
+}
+
 impl<T> PrimitiveArray<T> {
     pub fn new(values: Vec<T>, validity: Option<Bitmap>) -> Self {
         PrimitiveArray {

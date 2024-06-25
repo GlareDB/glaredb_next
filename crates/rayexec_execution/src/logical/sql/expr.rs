@@ -17,6 +17,7 @@ use crate::functions::CastType;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
+use super::binder::BindData;
 use super::query::QueryNodePlanner;
 use super::{
     binder::{Bound, BoundFunctionReference},

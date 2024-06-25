@@ -25,3 +25,17 @@ query TT
 describe t2;
 ----
 a  Int64
+
+statement ok
+create temp table t3 as values ('hello'), ('world');
+
+query T rowsort
+select * from t3;
+----
+hello
+world
+
+query TT
+describe t3;
+----
+column1  Utf8

@@ -1111,10 +1111,15 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             })),
-            ast::Expr::UnaryExpr { op, expr } => Ok(ast::Expr::UnaryExpr {
-                op,
-                expr: Box::new(Box::pin(self.bind_expression(*expr, bind_data)).await?),
-            }),
+            ast::Expr::UnaryExpr { op, expr } => match (op, *expr) {
+                (ast::UnaryOperator::Minus, ast::Expr::Literal(ast::Literal::Number(n))) => {
+                    Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
+                }
+                (_, expr) => Ok(ast::Expr::UnaryExpr {
+                    op,
+                    expr: Box::new(Box::pin(self.bind_expression(expr, bind_data)).await?),
+                }),
+            },
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.bind_expression(*left, bind_data)).await?),
                 op,
