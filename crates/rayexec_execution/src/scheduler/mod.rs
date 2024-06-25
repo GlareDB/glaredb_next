@@ -12,7 +12,6 @@ use std::{fmt, sync::mpsc};
 use tracing::debug;
 
 use crate::engine::result::ErrorSink;
-use crate::execution::pipeline::PartitionPipeline;
 use crate::execution::query_graph::QueryGraph;
 use rayexec_error::{RayexecError, Result};
 
@@ -52,8 +51,6 @@ impl ComputeScheduler {
     pub fn spawn_query_graph(&self, query_graph: QueryGraph, errors: ErrorSink) -> QueryHandle {
         debug!("spawning execution of query graph");
 
-        let metrics = mpsc::channel();
-
         let task_states: Vec<_> = query_graph
             .into_partition_pipeline_iter()
             .map(|pipeline| {
@@ -63,7 +60,6 @@ impl ComputeScheduler {
                         query_canceled: false,
                     }),
                     errors: errors.clone(),
-                    metrics: metrics.0.clone(),
                     pool: self.pool.clone(),
                 })
             })
@@ -71,7 +67,6 @@ impl ComputeScheduler {
 
         let handle = QueryHandle {
             states: Mutex::new(task_states.clone()),
-            metrics,
         };
 
         for state in task_states {

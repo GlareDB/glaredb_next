@@ -1,12 +1,9 @@
-use crate::{
-    engine::result::ErrorSink,
-    execution::{metrics::PartitionPipelineMetrics, pipeline::PartitionPipeline},
-};
+use crate::{engine::result::ErrorSink, execution::pipeline::PartitionPipeline};
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
 use rayon::ThreadPool;
 use std::{
-    sync::{mpsc, Arc},
+    sync::Arc,
     task::{Context, Poll, Wake, Waker},
 };
 
@@ -19,9 +16,6 @@ pub(crate) struct TaskState {
 
     /// Error sink for any errors that occur during execution.
     pub(crate) errors: ErrorSink,
-
-    /// Optional channel for sending pipeline metrics once they complete.
-    pub(crate) metrics: mpsc::Sender<PartitionPipelineMetrics>,
 
     /// The threadpool to execute on.
     pub(crate) pool: Arc<ThreadPool>,
@@ -77,12 +71,6 @@ impl PartitionPipelineTask {
                     return;
                 }
                 Poll::Ready(None) => {
-                    // Partition pipeline finished. If we have a metrics
-                    // channel, collect the metrics from the pipeline and send
-                    // them out.
-                    let metrics = pipeline_state.pipeline.take_metrics();
-                    let _ = self.state.metrics.send(metrics); // We don't care if the other side has been dropped.
-
                     // Exit the loop, nothing else for us to do. Waker is not
                     // stored, and we will not executed again.
                     return;

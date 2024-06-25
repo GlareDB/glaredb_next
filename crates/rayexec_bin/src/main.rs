@@ -13,7 +13,7 @@ use tracing_subscriber::FmtSubscriber;
 /// Simple binary for quickly running arbitrary queries.
 fn main() {
     let env_filter = EnvFilter::builder()
-        .with_default_directive(tracing::Level::TRACE.into())
+        .with_default_directive(tracing::Level::ERROR.into())
         .from_env_lossy()
         .add_directive("h2=info".parse().unwrap())
         .add_directive("hyper=info".parse().unwrap())
@@ -63,6 +63,11 @@ async fn inner(runtime: Arc<EngineRuntime>) -> Result<()> {
             let out = ugly_print(&output.output_schema, &[batch])?;
             println!("{out}");
         }
+
+        let dump = output.handle.query_dump();
+        println!("----");
+        println!("DUMP");
+        println!("{dump}");
     }
 
     Ok(())

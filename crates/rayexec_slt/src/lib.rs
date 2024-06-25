@@ -10,7 +10,6 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
 use sqllogictest::DefaultColumnType;
-use std::fmt::Write as _;
 use std::{fs, sync::Arc};
 use std::{
     path::{Path, PathBuf},

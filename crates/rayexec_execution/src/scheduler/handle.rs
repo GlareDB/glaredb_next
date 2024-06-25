@@ -1,12 +1,11 @@
-use crate::execution::metrics::PartitionPipelineMetrics;
 use crate::execution::operators::PhysicalOperator;
+use crate::execution::pipeline::PartitionPipelineTimings;
 use crate::execution::pipeline::PipelineId;
 use crate::execution::pipeline::PipelinePartitionState;
 use crate::logical::explainable::ExplainConfig;
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::mpsc;
 use std::sync::Arc;
 
 use super::query::{PartitionPipelineTask, TaskState};
@@ -16,12 +15,6 @@ use super::query::{PartitionPipelineTask, TaskState};
 pub struct QueryHandle {
     /// Registered task states for all pipelines in a query.
     pub(crate) states: Mutex<Vec<Arc<TaskState>>>,
-
-    /// Channel for sending metrics once a partition pipeline completes.
-    pub(crate) metrics: (
-        mpsc::Sender<PartitionPipelineMetrics>,
-        mpsc::Receiver<PartitionPipelineMetrics>,
-    ),
 }
 
 impl QueryHandle {
@@ -41,10 +34,6 @@ impl QueryHandle {
         }
     }
 
-    pub fn completed_metrics(&self) -> Vec<PartitionPipelineMetrics> {
-        self.metrics.1.try_iter().collect()
-    }
-
     pub fn query_dump(&self) -> QueryDump {
         use std::collections::btree_map::Entry;
 
@@ -62,12 +51,14 @@ impl QueryHandle {
                         pipeline_state.pipeline.partition(),
                         PartitionPipelineDump {
                             state: pipeline_state.pipeline.state().clone(),
+                            timings: pipeline_state.pipeline.timings().clone(),
                         },
                     );
                 }
                 Entry::Vacant(ent) => {
                     let partition_dump = PartitionPipelineDump {
                         state: pipeline_state.pipeline.state().clone(),
+                        timings: pipeline_state.pipeline.timings().clone(),
                     };
                     let pipeline_dump = PipelineDump {
                         operators: pipeline_state.pipeline.iter_operators().cloned().collect(),
@@ -108,6 +99,7 @@ pub struct PipelineDump {
 #[derive(Debug)]
 pub struct PartitionPipelineDump {
     state: PipelinePartitionState,
+    timings: PartitionPipelineTimings,
 }
 
 impl fmt::Display for PipelineDump {
@@ -123,7 +115,15 @@ impl fmt::Display for PipelineDump {
 
         writeln!(f, "PARTITIONS")?;
         for (partition, dump) in &self.partitions {
-            writeln!(f, "[{partition:>2}] state: {:?}", dump.state)?;
+            write!(f, "[{partition:>2}] ")?;
+            match &dump.timings.completed {
+                Some(completed) => {
+                    let dur =
+                        completed.duration_since(dump.timings.start.expect("start to be set"));
+                    writeln!(f, "completed: {}ms", dur.as_millis())?;
+                }
+                None => writeln!(f, "incomplete: {:?}", dump.state)?,
+            }
         }
 
         Ok(())
