@@ -345,7 +345,9 @@ impl BuildState {
                 self.push_explain(conf, id_gen, materializations, explain)
             }
             LogicalOperator::Describe(describe) => self.push_describe(conf, id_gen, describe),
-            LogicalOperator::CreateTable(create) => self.push_create_table(conf, id_gen, create),
+            LogicalOperator::CreateTable(create) => {
+                self.push_create_table(conf, id_gen, materializations, create)
+            }
             LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, id_gen, create),
             LogicalOperator::Drop(drop) => self.push_drop(conf, id_gen, drop),
             LogicalOperator::Insert(insert) => {
@@ -582,6 +584,7 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
         create: operator::CreateTable,
     ) -> Result<()> {
         if create.input.is_some() {
@@ -591,9 +594,28 @@ impl BuildState {
         }
 
         if self.in_progress.is_some() {
-            // Well... for CREATE TABLE AS it could be some
             return Err(RayexecError::new("Expected in progress to be None"));
         }
+
+        match create.input {
+            Some(input) => {
+                // CTAS, plan the input. It'll be the source of this pipeline.
+                self.walk(conf, materializations, id_gen, *input)?;
+            }
+            None => {
+                // No input, just have an empty operator as the source.
+                let mut pipeline = Pipeline::new(id_gen.next(), 1);
+                pipeline.push_operator(
+                    Arc::new(PhysicalEmpty),
+                    Arc::new(OperatorState::None),
+                    vec![PartitionState::Empty(EmptyPartitionState::default())],
+                )?;
+
+                self.in_progress = Some(pipeline);
+            }
+        };
+
+        let pipeline = self.in_progress_pipeline_mut()?;
 
         // To explain my TODO above, this would be what happens in "planner 1".
         // Just creating the operator, and the planning can happen anywhere.
@@ -610,15 +632,15 @@ impl BuildState {
         // And creating the states would happen in "planner 2". This relies on
         // the database context, and so should happen on the node that will be
         // executing the pipeline.
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states = vec![PartitionState::CreateTable(
-            physical.try_create_state(conf.db_context)?,
-        )];
+        let (operator_state, partition_states) =
+            physical.try_create_states(conf.db_context, pipeline.num_partitions())?;
+        let operator_state = Arc::new(OperatorState::CreateTable(operator_state));
+        let partition_states: Vec<_> = partition_states
+            .into_iter()
+            .map(|state| PartitionState::CreateTable(state))
+            .collect();
 
-        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
-
-        self.in_progress = Some(pipeline);
 
         Ok(())
     }
@@ -1198,8 +1220,8 @@ impl BuildState {
     }
 
     fn push_empty(&mut self, _conf: &BuildConfig, id_gen: &mut PipelineIdGen) -> Result<()> {
-        // "Empty" is a source of data by virtue of emitting a batch
-        // consistenting of no columns and 1 row.
+        // "Empty" is a source of data by virtue of emitting a batch consisting
+        // of no columns and 1 row.
         //
         // This enables expression evualtion to work without needing to special
         // case a query without a FROM clause. E.g. `SELECT 1+1` would execute

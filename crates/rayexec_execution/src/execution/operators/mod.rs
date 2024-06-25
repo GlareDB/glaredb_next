@@ -26,7 +26,7 @@ mod util;
 mod test_util;
 
 use create_schema::CreateSchemaPartitionState;
-use create_table::CreateTablePartitionState;
+use create_table::{CreateTableOperatorState, CreateTablePartitionState};
 use drop::DropPartitionState;
 use insert::InsertPartitionState;
 use materialize::{
@@ -105,6 +105,7 @@ pub enum OperatorState {
     RoundRobin(RoundRobinOperatorState),
     MergeSorted(MergeSortedOperatorState),
     Materialize(MaterializeOperatorState),
+    CreateTable(CreateTableOperatorState),
     None,
 }
 
