@@ -587,16 +587,11 @@ impl BuildState {
         materializations: &mut Materializations,
         create: operator::CreateTable,
     ) -> Result<()> {
-        if create.input.is_some() {
-            return Err(RayexecError::new(
-                "Create table with source not yet supported",
-            ));
-        }
-
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
+        let is_ctas = create.input.is_some();
         match create.input {
             Some(input) => {
                 // CTAS, plan the input. It'll be the source of this pipeline.
@@ -627,6 +622,7 @@ impl BuildState {
                 columns: create.columns,
                 on_conflict: create.on_conflict,
             },
+            is_ctas,
         ));
 
         // And creating the states would happen in "planner 2". This relies on

@@ -70,6 +70,7 @@ pub struct PhysicalCreateTable {
     catalog: String,
     schema: String,
     info: CreateTableInfo,
+    is_ctas: bool,
 }
 
 impl PhysicalCreateTable {
@@ -77,11 +78,13 @@ impl PhysicalCreateTable {
         catalog: impl Into<String>,
         schema: impl Into<String>,
         info: CreateTableInfo,
+        is_ctas: bool,
     ) -> Self {
         PhysicalCreateTable {
             catalog: catalog.into(),
             schema: schema.into(),
             info,
+            is_ctas,
         }
     }
 
@@ -110,7 +113,7 @@ impl PhysicalCreateTable {
             (1..insert_partitions).map(|idx| CreateTablePartitionState::Inserting {
                 insert: None,
                 partition_idx: idx,
-                finished: false,
+                finished: !self.is_ctas, // If we're a normal create table, mark all inserts as complete.
                 pull_waker: None,
             }),
         );
@@ -142,15 +145,31 @@ impl PhysicalOperator for PhysicalCreateTable {
                 pull_waker,
             }) => match create.poll_unpin(cx) {
                 Poll::Ready(Ok(table)) => {
-                    let inserts = table.insert(*insert_partitions)?;
-                    let mut inserts: Vec<_> = inserts.into_iter().map(Some).collect();
+                    let insert_partitions = *insert_partitions;
+                    let partition_idx = *partition_idx;
+
+                    *partition_state =
+                        PartitionState::CreateTable(CreateTablePartitionState::Inserting {
+                            insert: None,
+                            partition_idx,
+                            finished: !self.is_ctas,
+                            pull_waker: pull_waker.take(),
+                        });
+
+                    if !self.is_ctas {
+                        // If we're not a CTAS, we can just skip creating the
+                        // table inserts.
+                        return Ok(PollPush::Pushed);
+                    }
+
+                    let inserts = table.insert(insert_partitions)?;
+                    let inserts: Vec<_> = inserts.into_iter().map(Some).collect();
 
                     let mut shared = match operator_state {
                         OperatorState::CreateTable(state) => state.shared.lock(),
                         other => panic!("invalid operator state: {other:?}"),
                     };
 
-                    let insert = inserts[*partition_idx].take();
                     shared.inserts = inserts;
 
                     for waker in shared.push_wakers.iter_mut() {
@@ -159,13 +178,6 @@ impl PhysicalOperator for PhysicalCreateTable {
                         }
                     }
 
-                    *partition_state =
-                        PartitionState::CreateTable(CreateTablePartitionState::Inserting {
-                            insert,
-                            partition_idx: *partition_idx,
-                            finished: false,
-                            pull_waker: pull_waker.take(),
-                        });
                     // Continue on, we'll be doing the insert in the below match.
                 }
                 Poll::Ready(Err(e)) => return Err(e),
@@ -212,8 +224,13 @@ impl PhysicalOperator for PhysicalCreateTable {
             PartitionState::CreateTable(CreateTablePartitionState::Inserting {
                 finished,
                 pull_waker,
+                insert,
                 ..
             }) => {
+                if let Some(insert) = insert {
+                    insert.finalize()?;
+                }
+
                 *finished = true;
                 if let Some(waker) = pull_waker.take() {
                     waker.wake();
