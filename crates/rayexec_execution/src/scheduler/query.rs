@@ -15,7 +15,7 @@ use std::{
 pub(crate) struct TaskState {
     /// The partition pipeline we're operating on alongside a boolean for if the
     /// query's been canceled.
-    pub(crate) pipeline: Mutex<(PartitionPipeline, bool)>,
+    pub(crate) pipeline: Mutex<PipelineState>,
 
     /// Error sink for any errors that occur during execution.
     pub(crate) errors: ErrorSink,
@@ -25,6 +25,12 @@ pub(crate) struct TaskState {
 
     /// The threadpool to execute on.
     pub(crate) pool: Arc<ThreadPool>,
+}
+
+#[derive(Debug)]
+pub(crate) struct PipelineState {
+    pub(crate) pipeline: PartitionPipeline,
+    pub(crate) query_canceled: bool,
 }
 
 /// Task for executing a partition pipeline.
@@ -38,9 +44,9 @@ impl PartitionPipelineTask {
     }
 
     pub(crate) fn execute(self) {
-        let mut pipeline = self.state.pipeline.lock();
+        let mut pipeline_state = self.state.pipeline.lock();
 
-        if pipeline.1 {
+        if pipeline_state.query_canceled {
             self.state
                 .errors
                 .push_error(RayexecError::new("Query canceled"));
@@ -54,7 +60,7 @@ impl PartitionPipelineTask {
 
         let mut cx = Context::from_waker(&waker);
         loop {
-            match pipeline.0.poll_execute(&mut cx) {
+            match pipeline_state.pipeline.poll_execute(&mut cx) {
                 Poll::Ready(Some(Ok(()))) => {
                     // Pushing through the pipeline was successful. Continue the
                     // loop to try to get as much work done as possible.
@@ -74,7 +80,7 @@ impl PartitionPipelineTask {
                     // Partition pipeline finished. If we have a metrics
                     // channel, collect the metrics from the pipeline and send
                     // them out.
-                    let metrics = pipeline.0.take_metrics();
+                    let metrics = pipeline_state.pipeline.take_metrics();
                     let _ = self.state.metrics.send(metrics); // We don't care if the other side has been dropped.
 
                     // Exit the loop, nothing else for us to do. Waker is not

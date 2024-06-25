@@ -10,6 +10,7 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
 use sqllogictest::DefaultColumnType;
+use std::fmt::Write as _;
 use std::{fs, sync::Arc};
 use std::{
     path::{Path, PathBuf},
@@ -158,8 +159,10 @@ impl sqllogictest::AsyncDB for TestSession {
                 Ok(None) => break,
                 Err(_) => {
                     // Timed out.
-                    // results[0].handle.cancel();
-                    panic!("query timed out");
+                    results[0].handle.cancel();
+
+                    let dump = results[0].handle.query_dump();
+                    return Err(RayexecError::new(format!("Query timed out\n---\n{dump}")));
                 }
             }
         }

@@ -4,7 +4,7 @@ pub mod query;
 
 use handle::QueryHandle;
 use parking_lot::Mutex;
-use query::TaskState;
+use query::{PipelineState, TaskState};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::future::Future;
 use std::sync::Arc;
@@ -58,7 +58,10 @@ impl ComputeScheduler {
             .into_partition_pipeline_iter()
             .map(|pipeline| {
                 Arc::new(TaskState {
-                    pipeline: Mutex::new((pipeline, false)),
+                    pipeline: Mutex::new(PipelineState {
+                        pipeline,
+                        query_canceled: false,
+                    }),
                     errors: errors.clone(),
                     metrics: metrics.0.clone(),
                     pool: self.pool.clone(),

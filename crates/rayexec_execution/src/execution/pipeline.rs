@@ -13,7 +13,7 @@ use std::{
 };
 use tracing::trace;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PipelineId(pub usize);
 
 /// A pipeline represents execution across a sequence of operators.
@@ -162,6 +162,32 @@ impl PartitionPipeline {
         }
     }
 
+    /// Get the pipeline id for this partition pipeline.
+    pub fn pipeline_id(&self) -> PipelineId {
+        self.info.pipeline
+    }
+
+    /// Get the partition number for this partition pipeline.
+    pub fn partition(&self) -> usize {
+        self.info.partition
+    }
+
+    /// Return if this pipeline is completed.
+    pub(crate) fn is_completed(&self) -> bool {
+        matches!(self.state, PipelinePartitionState::Completed)
+    }
+
+    /// Get the current state of the pipeline.
+    pub(crate) fn state(&self) -> &PipelinePartitionState {
+        &self.state
+    }
+
+    /// Return an iterator over all the physcial operators in this partition
+    /// pipeline.
+    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn PhysicalOperator>> {
+        self.operators.iter().map(|op| &op.physical)
+    }
+
     /// Take the current set of metrics for the operators.
     ///
     /// This will replace the existing metrics with a fresh set.
@@ -200,6 +226,7 @@ pub(crate) struct OperatorWithState {
     metrics: OperatorMetrics,
 }
 
+#[derive(Clone)]
 pub(crate) enum PipelinePartitionState {
     /// Need to pull from an operator.
     PullFrom { operator_idx: usize },
