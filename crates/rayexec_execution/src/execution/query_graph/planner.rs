@@ -130,14 +130,16 @@ impl<'a> QueryGraphPlanner<'a> {
         // gets the top-level schema.
         let expect_consume_all = !matches!(plan, operator::LogicalOperator::Describe(_));
 
+        let mut id_gen = PipelineIdGen { gen: PipelineId(0) };
         let mut build_state = BuildState::new();
 
         // Build materialized plans first.
-        let mut materializations = build_state.plan_materializations(&self.conf, context)?;
+        let mut materializations =
+            build_state.plan_materializations(&self.conf, context, &mut id_gen)?;
         // Plan the rest.
-        build_state.walk(&self.conf, &mut materializations, plan)?;
+        build_state.walk(&self.conf, &mut materializations, &mut id_gen, plan)?;
         // Finish everything off with the final results sink.
-        build_state.push_query_sink(&self.conf, sink)?;
+        build_state.push_query_sink(&self.conf, &mut id_gen, sink)?;
 
         assert!(build_state.in_progress.is_none());
 
@@ -196,6 +198,20 @@ struct BuildConfig<'a> {
     debug: QueryGraphDebugConfig,
 }
 
+/// Used for ensuring every pipeline in a query has a unique id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PipelineIdGen {
+    gen: PipelineId,
+}
+
+impl PipelineIdGen {
+    fn next(&mut self) -> PipelineId {
+        let id = self.gen;
+        self.gen.0 += 1;
+        id
+    }
+}
+
 #[derive(Debug)]
 struct BuildState {
     /// In-progress pipeline we're building.
@@ -203,9 +219,6 @@ struct BuildState {
 
     /// Completed pipelines.
     completed: Vec<Pipeline>,
-
-    /// Next id to use for new pipelines in the graph.
-    next_pipeline_id: PipelineId,
 }
 
 impl BuildState {
@@ -213,7 +226,6 @@ impl BuildState {
         BuildState {
             in_progress: None,
             completed: Vec::new(),
-            next_pipeline_id: PipelineId(0),
         }
     }
 
@@ -236,12 +248,13 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         context: QueryContext,
+        id_gen: &mut PipelineIdGen,
     ) -> Result<Materializations> {
         let mut materializations = Materializations::default();
 
         for materialized in context.materialized {
             // Generate the pipeline(s) for this plan.
-            self.walk(conf, &mut materializations, materialized.root)?;
+            self.walk(conf, &mut materializations, id_gen, materialized.root)?;
 
             // Finish off the pipeline with a PhysicalMaterialize as the sink.
             let mut pipeline = self.in_progress.take().ok_or_else(|| {
@@ -270,7 +283,7 @@ impl BuildState {
             // from the materialization.
             let mut partial_pipelines = Vec::with_capacity(materialized.num_scans);
             for states in pull_pipeline_states {
-                let mut pipeline = Pipeline::new(self.next_pipeline_id(), states.len());
+                let mut pipeline = Pipeline::new(id_gen.next(), states.len());
                 let states = states
                     .into_iter()
                     .map(|state| PartitionState::MaterializePull(state))
@@ -296,37 +309,54 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         materializations: &mut Materializations,
+        id_gen: &mut PipelineIdGen,
         plan: LogicalOperator,
     ) -> Result<()> {
         match plan {
-            LogicalOperator::Projection(proj) => self.push_project(conf, materializations, proj),
-            LogicalOperator::Filter(filter) => self.push_filter(conf, materializations, filter),
-            LogicalOperator::ExpressionList(values) => self.push_values(conf, values),
-            LogicalOperator::CrossJoin(join) => self.push_cross_join(conf, materializations, join),
-            LogicalOperator::AnyJoin(join) => self.push_any_join(conf, materializations, join),
+            LogicalOperator::Projection(proj) => {
+                self.push_project(conf, id_gen, materializations, proj)
+            }
+            LogicalOperator::Filter(filter) => {
+                self.push_filter(conf, id_gen, materializations, filter)
+            }
+            LogicalOperator::ExpressionList(values) => self.push_values(conf, id_gen, values),
+            LogicalOperator::CrossJoin(join) => {
+                self.push_cross_join(conf, id_gen, materializations, join)
+            }
+            LogicalOperator::AnyJoin(join) => {
+                self.push_any_join(conf, id_gen, materializations, join)
+            }
             LogicalOperator::EqualityJoin(join) => {
-                self.push_equality_join(conf, materializations, join)
+                self.push_equality_join(conf, id_gen, materializations, join)
             }
             LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
                 "Dependent joins cannot be made into a physical pipeline",
             )),
-            LogicalOperator::Empty => self.push_empty(conf),
-            LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, materializations, agg),
-            LogicalOperator::Limit(limit) => self.push_limit(conf, materializations, limit),
-            LogicalOperator::Order(order) => self.push_global_sort(conf, materializations, order),
-            LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, show_var),
-            LogicalOperator::Explain(explain) => self.push_explain(conf, materializations, explain),
-            LogicalOperator::Describe(describe) => self.push_describe(conf, describe),
-            LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
-            LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),
-            LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
-            LogicalOperator::Insert(insert) => self.push_insert(conf, materializations, insert),
+            LogicalOperator::Empty => self.push_empty(conf, id_gen),
+            LogicalOperator::Aggregate(agg) => {
+                self.push_aggregate(conf, id_gen, materializations, agg)
+            }
+            LogicalOperator::Limit(limit) => self.push_limit(conf, id_gen, materializations, limit),
+            LogicalOperator::Order(order) => {
+                self.push_global_sort(conf, id_gen, materializations, order)
+            }
+            LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, id_gen, show_var),
+            LogicalOperator::Explain(explain) => {
+                self.push_explain(conf, id_gen, materializations, explain)
+            }
+            LogicalOperator::Describe(describe) => self.push_describe(conf, id_gen, describe),
+            LogicalOperator::CreateTable(create) => self.push_create_table(conf, id_gen, create),
+            LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, id_gen, create),
+            LogicalOperator::Drop(drop) => self.push_drop(conf, id_gen, drop),
+            LogicalOperator::Insert(insert) => {
+                self.push_insert(conf, id_gen, materializations, insert)
+            }
             LogicalOperator::MaterializedScan(scan) => {
                 self.push_materialized_scan(conf, materializations, scan)
             }
-            LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
+            LogicalOperator::Scan(scan) => self.push_scan(conf, id_gen, scan),
             LogicalOperator::TableFunction(table_func) => {
-                self.push_table_function(conf, table_func)
+                self.push_table_function(conf, id_gen, table_func)
             }
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
@@ -339,12 +369,6 @@ impl BuildState {
             ),
             other => unimplemented!("other: {other:?}"),
         }
-    }
-
-    fn next_pipeline_id(&mut self) -> PipelineId {
-        let id = self.next_pipeline_id;
-        self.next_pipeline_id = PipelineId(id.0 + 1);
-        id
     }
 
     /// Get the current in-progress pipeline.
@@ -361,13 +385,18 @@ impl BuildState {
     /// pipeline as completed.
     ///
     /// This is the last step when building up pipelines for a query graph.
-    fn push_query_sink(&mut self, conf: &BuildConfig, sink: QuerySink) -> Result<()> {
+    fn push_query_sink(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        sink: QuerySink,
+    ) -> Result<()> {
         let current_partitions = self.in_progress_pipeline_mut()?.num_partitions();
 
         // Push a repartition if the current pipeline has a different number of
         // partitions than the sink we'll be sending results to.
         if sink.num_partitions() != current_partitions {
-            self.push_round_robin(conf, sink.num_partitions())?;
+            self.push_round_robin(conf, id_gen, sink.num_partitions())?;
         }
 
         let mut current = self
@@ -389,7 +418,12 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_drop(&mut self, conf: &BuildConfig, drop: operator::DropEntry) -> Result<()> {
+    fn push_drop(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        drop: operator::DropEntry,
+    ) -> Result<()> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -400,7 +434,7 @@ impl BuildState {
             physical.try_create_state(conf.db_context)?,
         )];
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -411,10 +445,11 @@ impl BuildState {
     fn push_insert(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         insert: operator::Insert,
     ) -> Result<()> {
-        self.walk(conf, materializations, *insert.input)?;
+        self.walk(conf, materializations, id_gen, *insert.input)?;
 
         // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
         let physical = Arc::new(PhysicalInsert::new("temp", "temp", insert.table));
@@ -434,6 +469,7 @@ impl BuildState {
     fn push_table_function(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         table_func: operator::TableFunction,
     ) -> Result<()> {
         if self.in_progress.is_some() {
@@ -448,7 +484,7 @@ impl BuildState {
             .map(PartitionState::TableFunction)
             .collect();
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -483,7 +519,12 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_scan(&mut self, conf: &BuildConfig, scan: operator::Scan) -> Result<()> {
+    fn push_scan(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        scan: operator::Scan,
+    ) -> Result<()> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -496,7 +537,7 @@ impl BuildState {
             .map(PartitionState::Scan)
             .collect();
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -510,6 +551,7 @@ impl BuildState {
     fn push_create_schema(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         create: operator::CreateSchema,
     ) -> Result<()> {
         if self.in_progress.is_some() {
@@ -528,7 +570,7 @@ impl BuildState {
             physical.try_create_state(conf.db_context)?,
         )];
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -539,6 +581,7 @@ impl BuildState {
     fn push_create_table(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         create: operator::CreateTable,
     ) -> Result<()> {
         if create.input.is_some() {
@@ -572,7 +615,7 @@ impl BuildState {
             physical.try_create_state(conf.db_context)?,
         )];
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -580,7 +623,12 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_describe(&mut self, _conf: &BuildConfig, describe: operator::Describe) -> Result<()> {
+    fn push_describe(
+        &mut self,
+        _conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        describe: operator::Describe,
+    ) -> Result<()> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -601,7 +649,7 @@ impl BuildState {
             .map(PartitionState::Values)
             .collect();
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        let mut pipeline = Pipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
@@ -611,6 +659,7 @@ impl BuildState {
     fn push_explain(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         explain: operator::Explain,
     ) -> Result<()> {
@@ -622,7 +671,7 @@ impl BuildState {
             format_logical_plan_for_explain(None, &explain.input, explain.format, explain.verbose)?;
 
         // Build up the pipeline.
-        self.walk(conf, materializations, *explain.input)?;
+        self.walk(conf, materializations, id_gen, *explain.input)?;
 
         // And then take it, we'll be discarding this for non-analyze explains.
         let current = self
@@ -650,14 +699,19 @@ impl BuildState {
             .map(PartitionState::Values)
             .collect();
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        let mut pipeline = Pipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
         Ok(())
     }
 
-    fn push_show_var(&mut self, _conf: &BuildConfig, show: operator::ShowVar) -> Result<()> {
+    fn push_show_var(
+        &mut self,
+        _conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        show: operator::ShowVar,
+    ) -> Result<()> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -672,7 +726,7 @@ impl BuildState {
             .map(PartitionState::Values)
             .collect();
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        let mut pipeline = Pipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
@@ -682,11 +736,12 @@ impl BuildState {
     fn push_global_sort(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         order: operator::Order,
     ) -> Result<()> {
         let input_schema = order.input.output_schema(&[])?;
-        self.walk(conf, materializations, *order.input)?;
+        self.walk(conf, materializations, id_gen, *order.input)?;
 
         let exprs = order
             .exprs
@@ -735,7 +790,7 @@ impl BuildState {
 
         // Pull side creates a new pipeline, number of pull states determines
         // number of partitions in this pipeline.
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), pull_states.len());
+        let mut pipeline = Pipeline::new(id_gen.next(), pull_states.len());
         pipeline.push_operator(
             operator,
             operator_state,
@@ -753,10 +808,11 @@ impl BuildState {
     fn push_limit(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         limit: operator::Limit,
     ) -> Result<()> {
-        self.walk(conf, materializations, *limit.input)?;
+        self.walk(conf, materializations, id_gen, *limit.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -777,11 +833,12 @@ impl BuildState {
     fn push_aggregate(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         agg: operator::Aggregate,
     ) -> Result<()> {
         let input_schema = agg.input.output_schema(&[])?;
-        self.walk(conf, materializations, *agg.input)?;
+        self.walk(conf, materializations, id_gen, *agg.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -840,7 +897,12 @@ impl BuildState {
     ///
     /// This will mark the current pipeline completed, and start a new pipeline
     /// using the repartition as its source.
-    fn push_round_robin(&mut self, _conf: &BuildConfig, target_partitions: usize) -> Result<()> {
+    fn push_round_robin(
+        &mut self,
+        _conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        target_partitions: usize,
+    ) -> Result<()> {
         let mut current = self
             .in_progress
             .take()
@@ -867,7 +929,7 @@ impl BuildState {
 
         // We have a new pipeline with its inputs being the output of the
         // repartition.
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), target_partitions);
+        let mut pipeline = Pipeline::new(id_gen.next(), target_partitions);
         pipeline.push_operator(physical, operator_state, pull_states)?;
 
         self.in_progress = Some(pipeline);
@@ -878,11 +940,12 @@ impl BuildState {
     fn push_project(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         project: operator::Projection,
     ) -> Result<()> {
         let input_schema = project.input.output_schema(&[])?;
-        self.walk(conf, materializations, *project.input)?;
+        self.walk(conf, materializations, id_gen, *project.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -905,11 +968,12 @@ impl BuildState {
     fn push_filter(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         filter: operator::Filter,
     ) -> Result<()> {
         let input_schema = filter.input.output_schema(&[])?;
-        self.walk(conf, materializations, *filter.input)?;
+        self.walk(conf, materializations, id_gen, *filter.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
@@ -930,17 +994,18 @@ impl BuildState {
     fn push_equality_join(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         join: operator::EqualityJoin,
     ) -> Result<()> {
         // Build up all inputs on the right (probe) side. This is going to
         // continue with the the current pipeline.
-        self.walk(conf, materializations, *join.right)?;
+        self.walk(conf, materializations, id_gen, *join.right)?;
 
         // Build up the left (build) side in a separate pipeline. This will feed
         // into the currently pipeline at the join operator.
         let mut left_state = BuildState::new();
-        left_state.walk(conf, materializations, *join.left)?;
+        left_state.walk(conf, materializations, id_gen, *join.left)?;
 
         // Take any completed pipelines from the left side and put them in our
         // list.
@@ -994,6 +1059,7 @@ impl BuildState {
     fn push_any_join(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         join: operator::AnyJoin,
     ) -> Result<()> {
@@ -1015,6 +1081,7 @@ impl BuildState {
 
         self.push_nl_join(
             conf,
+            id_gen,
             materializations,
             *join.left,
             *join.right,
@@ -1025,10 +1092,18 @@ impl BuildState {
     fn push_cross_join(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         join: operator::CrossJoin,
     ) -> Result<()> {
-        self.push_nl_join(conf, materializations, *join.left, *join.right, None)
+        self.push_nl_join(
+            conf,
+            id_gen,
+            materializations,
+            *join.left,
+            *join.right,
+            None,
+        )
     }
 
     /// Push a nest loop join.
@@ -1039,6 +1114,7 @@ impl BuildState {
     fn push_nl_join(
         &mut self,
         conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         left: operator::LogicalOperator,
         right: operator::LogicalOperator,
@@ -1049,12 +1125,12 @@ impl BuildState {
         }
 
         // Continue to build up all the inputs into the right side.
-        self.walk(conf, materializations, right)?;
+        self.walk(conf, materializations, id_gen, right)?;
 
         // Create a completely independent pipeline (or pipelines) for left
         // side.
         let mut left_state = BuildState::new();
-        left_state.walk(conf, materializations, left)?;
+        left_state.walk(conf, materializations, id_gen, left)?;
 
         // Take completed pipelines from the left and merge them into this
         // state's completed set of pipelines.
@@ -1104,23 +1180,24 @@ impl BuildState {
         Ok(())
     }
 
-    fn push_values(&mut self, conf: &BuildConfig, values: operator::ExpressionList) -> Result<()> {
+    fn push_values(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        values: operator::ExpressionList,
+    ) -> Result<()> {
         // "Values" is a source of data, and so should be the thing determining
         // the initial partitioning of the pipeline.
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        self.in_progress = Some(Self::new_pipeline_for_values(
-            self.next_pipeline_id(),
-            conf,
-            values,
-        )?);
+        self.in_progress = Some(Self::new_pipeline_for_values(id_gen.next(), conf, values)?);
 
         Ok(())
     }
 
-    fn push_empty(&mut self, _conf: &BuildConfig) -> Result<()> {
+    fn push_empty(&mut self, _conf: &BuildConfig, id_gen: &mut PipelineIdGen) -> Result<()> {
         // "Empty" is a source of data by virtue of emitting a batch
         // consistenting of no columns and 1 row.
         //
@@ -1140,7 +1217,7 @@ impl BuildState {
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = vec![PartitionState::Empty(EmptyPartitionState::default())];
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        let mut pipeline = Pipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
