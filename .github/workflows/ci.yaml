@@ -27,3 +27,21 @@ jobs:
 
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings
+
+  wasm:
+    name: "Build and publish WASM"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      # - name: Build and publish
+      #   env:
+      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      #   run: |
+      #     echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+      #     wasm-pack build crates/rayexec_wasm/ --scope glaredb
+      #     wasm-pack publish crates/rayexec_wasm/
