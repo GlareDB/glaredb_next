@@ -18,11 +18,9 @@ num-traits = "0.2.19"
 num_cpus = "1.16.0"
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
-parquet = { workspace = true }
 rayon = { workspace = true }
 smallvec = { workspace = true }
 tracing = { workspace = true }
-crossbeam = "0.8.4"
 half = "2.4.1"
 tokio = { workspace = true }
 regex = { workspace = true }
