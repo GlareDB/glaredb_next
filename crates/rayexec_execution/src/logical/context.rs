@@ -117,3 +117,9 @@ impl QueryContext {
         Ok(MaterializedScan { idx, schema })
     }
 }
+
+impl Default for QueryContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}

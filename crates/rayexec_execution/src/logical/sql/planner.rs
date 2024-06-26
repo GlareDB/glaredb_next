@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
 use super::{
-    aggregate::AggregatePlanner,
-    binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
-    expr::{ExpandedSelectExpr, ExpressionContext},
-    scope::{ColumnRef, Scope, TableReference},
-    subquery::SubqueryPlanner,
+    binder::{BindData, Bound, BoundTableOrCteReference},
+    expr::ExpressionContext,
+    scope::Scope,
 };
 use crate::{
     database::{
@@ -17,10 +15,9 @@ use crate::{
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
-            AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
-            DetachDatabase, DropEntry, Explain, ExplainFormat, ExpressionList, Filter, Insert,
-            JoinType, Limit, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan,
-            SetVar, ShowVar, TableFunction, VariableOrAll,
+            AttachDatabase, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
+            Explain, ExplainFormat, Insert, LogicalOperator, Projection, ResetVar, SetVar, ShowVar,
+            VariableOrAll,
         },
         sql::query::QueryNodePlanner,
     },

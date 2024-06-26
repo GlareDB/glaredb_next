@@ -1,7 +1,7 @@
 use crate::{
     array::{
-        Array, Decimal64Array, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray,
-        VarlenType, VarlenValuesBuffer,
+        Array, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
+        VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -64,12 +64,9 @@ pub fn take_primitive<T: Copy>(
         .map(|idx| *values.as_ref().get(*idx).unwrap())
         .collect();
 
-    let validity = match arr.validity() {
-        Some(validity) => Some(Bitmap::from_iter(
-            indices.iter().map(|idx| validity.value(*idx)),
-        )),
-        None => None,
-    };
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
 
     let taken = PrimitiveArray::new(new_values, validity);
 
@@ -87,12 +84,9 @@ pub fn take_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     let new_values: VarlenValuesBuffer<_> =
         indices.iter().map(|idx| arr.value(*idx).unwrap()).collect();
 
-    let validity = match arr.validity() {
-        Some(validity) => Some(Bitmap::from_iter(
-            indices.iter().map(|idx| validity.value(*idx)),
-        )),
-        None => None,
-    };
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
 
     let taken = VarlenArray::new(new_values, validity);
 

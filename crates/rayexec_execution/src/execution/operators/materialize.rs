@@ -75,10 +75,7 @@ impl PhysicalMaterialize {
             .collect();
 
         let operator_state = MaterializeOperatorState {
-            output_states: shared_states
-                .into_iter()
-                .map(|state| Mutex::new(state))
-                .collect(),
+            output_states: shared_states.into_iter().map(Mutex::new).collect(),
         };
 
         let mut pull_pipeline_states = Vec::with_capacity(output_pipeline_partitions.len());

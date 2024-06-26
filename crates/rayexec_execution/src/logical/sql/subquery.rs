@@ -10,7 +10,7 @@ use crate::{
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
 use rayexec_error::Result;
 
-use super::{decorrelate::SubqueryDecorrelator, scope::ColumnRef};
+use super::decorrelate::SubqueryDecorrelator;
 
 /// Logic for flattening and planning subqueries.
 #[derive(Debug, Clone, Copy)]

@@ -1,8 +1,6 @@
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_error::{RayexecError, Result};
 
-use crate::logical::operator;
-
 /// Represents groups in the GROUP BY clause.
 ///
 /// Examples:
@@ -128,7 +126,7 @@ impl GroupingSets {
         GroupingSets::try_new(cols, null_masks).expect("to be be valid")
     }
 
-    pub fn new_for_cube(cols: Vec<usize>) -> Self {
+    pub fn new_for_cube(_cols: Vec<usize>) -> Self {
         unimplemented!("https://github.com/GlareDB/rayexec/issues/38")
     }
 }

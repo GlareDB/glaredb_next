@@ -83,6 +83,12 @@ impl ResultAdapterStream {
     }
 }
 
+impl Default for ResultAdapterStream {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Stream for ResultAdapterStream {
     type Item = Result<Batch>;
 

@@ -504,7 +504,7 @@ impl LogicalNode for MaterializedScan {
 impl Explainable for MaterializedScan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MaterializedScan")
-            .with_value("idx", &self.idx)
+            .with_value("idx", self.idx)
             .with_values("column_types", &self.schema.types)
     }
 }

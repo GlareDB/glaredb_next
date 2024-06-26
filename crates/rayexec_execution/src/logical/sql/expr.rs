@@ -17,7 +17,6 @@ use crate::functions::CastType;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
-use super::binder::BindData;
 use super::query::QueryNodePlanner;
 use super::{
     binder::{Bound, BoundFunctionReference},
@@ -181,7 +180,7 @@ impl<'a> ExpressionContext<'a> {
 
                 let scalar = op
                     .scalar_function()
-                    .plan_from_expressions(&[&expr], &self.input)?;
+                    .plan_from_expressions(&[&expr], self.input)?;
 
                 Ok(LogicalExpression::Unary {
                     op: PlannedUnaryOperator { op, scalar },
@@ -201,7 +200,7 @@ impl<'a> ExpressionContext<'a> {
 
                 let scalar = op
                     .scalar_function()
-                    .plan_from_expressions(&[&left, &right], &self.input)?;
+                    .plan_from_expressions(&[&left, &right], self.input)?;
 
                 Ok(LogicalExpression::Binary {
                     op: PlannedBinaryOperator { op, scalar },
@@ -238,14 +237,14 @@ impl<'a> ExpressionContext<'a> {
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
                         let refs: Vec<_> = inputs.iter().collect();
-                        let function = scalar.plan_from_expressions(&refs, &self.input)?;
+                        let function = scalar.plan_from_expressions(&refs, self.input)?;
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
                     BoundFunctionReference::Aggregate(agg) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
-                        let agg = agg.plan_from_expressions(&inputs, &self.input)?;
+                        let agg = agg.plan_from_expressions(&inputs, self.input)?;
 
                         Ok(LogicalExpression::Aggregate {
                             agg,
@@ -350,7 +349,7 @@ impl<'a> ExpressionContext<'a> {
                         // Plan `mul(<interval>, <expr>)`
                         let scalar = op
                             .scalar_function()
-                            .plan_from_expressions(&[&interval, &expr], &self.input)?;
+                            .plan_from_expressions(&[&interval, &expr], self.input)?;
 
                         Ok(LogicalExpression::Binary {
                             op: PlannedBinaryOperator { op, scalar },
@@ -380,7 +379,7 @@ impl<'a> ExpressionContext<'a> {
                 let expr = self.plan_expression(context, *expr)?;
                 let pattern = self.plan_expression(context, *pattern)?;
 
-                let scalar = like::Like.plan_from_expressions(&[&expr, &pattern], &self.input)?;
+                let scalar = like::Like.plan_from_expressions(&[&expr, &pattern], self.input)?;
 
                 Ok(LogicalExpression::ScalarFunction {
                     function: scalar,

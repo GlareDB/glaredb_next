@@ -273,7 +273,7 @@ impl BuildState {
 
             let push_states = push_states
                 .into_iter()
-                .map(|state| PartitionState::MaterializePush(state))
+                .map(PartitionState::MaterializePush)
                 .collect();
 
             pipeline.push_operator(operator.clone(), operator_state.clone(), push_states)?;
@@ -286,7 +286,7 @@ impl BuildState {
                 let mut pipeline = Pipeline::new(id_gen.next(), states.len());
                 let states = states
                     .into_iter()
-                    .map(|state| PartitionState::MaterializePull(state))
+                    .map(PartitionState::MaterializePull)
                     .collect();
                 pipeline.push_operator(operator.clone(), operator_state.clone(), states)?;
 
@@ -633,7 +633,7 @@ impl BuildState {
         let operator_state = Arc::new(OperatorState::CreateTable(operator_state));
         let partition_states: Vec<_> = partition_states
             .into_iter()
-            .map(|state| PartitionState::CreateTable(state))
+            .map(PartitionState::CreateTable)
             .collect();
 
         pipeline.push_operator(physical, operator_state, partition_states)?;

@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    hash::{DefaultHasher, Hasher},
-};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::logical::{
     context::QueryContext,
@@ -22,7 +19,7 @@ impl SubqueryDecorrelator {
         subquery: &mut Subquery,
         input: &mut LogicalOperator,
         input_cols: usize,
-        subquery_cols: usize,
+        _subquery_cols: usize,
     ) -> Result<LogicalExpression> {
         let mut root = *subquery.take_root();
         match subquery {
@@ -66,7 +63,7 @@ impl SubqueryDecorrelator {
 
                 Ok(expr)
             }
-            Subquery::Exists { negated, .. } => {
+            Subquery::Exists { .. } => {
                 //
                 unimplemented!()
             }

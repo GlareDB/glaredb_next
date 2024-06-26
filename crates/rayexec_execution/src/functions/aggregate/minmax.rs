@@ -1,9 +1,9 @@
 use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::{
-    array::{Array, Decimal128Array, Decimal64Array, DecimalArray, PrimitiveArray},
+    array::{Array, DecimalArray, PrimitiveArray},
     bitmap::Bitmap,
-    datatype::{DataType, DataTypeId, DecimalTypeMeta},
+    datatype::{DataType, DataTypeId},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
     scalar::interval::Interval,
 };
@@ -277,10 +277,8 @@ impl<T: PartialOrd + Debug + Default> AggregateState<T, T> for MinState<T> {
         if !self.valid {
             self.valid = other.valid;
             self.min = other.min;
-        } else {
-            if other.valid && other.min < self.min {
-                self.min = other.min;
-            }
+        } else if other.valid && other.min < self.min {
+            self.min = other.min;
         }
 
         Ok(())
@@ -290,21 +288,18 @@ impl<T: PartialOrd + Debug + Default> AggregateState<T, T> for MinState<T> {
         if !self.valid {
             self.valid = true;
             self.min = input;
-        } else {
-            if input < self.min {
-                self.min = input
-            }
+        } else if input < self.min {
+            self.min = input
         }
         Ok(())
     }
 
     fn finalize(self) -> Result<(T, bool)> {
-        let out = if self.valid {
+        if self.valid {
             Ok((self.min, true))
         } else {
             Ok((T::default(), false))
-        };
-        out
+        }
     }
 }
 
@@ -319,10 +314,8 @@ impl<T: PartialOrd + Debug + Default> AggregateState<T, T> for MaxState<T> {
         if !self.valid {
             self.valid = other.valid;
             self.max = other.max;
-        } else {
-            if other.valid && other.max > self.max {
-                self.max = other.max;
-            }
+        } else if other.valid && other.max > self.max {
+            self.max = other.max;
         }
         Ok(())
     }
@@ -331,10 +324,8 @@ impl<T: PartialOrd + Debug + Default> AggregateState<T, T> for MaxState<T> {
         if !self.valid {
             self.valid = true;
             self.max = input;
-        } else {
-            if input > self.max {
-                self.max = input
-            }
+        } else if input > self.max {
+            self.max = input
         }
 
         Ok(())

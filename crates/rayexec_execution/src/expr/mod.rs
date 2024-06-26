@@ -133,7 +133,7 @@ impl PhysicalScalarExpression {
                 // If function is provided no input, it's expected to return an
                 // array of length 1. We extend the array here so that it's the
                 // same size as the rest.
-                if refs.len() == 0 {
+                if refs.is_empty() {
                     let scalar = out
                         .scalar(0)
                         .ok_or_else(|| RayexecError::new("Missing scalar at index 0"))?;

@@ -6,9 +6,9 @@ use handle::QueryHandle;
 use parking_lot::Mutex;
 use query::{PipelineState, TaskState};
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
-use std::{fmt, sync::mpsc};
 use tracing::debug;
 
 use crate::engine::result::ErrorSink;
