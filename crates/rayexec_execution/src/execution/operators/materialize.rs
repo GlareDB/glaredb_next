@@ -51,7 +51,7 @@ pub struct PhysicalMaterialize;
 impl PhysicalMaterialize {
     /// Create states for this operator.
     ///
-    /// The len of `output_pipline_partitions` indicates the number of partition
+    /// The len of `output_pipline_partitions` indicates the number of pipelines
     /// that will be pulling from the operator.
     ///
     /// Each usize in `output_pipeline_partitions` corresponds to the number of
