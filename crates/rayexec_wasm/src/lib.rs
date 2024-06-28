@@ -1,24 +1,11 @@
 pub mod errors;
+pub mod session;
+pub mod shell;
+pub mod tracing;
 
-use errors::Result;
-use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
-use wasm_bindgen::prelude::*;
-
-/// Wrapper around a database session and the engine that created it.
-#[wasm_bindgen]
-#[derive(Debug)]
-pub struct WasmSession {
-    engine: Engine,
-    session: Session,
-}
+use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
-impl WasmSession {
-    pub fn try_new() -> Result<WasmSession> {
-        let runtime = EngineRuntime::try_new_shared()?;
-        let engine = Engine::new(runtime)?;
-        let session = engine.new_session()?;
-
-        Ok(WasmSession { engine, session })
-    }
+pub fn init_panic_handler() {
+    console_error_panic_hook::set_once();
 }

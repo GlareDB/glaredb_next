@@ -120,6 +120,7 @@ impl Session {
 
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
+        let schema = logical.schema()?;
 
         let mut adapter_stream = ResultAdapterStream::new();
         let planner = QueryGraphPlanner::new(
@@ -191,7 +192,7 @@ impl Session {
             .spawn_query_graph(query_graph, adapter_stream.error_sink());
 
         Ok(ExecutionResult {
-            output_schema: Schema::empty(), // TODO
+            output_schema: schema, // TODO
             stream: adapter_stream,
             handle,
         })

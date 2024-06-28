@@ -15,3 +15,4 @@ tokio = { version = "1", features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 futures = { workspace = true }
+crossterm = "0.27.0"
