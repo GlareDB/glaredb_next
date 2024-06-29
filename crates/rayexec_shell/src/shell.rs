@@ -8,7 +8,10 @@ use rayexec_bullet::format::pretty::table::{pretty_format_batches, PrettyTable};
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::engine::{result::ExecutionResult, session::Session, Engine};
 
-use crate::lineedit::{KeyEvent, LineEditor, Signal};
+use crate::{
+    lineedit::{KeyEvent, LineEditor, Signal},
+    vt100::{MODES_OFF, MODE_BOLD},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellSignal {
@@ -36,7 +39,7 @@ impl<W: io::Write> Shell<W> {
         *current = Some(session);
 
         let mut editor = self.editor.borrow_mut();
-        writeln!(editor.raw_writer(), "{}", shell_msg)?;
+        writeln!(editor.raw_writer(), "{}{shell_msg}{}", MODE_BOLD, MODES_OFF)?;
         editor.edit_start()?;
 
         Ok(())
@@ -74,7 +77,7 @@ impl<W: io::Write> Shell<W> {
                                             // related to executing a query.
                                             writeln!(writer, "{e}")?;
 
-                                            return Ok(ShellSignal::Continue);
+                                            break;
                                         }
                                     }
                                 }

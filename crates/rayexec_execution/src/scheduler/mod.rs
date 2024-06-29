@@ -36,6 +36,8 @@ impl ComputeScheduler {
     pub fn try_new() -> Result<Self> {
         let thread_pool = ThreadPoolBuilder::new()
             .thread_name(|idx| format!("rayexec_compute_{idx}"))
+            .use_current_thread()
+            .num_threads(1)
             .build()
             .map_err(|e| RayexecError::with_source("Failed to build thread pool", Box::new(e)))?;
 

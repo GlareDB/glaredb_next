@@ -18,7 +18,6 @@ pub fn init_console_tracing() {
     let subscriber = FmtSubscriber::builder()
         .with_writer(MakeConsoleWriter::new(default_level))
         .without_time()
-        .with_ansi(false)
         .with_env_filter(env_filter)
         .with_thread_ids(true)
         .with_thread_names(true)
