@@ -1743,6 +1743,7 @@ dependencies = [
  "rayexec_execution",
  "rayexec_parquet",
  "rayexec_postgres",
+ "rayexec_shell",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1843,6 +1844,17 @@ dependencies = [
  "rayexec_execution",
  "tokio-postgres",
  "tracing",
+]
+
+[[package]]
+name = "rayexec_shell"
+version = "0.0.1"
+dependencies = [
+ "crossterm",
+ "futures",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
 ]
 
 [[package]]

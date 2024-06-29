@@ -4,7 +4,7 @@ mod vt100;
 
 use std::sync::Arc;
 
-use crossterm::event::{self, Event, KeyEvent};
+use crossterm::event::{self, Event, KeyModifiers};
 use futures::StreamExt;
 use rayexec_bullet::format::ugly::ugly_print;
 use rayexec_error::Result;
@@ -12,7 +12,8 @@ use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::engine::{Engine, EngineRuntime};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use shell::{KeyCode, Shell};
+use rayexec_shell::lineedit::{KeyEvent, LineEditor, Signal};
+use rayexec_shell::shell::{Shell, ShellSignal};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
@@ -45,22 +46,22 @@ fn main() {
     })
 }
 
-fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyCode {
+fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
     match code {
-        crossterm::event::KeyCode::Backspace => KeyCode::Backspace,
-        crossterm::event::KeyCode::Enter => KeyCode::Enter,
-        crossterm::event::KeyCode::Left => KeyCode::Left,
-        crossterm::event::KeyCode::Right => KeyCode::Right,
-        crossterm::event::KeyCode::Up => KeyCode::Up,
-        crossterm::event::KeyCode::Down => KeyCode::Down,
-        crossterm::event::KeyCode::Home => KeyCode::Home,
-        crossterm::event::KeyCode::End => KeyCode::End,
-        crossterm::event::KeyCode::Tab => KeyCode::Tab,
-        crossterm::event::KeyCode::BackTab => KeyCode::BackTab,
-        crossterm::event::KeyCode::Delete => KeyCode::Delete,
-        crossterm::event::KeyCode::Insert => KeyCode::Insert,
-        crossterm::event::KeyCode::Char(c) => KeyCode::Char(c),
-        key => unimplemented!("{key:?}"),
+        crossterm::event::KeyCode::Backspace => KeyEvent::Backspace,
+        crossterm::event::KeyCode::Enter => KeyEvent::Enter,
+        crossterm::event::KeyCode::Left => KeyEvent::Left,
+        crossterm::event::KeyCode::Right => KeyEvent::Right,
+        crossterm::event::KeyCode::Up => KeyEvent::Up,
+        crossterm::event::KeyCode::Down => KeyEvent::Down,
+        crossterm::event::KeyCode::Home => KeyEvent::Home,
+        crossterm::event::KeyCode::End => KeyEvent::End,
+        crossterm::event::KeyCode::Tab => KeyEvent::Tab,
+        crossterm::event::KeyCode::BackTab => KeyEvent::BackTab,
+        crossterm::event::KeyCode::Delete => KeyEvent::Delete,
+        crossterm::event::KeyCode::Insert => KeyEvent::Insert,
+        crossterm::event::KeyCode::Char(c) => KeyEvent::Char(c),
+        _ => KeyEvent::Unknown,
     }
 }
 
@@ -70,46 +71,46 @@ async fn inner(runtime: Arc<EngineRuntime>) -> Result<()> {
         .with_datasource("postgres", Box::new(PostgresDataSource))?
         .with_datasource("parquet", Box::new(ParquetDataSource))?;
     let engine = Engine::new_with_registry(runtime, registry)?;
+    let session = engine.new_session()?;
+
+    let (cols, _rows) = crossterm::terminal::size()?;
+    let stdout = std::io::stdout();
 
     crossterm::terminal::enable_raw_mode()?;
 
-    let stdout = std::io::stdout();
-    let shell = Shell::new(stdout, engine);
+    let shell = Shell::new(stdout);
+    shell.set_cols(cols as usize);
+    shell.attach(session, "Rayexec Shell")?;
 
-    loop {
-        match event::read()? {
-            Event::Key(KeyEvent { code, .. }) => {
-                shell.on_key(from_crossterm_keycode(code)).await;
+    let inner_loop = || async move {
+        loop {
+            match event::read()? {
+                Event::Key(event::KeyEvent {
+                    code, modifiers, ..
+                }) => {
+                    let key = if modifiers.contains(KeyModifiers::CONTROL) {
+                        match code {
+                            event::KeyCode::Char('c') => KeyEvent::CtrlC,
+                            _ => KeyEvent::Unknown,
+                        }
+                    } else {
+                        from_crossterm_keycode(code)
+                    };
+
+                    match shell.consume_key(key).await? {
+                        ShellSignal::Continue => (),
+                        ShellSignal::Exit => break,
+                    }
+                }
+                Event::Resize(cols, _) => shell.set_cols(cols as usize),
+                _event => (),
             }
-            Event::Resize(width, _) => shell.set_width(width as usize),
-            event => println!("{event:?}"),
         }
-    }
+        Ok(())
+    };
 
-    // let args: Vec<_> = std::env::args().collect();
+    let result = inner_loop().await;
+    crossterm::terminal::disable_raw_mode()?;
 
-    // let mut session = engine.new_session()?;
-
-    // let query = args[1].clone();
-
-    // let outputs = session.simple(&query).await?;
-
-    // for mut output in outputs {
-    //     println!("----");
-    //     println!("INPUT: {query}");
-    //     println!("OUTPUT SCHEMA: {:?}", output.output_schema);
-
-    //     while let Some(result) = output.stream.next().await {
-    //         let batch = result?;
-    //         let out = ugly_print(&output.output_schema, &[batch])?;
-    //         println!("{out}");
-    //     }
-
-    //     let dump = output.handle.query_dump();
-    //     println!("----");
-    //     println!("DUMP");
-    //     println!("{dump}");
-    // }
-
-    // Ok(())
+    result
 }
