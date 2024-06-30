@@ -18,7 +18,12 @@ jobs:
           submodules: 'true'
 
       - name: Tests
-        run: cargo test -- --skip slt_datasource_
+        run: cargo test -- --skip slt_datasource_  --skip slt_tpch
+
+      - name: SLTs Parquet
+        run: |
+          ./scripts/create-test-postgres-db.sh
+          cargo test slt_datasource_postgres
 
       - name: SLTs Postgres
         run: |
