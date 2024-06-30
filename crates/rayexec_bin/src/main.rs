@@ -1,7 +1,3 @@
-mod editor;
-mod shell;
-mod vt100;
-
 use std::sync::Arc;
 
 use crossterm::event::{self, Event, KeyModifiers};

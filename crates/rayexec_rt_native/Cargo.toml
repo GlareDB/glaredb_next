@@ -8,7 +8,7 @@ rayexec_error = { path = "../rayexec_error" }
 rayexec_bullet = { path = "../rayexec_bullet" }
 rayexec_execution = { path = "../rayexec_execution" }
 rayon = { workspace = true }
-tokio = { workspace = true, default-features = false, features = ["rt", "time", "net"] }
+tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 tracing = { workspace = true }
 futures = { workspace = true }
 parking_lot = { workspace = true }
