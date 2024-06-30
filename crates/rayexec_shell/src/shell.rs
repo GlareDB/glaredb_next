@@ -4,7 +4,7 @@ use std::{
 };
 
 use futures::StreamExt;
-use rayexec_bullet::format::pretty::table::{pretty_format_batches, PrettyTable};
+use rayexec_bullet::format::pretty::table::PrettyTable;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::engine::{result::ExecutionResult, session::Session, Engine};
 

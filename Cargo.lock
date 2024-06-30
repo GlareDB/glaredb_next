@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.1"
+version = "0.0.2"
 
 [[package]]
 name = "fnv"
@@ -1479,7 +1479,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -1691,14 +1691,14 @@ dependencies = [
 
 [[package]]
 name = "rayexec_arrow_ipc"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "flatbuffers",
 ]
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "crossterm",
  "futures",
@@ -1715,7 +1715,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "backtrace-on-stack-overflow",
  "chrono",
@@ -1728,14 +1728,14 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "parquet 51.0.0",
 ]
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "ahash",
  "chrono",
@@ -1761,7 +1761,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "futures",
  "rayexec_error",
@@ -1773,11 +1773,11 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "bytes",
  "futures",
- "parquet 0.0.1",
+ "parquet 0.0.2",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
@@ -1789,7 +1789,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
@@ -1799,7 +1799,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "futures",
  "rayexec_bullet",
@@ -1811,7 +1811,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_rt_native"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "futures",
  "num_cpus",
@@ -1826,17 +1826,18 @@ dependencies = [
 
 [[package]]
 name = "rayexec_shell"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "futures",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "tracing",
 ]
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "env_logger",
@@ -1854,7 +1855,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "console_error_panic_hook",
  "futures",
@@ -1864,6 +1865,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_shell",
+ "tokio",
  "tracing",
  "tracing-subscriber",
  "wasm-bindgen",
@@ -2370,7 +2372,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "rayexec_bullet",
  "rayexec_error",

@@ -277,9 +277,9 @@ impl PartitionPipeline {
             "executing partition pipeline",
         );
 
-        if self.timings.start.is_none() {
-            self.timings.start = Some(Instant::now());
-        }
+        // if self.timings.start.is_none() {
+        //     self.timings.start = Some(Instant::now());
+        // }
 
         let state = &mut self.state;
 
@@ -439,7 +439,7 @@ impl PartitionPipeline {
                     }
                 }
                 PipelinePartitionState::Completed => {
-                    self.timings.completed = Some(Instant::now());
+                    // self.timings.completed = Some(Instant::now());
                     return Poll::Ready(None);
                 }
             }

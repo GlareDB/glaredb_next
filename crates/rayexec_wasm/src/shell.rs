@@ -1,8 +1,9 @@
-use crate::errors::Result;
+use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use js_sys::{Function, RegExp};
 use rayexec_execution::engine::{session::Session, Engine};
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
-use std::io;
+use std::io::{self, BufWriter};
+use std::sync::Arc;
 use tracing::{debug, warn};
 use wasm_bindgen::prelude::*;
 use web_sys::KeyboardEvent;
@@ -55,6 +56,7 @@ impl io::Write for TerminalWrapper {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let n = buf.len();
         self.terminal.write(buf);
+
         Ok(n)
     }
 
@@ -68,23 +70,26 @@ impl io::Write for TerminalWrapper {
 #[derive(Debug)]
 pub struct WasmShell {
     pub(crate) engine: Engine,
-    pub(crate) shell: Shell<TerminalWrapper>,
+    // TODO: For some reason, without the buf writer, the output gets all messed
+    // up. The buf writer is a good thing since we're calling flush where
+    // appropriate, but it'd be nice to know what's going wrong when it's not
+    // used.
+    pub(crate) shell: Shell<BufWriter<TerminalWrapper>>,
 }
 
 #[wasm_bindgen]
 impl WasmShell {
     pub fn try_new(terminal: Terminal) -> Result<WasmShell> {
-        unimplemented!()
-        // let runtime = EngineRuntime::try_new_shared()?;
-        // let engine = Engine::new(runtime)?;
+        let runtime = Arc::new(WasmExecutionRuntime::try_new()?);
+        let engine = Engine::new(runtime)?;
 
-        // let terminal = TerminalWrapper::new(terminal);
-        // let shell = Shell::new(terminal);
+        let terminal = TerminalWrapper::new(terminal);
+        let shell = Shell::new(BufWriter::new(terminal));
 
-        // let session = engine.new_session()?;
-        // shell.attach(session, "Rayexec WASM Shell")?;
+        let session = engine.new_session()?;
+        shell.attach(session, "Rayexec WASM Shell")?;
 
-        // Ok(WasmShell { engine, shell })
+        Ok(WasmShell { engine, shell })
     }
 
     pub async fn on_key(&self, event: OnKeyEvent) -> Result<()> {
@@ -96,7 +101,6 @@ impl WasmShell {
         }
 
         let key = event.key();
-        debug!(%key, "keyboard event");
 
         let key = match key.as_str() {
             "Backspace" => KeyEvent::Backspace,
