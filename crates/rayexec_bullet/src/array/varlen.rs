@@ -192,12 +192,6 @@ where
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
-    pub fn new_nulls(len: usize) -> Self {
-        let values = VarlenValuesBuffer::default();
-        let validity = Bitmap::all_false(len);
-        Self::new(values, Some(validity))
-    }
-
     pub fn new(values: VarlenValuesBuffer<O>, validity: Option<Bitmap>) -> Self {
         VarlenArray {
             validity,

@@ -1,6 +1,8 @@
-use super::{PlannedScalarFunction, ScalarFunction};
+use super::{GenericScalarFunction, SpecializedScalarFunction};
 use crate::functions::scalar::macros::cmp_binary_execute;
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
+};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
@@ -125,9 +127,9 @@ impl FunctionInfo for Eq {
     }
 }
 
-impl ScalarFunction for Eq {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
+impl GenericScalarFunction for Eq {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -151,24 +153,16 @@ impl ScalarFunction for Eq {
             | (DataType::Utf8, DataType::Utf8)
             | (DataType::LargeUtf8, DataType::LargeUtf8)
             | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(EqImpl)),
+            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(EqSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EqImpl;
+pub struct EqSpecialized;
 
-impl PlannedScalarFunction for EqImpl {
-    fn name(&self) -> &'static str {
-        "eq_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl SpecializedScalarFunction for EqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -266,9 +260,9 @@ impl FunctionInfo for Neq {
     }
 }
 
-impl ScalarFunction for Neq {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
+impl GenericScalarFunction for Neq {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -292,24 +286,16 @@ impl ScalarFunction for Neq {
             | (DataType::Utf8, DataType::Utf8)
             | (DataType::LargeUtf8, DataType::LargeUtf8)
             | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(NeqImpl)),
+            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(NeqSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NeqImpl;
+pub struct NeqSpecialized;
 
-impl PlannedScalarFunction for NeqImpl {
-    fn name(&self) -> &'static str {
-        "neq_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl SpecializedScalarFunction for NeqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -403,9 +389,9 @@ impl FunctionInfo for Lt {
     }
 }
 
-impl ScalarFunction for Lt {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
+impl GenericScalarFunction for Lt {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -429,24 +415,16 @@ impl ScalarFunction for Lt {
             | (DataType::Utf8, DataType::Utf8)
             | (DataType::LargeUtf8, DataType::LargeUtf8)
             | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtImpl)),
+            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LtImpl;
+pub struct LtSpecialized;
 
-impl PlannedScalarFunction for LtImpl {
-    fn name(&self) -> &'static str {
-        "lt_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl SpecializedScalarFunction for LtSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -540,9 +518,9 @@ impl FunctionInfo for LtEq {
     }
 }
 
-impl ScalarFunction for LtEq {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
+impl GenericScalarFunction for LtEq {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -566,24 +544,16 @@ impl ScalarFunction for LtEq {
             | (DataType::Utf8, DataType::Utf8)
             | (DataType::LargeUtf8, DataType::LargeUtf8)
             | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtEqImpl)),
+            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtEqSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LtEqImpl;
+pub struct LtEqSpecialized;
 
-impl PlannedScalarFunction for LtEqImpl {
-    fn name(&self) -> &'static str {
-        "lt_eq_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl SpecializedScalarFunction for LtEqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -677,9 +647,9 @@ impl FunctionInfo for Gt {
     }
 }
 
-impl ScalarFunction for Gt {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
+impl GenericScalarFunction for Gt {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -703,24 +673,16 @@ impl ScalarFunction for Gt {
             | (DataType::Utf8, DataType::Utf8)
             | (DataType::LargeUtf8, DataType::LargeUtf8)
             | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtImpl)),
+            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GtImpl;
+pub struct GtSpecialized;
 
-impl PlannedScalarFunction for GtImpl {
-    fn name(&self) -> &'static str {
-        "gt_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl SpecializedScalarFunction for GtSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -814,9 +776,9 @@ impl FunctionInfo for GtEq {
     }
 }
 
-impl ScalarFunction for GtEq {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
+impl GenericScalarFunction for GtEq {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
             | (DataType::Int8, DataType::Int8)
@@ -840,24 +802,16 @@ impl ScalarFunction for GtEq {
             | (DataType::Utf8, DataType::Utf8)
             | (DataType::LargeUtf8, DataType::LargeUtf8)
             | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtEqImpl)),
+            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtEqSpecialized)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GtEqImpl;
+pub struct GtEqSpecialized;
 
-impl PlannedScalarFunction for GtEqImpl {
-    fn name(&self) -> &'static str {
-        "gt_eq_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl SpecializedScalarFunction for GtEqSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -949,9 +903,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Eq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+        let specialized = Eq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
@@ -964,9 +916,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Neq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+        let specialized = Neq.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
@@ -979,9 +929,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Lt
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+        let specialized = Lt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
@@ -995,7 +943,7 @@ mod tests {
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = LtEq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .specialize(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
@@ -1009,9 +957,7 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
-        let specialized = Gt
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+        let specialized = Gt.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([false, false, false]));
@@ -1025,7 +971,7 @@ mod tests {
         let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = GtEq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .specialize(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();

@@ -9,10 +9,9 @@ pub mod hash_aggregate;
 pub mod insert;
 pub mod join;
 pub mod limit;
-pub mod materialize;
 pub mod project;
 pub mod query_sink;
-pub mod round_robin;
+pub mod repartition;
 pub mod scan;
 pub mod simple;
 pub mod sort;
@@ -26,12 +25,9 @@ mod util;
 mod test_util;
 
 use create_schema::CreateSchemaPartitionState;
-use create_table::{CreateTableOperatorState, CreateTablePartitionState};
+use create_table::CreateTablePartitionState;
 use drop::DropPartitionState;
 use insert::InsertPartitionState;
-use materialize::{
-    MaterializeOperatorState, MaterializePullPartitionState, MaterializePushPartitionState,
-};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use scan::ScanPartitionState;
@@ -53,7 +49,8 @@ use self::join::nl_join::{
 };
 use self::limit::LimitPartitionState;
 use self::query_sink::QuerySinkPartitionState;
-use self::round_robin::{
+use self::repartition::hash::{HashRepartitionOperatorState, HashRepartitionPartitionState};
+use self::repartition::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
@@ -77,12 +74,11 @@ pub enum PartitionState {
     QuerySink(QuerySinkPartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
+    HashRepartition(HashRepartitionPartitionState),
     MergeSortedPush(MergeSortedPushPartitionState),
     MergeSortedPull(MergeSortedPullPartitionState),
     LocalSort(LocalSortPartitionState),
     Limit(LimitPartitionState),
-    MaterializePush(MaterializePushPartitionState),
-    MaterializePull(MaterializePullPartitionState),
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
@@ -103,9 +99,8 @@ pub enum OperatorState {
     NestedLoopJoin(NestedLoopJoinOperatorState),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
+    HashRepartition(HashRepartitionOperatorState),
     MergeSorted(MergeSortedOperatorState),
-    Materialize(MaterializeOperatorState),
-    CreateTable(CreateTableOperatorState),
     None,
 }
 

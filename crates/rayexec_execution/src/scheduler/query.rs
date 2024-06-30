@@ -1,68 +1,75 @@
-use crate::{engine::result::ErrorSink, execution::pipeline::PartitionPipeline};
+use crate::execution::pipeline::PartitionPipeline;
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
 use rayon::ThreadPool;
 use std::{
-    sync::Arc,
+    sync::{
+        mpsc::{self, SendError},
+        Arc,
+    },
     task::{Context, Poll, Wake, Waker},
 };
-
-/// State shared by the partition pipeline task and the waker.
-#[derive(Debug)]
-pub(crate) struct TaskState {
-    /// The partition pipeline we're operating on alongside a boolean for if the
-    /// query's been canceled.
-    pub(crate) pipeline: Mutex<PipelineState>,
-
-    /// Error sink for any errors that occur during execution.
-    pub(crate) errors: ErrorSink,
-
-    /// The threadpool to execute on.
-    pub(crate) pool: Arc<ThreadPool>,
-}
-
-#[derive(Debug)]
-pub(crate) struct PipelineState {
-    pub(crate) pipeline: PartitionPipeline,
-    pub(crate) query_canceled: bool,
-}
+use tracing::debug;
 
 /// Task for executing a partition pipeline.
 pub struct PartitionPipelineTask {
-    state: Arc<TaskState>,
+    /// The partition pipeline we're operating on.
+    pipeline: Arc<Mutex<PartitionPipeline>>,
+
+    /// Channel for sending errors that happen during execution.
+    ///
+    /// This isn't a oneshot since the same channel is shared across many
+    /// partition pipelines that make up a query, and we want the option to
+    /// collect them all, even if only first is shown to the user.
+    errors: mpsc::Sender<RayexecError>,
 }
 
 impl PartitionPipelineTask {
-    pub(crate) fn from_task_state(state: Arc<TaskState>) -> Self {
-        PartitionPipelineTask { state }
+    pub(crate) fn new(pipeline: PartitionPipeline, errors: mpsc::Sender<RayexecError>) -> Self {
+        PartitionPipelineTask {
+            pipeline: Arc::new(Mutex::new(pipeline)),
+            errors,
+        }
     }
 
-    pub(crate) fn execute(self) {
-        let mut pipeline_state = self.state.pipeline.lock();
-
-        if pipeline_state.query_canceled {
-            self.state
-                .errors
-                .push_error(RayexecError::new("Query canceled"));
-            return;
-        }
+    pub(crate) fn execute(self, pool: Arc<ThreadPool>) {
+        // TODO: The arc+mutex around the pipeline could be removed here, but it
+        // would increase complexity around the "pending" state.
+        //
+        // The idea would be construct a waker that _doesn't_ have a reference
+        // to the pipeline, but then in the case of a "pending", we would
+        // retroactively add it to the waker (the waker would have something
+        // like `Arc<Mutex<Option<PartitionPipeline>>>`).
+        //
+        // However I didn't really feel like we need that yet. I'd rather have a
+        // baseline on how this performs first (since the mutex will almost
+        // always be uncontended).
+        //
+        // Also we would have to handle the race between the operator storing
+        // the waker, and us actually putting the pipeline in the waker. This
+        // could be covered by a bool like `did_wake` that we would check,
+        // but... not right now.
+        let mut pipeline = self.pipeline.lock();
 
         let waker: Waker = Arc::new(PartitionPipelineWaker {
-            state: self.state.clone(),
+            pipeline: self.pipeline.clone(),
+            errors: self.errors.clone(),
+            pool,
         })
         .into();
 
         let mut cx = Context::from_waker(&waker);
         loop {
-            match pipeline_state.pipeline.poll_execute(&mut cx) {
+            match pipeline.poll_execute(&mut cx) {
                 Poll::Ready(Some(Ok(()))) => {
                     // Pushing through the pipeline was successful. Continue the
                     // loop to try to get as much work done as possible.
                     continue;
                 }
                 Poll::Ready(Some(Err(e))) => {
-                    self.state.errors.push_error(e);
-                    return;
+                    if let Err(SendError(e)) = self.errors.send(e) {
+                        debug!(%e, "errors receiver disconnected");
+                    }
                 }
                 Poll::Pending => {
                     // Exit the loop. Waker was already stored in the pending
@@ -82,7 +89,13 @@ impl PartitionPipelineTask {
 
 /// A waker implementation that will re-execute the pipeline once woken.
 struct PartitionPipelineWaker {
-    state: Arc<TaskState>,
+    /// The pipeline we should re-execute.
+    pipeline: Arc<Mutex<PartitionPipeline>>,
+
+    errors: mpsc::Sender<RayexecError>,
+
+    /// The thread pool to spawn on.
+    pool: Arc<ThreadPool>,
 }
 
 impl Wake for PartitionPipelineWaker {
@@ -91,10 +104,11 @@ impl Wake for PartitionPipelineWaker {
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
-        let pool = self.state.pool.clone();
         let task = PartitionPipelineTask {
-            state: self.state.clone(),
+            pipeline: self.pipeline.clone(),
+            errors: self.errors.clone(),
         };
-        pool.spawn(|| task.execute());
+        let pool = self.pool.clone();
+        self.pool.spawn(|| task.execute(pool));
     }
 }

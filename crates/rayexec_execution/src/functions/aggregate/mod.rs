@@ -1,7 +1,6 @@
 pub mod avg;
 pub mod count;
 pub mod covar;
-pub mod minmax;
 pub mod sum;
 
 use dyn_clone::DynClone;
@@ -9,7 +8,6 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::StateCombiner;
-use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, executor::aggregate::AggregateState};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
@@ -19,94 +17,46 @@ use std::{
     vec,
 };
 
-use crate::logical::expr::LogicalExpression;
-
 use super::FunctionInfo;
 
-pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = Lazy::new(|| {
-    vec![
-        Box::new(sum::Sum),
-        Box::new(avg::Avg),
-        Box::new(count::Count),
-        Box::new(minmax::Min),
-        Box::new(minmax::Max),
-    ]
-});
+pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
+    Lazy::new(|| {
+        vec![
+            Box::new(sum::Sum),
+            Box::new(avg::Avg),
+            Box::new(count::Count),
+        ]
+    });
 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
-pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    /// Plans an aggregate function from input data types.
-    ///
-    /// The data types passed in correspond directly to the arguments to the
-    /// aggregate.
-    fn plan_from_datatypes(&self, inputs: &[DataType])
-        -> Result<Box<dyn PlannedAggregateFunction>>;
-
-    /// Plan an aggregate based on expressions.
-    ///
-    /// Similar to scalar functions, the default implementation for this will
-    /// call `plan_from_datatype`.
-    fn plan_from_expressions(
-        &self,
-        inputs: &[LogicalExpression],
-        operator_schema: &TypeSchema,
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        // TODO: Are we going to need to pass in the outer schemas here?
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(operator_schema, &[]))
-            .collect::<Result<Vec<_>>>()?;
-
-        self.plan_from_datatypes(&datatypes)
-    }
+pub trait GenericAggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+    /// Specialize into an aggregate function specific to handling these inputs.
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>>;
 }
 
-impl Clone for Box<dyn AggregateFunction> {
+impl Clone for Box<dyn GenericAggregateFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl PartialEq<dyn AggregateFunction> for Box<dyn AggregateFunction + '_> {
-    fn eq(&self, other: &dyn AggregateFunction) -> bool {
+impl PartialEq<dyn GenericAggregateFunction> for Box<dyn GenericAggregateFunction + '_> {
+    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn AggregateFunction + '_ {
-    fn eq(&self, other: &dyn AggregateFunction) -> bool {
+impl PartialEq for dyn GenericAggregateFunction + '_ {
+    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
         self.name() == other.name() && self.signatures() == other.signatures()
     }
 }
 
-pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
-    fn name(&self) -> &'static str;
-
-    /// Return type of the aggregate.
-    fn return_type(&self) -> DataType;
-
+pub trait SpecializedAggregateFunction: Debug + Sync + Send + DynClone {
     /// Create a new `GroupedStates` that's able to hold the aggregate state for
     /// multiple groups.
     fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
-}
-
-impl Clone for Box<dyn PlannedAggregateFunction> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
-}
-
-impl PartialEq<dyn PlannedAggregateFunction> for Box<dyn PlannedAggregateFunction + '_> {
-    fn eq(&self, other: &dyn PlannedAggregateFunction) -> bool {
-        self.as_ref() == other
-    }
-}
-
-impl PartialEq for dyn PlannedAggregateFunction + '_ {
-    fn eq(&self, other: &dyn PlannedAggregateFunction) -> bool {
-        self.name() == other.name() && self.return_type() == other.return_type()
-    }
 }
 
 pub trait GroupedStates: Debug + Send {

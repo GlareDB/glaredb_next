@@ -1,15 +1,6 @@
-use crate::{
-    array::{
-        Array, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
-        VarlenValuesBuffer,
-    },
-    bitmap::Bitmap,
-};
+use crate::array::{Array, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
 use rayexec_error::{RayexecError, Result};
 
-/// Take values from an array at the provided indices, and return a new array.
-///
-/// An index may appear multiple times.
 pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
     Ok(match arr {
         Array::Null(_) => Array::Null(NullArray::new(indices.len())),
@@ -24,29 +15,11 @@ pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
         Array::UInt16(arr) => Array::UInt16(take_primitive(arr, indices)?),
         Array::UInt32(arr) => Array::UInt32(take_primitive(arr, indices)?),
         Array::UInt64(arr) => Array::UInt64(take_primitive(arr, indices)?),
-        Array::Decimal64(arr) => {
-            let new_primitive = take_primitive(arr.get_primitive(), indices)?;
-            Array::Decimal64(DecimalArray::new(
-                arr.precision(),
-                arr.scale(),
-                new_primitive,
-            ))
-        }
-        Array::Decimal128(arr) => {
-            let new_primitive = take_primitive(arr.get_primitive(), indices)?;
-            Array::Decimal128(DecimalArray::new(
-                arr.precision(),
-                arr.scale(),
-                new_primitive,
-            ))
-        }
-        Array::Date32(arr) => Array::Date32(take_primitive(arr, indices)?),
-        Array::Date64(arr) => Array::Date64(take_primitive(arr, indices)?),
         Array::Utf8(arr) => Array::Utf8(take_varlen(arr, indices)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(take_varlen(arr, indices)?),
         Array::Binary(arr) => Array::Binary(take_varlen(arr, indices)?),
         Array::LargeBinary(arr) => Array::LargeBinary(take_varlen(arr, indices)?),
-        other => unimplemented!("other: {}", other.datatype()),
+        _ => unimplemented!(),
     })
 }
 
@@ -59,16 +32,11 @@ pub fn take_primitive<T: Copy>(
     }
 
     let values = arr.values();
-    let new_values: Vec<_> = indices
+    // TODO: validity
+    let iter = indices
         .iter()
-        .map(|idx| *values.as_ref().get(*idx).unwrap())
-        .collect();
-
-    let validity = arr
-        .validity()
-        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
-
-    let taken = PrimitiveArray::new(new_values, validity);
+        .map(|idx| *values.as_ref().get(*idx).unwrap());
+    let taken = PrimitiveArray::from_iter(iter);
 
     Ok(taken)
 }
@@ -81,14 +49,9 @@ pub fn take_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
         return Err(RayexecError::new("Index out of bounds"));
     }
 
-    let new_values: VarlenValuesBuffer<_> =
-        indices.iter().map(|idx| arr.value(*idx).unwrap()).collect();
-
-    let validity = arr
-        .validity()
-        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
-
-    let taken = VarlenArray::new(new_values, validity);
+    // TODO: Validity
+    let iter = indices.iter().map(|idx| arr.value(*idx).unwrap());
+    let taken = VarlenArray::from_iter(iter);
 
     Ok(taken)
 }

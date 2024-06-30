@@ -2,12 +2,16 @@ use num_traits::{AsPrimitive, PrimInt};
 use rayexec_bullet::{
     array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
     bitmap::Bitmap,
-    datatype::{DataType, DataTypeId, DecimalTypeMeta},
+    datatype::{DataType, DataTypeId},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 
-use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use super::{
+    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
+};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
+};
 use rayexec_error::Result;
 use std::vec;
 use std::{fmt::Debug, ops::AddAssign};
@@ -42,16 +46,13 @@ impl FunctionInfo for Avg {
     }
 }
 
-impl AggregateFunction for Avg {
-    fn plan_from_datatypes(
-        &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
+impl GenericAggregateFunction for Avg {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
+        specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(AvgInt64Impl)),
-            DataType::Float64 => Ok(Box::new(AvgFloat64Impl)),
-            DataType::Decimal64(meta) => Ok(Box::new(AvgDecimal64Impl {
+            DataType::Int64 => Ok(Box::new(AvgI64Specialized)),
+            DataType::Float64 => Ok(Box::new(AvgF64Specialized)),
+            DataType::Decimal64(meta) => Ok(Box::new(AvgDecimal64Specialized {
                 precision: meta.precision,
                 scale: meta.scale,
             })),
@@ -65,12 +66,12 @@ impl AggregateFunction for Avg {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct AvgDecimal64Impl {
+struct AvgDecimal64Specialized {
     precision: u8,
     scale: i8,
 }
 
-impl AvgDecimal64Impl {
+impl AvgDecimal64Specialized {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -93,15 +94,7 @@ impl AvgDecimal64Impl {
     }
 }
 
-impl PlannedAggregateFunction for AvgDecimal64Impl {
-    fn name(&self) -> &'static str {
-        "avg_decimal64_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Decimal64(DecimalTypeMeta::new(self.precision, self.scale))
-    }
-
+impl SpecializedAggregateFunction for AvgDecimal64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -142,15 +135,7 @@ impl AvgDecimal128Specialized {
     }
 }
 
-impl PlannedAggregateFunction for AvgDecimal128Specialized {
-    fn name(&self) -> &'static str {
-        "avg_decimal128_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Decimal128(DecimalTypeMeta::new(self.precision, self.scale))
-    }
-
+impl SpecializedAggregateFunction for AvgDecimal128Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -165,9 +150,9 @@ impl PlannedAggregateFunction for AvgDecimal128Specialized {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct AvgFloat64Impl;
+struct AvgF64Specialized;
 
-impl AvgFloat64Impl {
+impl AvgF64Specialized {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -188,24 +173,16 @@ impl AvgFloat64Impl {
     }
 }
 
-impl PlannedAggregateFunction for AvgFloat64Impl {
-    fn name(&self) -> &'static str {
-        "avg_float64_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
+impl SpecializedAggregateFunction for AvgF64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct AvgInt64Impl;
+struct AvgI64Specialized;
 
-impl AvgInt64Impl {
+impl AvgI64Specialized {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -226,15 +203,7 @@ impl AvgInt64Impl {
     }
 }
 
-impl PlannedAggregateFunction for AvgInt64Impl {
-    fn name(&self) -> &'static str {
-        "avg_int64_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Int64
-    }
-
+impl SpecializedAggregateFunction for AvgI64Specialized {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }

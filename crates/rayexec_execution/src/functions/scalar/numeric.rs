@@ -1,6 +1,8 @@
-use super::{PlannedScalarFunction, ScalarFunction};
+use super::{GenericScalarFunction, SpecializedScalarFunction};
 use crate::functions::scalar::macros::{primitive_unary_execute, primitive_unary_execute_bool};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
+};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
@@ -29,28 +31,20 @@ impl FunctionInfo for IsNan {
     }
 }
 
-impl ScalarFunction for IsNan {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
+impl GenericScalarFunction for IsNan {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanImpl)),
+            DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanSpecialized)),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNanImpl;
+pub struct IsNanSpecialized;
 
-impl PlannedScalarFunction for IsNanImpl {
-    fn name(&self) -> &'static str {
-        "isnan_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl SpecializedScalarFunction for IsNanSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {
@@ -91,32 +85,20 @@ impl FunctionInfo for Ceil {
     }
 }
 
-impl ScalarFunction for Ceil {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
+impl GenericScalarFunction for Ceil {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Float32 | DataType::Float64 => Ok(Box::new(CeilImpl {
-                datatype: inputs[0].clone(),
-            })),
+            DataType::Float32 | DataType::Float64 => Ok(Box::new(CeilSpecialized)),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CeilImpl {
-    datatype: DataType,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CeilSpecialized;
 
-impl PlannedScalarFunction for CeilImpl {
-    fn name(&self) -> &'static str {
-        "ceil_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        self.datatype.clone()
-    }
-
+impl SpecializedScalarFunction for CeilSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {
@@ -153,32 +135,20 @@ impl FunctionInfo for Floor {
     }
 }
 
-impl ScalarFunction for Floor {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
+impl GenericScalarFunction for Floor {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Float32 | DataType::Float64 => Ok(Box::new(FloorImpl {
-                datatype: inputs[0].clone(),
-            })),
+            DataType::Float32 | DataType::Float64 => Ok(Box::new(FloorSpecialized)),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FloorImpl {
-    datatype: DataType,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FloorSpecialized;
 
-impl PlannedScalarFunction for FloorImpl {
-    fn name(&self) -> &'static str {
-        "floor_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        self.datatype.clone()
-    }
-
+impl SpecializedScalarFunction for FloorSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let array = arrays[0];
         Ok(match array.as_ref() {

@@ -276,8 +276,7 @@ impl Array {
                         }
                         other => {
                             return Err(RayexecError::new(format!(
-                                "Unexpected scalar value: {other:?}, want: {}",
-                                datatype,
+                                "Unexpected scalar value: {other}"
                             )))
                         }
                     }

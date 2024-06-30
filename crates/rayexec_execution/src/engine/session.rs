@@ -7,12 +7,12 @@ use rayexec_parser::{parser, statement::RawStatement};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
+    engine::result_stream::unpartitioned_result_stream,
     execution::query_graph::{
         planner::{QueryGraphDebugConfig, QueryGraphPlanner},
         sink::QuerySink,
     },
     logical::{
-        context::QueryContext,
         operator::{LogicalOperator, ResetVar, VariableOrAll},
         sql::{binder::Binder, planner::PlanContext},
     },
@@ -20,10 +20,16 @@ use crate::{
 };
 
 use super::{
-    result::{ExecutionResult, ResultAdapterStream},
+    result_stream::ResultStream,
     vars::{SessionVars, VarAccessor},
     DataSourceRegistry, EngineRuntime,
 };
+
+#[derive(Debug)]
+pub struct ExecutionResult {
+    pub output_schema: Schema,
+    pub stream: ResultStream,
+}
 
 #[derive(Debug)]
 pub struct Session {
@@ -115,29 +121,23 @@ impl Session {
         )
         .bind_statement(stmt)
         .await?;
-        let (mut logical, context) =
-            PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
+        let mut logical = PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
 
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
 
-        let mut adapter_stream = ResultAdapterStream::new();
+        let (result_stream, result_sink) = unpartitioned_result_stream();
         let planner = QueryGraphPlanner::new(
             &self.context,
             &self.runtime,
             VarAccessor::new(&self.vars).partitions(),
             QueryGraphDebugConfig::new(&self.vars),
         );
-        let query_sink = QuerySink::new([Box::new(adapter_stream.partition_sink()) as _]);
+        let query_sink = QuerySink::new([result_sink]);
 
         let query_graph = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
-                // Here to avoid lifetime issues.
-                let empty = planner.create_graph(
-                    LogicalOperator::Empty,
-                    QueryContext::new(),
-                    query_sink,
-                )?;
+                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
 
                 // TODO: No clue if we want to do this here. What happens during
                 // hybrid exec?
@@ -149,11 +149,7 @@ impl Session {
                 empty
             }
             LogicalOperator::DetachDatabase(detach) => {
-                let empty = planner.create_graph(
-                    LogicalOperator::Empty,
-                    QueryContext::new(),
-                    query_sink,
-                )?; // Here to avoid lifetime issues.
+                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
                 self.context.detach_catalog(&detach.name)?;
                 empty
             }
@@ -172,7 +168,7 @@ impl Session {
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
-                planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
+                planner.create_graph(LogicalOperator::Empty, query_sink)?
             }
             LogicalOperator::ResetVar(ResetVar { var }) => {
                 // Same TODO as above.
@@ -180,20 +176,18 @@ impl Session {
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
-                planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
+                planner.create_graph(LogicalOperator::Empty, query_sink)?
             }
-            root => planner.create_graph(root, context, query_sink)?,
+            root => planner.create_graph(root, query_sink)?,
         };
 
-        let handle = self
-            .runtime
+        self.runtime
             .scheduler
-            .spawn_query_graph(query_graph, adapter_stream.error_sink());
+            .spawn_query_graph(query_graph, result_stream.errors_send_channel());
 
         Ok(ExecutionResult {
             output_schema: Schema::empty(), // TODO
-            stream: adapter_stream,
-            handle,
+            stream: result_stream,
         })
     }
 }

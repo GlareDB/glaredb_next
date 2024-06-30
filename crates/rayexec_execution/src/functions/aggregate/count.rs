@@ -9,7 +9,9 @@ use std::vec;
 
 use crate::functions::{FunctionInfo, Signature};
 
-use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
+use super::{
+    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Count;
@@ -27,22 +29,19 @@ impl FunctionInfo for Count {
     }
 }
 
-impl AggregateFunction for Count {
-    fn plan_from_datatypes(
-        &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+impl GenericAggregateFunction for Count {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
         if inputs.len() != 1 {
             return Err(RayexecError::new("Expected 1 input"));
         }
-        Ok(Box::new(CountNonNullImpl))
+        Ok(Box::new(CountNonNull))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CountNonNullImpl;
+pub struct CountNonNull;
 
-impl CountNonNullImpl {
+impl CountNonNull {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -61,15 +60,7 @@ impl CountNonNullImpl {
     }
 }
 
-impl PlannedAggregateFunction for CountNonNullImpl {
-    fn name(&self) -> &'static str {
-        "count_non_null_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Int64
-    }
-
+impl SpecializedAggregateFunction for CountNonNull {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }

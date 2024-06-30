@@ -1,11 +1,13 @@
 use crate::functions::scalar::macros::primitive_unary_execute;
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
+};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use std::sync::Arc;
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use super::{GenericScalarFunction, SpecializedScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Negate;
@@ -49,37 +51,25 @@ impl FunctionInfo for Negate {
     }
 }
 
-impl ScalarFunction for Negate {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
+impl GenericScalarFunction for Negate {
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+        specialize_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int8
             | DataType::Int16
             | DataType::Int32
             | DataType::Int64
             | DataType::Float32
-            | DataType::Float64 => Ok(Box::new(NegateImpl {
-                datatype: inputs[0].clone(),
-            })),
+            | DataType::Float64 => Ok(Box::new(NegatePrimitiveSpecialized)),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NegateImpl {
-    datatype: DataType,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NegatePrimitiveSpecialized;
 
-impl PlannedScalarFunction for NegateImpl {
-    fn name(&self) -> &'static str {
-        "negate_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        self.datatype.clone()
-    }
-
+impl SpecializedScalarFunction for NegatePrimitiveSpecialized {
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         Ok(match first.as_ref() {

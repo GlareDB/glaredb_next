@@ -208,14 +208,6 @@ pub enum Expr<T: AstMeta> {
         datatype: T::DataType,
         expr: Box<Expr<T>>,
     },
-    /// LIKE/NOT LIKE
-    /// ILIKE/NOT ILIKE
-    Like {
-        not_like: bool,
-        case_insensitive: bool,
-        expr: Box<Expr<T>>,
-        pattern: Box<Expr<T>>,
-    },
     /// Interval
     ///
     /// `INTERVAL '1 year 2 months'`
@@ -416,57 +408,6 @@ impl Expr<Raw> {
                     right: Box::new(Expr::parse_subexpr(parser, precendence)?),
                 })
             }
-        } else if let Token::Word(w) = &tok {
-            let kw = match w.keyword {
-                Some(kw) => kw,
-                None => {
-                    return Err(RayexecError::new(format!(
-                        "Unexpected token in infix expression: {w}"
-                    )))
-                }
-            };
-
-            match kw {
-                Keyword::IS => {
-                    unimplemented!()
-                }
-                Keyword::NOT => match parser.next_keyword()? {
-                    Keyword::LIKE => Ok(Expr::Like {
-                        not_like: true,
-                        case_insensitive: false,
-                        expr: Box::new(prefix),
-                        pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
-                    }),
-                    Keyword::ILIKE => Ok(Expr::Like {
-                        not_like: true,
-                        case_insensitive: true,
-                        expr: Box::new(prefix),
-                        pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
-                    }),
-                    other => {
-                        return Err(RayexecError::new(format!(
-                            "Unexpected keyword in infix expression: {other}"
-                        )))
-                    }
-                },
-                Keyword::LIKE => Ok(Expr::Like {
-                    not_like: false,
-                    case_insensitive: false,
-                    expr: Box::new(prefix),
-                    pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
-                }),
-                Keyword::ILIKE => Ok(Expr::Like {
-                    not_like: false,
-                    case_insensitive: true,
-                    expr: Box::new(prefix),
-                    pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
-                }),
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Unexpected keyword in infix expression: {other}"
-                    )))
-                }
-            }
         } else if tok == &Token::LeftBracket {
             // Array index
             unimplemented!()
@@ -601,13 +542,8 @@ impl Expr<Raw> {
                 return Err(RayexecError::new("Cannot have wildcard function call"));
             }
 
-            let args = if parser.consume_token(&Token::RightParen) {
-                Vec::new()
-            } else {
-                let args = parser.parse_comma_separated(FunctionArg::parse)?;
-                parser.expect_token(&Token::RightParen)?;
-                args
-            };
+            let args = parser.parse_comma_separated(FunctionArg::parse)?;
+            parser.expect_token(&Token::RightParen)?;
 
             // FILTER (WHERE <expr>)
             let filter = if parser.parse_keyword(Keyword::FILTER) {
@@ -814,17 +750,6 @@ mod tests {
             args: vec![FunctionArg::Unnamed {
                 arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("my_col"))),
             }],
-            filter: None,
-        });
-        assert_eq!(expected, expr);
-    }
-
-    #[test]
-    fn function_call_no_args() {
-        let expr: Expr<_> = parse_ast("random()").unwrap();
-        let expected = Expr::Function(Function {
-            reference: ObjectReference(vec![Ident::from_string("random")]),
-            args: Vec::new(),
             filter: None,
         });
         assert_eq!(expected, expr);
