@@ -5,14 +5,14 @@ mod vt100;
 use std::sync::Arc;
 
 use crossterm::event::{self, Event, KeyModifiers};
-use futures::StreamExt;
-use rayexec_bullet::format::ugly::ugly_print;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::engine::{Engine, EngineRuntime};
+use rayexec_execution::engine::Engine;
+use rayexec_execution::runtime::ExecutionRuntime;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_shell::lineedit::{KeyEvent, LineEditor, Signal};
+use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
+use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::shell::{Shell, ShellSignal};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
@@ -35,8 +35,15 @@ fn main() {
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    let runtime = EngineRuntime::try_new_shared().unwrap();
-    runtime.clone().tokio.block_on(async move {
+    let runtime = Arc::new(
+        ThreadedExecutionRuntime::try_new()
+            .unwrap()
+            .with_default_tokio()
+            .unwrap(),
+    );
+    let tokio_handle = runtime.tokio_handle().expect("tokio to be configured");
+
+    tokio_handle.block_on(async move {
         if let Err(e) = inner(runtime).await {
             println!("----");
             println!("ERROR");
@@ -65,7 +72,7 @@ fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
     }
 }
 
-async fn inner(runtime: Arc<EngineRuntime>) -> Result<()> {
+async fn inner(runtime: Arc<dyn ExecutionRuntime>) -> Result<()> {
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
         .with_datasource("postgres", Box::new(PostgresDataSource))?

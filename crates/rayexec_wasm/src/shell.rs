@@ -1,6 +1,6 @@
 use crate::errors::Result;
 use js_sys::{Function, RegExp};
-use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
+use rayexec_execution::engine::{session::Session, Engine};
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
 use std::io;
 use tracing::{debug, warn};
@@ -74,16 +74,17 @@ pub struct WasmShell {
 #[wasm_bindgen]
 impl WasmShell {
     pub fn try_new(terminal: Terminal) -> Result<WasmShell> {
-        let runtime = EngineRuntime::try_new_shared()?;
-        let engine = Engine::new(runtime)?;
+        unimplemented!()
+        // let runtime = EngineRuntime::try_new_shared()?;
+        // let engine = Engine::new(runtime)?;
 
-        let terminal = TerminalWrapper::new(terminal);
-        let shell = Shell::new(terminal);
+        // let terminal = TerminalWrapper::new(terminal);
+        // let shell = Shell::new(terminal);
 
-        let session = engine.new_session()?;
-        shell.attach(session, "Rayexec WASM Shell")?;
+        // let session = engine.new_session()?;
+        // shell.attach(session, "Rayexec WASM Shell")?;
 
-        Ok(WasmShell { engine, shell })
+        // Ok(WasmShell { engine, shell })
     }
 
     pub async fn on_key(&self, event: OnKeyEvent) -> Result<()> {

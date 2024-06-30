@@ -174,17 +174,17 @@ impl PartitionPipeline {
     }
 
     /// Get the current state of the pipeline.
-    pub(crate) fn state(&self) -> &PipelinePartitionState {
+    pub fn state(&self) -> &PipelinePartitionState {
         &self.state
     }
 
-    pub(crate) fn timings(&self) -> &PartitionPipelineTimings {
+    pub fn timings(&self) -> &PartitionPipelineTimings {
         &self.timings
     }
 
     /// Return an iterator over all the physcial operators in this partition
     /// pipeline.
-    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn PhysicalOperator>> {
+    pub fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn PhysicalOperator>> {
         self.operators.iter().map(|op| &op.physical)
     }
 }
@@ -220,7 +220,7 @@ pub(crate) struct OperatorWithState {
 }
 
 #[derive(Clone)]
-pub(crate) enum PipelinePartitionState {
+pub enum PipelinePartitionState {
     /// Need to pull from an operator.
     PullFrom { operator_idx: usize },
 

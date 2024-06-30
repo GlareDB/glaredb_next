@@ -17,12 +17,13 @@ use crate::{
         sql::{binder::Binder, planner::PlanContext},
     },
     optimizer::Optimizer,
+    runtime::ExecutionRuntime,
 };
 
 use super::{
     result::{ExecutionResult, ResultAdapterStream},
     vars::{SessionVars, VarAccessor},
-    DataSourceRegistry, EngineRuntime,
+    DataSourceRegistry,
 };
 
 #[derive(Debug)]
@@ -30,7 +31,7 @@ pub struct Session {
     context: DatabaseContext,
     vars: SessionVars,
     registry: Arc<DataSourceRegistry>,
-    runtime: Arc<EngineRuntime>,
+    runtime: Arc<dyn ExecutionRuntime>,
 
     prepared: HashMap<String, PreparedStatement>,
     portals: HashMap<String, Portal>,
@@ -39,7 +40,7 @@ pub struct Session {
 impl Session {
     pub fn new(
         context: DatabaseContext,
-        runtime: Arc<EngineRuntime>,
+        runtime: Arc<dyn ExecutionRuntime>,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
         Session {
@@ -188,8 +189,7 @@ impl Session {
 
         let handle = self
             .runtime
-            .scheduler
-            .spawn_query_graph(query_graph, adapter_stream.error_sink());
+            .spawn_query_graph(query_graph, Arc::new(adapter_stream.error_sink()));
 
         Ok(ExecutionResult {
             output_schema: schema, // TODO

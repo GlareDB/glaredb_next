@@ -22,9 +22,6 @@ rayon = { workspace = true }
 smallvec = { workspace = true }
 tracing = { workspace = true }
 half = "2.4.1"
-tokio = { workspace = true }
+tokio = { workspace = true, default-features = false }
 regex = { workspace = true }
 rand = "0.8.5"
-
-[dev-dependencies]
-insta = "1.39.0"
