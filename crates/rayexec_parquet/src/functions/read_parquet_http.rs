@@ -6,7 +6,7 @@ use rayexec_execution::{
     functions::table::{InitializedTableFunction, SpecializedTableFunction},
     runtime::ExecutionRuntime,
 };
-use rayexec_io::http::{HttpClient, HttpFileReader};
+use rayexec_io::http::{HttpClient, HttpReader};
 use std::sync::Arc;
 use url::Url;
 
@@ -37,35 +37,41 @@ impl ReadParquetHttp {
         self,
         runtime: &dyn ExecutionRuntime,
     ) -> Result<Box<dyn InitializedTableFunction>> {
-        let tokio_handle = runtime.tokio_handle();
-
-        // TODO: Make http client accept optional tokio handle.
-        // TODO: This also conflicts with single threaded tokio + outer block on
-        let mut reader = HttpClient::new(tokio_handle).reader(self.url.clone());
+        let client = runtime.http_client()?;
+        let mut reader = client.reader(self.url.clone());
         let size = reader.content_length().await?;
 
         let metadata = Metadata::load_from(&mut reader, size).await?;
         let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(ReadParquetHttpRowGroupPartitioned {
+            reader_builder: HttpReaderBuilder {
+                client,
+                url: self.url.clone(),
+            },
             specialized: self,
-            reader,
             metadata: Arc::new(metadata),
             schema,
         }))
     }
 }
 
-impl ReaderBuilder<HttpFileReader> for HttpFileReader {
-    fn new_reader(&self) -> Result<HttpFileReader> {
-        Ok(self.clone())
+#[derive(Debug, Clone)]
+struct HttpReaderBuilder {
+    client: Arc<dyn HttpClient>,
+    url: Url,
+}
+
+impl ReaderBuilder<Box<dyn HttpReader>> for HttpReaderBuilder {
+    fn new_reader(&self) -> Result<Box<dyn HttpReader>> {
+        Ok(self.client.reader(self.url.clone()))
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ReadParquetHttpRowGroupPartitioned {
     specialized: ReadParquetHttp,
-    reader: HttpFileReader,
+    reader_builder: HttpReaderBuilder,
     metadata: Arc<Metadata>,
     schema: Schema,
 }
@@ -81,7 +87,7 @@ impl InitializedTableFunction for ReadParquetHttpRowGroupPartitioned {
 
     fn datatable(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(RowGroupPartitionedDataTable::new(
-            self.reader.clone(),
+            self.reader_builder.clone(),
             self.metadata.clone(),
             self.schema.clone(),
         )))

@@ -4,7 +4,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use dump::QueryDump;
-use rayexec_error::RayexecError;
+use rayexec_error::{RayexecError, Result};
+use rayexec_io::http::HttpClient;
 
 use crate::execution::query_graph::QueryGraph;
 
@@ -38,6 +39,11 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     /// Data sources should error if they require tokio and if this returns
     /// None.
     fn tokio_handle(&self) -> Option<tokio::runtime::Handle>;
+
+    /// Get a new http client.
+    ///
+    /// May error if prereqs aren't met for creating an http client.
+    fn http_client(&self) -> Result<Arc<dyn HttpClient>>;
 }
 
 pub trait QueryHandle: Debug + Sync + Send {

@@ -1,6 +1,8 @@
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use js_sys::{Function, RegExp};
+use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::engine::{session::Session, Engine};
+use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::shell::ShellSignal;
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
 use std::io::{self, BufWriter};
@@ -83,7 +85,11 @@ pub struct WasmShell {
 impl WasmShell {
     pub fn try_new(terminal: Terminal) -> Result<WasmShell> {
         let runtime = Arc::new(WasmExecutionRuntime::try_new()?);
-        let engine = Engine::new(runtime)?;
+        let registry = DataSourceRegistry::default()
+            .with_datasource("memory", Box::new(MemoryDataSource))?
+            .with_datasource("parquet", Box::new(ParquetDataSource))?;
+
+        let engine = Engine::new_with_registry(runtime, registry)?;
 
         let terminal = TerminalWrapper::new(terminal);
         let shell = Arc::new(Shell::new(BufWriter::new(terminal)));

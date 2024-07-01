@@ -9,6 +9,7 @@ use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
+use rayexec_io::http::{HttpClient, ReqwestClient};
 use tracing::{debug, trace};
 
 #[derive(Debug)]
@@ -44,6 +45,12 @@ impl ExecutionRuntime for WasmExecutionRuntime {
 
     fn tokio_handle(&self) -> Option<tokio::runtime::Handle> {
         None
+    }
+
+    fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
+        // Note that there's no wrapping needed since when compiling for wasm,
+        // reqwest will use a web-sys based implementation.
+        Ok(Arc::new(ReqwestClient::new()))
     }
 }
 

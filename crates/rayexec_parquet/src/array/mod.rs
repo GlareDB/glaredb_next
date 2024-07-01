@@ -19,7 +19,7 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::AsyncReadAt;
+use rayexec_io::AsyncReader;
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 use std::sync::Arc;
@@ -97,7 +97,7 @@ pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
     }))
 }
 
-pub struct AsyncBatchReader<R: AsyncReadAt> {
+pub struct AsyncBatchReader<R: AsyncReader> {
     /// Reader we're reading from.
     reader: R,
 
@@ -122,7 +122,7 @@ pub struct AsyncBatchReader<R: AsyncReadAt> {
     column_chunks: Vec<Option<InMemoryColumnChunk>>,
 }
 
-impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
+impl<R: AsyncReader + 'static> AsyncBatchReader<R> {
     pub fn try_new(
         reader: R,
         row_groups: VecDeque<usize>,
@@ -238,7 +238,7 @@ impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
             let (start, len) = col.byte_range();
 
             // TODO: Parallel reads.
-            let buf = self.reader.read_at(start as usize, len as usize).await?;
+            let buf = self.reader.read_range(start as usize, len as usize).await?;
 
             *chunk = Some(InMemoryColumnChunk {
                 offset: start as usize,
@@ -280,7 +280,7 @@ impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
     }
 }
 
-impl<R: AsyncReadAt> fmt::Debug for AsyncBatchReader<R> {
+impl<R: AsyncReader> fmt::Debug for AsyncBatchReader<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AsyncBatchReader")
             .field("row_groups", &self.row_groups)

@@ -1,13 +1,14 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use rayexec_error::{Result, ResultExt};
+use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
+use rayexec_io::http::{HttpClient, ReqwestClient};
 
-use crate::threaded::ThreadedScheduler;
+use crate::{http::WrappedReqwestClient, threaded::ThreadedScheduler};
 
 /// Inner behavior of the execution runtime.
 pub trait Scheduler: Sync + Send + Debug + Sized {
@@ -52,6 +53,9 @@ impl<S: Scheduler> NativeExecutionRuntime<S> {
     }
 
     pub fn with_default_tokio(mut self) -> Result<Self> {
+        // TODO: I had to change this to multi threaded since there was a
+        // deadlock with current_thread and a single worker. I _think_ this is
+        // because in main we're using the tokio runtime + block_on.
         let tokio = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_io()
@@ -76,5 +80,17 @@ impl<S: Scheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
 
     fn tokio_handle(&self) -> Option<tokio::runtime::Handle> {
         self.tokio.as_ref().map(|rt| rt.handle().clone())
+    }
+
+    fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
+        match &self.tokio {
+            Some(tokio) => Ok(Arc::new(WrappedReqwestClient {
+                inner: ReqwestClient::new(),
+                handle: tokio.handle().clone(),
+            })),
+            None => Err(RayexecError::new(
+                "Cannot create http client, missing tokio runtime",
+            )),
+        }
     }
 }
