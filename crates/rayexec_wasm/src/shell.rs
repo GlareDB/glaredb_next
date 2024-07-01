@@ -1,11 +1,13 @@
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use js_sys::{Function, RegExp};
 use rayexec_execution::engine::{session::Session, Engine};
+use rayexec_shell::shell::ShellSignal;
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
 use std::io::{self, BufWriter};
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::KeyboardEvent;
 
 #[wasm_bindgen]
@@ -74,7 +76,7 @@ pub struct WasmShell {
     // up. The buf writer is a good thing since we're calling flush where
     // appropriate, but it'd be nice to know what's going wrong when it's not
     // used.
-    pub(crate) shell: Shell<BufWriter<TerminalWrapper>>,
+    pub(crate) shell: Arc<Shell<BufWriter<TerminalWrapper>>>,
 }
 
 #[wasm_bindgen]
@@ -84,7 +86,7 @@ impl WasmShell {
         let engine = Engine::new(runtime)?;
 
         let terminal = TerminalWrapper::new(terminal);
-        let shell = Shell::new(BufWriter::new(terminal));
+        let shell = Arc::new(Shell::new(BufWriter::new(terminal)));
 
         let session = engine.new_session()?;
         shell.attach(session, "Rayexec WASM Shell")?;
@@ -92,11 +94,13 @@ impl WasmShell {
         Ok(WasmShell { engine, shell })
     }
 
-    pub async fn on_key(&self, event: OnKeyEvent) -> Result<()> {
-        let event = event.dom_event();
-        event.prevent_default();
+    pub fn on_data(&self, text: String) -> Result<()> {
+        self.shell.consume_text(&text)?;
+        Ok(())
+    }
 
-        if event.type_() != "keydown" && event.type_() != "keypress" {
+    pub fn on_key(&self, event: KeyboardEvent) -> Result<()> {
+        if event.type_() != "keydown" {
             return Ok(());
         }
 
@@ -119,6 +123,9 @@ impl WasmShell {
                                 return Ok(());
                             }
                         }
+                    } else if event.meta_key() {
+                        warn!(%other, "unhandled input with meta modifier");
+                        return Ok(());
                     } else {
                         KeyEvent::Char(ch)
                     }
@@ -130,20 +137,19 @@ impl WasmShell {
             },
         };
 
-        self.shell.consume_key(key).await?;
-
-        Ok(())
-    }
-
-    pub async fn put_text(&self, text: &str) -> Result<()> {
-        for ch in text.chars() {
-            self.shell.consume_key(KeyEvent::Char(ch)).await?;
+        match self.shell.consume_key(key)? {
+            ShellSignal::Continue => (), // Continue with normal editing.
+            ShellSignal::ExecutePending => {
+                let shell = self.shell.clone();
+                spawn_local(async move {
+                    if let Err(e) = shell.execute_pending().await {
+                        error!(%e, "error executing pending query");
+                    }
+                });
+            }
+            ShellSignal::Exit => (), // Can't exit out of the web shell.
         }
-        Ok(())
-    }
 
-    pub async fn ctrl_c(&self) -> Result<()> {
-        self.shell.consume_key(KeyEvent::CtrlC).await?;
         Ok(())
     }
 }

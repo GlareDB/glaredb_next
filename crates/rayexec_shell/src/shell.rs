@@ -6,7 +6,7 @@ use std::{
 use futures::StreamExt;
 use rayexec_bullet::format::pretty::table::PrettyTable;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::engine::{result::ExecutionResult, session::Session, Engine};
+use rayexec_execution::engine::{result::ExecutionResult, session::Session};
 
 use crate::{
     lineedit::{KeyEvent, LineEditor, Signal},
@@ -15,14 +15,26 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellSignal {
+    /// Continue with reading the next input from the user.
     Continue,
+
+    /// Pending query needs to be executed.
+    ExecutePending,
+
+    /// Exit the shell.
     Exit,
 }
 
 #[derive(Debug)]
 pub struct Shell<W: io::Write> {
     editor: RefCell<LineEditor<W>>,
-    session: RefCell<Option<Session>>,
+    session: RefCell<Option<SessionWithConfig>>,
+}
+
+#[derive(Debug)]
+struct SessionWithConfig {
+    session: Session,
+    pending: Option<String>,
 }
 
 impl<W: io::Write> Shell<W> {
@@ -36,10 +48,20 @@ impl<W: io::Write> Shell<W> {
 
     pub fn attach(&self, session: Session, shell_msg: &str) -> Result<()> {
         let mut current = self.session.borrow_mut();
-        *current = Some(session);
+        *current = Some(SessionWithConfig {
+            session,
+            pending: None,
+        });
 
         let mut editor = self.editor.borrow_mut();
         writeln!(editor.raw_writer(), "{}{shell_msg}{}", MODE_BOLD, MODES_OFF)?;
+        let version = env!("CARGO_PKG_VERSION");
+        writeln!(
+            editor.raw_writer(),
+            "Preview ({version}) - There will be bugs!"
+        )?;
+        editor.raw_writer().write(&[b'\n'])?;
+
         editor.edit_start()?;
 
         Ok(())
@@ -50,7 +72,13 @@ impl<W: io::Write> Shell<W> {
         editor.set_cols(cols);
     }
 
-    pub async fn consume_key(&self, key: KeyEvent) -> Result<ShellSignal> {
+    pub fn consume_text(&self, text: &str) -> Result<()> {
+        let mut editor = self.editor.borrow_mut();
+        editor.consume_text(text)?;
+        Ok(())
+    }
+
+    pub fn consume_key(&self, key: KeyEvent) -> Result<ShellSignal> {
         let mut editor = self.editor.borrow_mut();
 
         match editor.consume_key(key)? {
@@ -58,50 +86,71 @@ impl<W: io::Write> Shell<W> {
             Signal::InputCompleted(query) => {
                 let query = query.to_string();
                 let mut session = self.session.borrow_mut();
-
                 match session.as_mut() {
                     Some(session) => {
-                        let width = editor.get_cols();
-                        let mut writer = editor.raw_writer();
-                        writer.write(&[b'\n'])?;
-
-                        match session.simple(&query).await {
-                            Ok(results) => {
-                                for result in results {
-                                    match Self::format_execution_stream(result, width).await {
-                                        Ok(table) => {
-                                            writeln!(writer, "{table}")?;
-                                        }
-                                        Err(e) => {
-                                            // Same as below, the error is
-                                            // related to executing a query.
-                                            writeln!(writer, "{e}")?;
-
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                // We're not returning the error here since it's
-                                // related to the user input. We want to show
-                                // the error to the user.
-                                writeln!(writer, "{e}")?;
-                            }
-                        }
-
-                        editor.edit_start()?;
-
-                        Ok(ShellSignal::Continue)
+                        session.pending = Some(query);
                     }
                     None => {
                         return Err(RayexecError::new(
-                            "Attempted to run query without attached session",
+                            "Attempted to run a query without a session",
                         ))
                     }
                 }
+                Ok(ShellSignal::ExecutePending)
             }
             Signal::Exit => Ok(ShellSignal::Exit),
+        }
+    }
+
+    pub async fn execute_pending(&self) -> Result<()> {
+        let mut editor = self.editor.borrow_mut();
+        let width = editor.get_cols();
+
+        let mut session = self.session.borrow_mut();
+        match session.as_mut() {
+            Some(session) => {
+                let query = match session.pending.take() {
+                    Some(query) => query,
+                    None => return Ok(()), // Nothing to execute.
+                };
+                let mut writer = editor.raw_writer();
+                writer.write(&[b'\n'])?;
+
+                match session.session.simple(&query).await {
+                    Ok(results) => {
+                        for result in results {
+                            match Self::format_execution_stream(result, width).await {
+                                Ok(table) => {
+                                    writeln!(writer, "{table}")?;
+                                }
+                                Err(e) => {
+                                    // Same as below, the error is related to
+                                    // executing a query.
+                                    writeln!(writer, "{e}")?;
+
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // We're not returning the error here since it's related
+                        // to the user input. We want to show the error to the
+                        // user.
+                        writeln!(writer, "{e}")?;
+                    }
+                }
+
+                writer.write(&[b'\n'])?;
+                editor.edit_start()?;
+
+                Ok(())
+            }
+            None => {
+                return Err(RayexecError::new(
+                    "Attempted to run query without attached session",
+                ))
+            }
         }
     }
 

@@ -112,6 +112,13 @@ impl<W: io::Write> LineEditor<W> {
         Ok(())
     }
 
+    pub fn consume_text(&mut self, text: &str) -> Result<()> {
+        for ch in text.chars() {
+            self.edit_insert(ch)?;
+        }
+        Ok(())
+    }
+
     pub fn consume_key(&mut self, key: KeyEvent) -> Result<Signal> {
         if matches!(key, KeyEvent::CtrlC) {
             if self.did_ctrl_c {

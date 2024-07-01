@@ -1,3 +1,4 @@
+use std::io::BufWriter;
 use std::sync::Arc;
 
 use crossterm::event::{self, Event, KeyModifiers};
@@ -39,14 +40,15 @@ fn main() {
     );
     let tokio_handle = runtime.tokio_handle().expect("tokio to be configured");
 
-    tokio_handle.block_on(async move {
-        if let Err(e) = inner(runtime).await {
-            println!("----");
-            println!("ERROR");
-            println!("{e}");
-            std::process::exit(1);
-        }
-    })
+    // Note we do an explicit clone here to avoid dropping the tokio runtime
+    // owned by the execution runtime inside the async context.
+    let runtime_clone = runtime.clone();
+    let result = tokio_handle.block_on(async move { inner(runtime_clone).await });
+
+    if let Err(e) = result {
+        println!("ERROR: {e}");
+        std::process::exit(1);
+    }
 }
 
 fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
@@ -77,7 +79,7 @@ async fn inner(runtime: Arc<dyn ExecutionRuntime>) -> Result<()> {
     let session = engine.new_session()?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
-    let stdout = std::io::stdout();
+    let stdout = BufWriter::new(std::io::stdout());
 
     crossterm::terminal::enable_raw_mode()?;
 
@@ -100,8 +102,9 @@ async fn inner(runtime: Arc<dyn ExecutionRuntime>) -> Result<()> {
                         from_crossterm_keycode(code)
                     };
 
-                    match shell.consume_key(key).await? {
+                    match shell.consume_key(key)? {
                         ShellSignal::Continue => (),
+                        ShellSignal::ExecutePending => shell.execute_pending().await?,
                         ShellSignal::Exit => break,
                     }
                 }
