@@ -37,9 +37,7 @@ impl ReadParquetHttp {
         self,
         runtime: &dyn ExecutionRuntime,
     ) -> Result<Box<dyn InitializedTableFunction>> {
-        let tokio_handle = runtime
-            .tokio_handle()
-            .ok_or_else(|| RayexecError::new("Missing tokio runtime"))?;
+        let tokio_handle = runtime.tokio_handle();
 
         // TODO: Make http client accept optional tokio handle.
         // TODO: This also conflicts with single threaded tokio + outer block on

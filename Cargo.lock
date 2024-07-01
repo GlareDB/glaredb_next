@@ -1763,6 +1763,7 @@ dependencies = [
 name = "rayexec_io"
 version = "0.0.2"
 dependencies = [
+ "bytes",
  "futures",
  "rayexec_error",
  "reqwest",

@@ -237,15 +237,12 @@ impl<R: AsyncReadAt + 'static> AsyncBatchReader<R> {
                 .column(idx);
             let (start, len) = col.byte_range();
 
-            // TODO: Reuse buffer?
-            let mut buf = vec![0; len as usize];
-
             // TODO: Parallel reads.
-            self.reader.read_at(start as usize, &mut buf).await?;
+            let buf = self.reader.read_at(start as usize, len as usize).await?;
 
             *chunk = Some(InMemoryColumnChunk {
                 offset: start as usize,
-                buf: Bytes::from(buf),
+                buf,
             })
         }
 

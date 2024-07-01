@@ -17,11 +17,10 @@ impl Metadata {
             return Err(RayexecError::new("File size is too small"));
         }
 
-        let mut footer = [0; 8];
         let footer_start = size - 8;
-        reader.read_at(footer_start, &mut footer).await?;
+        let footer = reader.read_at(footer_start, 8).await?;
 
-        let len = decode_footer(&footer).context("failed to decode footer")?;
+        let len = decode_footer(footer.as_ref().try_into().unwrap()).context("failed to decode footer")?;
         if size < len + 8 {
             return Err(RayexecError::new(format!(
                 "File size of {size} is less than footer + metadata {}",
@@ -30,8 +29,7 @@ impl Metadata {
         }
 
         let metadata_start = size - len - 8;
-        let mut metadata = vec![0; len];
-        reader.read_at(metadata_start, &mut metadata).await?;
+        let metadata = reader.read_at(metadata_start, len).await?;
 
         let metadata = decode_metadata(&metadata).context("failed to decode metadata")?;
 

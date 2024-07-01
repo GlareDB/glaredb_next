@@ -1,5 +1,6 @@
 pub mod http;
 
+use bytes::Bytes;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::fs::File;
@@ -11,7 +12,7 @@ pub trait AsyncReadAt: Sync + Send + Debug {
     /// `buf`.
     ///
     /// An error should be returned if `buf` cannot be completely filled.
-    fn read_at(&mut self, start: usize, buf: &mut [u8]) -> impl Future<Output = Result<()>> + Send;
+    fn read_at(&mut self, start: usize, len: usize) -> impl Future<Output = Result<Bytes>> + Send;
 }
 
 /// Implementation of async reading on top of a file.
@@ -19,9 +20,11 @@ pub trait AsyncReadAt: Sync + Send + Debug {
 /// Note that we're not using tokio's async read+sync traits as the
 /// implementation for files will attempt to spawn the read on a block thread.
 impl AsyncReadAt for File {
-    fn read_at(&mut self, start: usize, buf: &mut [u8]) -> impl Future<Output = Result<()>> + Send {
-        let result = read_at_sync(self, start, buf);
-        future::ready(result)
+    fn read_at(&mut self, start: usize, len: usize) -> impl Future<Output = Result<Bytes>> + Send {
+        let mut buf = vec![0; len];
+        let result = read_at_sync(self, start, &mut buf);
+        let bytes = Bytes::from(buf);
+        future::ready(result.map(|_| bytes))
     }
 }
 
