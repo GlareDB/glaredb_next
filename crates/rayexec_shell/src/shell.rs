@@ -7,6 +7,7 @@ use futures::StreamExt;
 use rayexec_bullet::format::pretty::table::PrettyTable;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::engine::{result::ExecutionResult, session::Session};
+use tracing::trace;
 
 use crate::{
     lineedit::{KeyEvent, LineEditor, Signal},
@@ -118,6 +119,7 @@ impl<W: io::Write> Shell<W> {
 
                 match session.session.simple(&query).await {
                     Ok(results) => {
+                        trace!("writing results");
                         for result in results {
                             match Self::format_execution_stream(result, width).await {
                                 Ok(table) => {

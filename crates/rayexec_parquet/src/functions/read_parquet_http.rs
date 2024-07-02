@@ -8,6 +8,7 @@ use rayexec_execution::{
 };
 use rayexec_io::http::{HttpClient, HttpReader};
 use std::sync::Arc;
+use tracing::trace;
 use url::Url;
 
 use crate::{metadata::Metadata, schema::convert_schema};
@@ -40,6 +41,7 @@ impl ReadParquetHttp {
         let client = runtime.http_client()?;
         let mut reader = client.reader(self.url.clone());
         let size = reader.content_length().await?;
+        trace!(%size, "got content length of file");
 
         let metadata = Metadata::load_from(&mut reader, size).await?;
         let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;

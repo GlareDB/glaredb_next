@@ -7,7 +7,7 @@ use rayexec_shell::shell::ShellSignal;
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
 use std::io::{self, BufWriter};
 use std::sync::Arc;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::KeyboardEvent;
@@ -98,6 +98,11 @@ impl WasmShell {
         shell.attach(session, "Rayexec WASM Shell")?;
 
         Ok(WasmShell { engine, shell })
+    }
+
+    pub fn on_resize(&self, cols: usize) {
+        trace!(%cols, "setting columns");
+        self.shell.set_cols(cols)
     }
 
     pub fn on_data(&self, text: String) -> Result<()> {

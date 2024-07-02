@@ -13,16 +13,6 @@ pub struct WrappedReqwestClient {
     pub handle: tokio::runtime::Handle,
 }
 
-impl WrappedReqwestClient {
-    pub async fn content_length_inner(&self, url: Url) -> Result<usize> {
-        let inner = self.inner.clone();
-        self.handle
-            .spawn(async move { inner.content_length_inner(url).await })
-            .await
-            .context("join error")?
-    }
-}
-
 impl HttpClient for WrappedReqwestClient {
     fn reader(&self, url: Url) -> Box<dyn HttpReader> {
         Box::new(WrappedReqwestClientReader {

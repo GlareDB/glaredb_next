@@ -6,6 +6,7 @@ use reqwest::{
     StatusCode,
 };
 use std::fmt::Debug;
+use tracing::debug;
 use url::Url;
 
 use crate::AsyncReader;
@@ -47,26 +48,6 @@ impl ReqwestClient {
         ReqwestClient(reqwest::Client::new())
     }
 
-    pub async fn content_length_inner(&self, url: Url) -> Result<usize> {
-        let send_fut = self.0.head(url.as_str()).send();
-        let resp = send_fut.await.context("failed to send HEAD request")?;
-
-        if !resp.status().is_success() {
-            return Err(RayexecError::new("Failed to get content-length"));
-        }
-
-        let len = match resp.headers().get(CONTENT_LENGTH) {
-            Some(header) => header
-                .to_str()
-                .context("failed to convert to string")?
-                .parse::<usize>()
-                .context("failed to parse content length")?,
-            None => return Err(RayexecError::new("Response missing content-length header")),
-        };
-
-        Ok(len)
-    }
-
     pub fn reader_inner(&self, url: Url) -> ReqwestClientReader {
         ReqwestClientReader {
             client: self.0.clone(),
@@ -89,6 +70,8 @@ pub struct ReqwestClientReader {
 
 impl ReqwestClientReader {
     pub async fn content_length_inner(&self) -> Result<usize> {
+        debug!(url = %self.url, "http getting content length");
+
         let send_fut = self.client.head(self.url.as_str()).send();
         let resp = send_fut.await.context("failed to send HEAD request")?;
 
@@ -109,6 +92,8 @@ impl ReqwestClientReader {
     }
 
     pub async fn read_range_inner(&mut self, start: usize, len: usize) -> Result<Bytes> {
+        debug!(url = %self.url, %start, %len, "http reading range");
+
         let range = Self::format_range_header(start, start + len - 1);
         let send_fut = self
             .client

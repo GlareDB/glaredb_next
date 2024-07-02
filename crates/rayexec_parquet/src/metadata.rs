@@ -4,6 +4,7 @@ use parquet::file::{
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReader;
+use tracing::trace;
 
 #[derive(Debug, Clone)]
 pub struct Metadata {
@@ -19,6 +20,7 @@ impl Metadata {
 
         let footer_start = size - 8;
         let footer = reader.read_range(footer_start, 8).await?;
+        trace!("read parquet footer bytes");
 
         let len = decode_footer(footer.as_ref().try_into().unwrap())
             .context("failed to decode footer")?;

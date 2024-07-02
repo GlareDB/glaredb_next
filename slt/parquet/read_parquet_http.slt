@@ -29,3 +29,4 @@ Mccoy
 Williams
 Henderson
 
+select last_name from read_parquet('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet')order by id desc limit 8;

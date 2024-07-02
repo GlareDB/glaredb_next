@@ -12,6 +12,8 @@ use rayexec_execution::{
 use rayexec_io::http::{HttpClient, ReqwestClient};
 use tracing::{debug, trace};
 
+use crate::http::WrappedReqwestClient;
+
 #[derive(Debug)]
 pub struct WasmExecutionRuntime {
     runtime: tokio::runtime::Runtime,
@@ -48,10 +50,10 @@ impl ExecutionRuntime for WasmExecutionRuntime {
     }
 
     fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
-        // Note that there's no wrapping needed since when compiling for wasm,
-        // reqwest will use a web-sys based implementation.
-        // Ok(Arc::new(ReqwestClient::new()))
-        unimplemented!()
+        debug!("creating http client");
+        Ok(Arc::new(WrappedReqwestClient {
+            inner: ReqwestClient::new(),
+        }))
     }
 }
 

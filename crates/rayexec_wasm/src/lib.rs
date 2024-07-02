@@ -1,7 +1,9 @@
 pub mod errors;
 pub mod runtime;
 pub mod shell;
-pub mod tracing;
+
+mod http;
+mod tracing;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
