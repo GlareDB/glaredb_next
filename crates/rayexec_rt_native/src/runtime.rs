@@ -85,7 +85,7 @@ impl<S: Scheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
     fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
         match &self.tokio {
             Some(tokio) => Ok(Arc::new(WrappedReqwestClient {
-                inner: ReqwestClient::new(),
+                inner: ReqwestClient::default(),
                 handle: tokio.handle().clone(),
             })),
             None => Err(RayexecError::new(

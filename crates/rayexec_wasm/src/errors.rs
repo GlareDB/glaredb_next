@@ -30,8 +30,8 @@ impl From<RayexecError> for WasmError {
     }
 }
 
-impl Into<JsValue> for WasmError {
-    fn into(self) -> JsValue {
-        JsValue::from_str(&self.to_string())
+impl From<WasmError> for JsValue {
+    fn from(value: WasmError) -> Self {
+        JsValue::from_str(&value.to_string())
     }
 }

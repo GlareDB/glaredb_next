@@ -61,7 +61,7 @@ impl<W: io::Write> Shell<W> {
             editor.raw_writer(),
             "Preview ({version}) - There will be bugs!"
         )?;
-        editor.raw_writer().write(&[b'\n'])?;
+        editor.raw_writer().write_all(&[b'\n'])?;
 
         editor.edit_start()?;
 
@@ -103,6 +103,9 @@ impl<W: io::Write> Shell<W> {
         }
     }
 
+    // TODO: The refcell stuff here is definitely prone to erroring. I'd prefer
+    // some sort of message passing approach.
+    #[allow(clippy::await_holding_refcell_ref)]
     pub async fn execute_pending(&self) -> Result<()> {
         let mut editor = self.editor.borrow_mut();
         let width = editor.get_cols();
@@ -115,7 +118,7 @@ impl<W: io::Write> Shell<W> {
                     None => return Ok(()), // Nothing to execute.
                 };
                 let mut writer = editor.raw_writer();
-                writer.write(&[b'\n'])?;
+                writer.write_all(&[b'\n'])?;
 
                 match session.session.simple(&query).await {
                     Ok(results) => {
@@ -143,16 +146,14 @@ impl<W: io::Write> Shell<W> {
                     }
                 }
 
-                writer.write(&[b'\n'])?;
+                writer.write_all(&[b'\n'])?;
                 editor.edit_start()?;
 
                 Ok(())
             }
-            None => {
-                return Err(RayexecError::new(
-                    "Attempted to run query without attached session",
-                ))
-            }
+            None => Err(RayexecError::new(
+                "Attempted to run query without attached session",
+            )),
         }
     }
 

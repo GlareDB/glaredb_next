@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use futures::{future::BoxFuture, Future, FutureExt};
+use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use reqwest::{
     header::{CONTENT_LENGTH, RANGE},
@@ -21,7 +21,7 @@ pub trait HttpReader: AsyncReader {
     fn content_length(&mut self) -> BoxFuture<Result<usize>>;
 }
 
-/// Implementation of `HttpClient` on top of a reqwest client.
+/// Shared logic for http clients implemented on top of reqwest.
 ///
 /// This should not be instantiated directly, and instead client should be
 /// generated through the execution runtime.
@@ -40,27 +40,17 @@ pub trait HttpReader: AsyncReader {
 /// really have a single abstraction here that wraps depending on if a have a
 /// tokio handle or not (since compilation will fail on the wasm-bindgen future
 /// not being send).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReqwestClient(reqwest::Client);
 
 impl ReqwestClient {
-    pub fn new() -> Self {
-        ReqwestClient(reqwest::Client::new())
-    }
-
-    pub fn reader_inner(&self, url: Url) -> ReqwestClientReader {
+    pub fn reader(&self, url: Url) -> ReqwestClientReader {
         ReqwestClientReader {
             client: self.0.clone(),
             url,
         }
     }
 }
-
-// impl HttpClient for ReqwestClient {
-//     fn reader(&self, url: Url) -> Box<dyn HttpReader> {
-//         Box::new(self.reader_inner(url)) as _
-//     }
-// }
 
 #[derive(Debug, Clone)]
 pub struct ReqwestClientReader {
@@ -69,7 +59,7 @@ pub struct ReqwestClientReader {
 }
 
 impl ReqwestClientReader {
-    pub async fn content_length_inner(&self) -> Result<usize> {
+    pub async fn content_length(&self) -> Result<usize> {
         debug!(url = %self.url, "http getting content length");
 
         let send_fut = self.client.head(self.url.as_str()).send();
@@ -91,7 +81,7 @@ impl ReqwestClientReader {
         Ok(len)
     }
 
-    pub async fn read_range_inner(&mut self, start: usize, len: usize) -> Result<Bytes> {
+    pub async fn read_range(&mut self, start: usize, len: usize) -> Result<Bytes> {
         debug!(url = %self.url, %start, %len, "http reading range");
 
         let range = Self::format_range_header(start, start + len - 1);
@@ -113,15 +103,3 @@ impl ReqwestClientReader {
         format!("bytes={start}-{end}")
     }
 }
-
-// impl AsyncReader for ReqwestClientReader {
-//     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
-//         self.read_range_inner(start, len).boxed()
-//     }
-// }
-
-// impl HttpReader for ReqwestClientReader {
-//     fn content_length(&mut self) -> BoxFuture<Result<usize>> {
-//         self.content_length_inner().boxed()
-//     }
-// }

@@ -1,27 +1,30 @@
 use parking_lot::Mutex;
-use rayexec_error::{Result, ResultExt};
+use rayexec_error::Result;
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
 use rayexec_io::http::{HttpClient, ReqwestClient};
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::BTreeMap,
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
 };
-use tracing::{debug, trace};
+use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::http::WrappedReqwestClient;
 
+/// Execution runtime for wasm.
+///
+/// This implementation works on a single thread which each pipeline task being
+/// spawned local to the thread (using js promises under the hood).
 #[derive(Debug)]
 pub struct WasmExecutionRuntime {}
 
 impl WasmExecutionRuntime {
     pub fn try_new() -> Result<Self> {
         debug!("creating wasm execution runtime");
-
         Ok(WasmExecutionRuntime {})
     }
 }
@@ -58,7 +61,7 @@ impl ExecutionRuntime for WasmExecutionRuntime {
     fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
         debug!("creating http client");
         Ok(Arc::new(WrappedReqwestClient {
-            inner: ReqwestClient::new(),
+            inner: ReqwestClient::default(),
         }))
     }
 }

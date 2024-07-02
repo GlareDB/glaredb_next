@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
 

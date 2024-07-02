@@ -170,11 +170,11 @@ impl fmt::Display for PrettyValues {
                     f.write_char(DEFAULT_COMPONENTS.vert)?;
                     for (col_idx, width) in self.column_widths.iter().enumerate() {
                         f.write_char(' ')?;
-                        let val = match col_lines[col_idx].next() {
-                            Some(line) => line,
-                            None => "",
-                        };
-                        write!(f, "{:width$}", val)?;
+                        let val = col_lines[col_idx].next().unwrap_or("");
+                        match self.alignments[col_idx] {
+                            Alignment::Left => write!(f, "{:<width$}", val)?,
+                            Alignment::Right => write!(f, "{:>width$}", val)?,
+                        }
                         f.write_char(' ')?;
 
                         f.write_char(DEFAULT_COMPONENTS.vert)?;

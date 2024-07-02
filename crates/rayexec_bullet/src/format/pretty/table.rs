@@ -47,7 +47,7 @@ impl PrettyTable {
         max_width: usize,
         max_rows: Option<usize>,
     ) -> Result<Self> {
-        if schema.fields.len() == 0 {
+        if schema.fields.is_empty() {
             let header = ColumnValues::try_new_arbitrary_header(
                 "Query success",
                 "No columns returned",
@@ -366,7 +366,7 @@ impl TableFormat {
 
         let stats: Vec<_> = samples
             .iter()
-            .map(|v| ColumnWidthSizeStats::from_column_values(v))
+            .map(ColumnWidthSizeStats::from_column_values)
             .collect();
 
         // Grow based on column average.
@@ -588,7 +588,9 @@ impl ColumnValues {
 
             if let Some(width) = max_width {
                 let num_lines = truncate_or_wrap_string(&mut temp_buf, width);
-                row_heights.insert(value_idx, num_lines);
+                if num_lines > 1 {
+                    row_heights.insert(value_idx, num_lines);
+                }
             }
 
             buf.push_str(&temp_buf);
@@ -610,7 +612,7 @@ impl ColumnValues {
 
     /// Get the width that this column will take up.
     pub fn width(&self) -> usize {
-        self.iter().map(|s| display_width(s)).max().unwrap_or(0)
+        self.iter().map(display_width).max().unwrap_or(0)
     }
 
     pub fn num_values(&self) -> usize {
@@ -659,11 +661,7 @@ impl ColumnWidthSizeStats {
     /// width for the column.
     fn from_column_values(vals: &ColumnValues) -> Self {
         let mut avg = 0.0;
-        let mut min = vals
-            .iter()
-            .next()
-            .map(|v| display_width(v))
-            .unwrap_or_default();
+        let mut min = vals.iter().next().map(display_width).unwrap_or_default();
         let mut max = 0;
         for (idx, val) in vals.iter().enumerate() {
             let width = display_width(val);
@@ -873,6 +871,44 @@ mod tests {
             "│ NULL │    10 │",
             "│ d    │   100 │",
             "└──────┴───────┘",
+        ]
+        .join("\n");
+
+        assert_eq_print(expected, table.to_string())
+    }
+
+    #[test]
+    fn multiline_values() {
+        let schema = Schema::new(vec![
+            Field::new("c1", DataType::Utf8, true),
+            Field::new("c2", DataType::Int32, true),
+            Field::new("c3", DataType::Utf8, true),
+        ]);
+
+        let batch = Batch::try_new(vec![
+            Array::Utf8(Utf8Array::from_iter([Some("a\nb"), Some("c"), Some("d")])),
+            Array::Int32(Int32Array::from_iter([Some(1), Some(10), Some(100)])),
+            Array::Utf8(Utf8Array::from_iter([
+                Some("Mario"),
+                Some("Yoshi"),
+                Some("Luigi\nPeach"),
+            ])),
+        ])
+        .unwrap();
+
+        let table = pretty_format_batches(&schema, &[batch], 80, None).unwrap();
+
+        let expected = [
+            "┌──────┬───────┬────────────┐",
+            "│ c1   │ c2    │ c3         │",
+            "│ Utf8 │ Int32 │ Utf8       │",
+            "├──────┼───────┼────────────┤",
+            "│ a↵   │     1 │ Mario      │",
+            "│ b    │       │            │",
+            "│ c    │    10 │ Yoshi      │",
+            "│ d    │   100 │ Luigi↵     │",
+            "│      │       │ Peach      │",
+            "└──────┴───────┴────────────┘",
         ]
         .join("\n");
 

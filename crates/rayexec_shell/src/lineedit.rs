@@ -3,7 +3,7 @@ use crate::{
     vt100::{self, cursor_right},
 };
 use rayexec_error::Result;
-use std::{collections::VecDeque, io};
+use std::io;
 
 /// Incoming key event.
 #[derive(Debug, Clone, PartialEq, Eq)]

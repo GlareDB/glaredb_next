@@ -1,13 +1,14 @@
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
-use js_sys::{Function, RegExp};
+use js_sys::Function;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::engine::{session::Session, Engine};
+use rayexec_execution::engine::Engine;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::shell::ShellSignal;
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
 use std::io::{self, BufWriter};
+use std::rc::Rc;
 use std::sync::Arc;
-use tracing::{debug, error, trace, warn};
+use tracing::{error, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::KeyboardEvent;
@@ -70,19 +71,23 @@ impl io::Write for TerminalWrapper {
 }
 
 /// Wrapper around a database session and the engine that created it.
+///
+/// This is expected to be instantiated on the javascript side.
 #[wasm_bindgen]
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct WasmShell {
     pub(crate) engine: Engine,
     // TODO: For some reason, without the buf writer, the output gets all messed
     // up. The buf writer is a good thing since we're calling flush where
     // appropriate, but it'd be nice to know what's going wrong when it's not
     // used.
-    pub(crate) shell: Arc<Shell<BufWriter<TerminalWrapper>>>,
+    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>>>,
 }
 
 #[wasm_bindgen]
 impl WasmShell {
+    /// Create a new shell that writes its output to the provided terminal.
     pub fn try_new(terminal: Terminal) -> Result<WasmShell> {
         let runtime = Arc::new(WasmExecutionRuntime::try_new()?);
         let registry = DataSourceRegistry::default()
@@ -92,7 +97,7 @@ impl WasmShell {
         let engine = Engine::new_with_registry(runtime, registry)?;
 
         let terminal = TerminalWrapper::new(terminal);
-        let shell = Arc::new(Shell::new(BufWriter::new(terminal)));
+        let shell = Rc::new(Shell::new(BufWriter::new(terminal)));
 
         let session = engine.new_session()?;
         shell.attach(session, "Rayexec WASM Shell")?;
@@ -100,16 +105,25 @@ impl WasmShell {
         Ok(WasmShell { engine, shell })
     }
 
+    /// Notify on terminal resize.
     pub fn on_resize(&self, cols: usize) {
         trace!(%cols, "setting columns");
         self.shell.set_cols(cols)
     }
 
+    /// Consume a string verbatim.
+    ///
+    /// This should be hooked up to xterm's `onData` method to enable pasting.
     pub fn on_data(&self, text: String) -> Result<()> {
         self.shell.consume_text(&text)?;
         Ok(())
     }
 
+    /// Consume a keyboard event.
+    ///
+    /// This should be hooked up to xterm's `attachCustomKeyEventHandler`. This
+    /// will handle _all_ input, so `false` should be returned to xterm after
+    /// calling this for an event.
     pub fn on_key(&self, event: KeyboardEvent) -> Result<()> {
         if event.type_() != "keydown" {
             return Ok(());

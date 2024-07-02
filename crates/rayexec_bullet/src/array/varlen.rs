@@ -274,7 +274,7 @@ impl<O: OffsetIndex> From<Vec<String>> for VarlenArray<str, O> {
 
 impl<O: OffsetIndex> From<Vec<Option<String>>> for VarlenArray<str, O> {
     fn from(value: Vec<Option<String>>) -> Self {
-        Self::from_iter(value.into_iter())
+        Self::from_iter(value)
     }
 }
 

@@ -18,7 +18,7 @@ impl<'a, W: io::Write> io::Write for RawTerminalWriter<'a, W> {
         let mut current = buf;
         let mut n = 0;
 
-        while current.len() > 0 {
+        while !current.is_empty() {
             let pos = current
                 .iter()
                 .position(|&b| b == b'\n')
@@ -33,7 +33,7 @@ impl<'a, W: io::Write> io::Write for RawTerminalWriter<'a, W> {
             }
 
             // Insert a '\r\n'
-            self.writer.write(&[b'\r', b'\n'])?;
+            self.writer.write_all(&[b'\r', b'\n'])?;
             n += 1; // This should only account for '\n', user doesn't care/know about the '\r'.
 
             // Update current, skipping the '\n'

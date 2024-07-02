@@ -16,7 +16,7 @@ pub struct WrappedReqwestClient {
 impl HttpClient for WrappedReqwestClient {
     fn reader(&self, url: Url) -> Box<dyn HttpReader> {
         Box::new(WrappedReqwestClientReader {
-            inner: self.inner.reader_inner(url),
+            inner: self.inner.reader(url),
             handle: self.handle.clone(),
         }) as _
     }
@@ -32,7 +32,7 @@ impl WrappedReqwestClientReader {
     pub async fn read_range_inner(&mut self, start: usize, len: usize) -> Result<Bytes> {
         let mut inner = self.inner.clone();
         self.handle
-            .spawn(async move { inner.read_range_inner(start, len).await })
+            .spawn(async move { inner.read_range(start, len).await })
             .await
             .context("join error")?
     }
@@ -46,6 +46,6 @@ impl AsyncReader for WrappedReqwestClientReader {
 
 impl HttpReader for WrappedReqwestClientReader {
     fn content_length(&mut self) -> BoxFuture<Result<usize>> {
-        self.inner.content_length_inner().boxed()
+        self.inner.content_length().boxed()
     }
 }

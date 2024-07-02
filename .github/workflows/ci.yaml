@@ -41,10 +41,5 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      # - name: Build and publish
-      #   env:
-      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      #   run: |
-      #     echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-      #     wasm-pack build crates/rayexec_wasm/ --scope glaredb
-      #     wasm-pack publish crates/rayexec_wasm/
+      - name: Build wasm
+        run: wasm-pack build crates/rayexec_wasm/ --scope glaredb
