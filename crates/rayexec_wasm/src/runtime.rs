@@ -1,34 +1,28 @@
+use parking_lot::Mutex;
+use rayexec_error::{Result, ResultExt};
+use rayexec_execution::{
+    execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
+    runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
+};
+use rayexec_io::http::{HttpClient, ReqwestClient};
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
 };
-
-use rayexec_error::{Result, ResultExt};
-use rayexec_execution::{
-    execution::query_graph::QueryGraph,
-    runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
-};
-use rayexec_io::http::{HttpClient, ReqwestClient};
 use tracing::{debug, trace};
+use wasm_bindgen_futures::spawn_local;
 
 use crate::http::WrappedReqwestClient;
 
 #[derive(Debug)]
-pub struct WasmExecutionRuntime {
-    runtime: tokio::runtime::Runtime,
-}
+pub struct WasmExecutionRuntime {}
 
 impl WasmExecutionRuntime {
     pub fn try_new() -> Result<Self> {
         debug!("creating wasm execution runtime");
 
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .thread_name("rayexec_wasm")
-            .build()
-            .context("Failed to build tokio runtime")?;
-
-        Ok(WasmExecutionRuntime { runtime })
+        Ok(WasmExecutionRuntime {})
     }
 }
 
@@ -40,7 +34,19 @@ impl ExecutionRuntime for WasmExecutionRuntime {
     ) -> Box<dyn QueryHandle> {
         debug!("spawning query graph on wasm runtime");
 
-        self.serial_execute(query_graph, errors);
+        let states: Vec<_> = query_graph
+            .into_partition_pipeline_iter()
+            .map(|pipeline| WasmTaskState {
+                errors: errors.clone(),
+                pipeline: Arc::new(Mutex::new(pipeline)),
+            })
+            .collect();
+
+        // TODO: Put references into query handle to allow canceling.
+
+        for state in states {
+            spawn_local(async move { state.execute() })
+        }
 
         Box::new(WasmQueryHandle {})
     }
@@ -57,31 +63,33 @@ impl ExecutionRuntime for WasmExecutionRuntime {
     }
 }
 
-impl WasmExecutionRuntime {
-    fn serial_execute(&self, query_graph: QueryGraph, errors: Arc<dyn ErrorSink>) {
-        let mut pipelines: VecDeque<_> = query_graph.into_partition_pipeline_iter().collect();
-        while pipelines.len() != 0 {
-            let mut pipeline = pipelines.pop_front().unwrap();
+#[derive(Debug, Clone)]
+struct WasmTaskState {
+    errors: Arc<dyn ErrorSink>,
+    pipeline: Arc<Mutex<PartitionPipeline>>,
+}
 
-            let waker: Waker = Arc::new(WasmWaker {}).into();
-            let mut cx = Context::from_waker(&waker);
-            loop {
-                trace!("poll execute loop");
-                match pipeline.poll_execute(&mut cx) {
-                    Poll::Ready(Some(Ok(()))) => {
-                        continue;
-                    }
-                    Poll::Ready(Some(Err(e))) => {
-                        errors.push_error(e);
-                        return;
-                    }
-                    Poll::Pending => {
-                        pipelines.push_back(pipeline);
-                        break;
-                    }
-                    Poll::Ready(None) => {
-                        break;
-                    }
+impl WasmTaskState {
+    fn execute(&self) {
+        let state = self.clone();
+        let waker: Waker = Arc::new(WasmWaker { state }).into();
+        let mut cx = Context::from_waker(&waker);
+
+        let mut pipeline = self.pipeline.lock();
+        loop {
+            match pipeline.poll_execute(&mut cx) {
+                Poll::Ready(Some(Ok(()))) => {
+                    continue;
+                }
+                Poll::Ready(Some(Err(e))) => {
+                    self.errors.push_error(e);
+                    return;
+                }
+                Poll::Pending => {
+                    return;
+                }
+                Poll::Ready(None) => {
+                    return;
                 }
             }
         }
@@ -105,10 +113,16 @@ impl QueryHandle for WasmQueryHandle {
 }
 
 #[derive(Debug)]
-struct WasmWaker {}
+struct WasmWaker {
+    state: WasmTaskState,
+}
 
 impl Wake for WasmWaker {
-    fn wake(self: Arc<Self>) {}
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.clone().wake()
+    }
 
-    fn wake_by_ref(self: &Arc<Self>) {}
+    fn wake(self: Arc<Self>) {
+        spawn_local(async move { self.state.execute() })
+    }
 }
