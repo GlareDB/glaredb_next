@@ -75,11 +75,11 @@ impl ReqwestClient {
     }
 }
 
-impl HttpClient for ReqwestClient {
-    fn reader(&self, url: Url) -> Box<dyn HttpReader> {
-        Box::new(self.reader_inner(url)) as _
-    }
-}
+// impl HttpClient for ReqwestClient {
+//     fn reader(&self, url: Url) -> Box<dyn HttpReader> {
+//         Box::new(self.reader_inner(url)) as _
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub struct ReqwestClientReader {
@@ -129,14 +129,14 @@ impl ReqwestClientReader {
     }
 }
 
-impl AsyncReader for ReqwestClientReader {
-    fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
-        self.read_range_inner(start, len).boxed()
-    }
-}
+// impl AsyncReader for ReqwestClientReader {
+//     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
+//         self.read_range_inner(start, len).boxed()
+//     }
+// }
 
-impl HttpReader for ReqwestClientReader {
-    fn content_length(&mut self) -> BoxFuture<Result<usize>> {
-        self.content_length_inner().boxed()
-    }
-}
+// impl HttpReader for ReqwestClientReader {
+//     fn content_length(&mut self) -> BoxFuture<Result<usize>> {
+//         self.content_length_inner().boxed()
+//     }
+// }

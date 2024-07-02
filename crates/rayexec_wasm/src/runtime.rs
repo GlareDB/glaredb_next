@@ -50,7 +50,8 @@ impl ExecutionRuntime for WasmExecutionRuntime {
     fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
         // Note that there's no wrapping needed since when compiling for wasm,
         // reqwest will use a web-sys based implementation.
-        Ok(Arc::new(ReqwestClient::new()))
+        // Ok(Arc::new(ReqwestClient::new()))
+        unimplemented!()
     }
 }
 
