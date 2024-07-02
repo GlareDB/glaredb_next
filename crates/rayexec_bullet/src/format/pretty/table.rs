@@ -47,6 +47,24 @@ impl PrettyTable {
         max_width: usize,
         max_rows: Option<usize>,
     ) -> Result<Self> {
+        if schema.fields.len() == 0 {
+            let header = ColumnValues::try_new_arbitrary_header(
+                "Query success",
+                "No columns returned",
+                None,
+            )?;
+            let widths = vec![header.value(1).len()];
+            return Ok(PrettyTable {
+                header: PrettyHeader::new(widths.clone(), vec![header], false),
+                head: Vec::new(),
+                tail: Vec::new(),
+                footer: PrettyFooter {
+                    content: String::new(),
+                    column_widths: widths,
+                },
+            });
+        }
+
         let headers = schema
             .fields
             .iter()
@@ -476,6 +494,32 @@ impl ColumnValues {
         }
     }
 
+    pub fn try_new_arbitrary_header(
+        top: &str,
+        bottom: &str,
+        max_width: Option<usize>,
+    ) -> Result<Self> {
+        let mut buf = top.to_string();
+        if let Some(width) = max_width {
+            truncate_or_wrap_string(&mut buf, width);
+        }
+
+        let mut indices = vec![0, buf.len()];
+
+        let mut bottom = bottom.to_string();
+        if let Some(width) = max_width {
+            truncate_or_wrap_string(&mut bottom, width);
+        }
+        write!(buf, "{bottom}")?;
+        indices.push(buf.len());
+
+        Ok(ColumnValues {
+            buffer: buf,
+            indices,
+            row_heights: HashMap::new(),
+        })
+    }
+
     /// Turn a column name and type into column values.
     pub fn try_from_column_name_and_type(
         name: &str,
@@ -762,7 +806,24 @@ mod tests {
     }
 
     #[test]
-    fn simple_no_batches() {
+    fn no_batches_with_no_columns() {
+        let schema = Schema::new([]);
+
+        let table = pretty_format_batches(&schema, &[], 80, None).unwrap();
+
+        let expected = [
+            "┌─────────────────────┐",
+            "│ Query success       │",
+            "│ No columns returned │",
+            "└─────────────────────┘",
+        ]
+        .join("\n");
+
+        assert_eq_print(expected, table.to_string())
+    }
+
+    #[test]
+    fn no_batches_with_columns() {
         let schema = Schema::new([
             Field::new("a", DataType::Int64, false),
             Field::new("b", DataType::Utf8, false),
