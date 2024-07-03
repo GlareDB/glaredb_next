@@ -11,6 +11,8 @@ use rayexec_io::http::{HttpClient, ReqwestClient};
 use crate::{http::WrappedReqwestClient, threaded::ThreadedScheduler};
 
 /// Inner behavior of the execution runtime.
+// TODO: Single-threaded scheduler to run our SLTs on to ensure no operators
+// block without making progress. Would not be used for anything else.
 pub trait Scheduler: Sync + Send + Debug + Sized {
     type Handle: QueryHandle;
 

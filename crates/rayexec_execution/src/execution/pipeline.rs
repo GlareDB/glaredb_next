@@ -277,6 +277,8 @@ impl PartitionPipeline {
             "executing partition pipeline",
         );
 
+        // TODO: Time stuff currently commented out since wasm32-unknown-unknown
+        // doesn't have proper time implementations.
         // if self.timings.start.is_none() {
         //     self.timings.start = Some(Instant::now());
         // }

@@ -33,7 +33,7 @@ pub struct WrappedReqwestClientReader {
 impl AsyncReader for WrappedReqwestClientReader {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let fut = self.inner.read_range(start, len);
-        let fut = unsafe { SendFutureNotReally::new(Box::pin(fut)) };
+        let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
         fut.boxed()
     }
 }
@@ -41,7 +41,7 @@ impl AsyncReader for WrappedReqwestClientReader {
 impl HttpReader for WrappedReqwestClientReader {
     fn content_length(&mut self) -> BoxFuture<Result<usize>> {
         let fut = self.inner.content_length();
-        let fut = unsafe { SendFutureNotReally::new(Box::pin(fut)) };
+        let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
         fut.boxed()
     }
 }
@@ -67,19 +67,19 @@ impl HttpReader for WrappedReqwestClientReader {
 /// the implemenation requires Send futures or not, but I (Sean) did not feel
 /// like spending the time to figure that out in the initial implemenation.
 #[derive(Debug)]
-struct SendFutureNotReally<O, F: Future<Output = O> + Unpin> {
+struct FakeSendFuture<O, F: Future<Output = O> + Unpin> {
     fut: F,
 }
 
-unsafe impl<O, F: Future<Output = O> + Unpin> Send for SendFutureNotReally<O, F> {}
+unsafe impl<O, F: Future<Output = O> + Unpin> Send for FakeSendFuture<O, F> {}
 
-impl<O, F: Future<Output = O> + Unpin> SendFutureNotReally<O, F> {
+impl<O, F: Future<Output = O> + Unpin> FakeSendFuture<O, F> {
     pub unsafe fn new(fut: F) -> Self {
-        SendFutureNotReally { fut }
+        FakeSendFuture { fut }
     }
 }
 
-impl<O, F: Future<Output = O> + Unpin> Future for SendFutureNotReally<O, F> {
+impl<O, F: Future<Output = O> + Unpin> Future for FakeSendFuture<O, F> {
     type Output = O;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self.as_mut().fut;

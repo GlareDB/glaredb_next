@@ -38,6 +38,9 @@ pub enum Signal<'a> {
     Exit,
 }
 
+// TODO: Proper multi-line editing. Currently does some funky formatting when
+// pressing enter and it's not the end of a query.
+// TODO: History.
 #[derive(Debug)]
 pub struct LineEditor<W: io::Write> {
     /// Current cursor position.
