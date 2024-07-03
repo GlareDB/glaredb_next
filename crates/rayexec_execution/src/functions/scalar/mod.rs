@@ -2,6 +2,7 @@ pub mod arith;
 pub mod boolean;
 pub mod comparison;
 pub mod like;
+pub mod list;
 pub mod negate;
 pub mod numeric;
 pub mod random;
