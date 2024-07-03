@@ -15,7 +15,7 @@ use crate::compute::cast::format::{
     TimestampMillisecondsFormatter, TimestampNanosecondsFormatter, TimestampSecondsFormatter,
     UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
-use crate::datatype::{DataType, DecimalTypeMeta};
+use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
 use rayexec_error::{RayexecError, Result};
@@ -53,6 +53,7 @@ pub enum ScalarValue<'a> {
     Binary(Cow<'a, [u8]>),
     LargeBinary(Cow<'a, [u8]>),
     Struct(Vec<ScalarValue<'a>>),
+    List(Vec<ScalarValue<'a>>),
 }
 
 pub type OwnedScalarValue = ScalarValue<'static>;
@@ -92,6 +93,12 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::Binary(_) => DataType::Binary,
             ScalarValue::LargeBinary(_) => DataType::LargeBinary,
             ScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
+            Self::List(list) => {
+                let first = list.first().unwrap(); // TODO: Allow empty list scalars?
+                DataType::List(ListTypeMeta {
+                    datatype: Box::new(first.datatype()),
+                })
+            }
         }
     }
 
@@ -126,6 +133,9 @@ impl<'a> ScalarValue<'a> {
             Self::LargeBinary(v) => OwnedScalarValue::LargeBinary(v.into_owned().into()),
             Self::Struct(v) => {
                 OwnedScalarValue::Struct(v.into_iter().map(|v| v.into_owned()).collect())
+            }
+            Self::List(v) => {
+                OwnedScalarValue::List(v.into_iter().map(|v| v.into_owned()).collect())
             }
         }
     }
@@ -193,6 +203,7 @@ impl<'a> ScalarValue<'a> {
                 std::iter::repeat(v.as_ref()).take(n),
             )),
             Self::Struct(_) => unimplemented!("struct into array"),
+            Self::List(_) => unimplemented!("list into array"),
         }
     }
 
@@ -322,6 +333,14 @@ impl fmt::Display for ScalarValue<'_> {
                 fields
                     .iter()
                     .map(|typ| format!("{typ}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::List(list) => write!(
+                f,
+                "[{}]",
+                list.iter()
+                    .map(|v| format!("{v}"))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),

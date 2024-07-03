@@ -366,7 +366,9 @@ where
             return false;
         }
 
-        // TODO: Validity check
+        if self.validity != other.validity {
+            return false;
+        }
 
         let left = self.values_iter();
         let right = other.values_iter();
