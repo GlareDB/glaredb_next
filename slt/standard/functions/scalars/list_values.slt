@@ -1,0 +1,4 @@
+# list_values function
+
+query T
+select list_values(1, 2, 3);

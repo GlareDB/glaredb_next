@@ -37,7 +37,7 @@ impl Signature {
     /// Return if inputs given data types exactly satisfy the signature.
     fn exact_match(&self, inputs: &[DataType]) -> bool {
         if self.is_variadic() {
-            unimplemented!()
+            return false;
         }
 
         if self.input.len() != inputs.len() {
@@ -119,7 +119,13 @@ impl CandidateSignature {
         let mut buf = Vec::new();
         for (idx, sig) in sigs.iter().enumerate() {
             if sig.is_variadic() {
-                unimplemented!()
+                // TODO: Is this reasonable? Do we need another field on
+                // Signature to denote what type the variadic args should be?
+                candidates.push(CandidateSignature {
+                    signature_idx: idx,
+                    casts: std::mem::take(&mut buf),
+                });
+                break;
             }
 
             if !Self::compare_and_fill_types(inputs, sig.input, &mut buf) {

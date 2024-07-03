@@ -1,21 +1,19 @@
 use std::{ops::Deref, sync::Arc};
 
 use rayexec_bullet::{
-    array::Array,
+    array::{Array, ListArray, NullArray},
+    compute::interleave::interleave,
     datatype::{DataType, DataTypeId},
     field::TypeSchema,
 };
 use rayexec_error::{RayexecError, Result};
 
 use crate::{
-    functions::{
-        invalid_input_types_error, plan_check_num_args,
-        scalar::macros::primitive_unary_execute_bool, FunctionInfo, Signature,
-    },
+    functions::{plan_check_num_args, FunctionInfo, Signature},
     logical::{consteval::ConstEval, expr::LogicalExpression},
 };
 
-use super::{comparison::EqImpl, PlannedScalarFunction, ScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ListExtract;
@@ -109,7 +107,29 @@ impl FunctionInfo for ListValues {
 
 impl ScalarFunction for ListValues {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        unimplemented!()
+        let first = match inputs.first() {
+            Some(dt) => dt,
+            None => {
+                return Ok(Box::new(ListValuesImpl {
+                    datatype: DataType::Null,
+                }))
+            }
+        };
+
+        for dt in inputs {
+            // TODO: It would be ideal to have the planner add a cast where
+            // needed, but it's probably more straightforward to cast in the
+            // implemenation if these don't match.
+            if dt != first {
+                return Err(RayexecError::new(format!(
+                    "Not all inputs are the same type, got {dt}, expected {first}"
+                )));
+            }
+        }
+
+        Ok(Box::new(ListValuesImpl {
+            datatype: first.clone(),
+        }))
     }
 }
 
@@ -128,6 +148,38 @@ impl PlannedScalarFunction for ListValuesImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        unimplemented!()
+        let len = match inputs.first() {
+            Some(arr) => arr.len(),
+            None => {
+                return Ok(Array::List(ListArray::new(
+                    Array::Null(NullArray::new(0)),
+                    vec![0],
+                    None,
+                )))
+            }
+        };
+
+        let mut indices = Vec::with_capacity(len * inputs.len());
+        for row_idx in 0..len {
+            for arr_idx in 0..inputs.len() {
+                indices.push((arr_idx, row_idx));
+            }
+        }
+
+        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // TODO: Update interleave to accept arc refs
+        let child = interleave(&refs, &indices)?;
+
+        let mut offsets = Vec::with_capacity(len);
+        let mut offset = 0;
+        for _ in 0..len {
+            offsets.push(offset);
+            offset += inputs.len() as i32;
+        }
+        offsets.push(offset);
+
+        // TODO: How do we want to handle validity here? If one of the inputs is
+        // a null array, mark it as invalid?
+
+        Ok(Array::List(ListArray::new(child, offsets, None)))
     }
 }
