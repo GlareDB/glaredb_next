@@ -56,6 +56,10 @@ impl Signature {
         if let Some(expected) = self.variadic {
             let remaining = &inputs[self.input.len()..];
             for have in remaining {
+                if expected == DataTypeId::Any {
+                    continue;
+                }
+
                 if have.datatype_id() != expected {
                     return false;
                 }
@@ -173,7 +177,8 @@ impl CandidateSignature {
         if let Some(expected) = variadic {
             let remaining = &have[want.len()..];
             for have in remaining {
-                if have.datatype_id() == expected {
+                // TODO: Is the ANY check weird here?
+                if have.datatype_id() == expected || expected == DataTypeId::Any {
                     buf.push(CastType::NoCastNeeded);
                     continue;
                 }
@@ -222,4 +227,63 @@ pub fn invalid_input_types_error(func: &impl FunctionInfo, got: &[&DataType]) ->
         got.displayable(),
         func.name()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_candidate_no_match() {
+        let inputs = &[DataType::Int64];
+        let sigs = &[Signature {
+            input: &[DataTypeId::List],
+            variadic: None,
+            return_type: DataTypeId::Int64,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        let expected: Vec<CandidateSignature> = Vec::new();
+        assert_eq!(expected, candidates);
+    }
+
+    #[test]
+    fn find_candidate_simple_no_variadic() {
+        let inputs = &[DataType::Int64];
+        let sigs = &[Signature {
+            input: &[DataTypeId::Int64],
+            variadic: None,
+            return_type: DataTypeId::Int64,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        let expected = vec![CandidateSignature {
+            signature_idx: 0,
+            casts: vec![CastType::NoCastNeeded],
+        }];
+
+        assert_eq!(expected, candidates);
+    }
+
+    #[test]
+    fn find_candidate_simple_with_variadic() {
+        let inputs = &[DataType::Int64, DataType::Int64, DataType::Int64];
+        let sigs = &[Signature {
+            input: &[],
+            variadic: Some(DataTypeId::Any),
+            return_type: DataTypeId::List,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        let expected = vec![CandidateSignature {
+            signature_idx: 0,
+            casts: vec![
+                CastType::NoCastNeeded,
+                CastType::NoCastNeeded,
+                CastType::NoCastNeeded,
+            ],
+        }];
+
+        assert_eq!(expected, candidates);
+    }
 }

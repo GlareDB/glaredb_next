@@ -1,6 +1,7 @@
 use crate::{
     bitmap::Bitmap,
     datatype::{DataType, ListTypeMeta},
+    scalar::ScalarValue,
     storage::PrimitiveStorage,
 };
 use std::sync::Arc;
@@ -29,13 +30,15 @@ where
     O: OffsetIndex,
 {
     pub fn new(child: impl Into<Arc<Array>>, offsets: Vec<O>, validity: Option<Bitmap>) -> Self {
-        let child = child.into();
         debug_assert_eq!(
-            child.len(),
-            validity.as_ref().map(|v| v.len()).unwrap_or(child.len())
+            offsets.len() - 1,
+            validity
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(offsets.len() - 1)
         );
-        debug_assert_eq!(child.len() + 1, offsets.len());
 
+        let child = child.into();
         VariableListArray {
             validity,
             offsets: offsets.into(),
@@ -47,6 +50,24 @@ where
         DataType::List(ListTypeMeta {
             datatype: Box::new(self.child.datatype()),
         })
+    }
+
+    pub fn scalar(&self, idx: usize) -> Option<ScalarValue> {
+        if idx >= self.len() {
+            return None;
+        }
+
+        let start = self.offsets.as_ref()[idx].as_usize();
+        let end = self.offsets.as_ref()[idx + 1].as_usize();
+
+        let mut vals = Vec::with_capacity(end - start);
+
+        for idx in start..end {
+            let val = self.child.scalar(idx)?; // TODO: Should probably unwrap here.
+            vals.push(val);
+        }
+
+        Some(ScalarValue::List(vals))
     }
 
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
@@ -79,10 +100,10 @@ where
             return false;
         }
 
-        unimplemented!()
-        // let left = self.values_iter();
-        // let right = other.values_iter();
+        if self.validity != other.validity {
+            return false;
+        }
 
-        // left.zip(right).all(|(left, right)| left == right)
+        self.child == other.child
     }
 }

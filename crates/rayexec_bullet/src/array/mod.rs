@@ -142,7 +142,7 @@ impl Array {
             Self::Binary(arr) => ScalarValue::Binary(arr.value(idx)?.into()),
             Self::LargeBinary(arr) => ScalarValue::LargeBinary(arr.value(idx)?.into()),
             Self::Struct(arr) => arr.scalar(idx)?,
-            Self::List(arr) => unimplemented!("list"),
+            Self::List(arr) => arr.scalar(idx)?,
         })
     }
 

@@ -1,4 +1,18 @@
 # list_values function
 
-# query T
-# select list_values(1, 2, 3);
+query ?
+select list_values(1, 2, 3);
+----
+[1, 2, 3]
+
+query ??
+select list_values(1, 2, 3), list_values(4, 5);
+----
+[1, 2, 3]  [4, 5]
+
+query ?
+select list_values(a, b) from (values ('yoshi', 'mario'), ('luigi', 'peach')) as v(a,b);
+----
+[yoshi, mario]
+[luigi, peach]
+
