@@ -32,7 +32,7 @@ jobs:
         run: cargo clippy --all --all-features -- --deny warnings
 
   wasm:
-    name: "Build and publish WASM"
+    name: "Build wasm"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
