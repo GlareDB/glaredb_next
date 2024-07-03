@@ -12,7 +12,7 @@ use crate::execution::query_graph::QueryGraph;
 /// An execution runtime handles driving execution for a query.
 ///
 /// Implementations may make use of different strategies when executing a query.
-// TODO: Split this up. Currently contains two separate concers: dependencies
+// TODO: Split this up. Currently contains two separate concerns: dependencies
 // required for data sources (tokio, http) and how to execute a query graph.
 //
 // This may also change to just return a reference to an "execution scheduler"
@@ -20,6 +20,9 @@ use crate::execution::query_graph::QueryGraph;
 // trait. This would allow changing out the execution part without needing to
 // also change the "dependencies" part (which would be useful for a move to
 // web-worker in wasm or distributed execution).
+//
+// See <https://github.com/GlareDB/rayexec/pull/99#discussion_r1664283835> for
+// discussion.
 pub trait ExecutionRuntime: Debug + Sync + Send {
     /// Spawn execution of a query graph.
     ///
