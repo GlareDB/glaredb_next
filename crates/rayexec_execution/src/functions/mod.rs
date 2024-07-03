@@ -53,11 +53,12 @@ impl Signature {
         }
 
         // Check variadic.
-        let expected = self.variadic.unwrap();
-        let remaining = &inputs[self.input.len()..];
-        for have in remaining {
-            if have.datatype_id() != expected {
-                return false;
+        if let Some(expected) = self.variadic {
+            let remaining = &inputs[self.input.len()..];
+            for have in remaining {
+                if have.datatype_id() != expected {
+                    return false;
+                }
             }
         }
 
@@ -169,21 +170,25 @@ impl CandidateSignature {
         }
 
         // Check variadic.
-        let remaining = &have[want.len()..];
-        let want = variadic.unwrap();
-        for have in remaining {
-            if have.datatype_id() == want {
-                buf.push(CastType::NoCastNeeded);
-                continue;
-            }
+        if let Some(expected) = variadic {
+            let remaining = &have[want.len()..];
+            for have in remaining {
+                if have.datatype_id() == expected {
+                    buf.push(CastType::NoCastNeeded);
+                    continue;
+                }
 
-            let score = implicit_cast_score(have, want);
-            if score > 0 {
-                buf.push(CastType::Cast { to: want, score });
-                continue;
-            }
+                let score = implicit_cast_score(have, expected);
+                if score > 0 {
+                    buf.push(CastType::Cast {
+                        to: expected,
+                        score,
+                    });
+                    continue;
+                }
 
-            return false;
+                return false;
+            }
         }
 
         true
