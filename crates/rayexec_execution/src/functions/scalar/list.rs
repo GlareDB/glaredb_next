@@ -1,9 +1,10 @@
 use std::{ops::Deref, sync::Arc};
 
 use rayexec_bullet::{
-    array::{Array, ListArray, NullArray},
+    array::{Array, ListArray, OffsetIndex, PrimitiveArray},
+    bitmap::Bitmap,
     compute::interleave::interleave,
-    datatype::{DataType, DataTypeId},
+    datatype::{DataType, DataTypeId, ListTypeMeta},
     field::TypeSchema,
 };
 use rayexec_error::{RayexecError, Result};
@@ -33,8 +34,8 @@ impl FunctionInfo for ListExtract {
 }
 
 impl ScalarFunction for ListExtract {
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        Err(RayexecError::new("Constant arguments required"))
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        unreachable!("plan_from_expressions implemented")
     }
 
     fn plan_from_expressions(
@@ -54,6 +55,11 @@ impl ScalarFunction for ListExtract {
             .try_unwrap_constant()?
             .try_as_i64()?;
 
+        if index <= 0 {
+            return Err(RayexecError::new("Index cannot be less than 1"));
+        }
+        let index = (index - 1) as usize;
+
         let inner_datatype = match &datatypes[0] {
             DataType::List(meta) => meta.datatype.deref().clone(),
             other => {
@@ -65,7 +71,7 @@ impl ScalarFunction for ListExtract {
 
         Ok(Box::new(ListExtractImpl {
             datatype: inner_datatype,
-            index: index as usize,
+            index,
         }))
     }
 }
@@ -86,8 +92,87 @@ impl PlannedScalarFunction for ListExtractImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        unimplemented!()
+        let list = match &inputs[0].as_ref() {
+            Array::List(list) => list,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unexpected array type: {}",
+                    other.datatype()
+                )))
+            }
+        };
+
+        let offsets = list.offsets();
+        let validity = list.validity();
+
+        Ok(match list.child_array().as_ref() {
+            Array::Int8(arr) => {
+                Array::Int8(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::Int16(arr) => {
+                Array::Int16(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::Int32(arr) => {
+                Array::Int32(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::Int64(arr) => {
+                Array::Int64(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::Int128(arr) => {
+                Array::Int128(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::UInt8(arr) => {
+                Array::UInt8(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::UInt16(arr) => {
+                Array::UInt16(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::UInt32(arr) => {
+                Array::UInt32(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::UInt64(arr) => {
+                Array::UInt64(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::UInt128(arr) => {
+                Array::UInt128(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::Float32(arr) => {
+                Array::Float32(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            Array::Float64(arr) => {
+                Array::Float64(list_extract_primitive(arr, offsets, validity, self.index)?)
+            }
+            other => unimplemented!("{}", other.datatype()),
+        })
     }
+}
+
+fn list_extract_primitive<T, O>(
+    array: &PrimitiveArray<T>,
+    offsets: &[O],
+    validity: Option<&Bitmap>,
+    idx: usize,
+) -> Result<PrimitiveArray<T>>
+where
+    T: Copy + Default,
+    O: OffsetIndex,
+{
+    let mut result_validity = Bitmap::with_capacity(offsets.len() - 1);
+    let mut values = Vec::with_capacity(offsets.len() - 1);
+
+    for row_idx in 0..(offsets.len() - 1) {
+        let offset = offsets[row_idx].as_usize();
+        let value_offset = offset + idx;
+        if value_offset >= offsets[row_idx + 1].as_usize() {
+            result_validity.push(false);
+            values.push(T::default());
+        } else {
+            result_validity.push(validity.map(|v| v.value(value_offset)).unwrap_or(true));
+            values.push(*array.value(value_offset).expect("value to exist"));
+        }
+    }
+
+    Ok(PrimitiveArray::new(values, Some(result_validity)))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,7 +215,9 @@ impl ScalarFunction for ListValues {
         }
 
         Ok(Box::new(ListValuesImpl {
-            datatype: first.clone(),
+            datatype: DataType::List(ListTypeMeta {
+                datatype: Box::new(first.clone()),
+            }),
         }))
     }
 }
@@ -150,38 +237,13 @@ impl PlannedScalarFunction for ListValuesImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        let len = match inputs.first() {
-            Some(arr) => arr.len(),
-            None => {
-                return Ok(Array::List(ListArray::new(
-                    Array::Null(NullArray::new(0)),
-                    vec![0],
-                    None,
-                )))
-            }
+        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect();
+        let array = if refs.is_empty() {
+            ListArray::new_empty_with_n_rows(1)
+        } else {
+            ListArray::try_from_children(&refs)?
         };
 
-        let mut indices = Vec::with_capacity(len * inputs.len());
-        for row_idx in 0..len {
-            for arr_idx in 0..inputs.len() {
-                indices.push((arr_idx, row_idx));
-            }
-        }
-
-        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // TODO: Update interleave to accept arc refs
-        let child = interleave(&refs, &indices)?;
-
-        let mut offsets = Vec::with_capacity(len);
-        let mut offset = 0;
-        for _ in 0..len {
-            offsets.push(offset);
-            offset += inputs.len() as i32;
-        }
-        offsets.push(offset);
-
-        // TODO: How do we want to handle validity here? If one of the inputs is
-        // a null array, mark it as invalid?
-
-        Ok(Array::List(ListArray::new(child, offsets, None)))
+        Ok(Array::List(array))
     }
 }

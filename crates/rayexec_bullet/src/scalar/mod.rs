@@ -4,9 +4,10 @@ pub mod interval;
 use crate::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    IntervalArray, LargeBinaryArray, LargeUtf8Array, NullArray, TimestampMicrosecondsArray,
-    TimestampMillsecondsArray, TimestampNanosecondsArray, TimestampSecondsArray, UInt128Array,
-    UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+    IntervalArray, LargeBinaryArray, LargeUtf8Array, ListArray, NullArray,
+    TimestampMicrosecondsArray, TimestampMillsecondsArray, TimestampNanosecondsArray,
+    TimestampSecondsArray, UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Utf8Array,
 };
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
@@ -203,7 +204,16 @@ impl<'a> ScalarValue<'a> {
                 std::iter::repeat(v.as_ref()).take(n),
             )),
             Self::Struct(_) => unimplemented!("struct into array"),
-            Self::List(_) => unimplemented!("list into array"),
+            Self::List(v) => {
+                let children: Vec<_> = v.iter().map(|v| v.as_array(n)).collect();
+                let refs: Vec<_> = children.iter().collect();
+                let array = if refs.is_empty() {
+                    ListArray::new_empty_with_n_rows(n)
+                } else {
+                    ListArray::try_from_children(&refs).expect("list array to build")
+                };
+                Array::List(array)
+            }
         }
     }
 

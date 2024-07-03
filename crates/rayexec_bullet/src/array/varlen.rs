@@ -86,7 +86,7 @@ impl<'a, T: VarlenType + ?Sized> AsVarlenType for &'a T {
     }
 }
 
-pub trait OffsetIndex {
+pub trait OffsetIndex: Clone + Copy {
     fn as_usize(&self) -> usize;
     fn from_usize(u: usize) -> Self;
 }

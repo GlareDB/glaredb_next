@@ -1,6 +1,25 @@
 # list_values function
 
 query ?
+select list_values();
+----
+[]
+
+query ?
+select list_values() from generate_series(1, 3);
+----
+[]
+[]
+[]
+
+query ?
+select list_values('a') from generate_series(1, 3);
+----
+[a]
+[a]
+[a]
+
+query ?
 select list_values(1, 2, 3);
 ----
 [1, 2, 3]
@@ -16,3 +35,8 @@ select list_values(a, b) from (values ('yoshi', 'mario'), ('luigi', 'peach')) as
 [yoshi, mario]
 [luigi, peach]
 
+# TODO: Variadic casting
+# Not all inputs are the same type, got Float64, expected Int64
+# query ?
+# select list_values(1, 2.1);
+# ----
