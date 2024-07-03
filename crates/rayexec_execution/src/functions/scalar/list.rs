@@ -26,6 +26,7 @@ impl FunctionInfo for ListExtract {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: &[DataTypeId::List, DataTypeId::Int64],
+            variadic: None,
             return_type: DataTypeId::Any,
         }]
     }
@@ -99,7 +100,8 @@ impl FunctionInfo for ListValues {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::List],
+            input: &[],
+            variadic: Some(DataTypeId::Any),
             return_type: DataTypeId::List,
         }]
     }

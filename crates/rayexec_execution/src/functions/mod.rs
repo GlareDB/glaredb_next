@@ -17,6 +17,11 @@ pub struct Signature {
     /// variadic.
     pub input: &'static [DataTypeId],
 
+    /// Type of the variadic args if this function is variadic.
+    ///
+    /// If None, the function is not considered variadic.
+    pub variadic: Option<DataTypeId>,
+
     /// The expected return type.
     ///
     /// This is purely informational (and could be used for documentation). The
@@ -28,19 +33,12 @@ pub struct Signature {
 impl Signature {
     /// Check if this signature is a variadic signature.
     pub const fn is_variadic(&self) -> bool {
-        match self.input.last() {
-            Some(id) => matches!(id, DataTypeId::List),
-            None => false,
-        }
+        self.variadic.is_some()
     }
 
     /// Return if inputs given data types exactly satisfy the signature.
     fn exact_match(&self, inputs: &[DataType]) -> bool {
-        if self.is_variadic() {
-            return false;
-        }
-
-        if self.input.len() != inputs.len() {
+        if self.input.len() != inputs.len() && !self.is_variadic() {
             return false;
         }
 
@@ -49,6 +47,15 @@ impl Signature {
                 continue;
             }
 
+            if have.datatype_id() != expected {
+                return false;
+            }
+        }
+
+        // Check variadic.
+        let expected = self.variadic.unwrap();
+        let remaining = &inputs[self.input.len()..];
+        for have in remaining {
             if have.datatype_id() != expected {
                 return false;
             }
@@ -118,17 +125,7 @@ impl CandidateSignature {
 
         let mut buf = Vec::new();
         for (idx, sig) in sigs.iter().enumerate() {
-            if sig.is_variadic() {
-                // TODO: Is this reasonable? Do we need another field on
-                // Signature to denote what type the variadic args should be?
-                candidates.push(CandidateSignature {
-                    signature_idx: idx,
-                    casts: std::mem::take(&mut buf),
-                });
-                break;
-            }
-
-            if !Self::compare_and_fill_types(inputs, sig.input, &mut buf) {
+            if !Self::compare_and_fill_types(inputs, sig.input, sig.variadic, &mut buf) {
                 continue;
             }
 
@@ -148,14 +145,33 @@ impl CandidateSignature {
     fn compare_and_fill_types(
         have: &[DataType],
         want: &[DataTypeId],
+        variadic: Option<DataTypeId>,
         buf: &mut Vec<CastType>,
     ) -> bool {
-        if have.len() != want.len() {
+        if have.len() != want.len() && variadic.is_none() {
             return false;
         }
         buf.clear();
 
         for (have, &want) in have.iter().zip(want.iter()) {
+            if have.datatype_id() == want {
+                buf.push(CastType::NoCastNeeded);
+                continue;
+            }
+
+            let score = implicit_cast_score(have, want);
+            if score > 0 {
+                buf.push(CastType::Cast { to: want, score });
+                continue;
+            }
+
+            return false;
+        }
+
+        // Check variadic.
+        let remaining = &have[want.len()..];
+        let want = variadic.unwrap();
+        for have in remaining {
             if have.datatype_id() == want {
                 buf.push(CastType::NoCastNeeded);
                 continue;
