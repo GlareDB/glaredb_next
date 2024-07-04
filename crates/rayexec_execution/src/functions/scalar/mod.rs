@@ -1,6 +1,7 @@
 pub mod arith;
 pub mod boolean;
 pub mod comparison;
+pub mod concat;
 pub mod like;
 pub mod list;
 pub mod negate;
