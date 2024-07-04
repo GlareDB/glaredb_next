@@ -3,7 +3,7 @@ use rayexec_parser::ast;
 use std::fmt;
 
 use crate::functions::scalar::{
-    arith, boolean, comparison, concat, negate, PlannedScalarFunction, ScalarFunction,
+    arith, boolean, comparison, concat, like, negate, PlannedScalarFunction, ScalarFunction,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,6 +64,7 @@ pub enum BinaryOperator {
     And,
     Or,
     StringConcat,
+    StringStartsWith,
 }
 
 impl fmt::Display for BinaryOperator {
@@ -83,6 +84,7 @@ impl fmt::Display for BinaryOperator {
             Self::And => write!(f, "AND"),
             Self::Or => write!(f, "OR"),
             Self::StringConcat => write!(f, "||"),
+            Self::StringStartsWith => write!(f, "^@"),
         }
     }
 }
@@ -105,6 +107,7 @@ impl BinaryOperator {
             Self::And => &boolean::And,
             Self::Or => &boolean::Or,
             Self::StringConcat => &concat::Concat,
+            Self::StringStartsWith => &like::StartsWith,
         }
     }
 }
@@ -127,6 +130,7 @@ impl TryFrom<ast::BinaryOperator> for BinaryOperator {
             ast::BinaryOperator::And => BinaryOperator::And,
             ast::BinaryOperator::Or => BinaryOperator::Or,
             ast::BinaryOperator::StringConcat => BinaryOperator::StringConcat,
+            ast::BinaryOperator::StringStartsWith => BinaryOperator::StringStartsWith,
             other => {
                 return Err(RayexecError::new(format!(
                     "Unsupported SQL operator: {other:?}"

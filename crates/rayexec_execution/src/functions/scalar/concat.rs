@@ -11,6 +11,9 @@ use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 use super::{PlannedScalarFunction, ScalarFunction};
 
+// TODO: Currently '||' aliases to this, however there should be two separate
+// concat functions. One that should return null on any null arguments (||), and
+// one that should omit null arguments when concatenating (the normal concat).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Concat;
 
