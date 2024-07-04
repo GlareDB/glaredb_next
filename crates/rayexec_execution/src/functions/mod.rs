@@ -223,6 +223,8 @@ impl CandidateSignature {
         }
     }
 
+    /// Get the best common data type that we can cast to for the given inputs. Returns None
+    /// if there isn't a common data type.
     fn best_datatype_for_variadic_any(inputs: &[DataType]) -> Option<DataTypeId> {
         let mut best_type = None;
         let mut best_total_score = 0;
@@ -233,6 +235,12 @@ impl CandidateSignature {
             let mut valid = true;
 
             for input in inputs {
+                if input.datatype_id() == test_type {
+                    // Arbitrary.
+                    total_score += 200;
+                    continue;
+                }
+
                 let score = implicit_cast_score(input, test_type);
                 if score == 0 {
                     // Test type is not a valid cast for this input.
@@ -341,6 +349,13 @@ mod tests {
     #[test]
     fn best_datatype_for_ints_and_floats() {
         let inputs = &[DataType::Int64, DataType::Float64, DataType::Int64];
+        let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
+        assert_eq!(Some(DataTypeId::Float64), best);
+    }
+
+    #[test]
+    fn best_datatype_for_floats() {
+        let inputs = &[DataType::Float64, DataType::Float64, DataType::Float64];
         let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
         assert_eq!(Some(DataTypeId::Float64), best);
     }

@@ -35,8 +35,6 @@ select list_values(a, b) from (values ('yoshi', 'mario'), ('luigi', 'peach')) as
 [yoshi, mario]
 [luigi, peach]
 
-# TODO: Variadic casting
-# Not all inputs are the same type, got Float64, expected Int64
 query ?
 select list_values(1, 2.1);
 ----
@@ -51,3 +49,20 @@ query TT
 describe select list_values(1, 2) as my_list;
 ----
 my_list  List[Int64]
+
+# Literal syntax
+
+query ?
+select [1, 2];
+----
+[1, 2]
+
+query ?
+select [];
+----
+[]
+
+# TODO: Concat on list arrays
+# query ?
+# select * from (values ([1, 2, 3, 4.0]));
+# ----
