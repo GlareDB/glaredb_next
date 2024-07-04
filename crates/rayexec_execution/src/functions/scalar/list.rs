@@ -203,9 +203,6 @@ impl ScalarFunction for ListValues {
         };
 
         for dt in inputs {
-            // TODO: It would be ideal to have the planner add a cast where
-            // needed, but it's probably more straightforward to cast in the
-            // implemenation if these don't match.
             if dt != first {
                 return Err(RayexecError::new(format!(
                     "Not all inputs are the same type, got {dt}, expected {first}"
