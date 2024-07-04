@@ -66,3 +66,9 @@ select [];
 # query ?
 # select * from (values ([1, 2, 3, 4.0]));
 # ----
+
+query ?
+select [a, b] from (values ('yoshi', 'mario'), ('luigi', 'peach')) as v(a,b);
+----
+[yoshi, mario]
+[luigi, peach]
