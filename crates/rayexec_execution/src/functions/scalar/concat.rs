@@ -1,17 +1,13 @@
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array, ListArray, OffsetIndex, PrimitiveArray},
-    bitmap::Bitmap,
-    datatype::{DataType, DataTypeId, ListTypeMeta},
-    field::TypeSchema,
+    array::{Array, Utf8Array, VarlenValuesBuffer},
+    datatype::{DataType, DataTypeId},
+    executor::scalar::UniformExecutor,
 };
 use rayexec_error::{RayexecError, Result};
 
-use crate::{
-    functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature},
-    logical::{consteval::ConstEval, expr::LogicalExpression},
-};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 use super::{PlannedScalarFunction, ScalarFunction};
 
@@ -57,6 +53,26 @@ impl PlannedScalarFunction for StringConcatImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        unimplemented!()
+        if inputs.is_empty() {
+            return Ok(Array::Utf8(Utf8Array::from(vec![String::new()])));
+        }
+
+        let string_arrs = inputs
+            .iter()
+            .map(|arr| match arr.as_ref() {
+                Array::Utf8(arr) => Ok(arr),
+                other => Err(RayexecError::new(format!(
+                    "Expected Utf8 arrays, got {}",
+                    other.datatype(),
+                ))),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let mut values = VarlenValuesBuffer::default();
+
+        // TODO: Reusable buffer?
+        let validity = UniformExecutor::execute(&string_arrs, |strs| strs.join(""), &mut values)?;
+
+        Ok(Array::Utf8(Utf8Array::new(values, validity)))
     }
 }
