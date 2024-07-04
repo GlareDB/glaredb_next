@@ -3,7 +3,6 @@ use std::{ops::Deref, sync::Arc};
 use rayexec_bullet::{
     array::{Array, ListArray, OffsetIndex, PrimitiveArray},
     bitmap::Bitmap,
-    compute::interleave::interleave,
     datatype::{DataType, DataTypeId, ListTypeMeta},
     field::TypeSchema,
 };

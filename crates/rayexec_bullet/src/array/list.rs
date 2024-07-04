@@ -60,7 +60,7 @@ where
     pub fn new_empty_with_n_rows(n: usize) -> Self {
         let mut offsets = vec![O::from_usize(0); n];
         offsets.push(O::from_usize(0));
-        return Self::new(Array::Null(NullArray::new(0)), offsets, None);
+        Self::new(Array::Null(NullArray::new(0)), offsets, None)
     }
 
     /// Create a list array from some number of equal length child arrays.
