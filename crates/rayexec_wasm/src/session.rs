@@ -79,6 +79,10 @@ impl WasmResultTable {
             .collect()
     }
 
+    pub fn num_rows(&self) -> usize {
+        self.table.batches.iter().map(|b| b.num_rows()).sum()
+    }
+
     pub fn format_cell(&self, col: usize, row: usize) -> Result<String> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
 

@@ -40,8 +40,10 @@ impl SingleUserEngine {
     /// The provided sql string may include more than one query which will
     /// result in more than one table.
     pub async fn query(&self, sql: &str) -> Result<Vec<ResultTable>> {
-        let mut session = self.session.lock().await;
-        let results = session.simple(sql).await?;
+        let results = {
+            let mut session = self.session.lock().await;
+            session.simple(sql).await?
+        };
 
         let mut tables = Vec::with_capacity(results.len());
         for result in results {
