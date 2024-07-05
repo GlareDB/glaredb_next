@@ -1833,9 +1833,11 @@ name = "rayexec_shell"
 version = "0.0.8"
 dependencies = [
  "futures",
+ "parking_lot",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "tokio",
  "tracing",
 ]
 

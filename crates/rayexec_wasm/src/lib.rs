@@ -1,5 +1,6 @@
 pub mod errors;
 pub mod runtime;
+pub mod session;
 pub mod shell;
 
 mod http;
