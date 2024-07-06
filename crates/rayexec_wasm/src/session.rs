@@ -29,6 +29,10 @@ impl WasmSession {
         let tables = self.0.query(sql).await?.into_iter().map(Rc::new).collect();
         Ok(WasmResultTables(tables))
     }
+
+    pub fn version(&self) -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
 }
 
 #[wasm_bindgen]
