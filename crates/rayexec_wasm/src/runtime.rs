@@ -4,7 +4,10 @@ use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::http::{HttpClient, ReqwestClient};
+use rayexec_io::{
+    filesystem::FileSystemProvider,
+    http::{HttpClient, ReqwestClient},
+};
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -63,6 +66,10 @@ impl ExecutionRuntime for WasmExecutionRuntime {
         Ok(Arc::new(WrappedReqwestClient {
             inner: ReqwestClient::default(),
         }))
+    }
+
+    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>> {
+        unimplemented!()
     }
 }
 
