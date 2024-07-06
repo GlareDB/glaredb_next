@@ -3,6 +3,7 @@ pub mod runtime;
 pub mod session;
 pub mod shell;
 
+mod filesystem;
 mod http;
 mod tracing;
 

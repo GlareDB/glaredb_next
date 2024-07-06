@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use rayexec_bullet::format::{FormatOptions, Formatter};
@@ -6,11 +6,15 @@ use rayexec_error::RayexecError;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::session::{ResultTable, SingleUserEngine};
+use tracing::trace;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Debug)]
-pub struct WasmSession(pub(crate) SingleUserEngine);
+pub struct WasmSession {
+    pub(crate) runtime: Arc<WasmExecutionRuntime>,
+    pub(crate) engine: SingleUserEngine,
+}
 
 #[wasm_bindgen]
 impl WasmSession {
@@ -20,14 +24,30 @@ impl WasmSession {
             .with_datasource("memory", Box::new(MemoryDataSource))?
             .with_datasource("parquet", Box::new(ParquetDataSource))?;
 
-        let engine = SingleUserEngine::new_with_runtime(runtime, registry)?;
+        let engine = SingleUserEngine::new_with_runtime(runtime.clone(), registry)?;
 
-        Ok(WasmSession(engine))
+        Ok(WasmSession { runtime, engine })
     }
 
     pub async fn query(&self, sql: &str) -> Result<WasmResultTables> {
-        let tables = self.0.query(sql).await?.into_iter().map(Rc::new).collect();
+        let tables = self
+            .engine
+            .query(sql)
+            .await?
+            .into_iter()
+            .map(Rc::new)
+            .collect();
         Ok(WasmResultTables(tables))
+    }
+
+    // TODO: This copies `content`. Not sure if there's a good way to get around
+    // that.
+    pub fn register_file(&self, name: String, content: Box<[u8]>) -> Result<()> {
+        trace!(%name, "registering local file with runtime");
+        self.runtime
+            .fs
+            .register_file(&PathBuf::from(name), content.into())?;
+        Ok(())
     }
 
     pub fn version(&self) -> String {
