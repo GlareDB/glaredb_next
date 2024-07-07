@@ -1,7 +1,7 @@
 use crate::array::validity::concat_validities;
 use crate::array::{
     Array, BooleanArray, BooleanValuesBuffer, DecimalArray, NullArray, OffsetIndex, PrimitiveArray,
-    VarlenArray, VarlenType, VarlenValuesBuffer,
+    TimestampArray, VarlenArray, VarlenType, VarlenValuesBuffer,
 };
 use crate::batch::Batch;
 use crate::datatype::DataType;
@@ -129,26 +129,12 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
             Ok(Array::Date64(concat_primitive(arrs.as_slice())))
         }
-        DataType::TimestampSeconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampSeconds, datatype)?;
-            Ok(Array::TimestampSeconds(concat_primitive(arrs.as_slice())))
-        }
-        DataType::TimestampMilliseconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampMilliseconds, datatype)?;
-            Ok(Array::TimestampMilliseconds(concat_primitive(
-                arrs.as_slice(),
-            )))
-        }
-        DataType::TimestampMicroseconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampMicroseconds, datatype)?;
-            Ok(Array::TimestampMicroseconds(concat_primitive(
-                arrs.as_slice(),
-            )))
-        }
-        DataType::TimestampNanoseconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampNanoseconds, datatype)?;
-            Ok(Array::TimestampNanoseconds(concat_primitive(
-                arrs.as_slice(),
+        DataType::Timestamp(ref meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Timestamp, datatype)?;
+            let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            Ok(Array::Timestamp(TimestampArray::new(
+                meta.unit.clone(),
+                concat_primitive(arrs.as_slice()),
             )))
         }
         DataType::Interval => {

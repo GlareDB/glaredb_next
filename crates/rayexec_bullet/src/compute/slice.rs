@@ -1,7 +1,7 @@
 use crate::{
     array::{
         Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, OffsetIndex, PrimitiveArray,
-        ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
+        TimestampArray, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -27,17 +27,9 @@ pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
         Array::UInt16(arr) => Array::UInt16(slice_primitive(arr, start, count)?),
         Array::UInt32(arr) => Array::UInt32(slice_primitive(arr, start, count)?),
         Array::UInt64(arr) => Array::UInt64(slice_primitive(arr, start, count)?),
-        Array::TimestampSeconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
-        }
-        Array::TimestampMilliseconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
-        }
-        Array::TimestampMicroseconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
-        }
-        Array::TimestampNanoseconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
+        Array::Timestamp(arr) => {
+            let sliced = slice_primitive(arr.get_primitive(), start, count)?;
+            Array::Timestamp(TimestampArray::new(arr.unit().clone(), sliced))
         }
         Array::Utf8(arr) => Array::Utf8(slice_varlen(arr, start, count)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(slice_varlen(arr, start, count)?),

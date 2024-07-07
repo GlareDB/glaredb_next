@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    datatype::{DataType, DecimalTypeMeta},
+    datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
         decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
         OwnedScalarValue,
@@ -923,7 +923,10 @@ impl<'a> Binder<'a> {
             }
             ast::DataType::Bool => DataType::Boolean,
             ast::DataType::Date => DataType::Date32,
-            ast::DataType::Timestamp => DataType::TimestampMicroseconds, // Matches postgres default
+            ast::DataType::Timestamp => {
+                // Microsecond matches postgres default.
+                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+            }
             ast::DataType::Interval => DataType::Interval,
         })
     }

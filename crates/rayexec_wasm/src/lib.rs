@@ -7,9 +7,11 @@ mod filesystem;
 mod http;
 mod tracing;
 
-use wasm_bindgen::prelude::wasm_bindgen;
+use ::tracing::trace;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub fn init_panic_handler() {
+    trace!("init panic handler");
     console_error_panic_hook::set_once();
 }
