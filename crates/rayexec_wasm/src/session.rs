@@ -50,6 +50,15 @@ impl WasmSession {
         Ok(())
     }
 
+    /// Return a list of registered file names.
+    ///
+    /// Names will be sorted alphabetically.
+    pub fn list_local_files(&self) -> Vec<String> {
+        let mut names = self.runtime.fs.list_files();
+        names.sort();
+        names
+    }
+
     pub fn version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }

@@ -31,6 +31,10 @@ impl WasmMemoryFileSystem {
         self.files.lock().insert(name.to_string(), content);
         Ok(())
     }
+
+    pub fn list_files(&self) -> Vec<String> {
+        self.files.lock().keys().cloned().collect()
+    }
 }
 
 impl FileSystemProvider for WasmMemoryFileSystem {
