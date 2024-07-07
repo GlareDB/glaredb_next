@@ -48,7 +48,7 @@ use rayexec_bullet::{
     compute::concat::concat,
     field::TypeSchema,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
 
 use super::{
@@ -370,7 +370,7 @@ impl BuildState {
             LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
                 RayexecError::new("ATTACH/DETACH should be handled in the session"),
             ),
-            other => unimplemented!("other: {other:?}"),
+            other => not_implemented!("logical plan to pipeline: {other:?}"),
         }
     }
 

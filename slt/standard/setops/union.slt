@@ -1,0 +1,7 @@
+# UNION tests
+
+query I rowsort
+SELECT 1 AS two UNION SELECT 2;
+----
+1
+2
