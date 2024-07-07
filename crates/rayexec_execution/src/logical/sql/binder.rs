@@ -9,7 +9,7 @@ use rayexec_bullet::{
         OwnedScalarValue,
     },
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::{
     ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
     meta::{AstMeta, Raw},
@@ -1323,7 +1323,7 @@ impl<'a> ExpressionBinder<'a> {
                     pattern: Box::new(pattern),
                 })
             }
-            other => unimplemented!("{other:?}"),
+            other => not_implemented!("bind expr {other:?}"),
         }
     }
 }

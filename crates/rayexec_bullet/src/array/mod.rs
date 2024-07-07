@@ -405,6 +405,24 @@ impl From<Decimal128Array> for Array {
     }
 }
 
+impl From<Utf8Array> for Array {
+    fn from(value: Utf8Array) -> Self {
+        Array::Utf8(value)
+    }
+}
+
+impl From<LargeUtf8Array> for Array {
+    fn from(value: LargeUtf8Array) -> Self {
+        Array::LargeUtf8(value)
+    }
+}
+
+impl From<ListArray> for Array {
+    fn from(value: ListArray) -> Self {
+        Array::List(value)
+    }
+}
+
 /// Utility trait for iterating over arrays.
 pub trait ArrayAccessor<T: ?Sized> {
     type ValueIter: Iterator<Item = T>;
