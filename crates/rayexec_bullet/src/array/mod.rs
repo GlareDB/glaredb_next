@@ -79,9 +79,7 @@ impl Array {
             }
             Array::Date32(_) => DataType::Date32,
             Array::Date64(_) => DataType::Date64,
-            Array::Timestamp(arr) => {
-                DataType::Timestamp(TimestampTypeMeta::new(arr.unit().clone()))
-            }
+            Array::Timestamp(arr) => DataType::Timestamp(TimestampTypeMeta::new(arr.unit())),
             Array::Interval(_) => DataType::Interval,
             Array::Utf8(_) => DataType::Utf8,
             Array::LargeUtf8(_) => DataType::LargeUtf8,
@@ -126,7 +124,7 @@ impl Array {
             Self::Date32(arr) => ScalarValue::Date32(*arr.value(idx)?),
             Self::Date64(arr) => ScalarValue::Date64(*arr.value(idx)?),
             Self::Timestamp(arr) => ScalarValue::Timestamp(TimestampScalar {
-                unit: arr.unit().clone(),
+                unit: arr.unit(),
                 value: *arr.get_primitive().value(idx)?,
             }),
             Self::Interval(arr) => ScalarValue::Interval(*arr.value(idx)?),

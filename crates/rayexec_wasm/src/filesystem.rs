@@ -93,9 +93,9 @@ pub fn get_normalized_file_name(path: &Path) -> Result<&str> {
                 ));
             }
 
-            return Ok(s
+            return s
                 .to_str()
-                .ok_or_else(|| RayexecError::new("Unable to convert os string to string"))?);
+                .ok_or_else(|| RayexecError::new("Unable to convert os string to string"));
         }
         Some(_) => return Err(RayexecError::new("Invalid component in path")),
         None => return Err(RayexecError::new("Path is empty")),

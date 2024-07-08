@@ -262,7 +262,7 @@ impl TimestampArray {
         &self.array
     }
 
-    pub fn unit(&self) -> &TimeUnit {
-        &self.unit
+    pub fn unit(&self) -> TimeUnit {
+        self.unit
     }
 }

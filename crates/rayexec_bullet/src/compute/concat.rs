@@ -133,7 +133,7 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, Timestamp, datatype)?;
             let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
             Ok(Array::Timestamp(TimestampArray::new(
-                meta.unit.clone(),
+                meta.unit,
                 concat_primitive(arrs.as_slice()),
             )))
         }

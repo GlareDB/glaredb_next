@@ -90,12 +90,7 @@ impl QueryNodeBody<Raw> {
         };
 
         // Parse set operation(s)
-        loop {
-            let tok = match parser.peek() {
-                Some(tok) => tok,
-                None => break,
-            };
-
+        while let Some(tok) = parser.peek() {
             let (op, next_precedence) = match tok.keyword() {
                 Some(Keyword::UNION) => (SetOperation::Union, 10),
                 Some(Keyword::EXCEPT) => (SetOperation::Except, 10),

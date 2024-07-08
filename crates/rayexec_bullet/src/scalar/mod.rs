@@ -81,9 +81,7 @@ impl<'a> ScalarValue<'a> {
             }
             ScalarValue::Date32(_) => DataType::Date32,
             ScalarValue::Date64(_) => DataType::Date64,
-            ScalarValue::Timestamp(v) => {
-                DataType::Timestamp(TimestampTypeMeta::new(v.unit.clone()))
-            }
+            ScalarValue::Timestamp(v) => DataType::Timestamp(TimestampTypeMeta::new(v.unit)),
             ScalarValue::Interval(_) => DataType::Interval,
             ScalarValue::Utf8(_) => DataType::Utf8,
             ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
@@ -171,7 +169,7 @@ impl<'a> ScalarValue<'a> {
             Self::Date64(v) => Array::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::Timestamp(v) => {
                 let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array::Timestamp(TimestampArray::new(v.unit.clone(), primitive))
+                Array::Timestamp(TimestampArray::new(v.unit, primitive))
             }
             Self::Interval(v) => {
                 Array::Interval(IntervalArray::from_iter(std::iter::repeat(*v).take(n)))

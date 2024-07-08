@@ -201,9 +201,7 @@ impl PlannedAggregateFunction for MinPrimitiveImpl {
             DataType::Float32 => create_primitive_grouped_state!(Float32, MinState<f32>),
             DataType::Float64 => create_primitive_grouped_state!(Float64, MinState<f64>),
             DataType::Interval => create_primitive_grouped_state!(Interval, MinState<Interval>),
-            DataType::Timestamp(meta) => {
-                create_timestamp_grouped_state::<MinState<i64>>(meta.unit.clone())
-            }
+            DataType::Timestamp(meta) => create_timestamp_grouped_state::<MinState<i64>>(meta.unit),
             DataType::Decimal64(meta) => {
                 create_decimal_grouped_state!(Decimal64, MinState<i64>, meta.precision, meta.scale)
             }
@@ -247,9 +245,7 @@ impl PlannedAggregateFunction for MaxPrimitiveImpl {
             DataType::Float32 => create_primitive_grouped_state!(Float32, MaxState<f32>),
             DataType::Float64 => create_primitive_grouped_state!(Float64, MaxState<f64>),
             DataType::Interval => create_primitive_grouped_state!(Interval, MaxState<Interval>),
-            DataType::Timestamp(meta) => {
-                create_timestamp_grouped_state::<MaxState<i64>>(meta.unit.clone())
-            }
+            DataType::Timestamp(meta) => create_timestamp_grouped_state::<MaxState<i64>>(meta.unit),
             DataType::Decimal64(meta) => {
                 create_decimal_grouped_state!(Decimal64, MaxState<i64>, meta.precision, meta.scale)
             }

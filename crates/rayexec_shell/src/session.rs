@@ -1,6 +1,5 @@
-use futures::{StreamExt, TryStreamExt};
-use std::sync::mpsc;
-use std::{collections::VecDeque, sync::Arc};
+use futures::TryStreamExt;
+use std::sync::Arc;
 
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;

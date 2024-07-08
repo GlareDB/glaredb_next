@@ -2,8 +2,6 @@ use num::{PrimInt, Signed};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::{Debug, Display};
 
-use crate::datatype::TimeUnit;
-
 /// Default scale to use for decimals if one isn't provided.
 pub const DECIMAL_DEFUALT_SCALE: i8 = 9;
 
