@@ -12,6 +12,12 @@ SELECT 1 AS two UNION SELECT 2;
 1
 2
 
+query I rowsort
+SELECT 1 AS two UNION SELECT 2 UNION SELECT 2;
+----
+1
+2
+
 query TT
 DESCRIBE SELECT 1 AS two UNION ALL SELECT 2;
 ----
@@ -27,3 +33,4 @@ select 2.1 union all select 1;
 ----
 1
 2.1
+
