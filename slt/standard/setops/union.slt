@@ -6,7 +6,24 @@ SELECT 1 AS two UNION ALL SELECT 2;
 1
 2
 
+query I rowsort
+SELECT 1 AS two UNION SELECT 2;
+----
+1
+2
+
 query TT
 DESCRIBE SELECT 1 AS two UNION ALL SELECT 2;
 ----
 two  Int64
+
+query TT
+DESCRIBE SELECT 1 AS two UNION SELECT 2;
+----
+two  Int64
+
+query R rowsort
+select 2.1 union all select 1;
+----
+1
+2.1
