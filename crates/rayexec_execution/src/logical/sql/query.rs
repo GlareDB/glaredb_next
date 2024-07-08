@@ -122,7 +122,7 @@ impl<'a> QueryNodePlanner<'a> {
                 let kind = match operation {
                     ast::SetOperation::Union => SetOpKind::Union,
                     ast::SetOperation::Except => SetOpKind::Except,
-                    ast::SetOperation::Intersect => SetOpKind::Intercept,
+                    ast::SetOperation::Intersect => SetOpKind::Intersect,
                 };
 
                 let plan = LogicalOperator::SetOperation(SetOperation {

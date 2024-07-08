@@ -494,7 +494,7 @@ impl Explainable for Limit {
 pub enum SetOpKind {
     Union,
     Except,
-    Intercept,
+    Intersect,
 }
 
 impl fmt::Display for SetOpKind {
@@ -502,7 +502,7 @@ impl fmt::Display for SetOpKind {
         match self {
             Self::Union => write!(f, "UNION"),
             Self::Except => write!(f, "EXCEPT"),
-            Self::Intercept => write!(f, "INTERCEPT"),
+            Self::Intersect => write!(f, "INTERSECT"),
         }
     }
 }
