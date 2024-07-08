@@ -49,14 +49,14 @@ impl FileReader for LocalFile {
 impl AsyncReader for LocalFile {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let mut buf = vec![0; len];
-        let result = read_at_sync(&mut self.file, start, &mut buf);
+        let result = read_at(&mut self.file, start, &mut buf);
         let bytes = Bytes::from(buf);
         future::ready(result.map(|_| bytes)).boxed()
     }
 }
 
 /// Helper for synchronously reading into a buffer.
-fn read_at_sync<R>(mut reader: R, start: usize, buf: &mut [u8]) -> Result<()>
+fn read_at<R>(mut reader: R, start: usize, buf: &mut [u8]) -> Result<()>
 where
     R: Read + Seek,
 {

@@ -29,10 +29,10 @@ impl WasmSession {
         Ok(WasmSession { runtime, engine })
     }
 
-    pub async fn query(&self, sql: &str) -> Result<WasmResultTables> {
+    pub async fn sql(&self, sql: &str) -> Result<WasmResultTables> {
         let tables = self
             .engine
-            .query(sql)
+            .sql(sql)
             .await?
             .into_iter()
             .map(Rc::new)
@@ -64,6 +64,11 @@ impl WasmSession {
     }
 }
 
+/// Wrapper around result tables.
+///
+/// This intermediate type is needed since wasm_bindgen can't generate the
+/// appropriate type for `Result<Vec<T>, E>`, otherwise we'd just return these
+/// tables directly.
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct WasmResultTables(pub(crate) Vec<Rc<ResultTable>>);
@@ -101,7 +106,16 @@ impl WasmResultTables {
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct WasmResultTable {
+    /// Result table for a single query. The result table may contain more than
+    /// one batch.
     pub(crate) table: Rc<ResultTable>,
+    /// Row indices for where each batch starts.
+    ///
+    /// For example, the 0th batch has a row start index of 0, the 1st batch
+    /// will have an index of 0+len(batches[0]), and so on.
+    ///
+    /// Storing these indices allow us to not have to concat batches into a
+    /// single large batch.
     pub(crate) first_row_indices: Vec<usize>,
 }
 

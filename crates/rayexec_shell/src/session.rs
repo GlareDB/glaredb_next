@@ -14,8 +14,14 @@ use tokio::sync::Mutex;
 #[derive(Debug)]
 pub struct SingleUserEngine {
     pub engine: Engine,
-    // TODO: Sean talks a lot about not needing a (tokio) mutex here, but adds
-    // one anyway. This is the easiest solution for now. Sue me.
+
+    /// Session connected to the above engine.
+    ///
+    /// Wrapped in a mutex since planning may alter session state. Needs a tokio
+    /// mutex since the lock is held across an await (for async binding).
+    ///
+    /// The lock should not be held during actual execution (reading of the
+    /// result stream).
     pub session: Arc<Mutex<Session>>,
 }
 
@@ -38,7 +44,7 @@ impl SingleUserEngine {
     ///
     /// The provided sql string may include more than one query which will
     /// result in more than one table.
-    pub async fn query(&self, sql: &str) -> Result<Vec<ResultTable>> {
+    pub async fn sql(&self, sql: &str) -> Result<Vec<ResultTable>> {
         let results = {
             let mut session = self.session.lock().await;
             session.simple(sql).await?
