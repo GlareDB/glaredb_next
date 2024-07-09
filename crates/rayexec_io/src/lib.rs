@@ -3,13 +3,16 @@ pub mod http;
 
 use bytes::Bytes;
 use filesystem::FileReader;
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, stream::BoxStream};
 use rayexec_error::Result;
 use std::fmt::Debug;
 
 pub trait AsyncReader: Sync + Send + Debug {
     /// Read a complete range of bytes.
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>>;
+
+    /// Stream bytes from a source.
+    fn read_stream(&mut self) -> BoxStream<Result<Bytes>>;
 }
 
 pub trait FileSource: AsyncReader {
@@ -28,16 +31,28 @@ impl AsyncReader for Box<dyn FileSource + '_> {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         self.as_mut().read_range(start, len)
     }
+
+    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+        self.as_mut().read_stream()
+    }
 }
 
 impl AsyncReader for Box<dyn AsyncReader + '_> {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         self.as_mut().read_range(start, len)
     }
+
+    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+        self.as_mut().read_stream()
+    }
 }
 
 impl AsyncReader for Box<dyn FileReader + '_> {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         self.as_mut().read_range(start, len)
+    }
+
+    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+        self.as_mut().read_stream()
     }
 }

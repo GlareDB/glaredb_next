@@ -1,10 +1,14 @@
 use bytes::Bytes;
-use futures::future::{BoxFuture, FutureExt};
-use rayexec_error::{Result, ResultExt};
+use futures::{
+    future::{BoxFuture, FutureExt, TryFutureExt},
+    stream::{BoxStream, StreamExt},
+};
+use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::{
     http::{HttpClient, ReqwestClient, ReqwestClientReader},
     {AsyncReader, FileSource},
 };
+use tracing::debug;
 use url::Url;
 
 #[derive(Debug)]
@@ -41,6 +45,29 @@ impl WrappedReqwestClientReader {
 impl AsyncReader for WrappedReqwestClientReader {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         self.read_range_inner(start, len).boxed()
+    }
+
+    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+        debug!(url = %self.inner.url, "http streaming (send stream)");
+
+        // Folds the initial GET request into the stream.
+        let fut =
+            self.inner
+                .client
+                .get(self.inner.url.as_str())
+                .send()
+                .map(|result| match result {
+                    Ok(resp) => Ok(resp
+                        .bytes_stream()
+                        .map(|result| result.context("failed to stream response"))
+                        .boxed()),
+                    Err(e) => Err(RayexecError::with_source(
+                        "Failed to send GET request",
+                        Box::new(e),
+                    )),
+                });
+
+        fut.try_flatten_stream().boxed()
     }
 }
 

@@ -1,4 +1,7 @@
 use bytes::Bytes;
+use futures::future::FutureExt;
+use futures::stream::{BoxStream, LocalBoxStream, StreamExt};
+use futures::TryFutureExt;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use reqwest::{
     header::{CONTENT_LENGTH, RANGE},
@@ -48,8 +51,8 @@ impl ReqwestClient {
 
 #[derive(Debug, Clone)]
 pub struct ReqwestClientReader {
-    client: reqwest::Client,
-    url: Url,
+    pub client: reqwest::Client,
+    pub url: Url,
 }
 
 impl ReqwestClientReader {

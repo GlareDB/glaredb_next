@@ -3,6 +3,7 @@ use std::path::Path;
 
 use bytes::Bytes;
 use futures::future::{self, BoxFuture, FutureExt};
+use futures::stream::BoxStream;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::{
     filesystem::{FileReader, FileSystemProvider},
@@ -52,6 +53,10 @@ impl AsyncReader for LocalFile {
         let result = read_at(&mut self.file, start, &mut buf);
         let bytes = Bytes::from(buf);
         future::ready(result.map(|_| bytes)).boxed()
+    }
+
+    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+        unimplemented!()
     }
 }
 

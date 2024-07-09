@@ -1,5 +1,8 @@
 use bytes::Bytes;
-use futures::future::{BoxFuture, FutureExt};
+use futures::{
+    future::{BoxFuture, FutureExt},
+    stream::BoxStream,
+};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::{
@@ -65,6 +68,10 @@ impl AsyncReader for WasmMemoryFile {
             Ok(bs)
         };
         async move { result }.boxed()
+    }
+
+    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+        unimplemented!()
     }
 }
 
