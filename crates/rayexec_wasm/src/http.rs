@@ -2,8 +2,8 @@ use bytes::Bytes;
 use futures::future::{BoxFuture, FutureExt};
 use rayexec_error::Result;
 use rayexec_io::{
-    http::{HttpClient, HttpReader, ReqwestClient, ReqwestClientReader},
-    AsyncReader,
+    http::{HttpClient, ReqwestClient, ReqwestClientReader},
+    AsyncReader, FileSource,
 };
 use std::{
     future::Future,
@@ -18,7 +18,7 @@ pub struct WrappedReqwestClient {
 }
 
 impl HttpClient for WrappedReqwestClient {
-    fn reader(&self, url: Url) -> Box<dyn HttpReader> {
+    fn reader(&self, url: Url) -> Box<dyn FileSource> {
         Box::new(WrappedReqwestClientReader {
             inner: self.inner.reader(url),
         })
@@ -38,8 +38,8 @@ impl AsyncReader for WrappedReqwestClientReader {
     }
 }
 
-impl HttpReader for WrappedReqwestClientReader {
-    fn content_length(&mut self) -> BoxFuture<Result<usize>> {
+impl FileSource for WrappedReqwestClientReader {
+    fn size(&mut self) -> BoxFuture<Result<usize>> {
         let fut = self.inner.content_length();
         let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
         fut.boxed()
