@@ -7,7 +7,7 @@ use rayexec_bullet::{
     field::{Field, Schema},
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Converts a parquet schema to a bullet schema.
 ///
@@ -190,11 +190,23 @@ fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
         },
         (
             Some(LogicalType::Timestamp {
-                is_adjusted_to_u_t_c: _,
-                unit: _,
+                is_adjusted_to_u_t_c,
+                unit,
             }),
             _,
-        ) => unimplemented!(), // Ok(DataType::Timestamp(
+        ) => {
+            let unit = match unit {
+                ParquetTimeUnit::MILLIS(_) => TimeUnit::Millisecond,
+                ParquetTimeUnit::MICROS(_) => TimeUnit::Microsecond,
+                ParquetTimeUnit::NANOS(_) => TimeUnit::Nanosecond,
+            };
+            if is_adjusted_to_u_t_c {
+                not_implemented!("parquet timestamp adjusted to utc");
+            }
+            Ok(DataType::Timestamp(TimestampTypeMeta::new(unit)))
+        }
+
+        // not_implemented!("ts {other:?}"), // Ok(DataType::Timestamp(
         //     match unit {
         //         TimeUnit::MILLIS(_) => unimplemented!(),
         //         TimeUnit::MICROS(_) => unimplemented!(),
