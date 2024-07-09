@@ -1,4 +1,4 @@
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 use std::sync::Arc;
 
 use clap::Parser;
@@ -92,7 +92,25 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
     let engine = SingleUserEngine::new_with_runtime(runtime, registry)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
-    let stdout = BufWriter::new(std::io::stdout());
+    let mut stdout = BufWriter::new(std::io::stdout());
+
+    if !args.queries.is_empty() {
+        // Queries provided directly, run and print them, and exit.
+
+        // TODO: Check if file, read file...
+
+        for query in args.queries {
+            let tables = engine.sql(&query).await?;
+            for table in tables {
+                writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+            }
+            stdout.flush()?;
+        }
+
+        return Ok(());
+    }
+
+    // Otherwise continue on with interactive shell.
 
     crossterm::terminal::enable_raw_mode()?;
 
