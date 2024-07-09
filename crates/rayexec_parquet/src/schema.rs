@@ -30,7 +30,7 @@ fn convert_complex(parquet_type: &Type) -> Result<DataType> {
             fields: _,
         } => {
             match basic_info.converted_type() {
-                ConvertedType::LIST => unimplemented!(),
+                ConvertedType::LIST => not_implemented!("parqet list"),
                 ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => unimplemented!(),
                 _ => {
                     // let struct_fields = convert_group_fields(parquet_type)?;
