@@ -1728,6 +1728,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_csv"
+version = "0.0.13"
+dependencies = [
+ "bytes",
+ "csv-core",
+ "futures",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_io",
+ "regex",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "rayexec_error"
 version = "0.0.13"
 dependencies = [

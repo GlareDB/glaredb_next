@@ -30,3 +30,4 @@ tracing = { version = "0.1.40", default-features = false }
 regex = "1.10.5"
 url = "2.5.1"
 serde = "1.0.204"
+bytes = "1.6.0"

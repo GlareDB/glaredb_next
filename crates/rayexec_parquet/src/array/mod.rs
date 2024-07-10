@@ -17,7 +17,7 @@ use primitive::PrimitiveArrayReader;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, TimeUnit};
+use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReader;

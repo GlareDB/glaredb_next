@@ -70,7 +70,7 @@ impl AsyncReader for WasmMemoryFile {
         async move { result }.boxed()
     }
 
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         unimplemented!()
     }
 }

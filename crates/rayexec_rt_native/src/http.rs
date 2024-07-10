@@ -47,7 +47,7 @@ impl AsyncReader for WrappedReqwestClientReader {
         self.read_range_inner(start, len).boxed()
     }
 
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         debug!(url = %self.inner.url, "http streaming (send stream)");
 
         // Folds the initial GET request into the stream.

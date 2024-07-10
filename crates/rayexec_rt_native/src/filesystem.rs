@@ -55,7 +55,7 @@ impl AsyncReader for LocalFile {
         future::ready(result.map(|_| bytes)).boxed()
     }
 
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         unimplemented!()
     }
 }

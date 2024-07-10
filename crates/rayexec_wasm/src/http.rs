@@ -42,7 +42,7 @@ impl AsyncReader for WrappedReqwestClientReader {
         fut.boxed()
     }
 
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         debug!(url = %self.inner.url, "http streaming (local stream)");
 
         // Similar to what we do for the "native" client, but boxes everything

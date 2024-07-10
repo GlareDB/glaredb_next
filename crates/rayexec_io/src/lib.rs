@@ -12,7 +12,7 @@ pub trait AsyncReader: Sync + Send + Debug {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>>;
 
     /// Stream bytes from a source.
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>>;
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>>;
 }
 
 pub trait FileSource: AsyncReader {
@@ -32,7 +32,7 @@ impl AsyncReader for Box<dyn FileSource + '_> {
         self.as_mut().read_range(start, len)
     }
 
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         self.as_mut().read_stream()
     }
 }
@@ -42,7 +42,7 @@ impl AsyncReader for Box<dyn AsyncReader + '_> {
         self.as_mut().read_range(start, len)
     }
 
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         self.as_mut().read_stream()
     }
 }
@@ -52,7 +52,7 @@ impl AsyncReader for Box<dyn FileReader + '_> {
         self.as_mut().read_range(start, len)
     }
 
-    fn read_stream(&mut self) -> BoxStream<Result<Bytes>> {
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         self.as_mut().read_stream()
     }
 }
