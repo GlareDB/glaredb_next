@@ -9,10 +9,12 @@ use rayexec_execution::{
     },
     runtime::ExecutionRuntime,
 };
+use rayexec_io::{filesystem::FileSystemProvider, AsyncReader};
 use std::{path::PathBuf, sync::Arc};
 use url::Url;
 
 use crate::{
+    datatable::{ReaderBuilder, SingleFileCsvDataTable},
     decoder::{CsvDecoder, DecoderState},
     reader::{CsvSchema, DialectOptions},
 };
@@ -43,7 +45,9 @@ impl GenericTableFunction for ReadCsv {
             Ok(_) => not_implemented!("remote csv"),
             Err(_) => {
                 // Assume file.
-                unimplemented!()
+                Ok(Box::new(ReadCsvLocal {
+                    path: PathBuf::from(path),
+                }))
             }
         }
     }
@@ -63,7 +67,7 @@ impl SpecializedTableFunction for ReadCsvLocal {
         self: Box<Self>,
         runtime: &Arc<dyn ExecutionRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
-        unimplemented!()
+        Box::pin(async move { self.initialize_inner(runtime.as_ref()).await })
     }
 }
 
@@ -77,8 +81,17 @@ impl ReadCsvLocal {
 
         let mut stream = file.read_stream();
         // TODO: Actually make sure this is a sufficient size to infer from.
+        // TODO: This throws away the buffer after inferring.
         let infer_buf = match stream.next().await {
-            Some(result) => result?,
+            Some(result) => {
+                const INFER_SIZE: usize = 1024;
+                let buf = result?;
+                if buf.len() > INFER_SIZE {
+                    buf.slice(0..INFER_SIZE)
+                } else {
+                    buf
+                }
+            }
             None => return Err(RayexecError::new("Stream returned no data")),
         };
 
@@ -89,7 +102,24 @@ impl ReadCsvLocal {
         let completed = state.completed_records();
         let schema = CsvSchema::infer_from_records(completed)?;
 
-        unimplemented!()
+        Ok(Box::new(InitializedLocalCsvFunction {
+            specialized: self,
+            options,
+            csv_schema: schema,
+        }))
+    }
+}
+
+#[derive(Debug)]
+struct FilesystemReaderBuilder {
+    filesystem: Arc<dyn FileSystemProvider>,
+    path: PathBuf,
+}
+
+impl ReaderBuilder for FilesystemReaderBuilder {
+    fn new_reader(&self) -> Result<Box<dyn AsyncReader>> {
+        let file = self.filesystem.reader(&self.path)?;
+        Ok(Box::new(file))
     }
 }
 
@@ -106,10 +136,19 @@ impl InitializedTableFunction for InitializedLocalCsvFunction {
     }
 
     fn schema(&self) -> Schema {
-        unimplemented!()
+        Schema {
+            fields: self.csv_schema.fields.clone(),
+        }
     }
 
     fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
-        unimplemented!()
+        Ok(Box::new(SingleFileCsvDataTable {
+            options: self.options,
+            csv_schema: self.csv_schema.clone(),
+            reader_builder: Box::new(FilesystemReaderBuilder {
+                filesystem: runtime.filesystem()?,
+                path: self.specialized.path.clone(),
+            }),
+        }))
     }
 }

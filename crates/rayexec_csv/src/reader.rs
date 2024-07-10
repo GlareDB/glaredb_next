@@ -323,6 +323,14 @@ pub struct AsyncCsvReader<R: AsyncReader> {
 }
 
 impl<R: AsyncReader> AsyncCsvReader<R> {
+    pub fn new(reader: R, csv_schema: CsvSchema, dialect: DialectOptions) -> Self {
+        AsyncCsvReader {
+            reader,
+            csv_schema,
+            dialect,
+        }
+    }
+
     pub fn into_stream(mut self) -> impl Stream<Item = Result<Batch>> {
         let stream = AsyncCsvStream {
             schema: Schema {

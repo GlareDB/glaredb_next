@@ -12,6 +12,7 @@ pub trait AsyncReader: Sync + Send + Debug {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>>;
 
     /// Stream bytes from a source.
+    // TODO: Change to `into_read_stream`
     fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>>;
 }
 
