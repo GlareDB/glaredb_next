@@ -68,7 +68,7 @@ impl DialectOptions {
             let mut decoder = CsvDecoder::new(*dialect);
 
             match decoder.decode(sample_bytes, &mut state) {
-                Ok(DecoderResult::InputExhuasted) => {
+                Ok(DecoderResult::InputExhuasted) | Ok(DecoderResult::Finished) => {
                     let decoded_fields = state.num_fields().unwrap_or(0);
                     let completed_records = state.num_records();
 
@@ -342,6 +342,7 @@ impl<R: AsyncReader> AsyncCsvReader<R> {
             decoder: CsvDecoder::new(self.dialect),
             buf: None,
             buf_offset: 0,
+            decoding_finished: false,
         };
 
         stream::try_unfold(stream, |mut stream| async move {
@@ -365,6 +366,8 @@ struct AsyncCsvStream {
 
     buf: Option<Bytes>,
     buf_offset: usize,
+
+    decoding_finished: bool,
 }
 
 impl AsyncCsvStream {
@@ -374,7 +377,16 @@ impl AsyncCsvStream {
                 Some(buf) => (buf, self.buf_offset),
                 None => match self.stream.next().await {
                     Some(buf) => (buf?, 0),
-                    None => return Ok(None),
+                    None => {
+                        if self.decoding_finished {
+                            // We're done, we've already passed an empty buffer
+                            // to the decoder.
+                            return Ok(None);
+                        }
+                        // Provide an empty buffer. csv_core expects and empty
+                        // buffer to signal end of reading.
+                        (Bytes::new(), 0)
+                    }
                 },
             };
 
@@ -382,6 +394,10 @@ impl AsyncCsvStream {
                 .decoder
                 .decode(&buf[offset..], &mut self.decoder_state)?
             {
+                DecoderResult::Finished => {
+                    self.decoding_finished = true;
+                    // Continue on with using the decoded results.
+                }
                 DecoderResult::InputExhuasted => continue, // To next iteration of outer loop.
                 DecoderResult::BufferFull { input_offset } => {
                     // Need to flush out buffer. Store for later use.

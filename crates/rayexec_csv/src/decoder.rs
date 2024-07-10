@@ -78,6 +78,15 @@ impl DecoderState {
             None => return, // No completed records to clear.
         };
 
+        if self.current_field == 0 {
+            // Fast path, we can just reset the buffers.
+            self.buffer.clear();
+            self.buffer_len = 0;
+            self.ends.clear();
+            self.ends_len = 0;
+            return;
+        }
+
         // Get start index of data that's part of a partial record.
         let start_data_idx = self.ends[num_completed * num_fields - 1];
 
@@ -189,6 +198,9 @@ impl<'a> CompletedRecord<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecoderResult {
+    /// Decoder received empty input, decoding finished.
+    Finished,
+
     /// Input was completely exhausted.
     InputExhuasted,
 
@@ -262,7 +274,7 @@ impl CsvDecoder {
                     state.current_field = 0;
                     // Continue reading records.
                 }
-                csv_core::ReadRecordResult::End => return Ok(DecoderResult::InputExhuasted),
+                csv_core::ReadRecordResult::End => return Ok(DecoderResult::Finished),
             }
         }
     }
@@ -387,5 +399,23 @@ mod tests {
             .collect();
 
         assert_eq!(expected, fields);
+    }
+
+    #[test]
+    fn clear_completed_with_no_partial_records() {
+        // Shouldn't panic with no partial records. `clear_completed` is called
+        // in all cases.
+        let mut decoder = CsvDecoder::new(DialectOptions::default());
+        let mut state = DecoderState::default();
+
+        let input = "a,bb,ccc\n";
+        decoder.decode(input.as_bytes(), &mut state).unwrap();
+
+        assert_eq!(0, state.current_field);
+        assert_eq!(1, state.num_records());
+
+        state.clear_completed();
+
+        assert_eq!(0, state.num_records());
     }
 }
