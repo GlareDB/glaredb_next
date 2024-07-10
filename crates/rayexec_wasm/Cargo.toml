@@ -12,6 +12,7 @@ rayexec_bullet = { path = '../rayexec_bullet' }
 rayexec_error = { path = '../rayexec_error' }
 rayexec_shell = { path = '../rayexec_shell' }
 rayexec_parquet = { path = '../rayexec_parquet' }
+rayexec_csv = { path = '../rayexec_csv' }
 rayexec_io = { path = '../rayexec_io' }
 futures = { workspace = true }
 web-sys = { version = "0.3.69", features = ["console", "KeyboardEvent"] }

@@ -1,0 +1,5 @@
+# DESCRIBE <csv-file>
+
+query TT
+describe '../testdata/csv/simple.csv';
+----

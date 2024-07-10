@@ -1,7 +1,7 @@
 use csv_core::{Reader, ReaderBuilder};
 use rayexec_error::{RayexecError, Result, ResultExt};
 
-use crate::DialectOptions;
+use crate::reader::DialectOptions;
 
 const DATA_BUFFER_SIZE: usize = 4 * 1024;
 const END_BUFFER_SIZE: usize = 1024;

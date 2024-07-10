@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
+use rayexec_csv::CsvDataSource;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::engine::Engine;
@@ -88,7 +89,8 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
         .with_datasource("postgres", Box::new(PostgresDataSource))?
-        .with_datasource("parquet", Box::new(ParquetDataSource))?;
+        .with_datasource("parquet", Box::new(ParquetDataSource))?
+        .with_datasource("csv", Box::new(CsvDataSource))?;
     let engine = SingleUserEngine::new_with_runtime(runtime, registry)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;

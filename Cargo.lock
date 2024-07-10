@@ -1704,6 +1704,7 @@ dependencies = [
  "crossterm",
  "futures",
  "rayexec_bullet",
+ "rayexec_csv",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_parquet",
@@ -1887,6 +1888,7 @@ dependencies = [
  "js-sys",
  "parking_lot",
  "rayexec_bullet",
+ "rayexec_csv",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
@@ -2405,6 +2407,7 @@ name = "test_bin"
 version = "0.0.13"
 dependencies = [
  "rayexec_bullet",
+ "rayexec_csv",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_parquet",
