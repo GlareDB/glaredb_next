@@ -1,4 +1,4 @@
-# Reading 'userdat1.csv'
+# Reading 'userdata1.csv'
 
 # TODO: Should infer that salary is a float
 query TT
