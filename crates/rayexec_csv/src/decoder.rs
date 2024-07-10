@@ -183,6 +183,8 @@ impl<'a> CompletedRecord<'a> {
         };
         let end = self.ends[idx];
 
+        // TODO: 'line' in error message isn't line within the file, but within
+        // the group of batches. Not useful to the end user.
         std::str::from_utf8(&self.data[start..end]).context_fn(|| {
             format!(
                 "Field '{idx}' on line '{}' contains invalid UTF-8 data",
@@ -417,5 +419,29 @@ mod tests {
         state.clear_completed();
 
         assert_eq!(0, state.num_records());
+    }
+
+    #[test]
+    fn empty_trailing_field() {
+        let mut decoder = CsvDecoder::new(DialectOptions::default());
+        let mut state = DecoderState::default();
+
+        let input = "a,bb,ccc,\neee,fff,ggg,hhh\n";
+
+        decoder.decode(input.as_bytes(), &mut state).unwrap();
+
+        assert_eq!(2, state.num_records());
+        assert_eq!(Some(4), state.num_fields());
+        assert_eq!(18, state.relative_start_offset());
+
+        let fields: Vec<Vec<_>> = state
+            .completed_records()
+            .iter()
+            .map(|r| r.iter().map(|s| s.unwrap().to_string()).collect())
+            .collect();
+
+        let expected = vec![vec!["a", "bb", "ccc", ""], vec!["eee", "fff", "ggg", "hhh"]];
+
+        assert_eq!(expected, fields);
     }
 }

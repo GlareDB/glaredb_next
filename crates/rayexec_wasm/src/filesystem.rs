@@ -2,6 +2,7 @@ use bytes::Bytes;
 use futures::{
     future::{BoxFuture, FutureExt},
     stream::BoxStream,
+    Stream, StreamExt,
 };
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
@@ -12,6 +13,8 @@ use rayexec_io::{
 use std::{
     collections::HashMap,
     path::{Component, Path},
+    pin::Pin,
+    task::{Context, Poll},
 };
 
 /// Memory-backed filesystem provider for wasm.
@@ -71,7 +74,11 @@ impl AsyncReader for WasmMemoryFile {
     }
 
     fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
-        unimplemented!()
+        WasmMemoryFileStream {
+            content: self.content.clone(),
+            curr: 0,
+        }
+        .boxed()
     }
 }
 
@@ -79,6 +86,42 @@ impl FileReader for WasmMemoryFile {
     fn size(&mut self) -> BoxFuture<Result<usize>> {
         let size = self.content.len();
         async move { Ok(size) }.boxed()
+    }
+}
+
+#[derive(Debug)]
+struct WasmMemoryFileStream {
+    content: Bytes,
+    curr: usize,
+}
+
+impl WasmMemoryFileStream {
+    fn read_next(&mut self) -> Result<Bytes> {
+        const WASM_STREAM_BUF_SIZE: usize = 4 * 1024;
+
+        let buf = if self.content.len() - self.curr < WASM_STREAM_BUF_SIZE {
+            self.content.clone()
+        } else {
+            self.content
+                .slice(self.curr..(self.curr + WASM_STREAM_BUF_SIZE))
+        };
+
+        self.curr += buf.len();
+
+        Ok(buf)
+    }
+}
+
+impl Stream for WasmMemoryFileStream {
+    type Item = Result<Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.curr >= self.content.len() {
+            return Poll::Ready(None);
+        }
+
+        let result = self.read_next();
+        Poll::Ready(Some(result))
     }
 }
 
