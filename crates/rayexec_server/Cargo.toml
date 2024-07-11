@@ -1,0 +1,11 @@
+[package]
+name = "rayexec_server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_error = { path = '../rayexec_error' }
+rayexec_execution = { path = '../rayexec_execution' }
+rayexec_server_client = { path = '../rayexec_server_client' }
+serde = { workspace = true }
+axum = "0.7.5"
