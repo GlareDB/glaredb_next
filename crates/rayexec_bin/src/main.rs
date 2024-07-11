@@ -6,7 +6,6 @@ use crossterm::event::{self, Event, KeyModifiers};
 use rayexec_csv::CsvDataSource;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::engine::Engine;
 use rayexec_execution::runtime::ExecutionRuntime;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;

@@ -4,7 +4,6 @@ use std::{
     task::Poll,
 };
 
-use bytes::Bytes;
 use futures::stream::{BoxStream, StreamExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;

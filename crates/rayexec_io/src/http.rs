@@ -1,7 +1,4 @@
 use bytes::Bytes;
-use futures::future::FutureExt;
-use futures::stream::{BoxStream, LocalBoxStream, StreamExt};
-use futures::TryFutureExt;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use reqwest::{
     header::{CONTENT_LENGTH, RANGE},

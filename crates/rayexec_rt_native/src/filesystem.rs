@@ -1,5 +1,5 @@
 use std::fs::{File, OpenOptions};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -7,7 +7,7 @@ use bytes::Bytes;
 use futures::future::{self, BoxFuture, FutureExt};
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 use rayexec_io::{
     filesystem::{FileReader, FileSystemProvider},
     AsyncReader,

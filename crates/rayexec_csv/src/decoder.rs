@@ -1,4 +1,4 @@
-use csv_core::{Reader, ReaderBuilder};
+use csv_core::Reader;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use crate::reader::DialectOptions;

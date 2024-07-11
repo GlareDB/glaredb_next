@@ -1,7 +1,6 @@
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use js_sys::Function;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::engine::Engine;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::ShellSignal;
