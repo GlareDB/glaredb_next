@@ -1298,6 +1298,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
+name = "logutil"
+version = "0.0.14"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "lz4_flex"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1771,6 +1779,7 @@ dependencies = [
  "clap",
  "crossterm",
  "futures",
+ "logutil",
  "rayexec_bullet",
  "rayexec_csv",
  "rayexec_error",
@@ -1921,10 +1930,17 @@ version = "0.0.14"
 dependencies = [
  "axum",
  "clap",
+ "logutil",
+ "rayexec_csv",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_parquet",
+ "rayexec_postgres",
+ "rayexec_rt_native",
  "rayexec_server_client",
  "serde",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
