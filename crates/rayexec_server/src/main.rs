@@ -11,6 +11,7 @@ use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use std::sync::Arc;
+use tracing::info;
 
 #[derive(Parser)]
 #[clap(name = "rayexec_server")]
@@ -22,7 +23,7 @@ struct Arguments {
 
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger();
+    logutil::configure_global_logger(tracing::Level::DEBUG);
 
     let runtime = Arc::new(
         ThreadedExecutionRuntime::try_new()
@@ -52,12 +53,14 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
     let state = Arc::new(ServerState { engine });
 
     let app = Router::new()
-        .route("/healtz", get(healthz))
+        .route("/healthz", get(healthz))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(format!(":{}", args.port))
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", args.port))
         .await
         .context("failed to bind port")?;
+
+    info!(port = %args.port, "starting server");
 
     axum::serve(listener, app)
         .await
@@ -72,5 +75,5 @@ struct ServerState {
 }
 
 async fn healthz(State(_): State<Arc<ServerState>>) -> &'static str {
-    "Ok"
+    "OK"
 }

@@ -27,7 +27,7 @@ struct Arguments {
 /// Simple binary for quickly running arbitrary queries.
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger();
+    logutil::configure_global_logger(tracing::Level::ERROR);
 
     let runtime = Arc::new(
         ThreadedExecutionRuntime::try_new()
