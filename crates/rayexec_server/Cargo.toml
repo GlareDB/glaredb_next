@@ -18,3 +18,4 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 axum = "0.7.5"
 clap = { version = "4.5.9", features = ["derive"] }
+tower-http = { version = "0.5.2", default-features = false, features = ["cors"] }

@@ -720,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.14"
+version = "0.0.15"
 
 [[package]]
 name = "fnv"
@@ -1299,7 +1299,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "logutil"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1555,7 +1555,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -1767,14 +1767,14 @@ dependencies = [
 
 [[package]]
 name = "rayexec_arrow_ipc"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "flatbuffers",
 ]
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "clap",
  "crossterm",
@@ -1794,7 +1794,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "backtrace-on-stack-overflow",
  "chrono",
@@ -1807,7 +1807,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_csv"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "bytes",
  "csv-core",
@@ -1823,14 +1823,14 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "parquet 51.0.0",
 ]
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "ahash",
  "chrono",
@@ -1858,7 +1858,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "bytes",
  "futures",
@@ -1870,11 +1870,11 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "bytes",
  "futures",
- "parquet 0.0.14",
+ "parquet 0.0.15",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
@@ -1886,7 +1886,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
@@ -1896,7 +1896,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "futures",
  "rayexec_bullet",
@@ -1908,7 +1908,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_rt_native"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "bytes",
  "futures",
@@ -1926,7 +1926,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "axum",
  "clap",
@@ -1940,12 +1940,13 @@ dependencies = [
  "rayexec_server_client",
  "serde",
  "tokio",
+ "tower-http",
  "tracing",
 ]
 
 [[package]]
 name = "rayexec_server_client"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "rayexec_error",
  "reqwest",
@@ -1955,7 +1956,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_shell"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "futures",
  "parking_lot",
@@ -1970,7 +1971,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "async-trait",
  "env_logger",
@@ -1988,7 +1989,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -2529,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",
@@ -2738,6 +2739,22 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+dependencies = [
+ "bitflags 2.4.2",
+ "bytes",
+ "http",
+ "http-body",
+ "http-body-util",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]

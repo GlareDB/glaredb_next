@@ -11,6 +11,7 @@ use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use std::sync::Arc;
+use tower_http::cors::CorsLayer;
 use tracing::info;
 
 #[derive(Parser)]
@@ -54,6 +55,7 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
 
     let app = Router::new()
         .route("/healthz", get(healthz))
+        .layer(CorsLayer::permissive())
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", args.port))
