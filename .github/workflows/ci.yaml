@@ -57,6 +57,9 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
       - name: Build and push docker image
         run: |
           docker build . -t gcr.io/glaredb-artifacts/rayexec-dev
