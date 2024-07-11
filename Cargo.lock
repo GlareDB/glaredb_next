@@ -1920,6 +1920,7 @@ name = "rayexec_server"
 version = "0.0.14"
 dependencies = [
  "axum",
+ "clap",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_server_client",
