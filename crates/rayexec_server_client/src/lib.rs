@@ -3,11 +3,13 @@
 //! This exists a separate crate to make the dependency graph easier to manage.
 //! Specifically the execution crate and binding crates (CLI, wasm) should import
 //! this crate. The server crate should import this crate and the execution crate.
+use rayexec_error::{RayexecError, Result, ResultExt};
+use reqwest::StatusCode;
 use url::Url;
 
 pub const API_VERSION: usize = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HybridClient {
     /// Client used to connect to remote server.
     ///
@@ -29,5 +31,27 @@ impl HybridClient {
             client: reqwest::Client::default(),
             url,
         }
+    }
+
+    pub async fn ping(&self) -> Result<()> {
+        let url = self
+            .url
+            .join("/healthz")
+            .context("failed to parse healthz url")?;
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .context("failed to send request")?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(RayexecError::new(format!(
+                "Expected 200 from healthz, got {}",
+                resp.status().as_u16()
+            )));
+        }
+
+        Ok(())
     }
 }

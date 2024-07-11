@@ -61,6 +61,11 @@ impl WasmSession {
         names
     }
 
+    pub async fn connect_hybrid(&self, connection_string: String) -> Result<()> {
+        self.engine.connect_hybrid(connection_string).await?;
+        Ok(())
+    }
+
     pub fn version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }

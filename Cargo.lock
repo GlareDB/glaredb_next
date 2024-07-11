@@ -1962,8 +1962,10 @@ dependencies = [
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_server_client",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
