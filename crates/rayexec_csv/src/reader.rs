@@ -356,17 +356,35 @@ impl<R: AsyncReader> AsyncCsvReader<R> {
 }
 
 struct AsyncCsvStream {
+    /// Schema we've inferred or otherwise been provided.
     schema: Schema,
 
+    /// If we should skip the header record.
     skip_header: bool,
 
+    /// Inner stream for getting bytes.
     stream: BoxStream<'static, Result<Bytes>>,
+
+    /// Decoder that we push bytes to.
     decoder: CsvDecoder,
+
+    /// Decoder state updated on every push to the decoder.
     decoder_state: DecoderState,
 
+    /// If we read from the stream and push to the decoder, but the decoder's
+    /// buffer is full, we store the stream's buffer here so the next iteration
+    /// can continue where it left off.
     buf: Option<Bytes>,
+
+    /// Offset into the above buffer where we should resume reading.
     buf_offset: usize,
 
+    /// If the decoder said we're finished.
+    ///
+    /// This is used to allow us to determine if we should push an empty buffer
+    /// to the decoder as csv_core expects an empty buffer when reading is
+    /// complete. One we've pushed that buffer, this gets set to true and we
+    /// build the remaining batch.
     decoding_finished: bool,
 }
 
