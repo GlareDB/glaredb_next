@@ -60,6 +60,9 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Configure gcloud docker
+        run: gcloud auth configure-docker -q
+
       - name: Build and push docker image
         run: |
           docker build . -t gcr.io/glaredb-artifacts/rayexec-dev
