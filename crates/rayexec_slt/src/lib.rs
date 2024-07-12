@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use libtest_mimic::{Arguments, Trial};
+use rand::{distributions::Alphanumeric, Rng};
 use rayexec_bullet::{
     batch::Batch,
     datatype::DataType,
@@ -14,12 +15,63 @@ use rayexec_execution::{
 };
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use sqllogictest::DefaultColumnType;
-use std::{fs, sync::Arc};
+use std::{collections::HashMap, fs, sync::Arc};
 use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+
+/// Variables that can be referenced in sql queries and automatically replaced
+/// with concrete values.
+///
+/// Variable format in sql queries: __MYVARIABLE__
+///
+/// When adding a variable, they'll automatically be uppercased and surrounded
+/// with understores.
+///
+/// See default implementation for predefined variables.
+///
+/// A new instance of these variables is created for each file run.
+#[derive(Debug)]
+pub struct ReplacementVars {
+    vars: HashMap<String, String>,
+}
+
+impl Default for ReplacementVars {
+    fn default() -> Self {
+        let mut vars = ReplacementVars {
+            vars: HashMap::new(),
+        };
+
+        let s: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+
+        vars.add_var("SLT_TMP", format!("../slt_tmp/{s}"));
+
+        vars
+    }
+}
+
+impl ReplacementVars {
+    pub fn add_var(&mut self, key: &str, val: impl Into<String>) {
+        let key = format!("__{}__", key.to_uppercase());
+        self.vars.insert(key, val.into());
+    }
+
+    fn replace_in_query(&self, query: impl Into<String>) -> String {
+        let mut query = query.into();
+
+        for (k, v) in &self.vars {
+            query = query.replace(k, v);
+        }
+
+        query
+    }
+}
 
 /// Run all SLTs from the provided paths.
 ///
@@ -54,6 +106,8 @@ where
         println!("---- PANIC ----\nInfo: {}\n\nBacktrace:{}", info, backtrace);
         std::process::abort();
     }));
+
+    std::fs::create_dir_all("../slt_tmp").context("failed to create slt tmp dir")?;
 
     let rt = Arc::new(ThreadedExecutionRuntime::try_new()?.with_default_tokio()?);
 
@@ -118,7 +172,12 @@ async fn run_test(
     let mut runner = sqllogictest::Runner::new(|| async {
         let engine = engine_fn(rt.clone())?;
         let session = engine.new_session()?;
-        Ok(TestSession { session, engine })
+        let replacement_vars = ReplacementVars::default();
+        Ok(TestSession {
+            replacement_vars,
+            session,
+            engine,
+        })
     });
     runner
         .run_file_async(path)
@@ -130,6 +189,7 @@ async fn run_test(
 #[derive(Debug)]
 #[allow(dead_code)]
 struct TestSession {
+    replacement_vars: ReplacementVars,
     engine: Engine,
     session: Session,
 }
@@ -143,8 +203,10 @@ impl sqllogictest::AsyncDB for TestSession {
         &mut self,
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
+        let sql = self.replacement_vars.replace_in_query(sql);
+
         let mut rows = Vec::new();
-        let mut results = self.session.simple(sql).await?;
+        let mut results = self.session.simple(&sql).await?;
         if results.len() != 1 {
             return Err(RayexecError::new(format!(
                 "Unexpected number of results for '{sql}': {}",

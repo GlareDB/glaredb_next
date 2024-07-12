@@ -1959,6 +1959,7 @@ dependencies = [
  "env_logger",
  "futures",
  "libtest-mimic",
+ "rand",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
