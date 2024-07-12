@@ -39,14 +39,18 @@ pub struct Bound;
 impl AstMeta for Bound {
     type DataSourceName = String;
     type ItemReference = BoundItemReference;
-    type TableReference = TableOrCteRef;
-    type TableFunctionReference = BoundTableFunctionReference;
+    type TableReference = BindIdx;
+    type TableFunctionReference = TableFunctionReference;
     type TableFunctionArguments = TableFunctionArgs;
     type CteReference = BoundCteReference;
     type FunctionReference = BoundFunctionReference;
     type ColumnReference = String;
     type DataType = DataType;
 }
+
+/// Index into one of the bind lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BindIdx(pub usize);
 
 /// Describes an object that might have been bound.
 ///
@@ -92,19 +96,20 @@ pub struct BoundCteReference {
 
 /// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TableOrCteRef {
+pub enum TableOrCteReference {
     /// Resolved table.
     Table {
         catalog: String,
         schema: String,
         entry: TableEntry,
     },
+    /// Resolved CTE.
     Cte(BoundCteReference),
 }
 
 /// Table function found in the FROM clause.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BoundTableFunctionReference {
+pub struct TableFunctionReference {
     /// Name of the original function.
     ///
     /// This is used to allow the user to reference the output of the function
@@ -195,6 +200,14 @@ pub struct BoundCte {
 /// Planning will reference these items directly.
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BindData {
+    /// List of tables we've come across.
+    ///
+    /// A bound reference may be referencing either a CTE or an actual database
+    /// table.
+    ///
+    /// An unbound reference can only possibly reference a table.
+    pub tables: Vec<MaybeBound<TableOrCteReference, ast::ObjectReference>>,
+
     /// How "deep" in the plan are we.
     ///
     /// Incremented everytime we dive into a subquery.
@@ -210,6 +223,41 @@ pub struct BindData {
 }
 
 impl BindData {
+    /// Checks if there's any unbound references in this query's bind data.
+    pub fn any_unbound(&self) -> bool {
+        self.tables
+            .iter()
+            .any(|t| matches!(t, MaybeBound::Unbound(_)))
+    }
+
+    /// Get a bound table from the bind data.
+    ///
+    /// Errors if the table wasn't bound (we couldn't resolve it).
+    pub fn get_bound_table(&self, idx: BindIdx) -> Result<&TableOrCteReference> {
+        // This error shouldn't happen during normal operations.
+        let table = self.tables.get(idx.0).ok_or_else(|| {
+            RayexecError::new(format!("Missing table reference at bind index {}", idx.0))
+        })?;
+
+        // This error may happen if we couldn't resolve a table, should be a
+        // nice user facing error.
+        match table {
+            MaybeBound::Bound(b) => Ok(b),
+            MaybeBound::Unbound(reference) => Err(RayexecError::new(format!(
+                "Unable to find table or view for '{reference}'",
+            ))),
+        }
+    }
+
+    fn push_table(
+        &mut self,
+        reference: MaybeBound<TableOrCteReference, ast::ObjectReference>,
+    ) -> BindIdx {
+        let idx = self.tables.len();
+        self.tables.push(reference);
+        BindIdx(idx)
+    }
+
     /// Try to find a CTE by its normalized name.
     ///
     /// This will iterate the cte vec right to left to find best cte that
@@ -475,8 +523,11 @@ impl<'a> Binder<'a> {
     ) -> Result<ast::Insert<Bound>> {
         let table = self.resolve_table_or_cte(insert.table, bind_data).await?;
         let source = self.bind_query(insert.source, bind_data).await?;
+
+        let idx = bind_data.push_table(table);
+
         Ok(ast::Insert {
-            table,
+            table: idx,
             columns: insert.columns,
             source,
         })
@@ -730,9 +781,9 @@ impl<'a> Binder<'a> {
     ) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                ast::FromNodeBody::BaseTable(ast::FromBaseTable {
-                    reference: self.resolve_table_or_cte(reference, bind_data).await?,
-                })
+                let table = self.resolve_table_or_cte(reference, bind_data).await?;
+                let idx = bind_data.push_table(table);
+                ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
                 ast::FromNodeBody::Subquery(ast::FromSubquery {
@@ -754,7 +805,7 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                            reference: BoundTableFunctionReference {
+                            reference: TableFunctionReference {
                                 name,
                                 func: Some(func),
                             },
@@ -781,7 +832,7 @@ impl<'a> Binder<'a> {
                     .await?;
 
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                    reference: BoundTableFunctionReference {
+                    reference: TableFunctionReference {
                         name,
                         func: Some(func),
                     },
@@ -826,31 +877,31 @@ impl<'a> Binder<'a> {
 
     async fn resolve_table_or_cte(
         &self,
-        mut reference: ast::ObjectReference,
+        reference: ast::ObjectReference,
         bind_data: &BindData,
-    ) -> Result<TableOrCteRef> {
+    ) -> Result<MaybeBound<TableOrCteReference, ast::ObjectReference>> {
         // TODO: Seach path.
         let [catalog, schema, table] = match reference.0.len() {
             1 => {
-                let name = reference.0.pop().unwrap().into_normalized_string();
+                let name = reference.0[0].as_normalized_string();
 
                 // Check bind data for cte that would satisfy this reference.
                 if let Some(cte) = bind_data.find_cte(&name) {
-                    return Ok(TableOrCteRef::Cte(cte));
+                    return Ok(MaybeBound::Bound(TableOrCteReference::Cte(cte)));
                 }
 
-                // Other wise continue with trying to resolve from the catalogs.
+                // Otherwise continue with trying to resolve from the catalogs.
                 ["temp".to_string(), "temp".to_string(), name]
             }
             2 => {
-                let table = reference.0.pop().unwrap().into_normalized_string();
-                let schema = reference.0.pop().unwrap().into_normalized_string();
+                let table = reference.0[1].as_normalized_string();
+                let schema = reference.0[0].as_normalized_string();
                 ["temp".to_string(), schema, table]
             }
             3 => {
-                let table = reference.0.pop().unwrap().into_normalized_string();
-                let schema = reference.0.pop().unwrap().into_normalized_string();
-                let catalog = reference.0.pop().unwrap().into_normalized_string();
+                let table = reference.0[2].as_normalized_string();
+                let schema = reference.0[1].as_normalized_string();
+                let catalog = reference.0[0].as_normalized_string();
                 [catalog, schema, table]
             }
             _ => {
@@ -866,15 +917,16 @@ impl<'a> Binder<'a> {
             .get_table_entry(self.tx, &schema, &table)
             .await?
         {
-            Ok(TableOrCteRef::Table {
+            Ok(MaybeBound::Bound(TableOrCteReference::Table {
                 catalog,
                 schema,
                 entry,
-            })
+            }))
         } else {
-            Err(RayexecError::new(format!(
-                "Unable to find table or view for '{catalog}.{schema}.{table}'"
-            )))
+            Ok(MaybeBound::Unbound(reference))
+            // Err(RayexecError::new(format!(
+            //     "Unable to find table or view for '{catalog}.{schema}.{table}'"
+            // )))
         }
     }
 

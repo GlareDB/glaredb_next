@@ -156,6 +156,11 @@ impl Session {
         )
         .bind_statement(stmt)
         .await?;
+
+        if bind_data.any_unbound() && self.hybrid_client.is_some() {
+            // Hybrid
+        }
+
         let (mut logical, context) =
             PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
 

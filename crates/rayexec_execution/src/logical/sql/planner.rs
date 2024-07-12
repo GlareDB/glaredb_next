@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    binder::{BindData, Bound, TableOrCteRef},
+    binder::{BindData, Bound, TableOrCteReference},
     expr::ExpressionContext,
     scope::Scope,
 };
@@ -250,9 +250,9 @@ impl<'a> PlanContext<'a> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
         let source = planner.plan_query(context, insert.source)?;
 
-        let entry = match insert.table {
-            TableOrCteRef::Table { entry, .. } => entry,
-            TableOrCteRef::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")),
+        let entry = match self.bind_data.get_bound_table(insert.table)? {
+            TableOrCteReference::Table { entry, .. } => entry,
+            TableOrCteReference::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")),
         };
 
         let table_type_schema = TypeSchema::new(entry.columns.iter().map(|c| c.datatype.clone()));
@@ -265,7 +265,7 @@ impl<'a> PlanContext<'a> {
 
         Ok(LogicalQuery {
             root: LogicalOperator::Insert(Insert {
-                table: entry,
+                table: entry.clone(),
                 input: Box::new(input),
             }),
             scope: Scope::empty(),
