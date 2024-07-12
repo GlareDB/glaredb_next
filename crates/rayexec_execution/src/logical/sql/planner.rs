@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    binder::{BindData, Bound, BoundTableOrCteReference},
+    binder::{BindData, Bound, TableOrCteRef},
     expr::ExpressionContext,
     scope::Scope,
 };
@@ -251,10 +251,8 @@ impl<'a> PlanContext<'a> {
         let source = planner.plan_query(context, insert.source)?;
 
         let entry = match insert.table {
-            BoundTableOrCteReference::Table { entry, .. } => entry,
-            BoundTableOrCteReference::Cte(_) => {
-                return Err(RayexecError::new("Cannot insert into CTE"))
-            }
+            TableOrCteRef::Table { entry, .. } => entry,
+            TableOrCteRef::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")),
         };
 
         let table_type_schema = TypeSchema::new(entry.columns.iter().map(|c| c.datatype.clone()));

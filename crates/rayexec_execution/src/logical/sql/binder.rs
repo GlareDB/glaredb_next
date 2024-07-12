@@ -39,13 +39,24 @@ pub struct Bound;
 impl AstMeta for Bound {
     type DataSourceName = String;
     type ItemReference = BoundItemReference;
-    type TableReference = BoundTableOrCteReference;
+    type TableReference = TableOrCteRef;
     type TableFunctionReference = BoundTableFunctionReference;
     type TableFunctionArguments = TableFunctionArgs;
     type CteReference = BoundCteReference;
     type FunctionReference = BoundFunctionReference;
     type ColumnReference = String;
     type DataType = DataType;
+}
+
+/// Describes an object that might have been bound.
+///
+/// The use case for this is to allow a single ast statement to contain both
+/// bound and unbound objects, with the idea being that if we have any unbound
+/// objects, we trigger hybrid execution.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MaybeBound<B, U> {
+    Bound(B),
+    Unbound(U),
 }
 
 /// Represents a bound function found in the select list, where clause, or order
@@ -81,7 +92,8 @@ pub struct BoundCteReference {
 
 /// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum BoundTableOrCteReference {
+pub enum TableOrCteRef {
+    /// Resolved table.
     Table {
         catalog: String,
         schema: String,
@@ -160,7 +172,7 @@ impl fmt::Display for BoundItemReference {
 }
 
 // TODO: This might need some scoping information.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCte {
     /// Normalized name for the CTE.
     pub name: String,
@@ -177,7 +189,11 @@ pub struct BoundCte {
     pub materialized: bool,
 }
 
-#[derive(Debug, Default, PartialEq)]
+/// Data that's collected during binding, including resolved tables, functions,
+/// and other database objects.
+///
+/// Planning will reference these items directly.
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BindData {
     /// How "deep" in the plan are we.
     ///
@@ -812,7 +828,7 @@ impl<'a> Binder<'a> {
         &self,
         mut reference: ast::ObjectReference,
         bind_data: &BindData,
-    ) -> Result<BoundTableOrCteReference> {
+    ) -> Result<TableOrCteRef> {
         // TODO: Seach path.
         let [catalog, schema, table] = match reference.0.len() {
             1 => {
@@ -820,7 +836,7 @@ impl<'a> Binder<'a> {
 
                 // Check bind data for cte that would satisfy this reference.
                 if let Some(cte) = bind_data.find_cte(&name) {
-                    return Ok(BoundTableOrCteReference::Cte(cte));
+                    return Ok(TableOrCteRef::Cte(cte));
                 }
 
                 // Other wise continue with trying to resolve from the catalogs.
@@ -850,7 +866,7 @@ impl<'a> Binder<'a> {
             .get_table_entry(self.tx, &schema, &table)
             .await?
         {
-            Ok(BoundTableOrCteReference::Table {
+            Ok(TableOrCteRef::Table {
                 catalog,
                 schema,
                 entry,

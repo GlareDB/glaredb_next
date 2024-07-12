@@ -61,7 +61,7 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
 
     let app = Router::new()
         .route("/healthz", get(handlers::healthz))
-        .route("/rpc/plan_ast", post(handlers::plan_ast_rpc))
+        .route("/rpc/hybrid_execute", post(handlers::hybrid_execute_rpc))
         .route("/rpc/push_batch", post(handlers::push_batch_rpc))
         .route("/rpc/pull_batch", post(handlers::pull_batch_rpc))
         // TODO: Limit CORS to *.glaredb.com and localhost. And maybe make

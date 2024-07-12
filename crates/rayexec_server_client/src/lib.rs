@@ -3,6 +3,8 @@
 //! This exists a separate crate to make the dependency graph easier to manage.
 //! Specifically the execution crate and binding crates (CLI, wasm) should import
 //! this crate. The server crate should import this crate and the execution crate.
+pub mod types;
+
 use rayexec_error::{RayexecError, Result, ResultExt};
 use reqwest::StatusCode;
 use url::Url;

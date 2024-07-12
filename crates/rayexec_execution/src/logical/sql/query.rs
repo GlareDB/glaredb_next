@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::{
     aggregate::AggregatePlanner,
-    binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
+    binder::{BindData, Bound, BoundCteReference, TableOrCteRef},
     expr::{ExpandedSelectExpr, ExpressionContext},
     planner::LogicalQuery,
     scope::{ColumnRef, Scope, TableReference},
@@ -329,7 +329,7 @@ impl<'a> QueryNodePlanner<'a> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match reference {
-                    BoundTableOrCteReference::Table {
+                    TableOrCteRef::Table {
                         catalog,
                         schema,
                         entry,
@@ -356,7 +356,7 @@ impl<'a> QueryNodePlanner<'a> {
                             scope,
                         }
                     }
-                    BoundTableOrCteReference::Cte(bound) => {
+                    TableOrCteRef::Cte(bound) => {
                         self.plan_cte_body(context, bound, current_schema, current_scope)?
                     }
                 }
