@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
@@ -16,7 +17,7 @@ use crate::runtime::ExecutionRuntime;
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
     Lazy::new(|| vec![Box::new(GenerateSeries)]);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableFunctionArgs {
     /// Named arguments to a table function.
     pub named: HashMap<String, OwnedScalarValue>,

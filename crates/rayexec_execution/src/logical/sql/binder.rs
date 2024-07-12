@@ -15,6 +15,7 @@ use rayexec_parser::{
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, DatabaseContext},
@@ -51,9 +52,11 @@ impl AstMeta for Bound {
 /// by/group by clause.
 // TODO: If we want to support table functions in the select list, this will
 // need to be extended.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BoundFunctionReference {
+    #[serde(skip)]
     Scalar(Box<dyn ScalarFunction>),
+    #[serde(skip)]
     Aggregate(Box<dyn AggregateFunction>),
 }
 
@@ -70,14 +73,14 @@ impl BoundFunctionReference {
 ///
 /// Note that this doesn't hold the CTE itself since it may be referenced more
 /// than once in a query.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BoundCteReference {
     /// Index into the CTE map.
     pub idx: usize,
 }
 
 /// Table or CTE found in the FROM clause.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BoundTableOrCteReference {
     Table {
         catalog: String,
@@ -88,7 +91,7 @@ pub enum BoundTableOrCteReference {
 }
 
 /// Table function found in the FROM clause.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundTableFunctionReference {
     /// Name of the original function.
     ///
@@ -97,12 +100,14 @@ pub struct BoundTableFunctionReference {
     pub name: String,
 
     /// The initialized table function.
-    pub func: Box<dyn InitializedTableFunction>,
+    // TODO: Remove option, temp until I get serialization/deserialization working.
+    #[serde(skip)]
+    pub func: Option<Box<dyn InitializedTableFunction>>,
 }
 
 // TODO: Figure out how we want to represent things like tables in a CREATE
 // TABLE. We don't want to resolve, so a vec of strings works for now.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundItemReference(pub Vec<String>);
 
 impl BoundItemReference {
@@ -733,7 +738,10 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                            reference: BoundTableFunctionReference { name, func },
+                            reference: BoundTableFunctionReference {
+                                name,
+                                func: Some(func),
+                            },
                             args,
                         })
                     }
@@ -757,7 +765,10 @@ impl<'a> Binder<'a> {
                     .await?;
 
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                    reference: BoundTableFunctionReference { name, func },
+                    reference: BoundTableFunctionReference {
+                        name,
+                        func: Some(func),
+                    },
                     args,
                 })
             }

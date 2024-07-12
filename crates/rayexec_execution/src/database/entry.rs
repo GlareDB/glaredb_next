@@ -1,5 +1,6 @@
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::functions::{
     aggregate::AggregateFunction, scalar::ScalarFunction, table::GenericTableFunction,
@@ -27,7 +28,7 @@ impl From<FunctionEntry> for CatalogEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableEntry {
     pub name: String,
     pub columns: Vec<Field>,

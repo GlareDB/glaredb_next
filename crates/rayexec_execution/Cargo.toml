@@ -26,4 +26,5 @@ tracing = { workspace = true }
 half = "2.4.1"
 tokio = { workspace = true, default-features = false }
 regex = { workspace = true }
+serde = { workspace = true }
 rand = "0.8.5"

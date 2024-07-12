@@ -373,11 +373,18 @@ impl<'a> QueryNodePlanner<'a> {
                 };
                 let scope = Scope::with_columns(
                     Some(scope_reference),
-                    reference.func.schema().fields.into_iter().map(|f| f.name),
+                    reference
+                        .func
+                        .as_ref()
+                        .unwrap()
+                        .schema()
+                        .fields
+                        .into_iter()
+                        .map(|f| f.name),
                 );
 
                 let operator = LogicalOperator::TableFunction(TableFunction {
-                    function: reference.func,
+                    function: reference.func.unwrap(),
                 });
 
                 LogicalQuery {

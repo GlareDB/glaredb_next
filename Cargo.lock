@@ -1830,6 +1830,7 @@ dependencies = [
  "rayexec_server_client",
  "rayon",
  "regex",
+ "serde",
  "smallvec",
  "tokio",
  "tracing",
