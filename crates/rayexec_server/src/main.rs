@@ -1,4 +1,10 @@
-use axum::{extract::State, routing::get, Router};
+mod errors;
+mod handlers;
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use clap::Parser;
 use rayexec_csv::CsvDataSource;
 use rayexec_error::{Result, ResultExt};
@@ -51,10 +57,15 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
         .with_datasource("csv", Box::new(CsvDataSource))?;
     let engine = Engine::new_with_registry(runtime.clone(), registry)?;
 
-    let state = Arc::new(ServerState { engine });
+    let state = Arc::new(handlers::ServerState { engine });
 
     let app = Router::new()
-        .route("/healthz", get(healthz))
+        .route("/healthz", get(handlers::healthz))
+        .route("/rpc/plan_ast", post(handlers::plan_ast_rpc))
+        .route("/rpc/push_batch", post(handlers::push_batch_rpc))
+        .route("/rpc/pull_batch", post(handlers::pull_batch_rpc))
+        // TODO: Limit CORS to *.glaredb.com and localhost. And maybe make
+        // localhost dev build only.
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -69,13 +80,4 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
         .context("failed to begin serving")?;
 
     Ok(())
-}
-
-#[derive(Debug)]
-struct ServerState {
-    engine: Engine,
-}
-
-async fn healthz(State(_): State<Arc<ServerState>>) -> &'static str {
-    "OK"
 }

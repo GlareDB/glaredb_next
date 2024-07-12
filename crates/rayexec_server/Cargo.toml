@@ -14,6 +14,7 @@ rayexec_parquet = { path = '../rayexec_parquet', features = ["zstd"] }
 rayexec_csv = { path = '../rayexec_csv' }
 
 serde = { workspace = true }
+serde_json = "1.0"
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 axum = "0.7.5"

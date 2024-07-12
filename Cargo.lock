@@ -1920,6 +1920,7 @@ dependencies = [
  "rayexec_rt_native",
  "rayexec_server_client",
  "serde",
+ "serde_json",
  "tokio",
  "tower-http",
  "tracing",

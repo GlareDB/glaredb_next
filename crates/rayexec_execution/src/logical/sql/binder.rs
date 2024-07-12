@@ -33,7 +33,7 @@ pub type BoundStatement = Statement<Bound>;
 
 /// Implementation of `AstMeta` which annotates the AST query with
 /// tables/functions/etc found in the db.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Bound;
 
 impl AstMeta for Bound {
