@@ -32,6 +32,7 @@ pub use attach::*;
 use crate::parser::Parser;
 use crate::tokens::{Token, Word};
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use std::hash::Hash;
@@ -58,7 +59,7 @@ mod testutil {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Ident {
     pub(crate) value: String,
     pub(crate) quoted: bool,
@@ -125,7 +126,7 @@ impl fmt::Display for Ident {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ObjectReference(pub Vec<Ident>);
 
 impl ObjectReference {

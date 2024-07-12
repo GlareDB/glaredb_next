@@ -1586,25 +1586,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parquet"
-version = "51.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "096795d4f47f65fd3ee1ec5a98b77ab26d602f2cc785b0e4be5443add17ecc32"
-dependencies = [
- "ahash",
- "bytes",
- "chrono",
- "half",
- "hashbrown",
- "num",
- "num-bigint",
- "paste",
- "seq-macro",
- "thrift",
- "twox-hash",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1802,6 +1783,7 @@ dependencies = [
  "num",
  "rayexec_arrow_ipc",
  "rayexec_error",
+ "serde",
  "textwrap",
 ]
 
@@ -1824,9 +1806,6 @@ dependencies = [
 [[package]]
 name = "rayexec_error"
 version = "0.0.15"
-dependencies = [
- "parquet 51.0.0",
-]
 
 [[package]]
 name = "rayexec_execution"
@@ -1874,7 +1853,7 @@ version = "0.0.15"
 dependencies = [
  "bytes",
  "futures",
- "parquet 0.0.15",
+ "parquet",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
@@ -1890,6 +1869,7 @@ version = "0.0.15"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
+ "serde",
  "tracing",
  "unicase",
 ]

@@ -17,6 +17,7 @@ spec:
     spec:
       containers:
       - image: gcr.io/glaredb-artifacts/rayexec-dev
+        imagePullPolicy: Always
         name: rayexec-dev
         ports:
         - containerPort: 8080

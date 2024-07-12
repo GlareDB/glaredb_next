@@ -1,4 +1,3 @@
-use parquet::errors::ParquetError;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::error::Error;
 use std::fmt;
@@ -49,12 +48,6 @@ impl RayexecError {
 
     pub fn get_backtrace(&self) -> &Backtrace {
         &self.backtrace
-    }
-}
-
-impl From<ParquetError> for RayexecError {
-    fn from(value: ParquetError) -> Self {
-        Self::with_source("Parquet error", Box::new(value))
     }
 }
 
