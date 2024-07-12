@@ -1,16 +1,15 @@
-use futures::future::BoxFuture;
 use rayexec_error::Result;
 use std::{fmt::Debug, path::Path};
 
-use crate::AsyncReader;
+use crate::{FileSink, FileSource};
 
 /// Provides access to a filesystem (real or virtual).
 pub trait FileSystemProvider: Debug + Sync + Send + 'static {
-    fn reader(&self, path: &Path) -> Result<Box<dyn FileReader>>;
-}
+    /// Get a read handle to some underlying file.
+    fn reader(&self, path: &Path) -> Result<Box<dyn FileSource>>;
 
-// TODO: Unify this with HttpReader at some point. The operations we want to be
-// able to do are the same.
-pub trait FileReader: AsyncReader {
-    fn size(&mut self) -> BoxFuture<Result<usize>>;
+    /// Get a write handle to some underlying file.
+    // TODO: Separate methods for "appender", and option to error if already exists.
+    // TODO: Stronger semantics of what this means. This iteration is for COPY TO.
+    fn sink(&self, path: &Path) -> Result<Box<dyn FileSink>>;
 }

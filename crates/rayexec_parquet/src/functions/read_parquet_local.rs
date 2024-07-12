@@ -6,7 +6,7 @@ use rayexec_execution::{
     functions::table::{InitializedTableFunction, SpecializedTableFunction},
     runtime::ExecutionRuntime,
 };
-use rayexec_io::filesystem::{FileReader, FileSystemProvider};
+use rayexec_io::{filesystem::FileSystemProvider, FileSource};
 use std::{path::PathBuf, sync::Arc};
 
 use crate::{metadata::Metadata, schema::convert_schema};
@@ -62,8 +62,8 @@ struct FileReaderBuilder {
     path: PathBuf,
 }
 
-impl ReaderBuilder<Box<dyn FileReader>> for FileReaderBuilder {
-    fn new_reader(&self) -> Result<Box<dyn FileReader>> {
+impl ReaderBuilder<Box<dyn FileSource>> for FileReaderBuilder {
+    fn new_reader(&self) -> Result<Box<dyn FileSource>> {
         self.fs.reader(&self.path)
     }
 }

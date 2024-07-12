@@ -6,14 +6,12 @@ use futures::{
 };
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::{
-    filesystem::{FileReader, FileSystemProvider},
-    AsyncReader,
-};
+use rayexec_io::{filesystem::FileSystemProvider, AsyncReader, AsyncWriter, FileSink, FileSource};
 use std::{
     collections::HashMap,
     path::{Component, Path},
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -28,7 +26,7 @@ use std::{
 #[derive(Debug, Default)]
 pub struct WasmMemoryFileSystem {
     /// A simple file name -> file bytes mapping.
-    files: Mutex<HashMap<String, Bytes>>,
+    files: Arc<Mutex<HashMap<String, Bytes>>>,
 }
 
 impl WasmMemoryFileSystem {
@@ -44,7 +42,7 @@ impl WasmMemoryFileSystem {
 }
 
 impl FileSystemProvider for WasmMemoryFileSystem {
-    fn reader(&self, path: &Path) -> Result<Box<dyn FileReader>> {
+    fn reader(&self, path: &Path) -> Result<Box<dyn FileSource>> {
         let name = get_normalized_file_name(path)?;
         let content = self
             .files
@@ -54,6 +52,15 @@ impl FileSystemProvider for WasmMemoryFileSystem {
             .ok_or_else(|| RayexecError::new(format!("Missing file for '{name}'")))?;
 
         Ok(Box::new(WasmMemoryFile { content }))
+    }
+
+    fn sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
+        let name = get_normalized_file_name(path)?;
+        Ok(Box::new(WasmMemoryFileSink {
+            name: name.to_string(),
+            buf: Vec::new(),
+            files: self.files.clone(),
+        }))
     }
 }
 
@@ -82,12 +89,36 @@ impl AsyncReader for WasmMemoryFile {
     }
 }
 
-impl FileReader for WasmMemoryFile {
+impl FileSource for WasmMemoryFile {
     fn size(&mut self) -> BoxFuture<Result<usize>> {
         let size = self.content.len();
         async move { Ok(size) }.boxed()
     }
 }
+
+#[derive(Debug)]
+pub struct WasmMemoryFileSink {
+    name: String,
+    buf: Vec<u8>,
+    files: Arc<Mutex<HashMap<String, Bytes>>>,
+}
+
+impl AsyncWriter for WasmMemoryFileSink {
+    fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>> {
+        self.buf.extend_from_slice(buf);
+        async { Ok(()) }.boxed()
+    }
+
+    fn flush(&mut self) -> BoxFuture<Result<()>> {
+        // TODO: What are the semantics here? Do we want to allow multiple
+        // write+flush iterations? Currently this would truncate every time.
+        let bytes = Bytes::from(std::mem::take(&mut self.buf));
+        self.files.lock().insert(self.name.clone(), bytes);
+        async { Ok(()) }.boxed()
+    }
+}
+
+impl FileSink for WasmMemoryFileSink {}
 
 #[derive(Debug)]
 struct WasmMemoryFileStream {
