@@ -1014,8 +1014,7 @@ impl<'a> Binder<'a> {
         if let Some(entry) = self
             .context
             .get_catalog(&catalog)?
-            .get_table_fn(self.tx, &schema, &name)
-            .await?
+            .get_table_fn(self.tx, &schema, &name)?
         {
             Ok(entry)
         } else {
@@ -1388,13 +1387,11 @@ impl<'a> ExpressionBinder<'a> {
                 }
 
                 // Check scalars first.
-                if let Some(scalar) = self
-                    .binder
-                    .context
-                    .get_catalog(catalog)?
-                    .get_scalar_fn(self.binder.tx, schema, func_name)
-                    .await?
-                {
+                if let Some(scalar) = self.binder.context.get_catalog(catalog)?.get_scalar_fn(
+                    self.binder.tx,
+                    schema,
+                    func_name,
+                )? {
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: BoundFunctionReference::Scalar(scalar),
                         args,
@@ -1407,8 +1404,7 @@ impl<'a> ExpressionBinder<'a> {
                     .binder
                     .context
                     .get_catalog(catalog)?
-                    .get_aggregate_fn(self.binder.tx, schema, func_name)
-                    .await?
+                    .get_aggregate_fn(self.binder.tx, schema, func_name)?
                 {
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: BoundFunctionReference::Aggregate(aggregate),

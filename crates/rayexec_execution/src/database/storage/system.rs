@@ -184,9 +184,8 @@ impl Catalog for SystemCatalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> BoxFuture<Result<Option<Box<dyn ScalarFunction>>>> {
-        let result = self.get_scalar_fn_inner(tx, schema, name);
-        Box::pin(async { result })
+    ) -> Result<Option<Box<dyn ScalarFunction>>> {
+        self.get_scalar_fn_inner(tx, schema, name)
     }
 
     fn get_aggregate_fn(
@@ -194,9 +193,8 @@ impl Catalog for SystemCatalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> BoxFuture<Result<Option<Box<dyn AggregateFunction>>>> {
-        let result = self.get_aggregate_fn_inner(tx, schema, name);
-        Box::pin(async { result })
+    ) -> Result<Option<Box<dyn AggregateFunction>>> {
+        self.get_aggregate_fn_inner(tx, schema, name)
     }
 
     fn get_table_fn(
@@ -204,9 +202,8 @@ impl Catalog for SystemCatalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> BoxFuture<Result<Option<Box<dyn GenericTableFunction>>>> {
-        let result = self.get_table_fn_inner(tx, schema, name);
-        Box::pin(async { result })
+    ) -> Result<Option<Box<dyn GenericTableFunction>>> {
+        self.get_table_fn_inner(tx, schema, name)
     }
 
     fn data_table(
