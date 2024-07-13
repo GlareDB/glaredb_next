@@ -10,6 +10,7 @@ use rayexec_bullet::{
     },
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_io::FileLocation;
 use rayexec_parser::{
     ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
     meta::{AstMeta, Raw},
@@ -22,6 +23,7 @@ use crate::{
     datasource::FileHandlers,
     functions::{
         aggregate::AggregateFunction,
+        copy::CopyToFunction,
         scalar::ScalarFunction,
         table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs},
     },
@@ -46,6 +48,7 @@ impl AstMeta for Bound {
     type FunctionReference = BoundFunctionReference;
     type ColumnReference = String;
     type DataType = DataType;
+    type CopyToDestination = BoundCopyTo;
 }
 
 /// Index into one of the bind lists.
@@ -61,6 +64,14 @@ pub struct BindIdx(pub usize);
 pub enum MaybeBound<B, U> {
     Bound(B),
     Unbound(U),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BoundCopyTo {
+    pub location: FileLocation,
+    // TODO: Remote skip and Option when serializing is figured out.
+    #[serde(skip)]
+    pub func: Option<Box<dyn CopyToFunction>>,
 }
 
 /// Represents a bound function found in the select list, where clause, or order
@@ -446,7 +457,25 @@ impl<'a> Binder<'a> {
             }
         };
 
-        unimplemented!()
+        let target = match copy_to.target {
+            ast::CopyToTarget::File(file_name) => {
+                let handler = self.file_handlers.find_match(&file_name).ok_or_else(|| {
+                    RayexecError::new(format!("No registered file handler for file 'file_name'"))
+                })?;
+                let func = handler
+                    .copy_to
+                    .as_ref()
+                    .ok_or_else(|| RayexecError::new("No registered COPY TO function"))?
+                    .clone();
+
+                BoundCopyTo {
+                    location: FileLocation::parse(&file_name),
+                    func: Some(func),
+                }
+            }
+        };
+
+        Ok(ast::CopyTo { source, target })
     }
 
     async fn bind_drop(&self, drop: ast::DropStatement<Raw>) -> Result<ast::DropStatement<Bound>> {
@@ -814,14 +843,15 @@ impl<'a> Binder<'a> {
             }
             ast::FromNodeBody::File(ast::FromFilePath { path }) => {
                 match self.file_handlers.find_match(&path) {
-                    Some(func) => {
+                    Some(handler) => {
                         let args = TableFunctionArgs {
                             named: HashMap::new(),
                             positional: vec![OwnedScalarValue::Utf8(path.into())],
                         };
 
-                        let name = func.name().to_string();
-                        let func = func
+                        let name = handler.table_func.name().to_string();
+                        let func = handler
+                            .table_func
                             .specialize(args.clone())?
                             .initialize(self.runtime)
                             .await?;

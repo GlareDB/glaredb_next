@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
+use crate::functions::copy::CopyToFunction;
 use crate::functions::table::GenericTableFunction;
 use crate::runtime::ExecutionRuntime;
 
@@ -67,24 +68,34 @@ pub trait DataSource: Sync + Send + Debug {
     /// function.
     ///
     /// This is called once when registering a data source. Lazy is not needed.
-    fn file_handlers(&self) -> Vec<(Regex, Box<dyn GenericTableFunction>)> {
+    fn file_handlers(&self) -> Vec<FileHandler> {
         Vec::new()
     }
+}
+
+#[derive(Debug)]
+pub struct FileHandler {
+    /// Regex to use to determine if this handler should handle the file.
+    pub regex: Regex,
+
+    /// Table function to use to read the file.
+    pub table_func: Box<dyn GenericTableFunction>,
+
+    /// Optional copy to function for writing out files.
+    pub copy_to: Option<Box<dyn CopyToFunction>>,
 }
 
 #[derive(Debug, Default)]
 pub struct FileHandlers {
     /// Registered file handlers for resolving file paths in FROM statements.
-    matchers: Vec<(Regex, Box<dyn GenericTableFunction>)>,
+    handlers: Vec<FileHandler>,
 }
 
 impl FileHandlers {
-    pub fn find_match(&self, path: &str) -> Option<Box<dyn GenericTableFunction>> {
-        let (_, func) = self
-            .matchers
+    pub fn find_match(&self, path: &str) -> Option<&FileHandler> {
+        self.handlers
             .iter()
-            .find(|(regex, _)| regex.is_match(path))?;
-        Some(func.clone())
+            .find(|handler| handler.regex.is_match(path))
     }
 }
 
@@ -108,7 +119,7 @@ impl DataSourceRegistry {
         }
 
         self.file_handlers
-            .matchers
+            .handlers
             .extend(datasource.file_handlers());
         self.datasources.insert(name, datasource);
 

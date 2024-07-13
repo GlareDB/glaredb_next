@@ -1844,6 +1844,7 @@ dependencies = [
  "futures",
  "rayexec_error",
  "reqwest",
+ "serde",
  "tracing",
  "url",
 ]
@@ -2906,6 +2907,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

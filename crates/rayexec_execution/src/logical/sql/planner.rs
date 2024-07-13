@@ -16,8 +16,8 @@ use crate::{
         expr::LogicalExpression,
         operator::{
             AttachDatabase, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
-            Explain, ExplainFormat, Insert, LogicalOperator, Projection, ResetVar, SetVar, ShowVar,
-            VariableOrAll,
+            Explain, ExplainFormat, Insert, LogicalOperator, Projection, ResetVar, Scan, SetVar,
+            ShowVar, VariableOrAll,
         },
         sql::query::QueryNodePlanner,
     },
@@ -248,6 +248,32 @@ impl<'a> PlanContext<'a> {
         context: &mut QueryContext,
         copy_to: ast::CopyTo<Bound>,
     ) -> Result<LogicalQuery> {
+        let source = match copy_to.source {
+            ast::CopyToSource::Query(query) => {
+                let mut planner = QueryNodePlanner::new(self.bind_data);
+                planner.plan_query(context, query)?.root
+            }
+            ast::CopyToSource::Table(table) => {
+                let (catalog, schema, ent) = match self.bind_data.get_bound_table(table)? {
+                    TableOrCteReference::Table {
+                        catalog,
+                        schema,
+                        entry,
+                    } => (catalog, schema, entry),
+                    TableOrCteReference::Cte(_) => {
+                        // Shouldn't be possible.
+                        return Err(RayexecError::new("Cannot COPY from CTE"));
+                    }
+                };
+
+                LogicalOperator::Scan(Scan {
+                    catalog: catalog.clone(),
+                    schema: schema.clone(),
+                    source: ent.clone(),
+                })
+            }
+        };
+
         unimplemented!()
     }
 
@@ -261,7 +287,7 @@ impl<'a> PlanContext<'a> {
 
         let entry = match self.bind_data.get_bound_table(insert.table)? {
             TableOrCteReference::Table { entry, .. } => entry,
-            TableOrCteReference::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")),
+            TableOrCteReference::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")), // Shouldn't be possible.
         };
 
         let table_type_schema = TypeSchema::new(entry.columns.iter().map(|c| c.datatype.clone()));

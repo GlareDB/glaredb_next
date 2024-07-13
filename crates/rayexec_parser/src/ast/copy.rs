@@ -1,13 +1,13 @@
 use crate::{
-    keywords::{Keyword, RESERVED_FOR_TABLE_ALIAS},
+    keywords::Keyword,
     meta::{AstMeta, Raw},
     parser::Parser,
-    tokens::{Token, TokenWithLocation},
+    tokens::Token,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{AstParseable, Expr, FunctionArg, Ident, ObjectReference, QueryNode};
+use super::{AstParseable, Expr, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CopyToSource<T: AstMeta> {
@@ -24,7 +24,7 @@ pub enum CopyToTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CopyTo<T: AstMeta> {
     pub source: CopyToSource<T>,
-    pub target: CopyToTarget,
+    pub target: T::CopyToDestination,
     // TODO: Options
 }
 

@@ -8,11 +8,13 @@ use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::catalog::Catalog, datasource::DataSource, functions::table::GenericTableFunction,
+    database::catalog::Catalog,
+    datasource::{DataSource, FileHandler},
+    functions::table::GenericTableFunction,
     runtime::ExecutionRuntime,
 };
 use read_csv::ReadCsv;
-use regex::{Regex, RegexBuilder};
+use regex::RegexBuilder;
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,11 +37,16 @@ impl DataSource for CsvDataSource {
         vec![Box::new(ReadCsv)]
     }
 
-    fn file_handlers(&self) -> Vec<(Regex, Box<dyn GenericTableFunction>)> {
-        let file_regex = RegexBuilder::new(r"^.*\.(csv)$")
+    fn file_handlers(&self) -> Vec<FileHandler> {
+        let regex = RegexBuilder::new(r"^.*\.(csv)$")
             .case_insensitive(true)
             .build()
             .expect("regex to build");
-        vec![(file_regex, Box::new(ReadCsv))]
+
+        vec![FileHandler {
+            regex,
+            table_func: Box::new(ReadCsv),
+            copy_to: None,
+        }]
     }
 }

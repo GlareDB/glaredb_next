@@ -1,4 +1,5 @@
 pub mod aggregate;
+pub mod copy;
 pub mod implicit;
 pub mod scalar;
 pub mod table;

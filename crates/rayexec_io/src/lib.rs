@@ -3,12 +3,13 @@ pub mod http;
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream};
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, path::PathBuf};
 use url::Url;
 
 /// Location for a file.
 // TODO: Glob/hive
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileLocation {
     Url(Url),
     Path(PathBuf),

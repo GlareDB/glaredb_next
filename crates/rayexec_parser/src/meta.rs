@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::ast::{CommonTableExpr, DataType, FunctionArg, Ident, ObjectReference};
+use crate::ast::{CommonTableExpr, CopyToTarget, DataType, FunctionArg, Ident, ObjectReference};
 
 /// Metadata associated with sql statements.
 ///
@@ -37,6 +37,8 @@ pub trait AstMeta: Clone {
 
     /// A data type.
     type DataType: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+
+    type CopyToDestination: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 }
 
 /// The raw representation of a statement.
@@ -53,4 +55,5 @@ impl AstMeta for Raw {
     type FunctionReference = ObjectReference;
     type ColumnReference = Ident;
     type DataType = DataType;
+    type CopyToDestination = CopyToTarget;
 }
