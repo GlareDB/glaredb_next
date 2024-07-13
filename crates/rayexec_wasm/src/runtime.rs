@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
@@ -7,6 +7,7 @@ use rayexec_execution::{
 use rayexec_io::{
     filesystem::FileSystemProvider,
     http::{HttpClient, ReqwestClient},
+    FileLocation, FileProvider, FileSink, FileSource,
 };
 use std::{
     collections::BTreeMap,
@@ -16,7 +17,10 @@ use std::{
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{filesystem::WasmMemoryFileSystem, http::WrappedReqwestClient};
+use crate::{
+    filesystem::WasmMemoryFileSystem,
+    http::{WrappedReqwestClient, WrappedReqwestClientReader},
+};
 
 /// Execution runtime for wasm.
 ///
@@ -65,6 +69,12 @@ impl ExecutionRuntime for WasmExecutionRuntime {
         None
     }
 
+    fn file_provider(&self) -> Arc<dyn FileProvider> {
+        Arc::new(WasmFileProvider {
+            fs: self.fs.clone(),
+        })
+    }
+
     fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
         debug!("creating http client");
         Ok(Arc::new(WrappedReqwestClient {
@@ -74,6 +84,29 @@ impl ExecutionRuntime for WasmExecutionRuntime {
 
     fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>> {
         Ok(self.fs.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WasmFileProvider {
+    fs: Arc<WasmMemoryFileSystem>,
+}
+
+impl FileProvider for WasmFileProvider {
+    fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>> {
+        match location {
+            FileLocation::Url(url) => Ok(Box::new(WrappedReqwestClientReader {
+                inner: ReqwestClient::default().reader(url),
+            })),
+            FileLocation::Path(path) => self.fs.reader(&path),
+        }
+    }
+
+    fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>> {
+        match location {
+            FileLocation::Url(_url) => not_implemented!("http sink wasm"),
+            FileLocation::Path(path) => self.fs.sink(&path),
+        }
     }
 }
 

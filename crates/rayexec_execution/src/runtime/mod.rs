@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use dump::QueryDump;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::{filesystem::FileSystemProvider, http::HttpClient};
+use rayexec_io::{filesystem::FileSystemProvider, http::HttpClient, FileProvider};
 
 use crate::execution::query_graph::QueryGraph;
 
@@ -50,6 +50,8 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     /// Data sources should error if they require tokio and if this returns
     /// None.
     fn tokio_handle(&self) -> Option<tokio::runtime::Handle>;
+
+    fn file_provider(&self) -> Arc<dyn FileProvider>;
 
     /// Get a new http client.
     ///

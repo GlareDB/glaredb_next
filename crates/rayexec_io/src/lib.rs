@@ -4,14 +4,44 @@ pub mod http;
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream};
 use rayexec_error::Result;
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
+use url::Url;
 
-pub trait FileProvider<P>: Sync + Send + Debug {
+/// Location for a file.
+// TODO: Glob/hive
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileLocation {
+    Url(Url),
+    Path(PathBuf),
+}
+
+impl FileLocation {
+    /// Parse a file location from a string.
+    ///
+    /// Current implementation assumes that if the string fails to parse as a
+    /// url, it must be a path. However further checks will need to be done when
+    /// we support globs and hive partitioning here.
+    pub fn parse(s: &str) -> Self {
+        match Url::parse(s) {
+            Ok(url) => FileLocation::Url(url),
+            Err(_) => FileLocation::Path(PathBuf::from(s)),
+        }
+    }
+}
+
+/// Provide file sources and sinks.
+///
+/// Different source/sink implementations can be returned depending on the file
+/// location variant (url or path). If this file provider cannot handle a specific
+/// variant, this should just return an error.
+// TODO: List/delete. With globs and hive, we could do something fancy where we
+// have an async stream of sources, but idk if that's good idea yet.
+pub trait FileProvider: Sync + Send + Debug {
     /// Gets a file source at some location.
-    fn file_source(&self, location: P) -> Result<Box<dyn FileSource>>;
+    fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>>;
 
     /// Gets a file sink at some location
-    fn file_sink(&self, location: P) -> Result<Box<dyn FileSink>>;
+    fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>>;
 }
 
 /// Asynchronous reads of some file source.
@@ -34,6 +64,8 @@ pub trait FileSource: Sync + Send + Debug {
     fn size(&mut self) -> BoxFuture<Result<usize>>;
 }
 
+// TODO: Possibly remove this and just use boxed trait where needed. Will likely
+// need to be done if want to change `read_stream` to `into_read_stream`.
 impl FileSource for Box<dyn FileSource + '_> {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         self.as_mut().read_range(start, len)
