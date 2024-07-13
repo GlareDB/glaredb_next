@@ -5,30 +5,13 @@ use futures::{
     Stream,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::{
-    http::{HttpClient, ReqwestClient, ReqwestClientReader},
-    FileSource,
-};
+use rayexec_io::{http::ReqwestClientReader, FileSource};
 use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 use tracing::debug;
-use url::Url;
-
-#[derive(Debug)]
-pub struct WrappedReqwestClient {
-    pub inner: ReqwestClient,
-}
-
-impl HttpClient for WrappedReqwestClient {
-    fn reader(&self, url: Url) -> Box<dyn FileSource> {
-        Box::new(WrappedReqwestClientReader {
-            inner: self.inner.reader(url),
-        })
-    }
-}
 
 #[derive(Debug)]
 pub struct WrappedReqwestClientReader {

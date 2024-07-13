@@ -4,11 +4,7 @@ use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{
-    filesystem::FileSystemProvider,
-    http::{HttpClient, ReqwestClient},
-    FileLocation, FileProvider, FileSink, FileSource,
-};
+use rayexec_io::{http::ReqwestClient, FileLocation, FileProvider, FileSink, FileSource};
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -17,10 +13,7 @@ use std::{
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{
-    filesystem::WasmMemoryFileSystem,
-    http::{WrappedReqwestClient, WrappedReqwestClientReader},
-};
+use crate::{filesystem::WasmMemoryFileSystem, http::WrappedReqwestClientReader};
 
 /// Execution runtime for wasm.
 ///
@@ -74,17 +67,6 @@ impl ExecutionRuntime for WasmExecutionRuntime {
             fs: self.fs.clone(),
         })
     }
-
-    fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
-        debug!("creating http client");
-        Ok(Arc::new(WrappedReqwestClient {
-            inner: ReqwestClient::default(),
-        }))
-    }
-
-    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>> {
-        Ok(self.fs.clone())
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -98,14 +80,14 @@ impl FileProvider for WasmFileProvider {
             FileLocation::Url(url) => Ok(Box::new(WrappedReqwestClientReader {
                 inner: ReqwestClient::default().reader(url),
             })),
-            FileLocation::Path(path) => self.fs.reader(&path),
+            FileLocation::Path(path) => self.fs.file_source(&path),
         }
     }
 
     fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>> {
         match location {
             FileLocation::Url(_url) => not_implemented!("http sink wasm"),
-            FileLocation::Path(path) => self.fs.sink(&path),
+            FileLocation::Path(path) => self.fs.file_sink(&path),
         }
     }
 }

@@ -7,27 +7,8 @@ use futures::{
     Stream,
 };
 use rayexec_error::{Result, ResultExt};
-use rayexec_io::{
-    http::{HttpClient, ReqwestClient, ReqwestClientReader},
-    FileSource,
-};
+use rayexec_io::{http::ReqwestClientReader, FileSource};
 use tracing::debug;
-use url::Url;
-
-#[derive(Debug)]
-pub struct WrappedReqwestClient {
-    pub inner: ReqwestClient,
-    pub handle: tokio::runtime::Handle,
-}
-
-impl HttpClient for WrappedReqwestClient {
-    fn reader(&self, url: Url) -> Box<dyn FileSource> {
-        Box::new(WrappedReqwestClientReader {
-            inner: self.inner.reader(url),
-            handle: self.handle.clone(),
-        }) as _
-    }
-}
 
 #[derive(Debug)]
 pub struct WrappedReqwestClientReader {

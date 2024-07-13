@@ -6,7 +6,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::{filesystem::FileSystemProvider, FileSink, FileSource};
+use rayexec_io::{FileSink, FileSource};
 use std::{
     collections::HashMap,
     path::{Component, Path},
@@ -41,8 +41,8 @@ impl WasmMemoryFileSystem {
     }
 }
 
-impl FileSystemProvider for WasmMemoryFileSystem {
-    fn reader(&self, path: &Path) -> Result<Box<dyn FileSource>> {
+impl WasmMemoryFileSystem {
+    pub fn file_source(&self, path: &Path) -> Result<Box<dyn FileSource>> {
         let name = get_normalized_file_name(path)?;
         let content = self
             .files
@@ -54,7 +54,7 @@ impl FileSystemProvider for WasmMemoryFileSystem {
         Ok(Box::new(WasmMemoryFile { content }))
     }
 
-    fn sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
+    pub fn file_sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
         let name = get_normalized_file_name(path)?;
         Ok(Box::new(WasmMemoryFileSink {
             name: name.to_string(),

@@ -8,7 +8,6 @@ use futures::future::{self, BoxFuture, FutureExt};
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::filesystem::FileSystemProvider;
 use rayexec_io::{FileSink, FileSource};
 use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 
@@ -16,8 +15,8 @@ use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 #[derive(Debug, Clone, Copy)]
 pub struct LocalFileSystemProvider;
 
-impl FileSystemProvider for LocalFileSystemProvider {
-    fn reader(&self, path: &Path) -> Result<Box<dyn FileSource>> {
+impl LocalFileSystemProvider {
+    pub fn file_source(&self, path: &Path) -> Result<Box<dyn FileSource>> {
         let file = OpenOptions::new().read(true).open(path).map_err(|e| {
             RayexecError::with_source(
                 format!(
@@ -33,7 +32,7 @@ impl FileSystemProvider for LocalFileSystemProvider {
         Ok(Box::new(LocalFile { len, file }))
     }
 
-    fn sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
+    pub fn file_sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
         let file = OpenOptions::new()
             .write(true)
             .create(true)

@@ -6,15 +6,10 @@ use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{
-    filesystem::FileSystemProvider,
-    http::{HttpClient, ReqwestClient},
-    FileLocation, FileProvider, FileSink, FileSource,
-};
+use rayexec_io::{http::ReqwestClient, FileLocation, FileProvider, FileSink, FileSource};
 
 use crate::{
-    filesystem::LocalFileSystemProvider,
-    http::{WrappedReqwestClient, WrappedReqwestClientReader},
+    filesystem::LocalFileSystemProvider, http::WrappedReqwestClientReader,
     threaded::ThreadedScheduler,
 };
 
@@ -97,22 +92,6 @@ impl<S: Scheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
             handle: self.tokio_handle(),
         })
     }
-
-    fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
-        match &self.tokio {
-            Some(tokio) => Ok(Arc::new(WrappedReqwestClient {
-                inner: ReqwestClient::default(),
-                handle: tokio.handle().clone(),
-            })),
-            None => Err(RayexecError::new(
-                "Cannot create http client, missing tokio runtime",
-            )),
-        }
-    }
-
-    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>> {
-        Ok(Arc::new(LocalFileSystemProvider))
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -134,14 +113,14 @@ impl FileProvider for NativeFileProvider {
             (FileLocation::Url(_), None) => Err(RayexecError::new(
                 "Cannot create http client, missing tokio runtime",
             )),
-            (FileLocation::Path(path), _) => LocalFileSystemProvider.reader(&path),
+            (FileLocation::Path(path), _) => LocalFileSystemProvider.file_source(&path),
         }
     }
 
     fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>> {
         match (location, self.handle.as_ref()) {
             (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
-            (FileLocation::Path(path), _) => LocalFileSystemProvider.sink(&path),
+            (FileLocation::Path(path), _) => LocalFileSystemProvider.file_sink(&path),
         }
     }
 }
