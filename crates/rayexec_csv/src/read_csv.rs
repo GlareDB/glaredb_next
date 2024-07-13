@@ -1,6 +1,6 @@
 use futures::{future::BoxFuture, StreamExt};
 use rayexec_bullet::field::Schema;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{
@@ -9,12 +9,11 @@ use rayexec_execution::{
     },
     runtime::ExecutionRuntime,
 };
-use rayexec_io::{filesystem::FileSystemProvider, FileSource};
-use std::{path::PathBuf, sync::Arc};
-use url::Url;
+use rayexec_io::{FileLocation, FileSource};
+use std::sync::Arc;
 
 use crate::{
-    datatable::{ReaderBuilder, SingleFileCsvDataTable},
+    datatable::SingleFileCsvDataTable,
     decoder::{CsvDecoder, DecoderState},
     reader::{CsvSchema, DialectOptions},
 };
@@ -39,26 +38,19 @@ impl GenericTableFunction for ReadCsv {
 
         // TODO: Glob, dispatch to object storage/http impls
 
-        let path = args.positional.pop().unwrap().try_into_string()?;
+        let location = args.positional.pop().unwrap().try_into_string()?;
+        let location = FileLocation::parse(&location);
 
-        match Url::parse(&path) {
-            Ok(_) => not_implemented!("remote csv"),
-            Err(_) => {
-                // Assume file.
-                Ok(Box::new(ReadCsvLocal {
-                    path: PathBuf::from(path),
-                }))
-            }
-        }
+        Ok(Box::new(ReadCsvImpl { location }))
     }
 }
 
 #[derive(Debug, Clone)]
-struct ReadCsvLocal {
-    path: PathBuf,
+struct ReadCsvImpl {
+    location: FileLocation,
 }
 
-impl SpecializedTableFunction for ReadCsvLocal {
+impl SpecializedTableFunction for ReadCsvImpl {
     fn name(&self) -> &'static str {
         "read_csv_local"
     }
@@ -71,15 +63,14 @@ impl SpecializedTableFunction for ReadCsvLocal {
     }
 }
 
-impl ReadCsvLocal {
+impl ReadCsvImpl {
     async fn initialize_inner(
         self,
         runtime: &dyn ExecutionRuntime,
     ) -> Result<Box<dyn InitializedTableFunction>> {
-        let fs = runtime.filesystem()?;
-        let mut file = fs.reader(&self.path)?;
+        let mut source = runtime.file_provider().file_source(self.location.clone())?;
 
-        let mut stream = file.read_stream();
+        let mut stream = source.read_stream();
         // TODO: Actually make sure this is a sufficient size to infer from.
         // TODO: This throws away the buffer after inferring.
         let infer_buf = match stream.next().await {
@@ -110,22 +101,9 @@ impl ReadCsvLocal {
     }
 }
 
-#[derive(Debug)]
-struct FilesystemReaderBuilder {
-    filesystem: Arc<dyn FileSystemProvider>,
-    path: PathBuf,
-}
-
-impl ReaderBuilder for FilesystemReaderBuilder {
-    fn new_reader(&self) -> Result<Box<dyn FileSource>> {
-        let file = self.filesystem.reader(&self.path)?;
-        Ok(Box::new(file))
-    }
-}
-
 #[derive(Debug, Clone)]
 struct InitializedLocalCsvFunction {
-    specialized: ReadCsvLocal,
+    specialized: ReadCsvImpl,
     options: DialectOptions,
     csv_schema: CsvSchema,
 }
@@ -145,10 +123,8 @@ impl InitializedTableFunction for InitializedLocalCsvFunction {
         Ok(Box::new(SingleFileCsvDataTable {
             options: self.options,
             csv_schema: self.csv_schema.clone(),
-            reader_builder: Box::new(FilesystemReaderBuilder {
-                filesystem: runtime.filesystem()?,
-                path: self.specialized.path.clone(),
-            }),
+            location: self.specialized.location.clone(),
+            runtime: runtime.clone(),
         }))
     }
 }
