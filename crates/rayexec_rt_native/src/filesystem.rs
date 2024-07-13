@@ -8,8 +8,8 @@ use futures::future::{self, BoxFuture, FutureExt};
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::{filesystem::FileSystemProvider, AsyncReader};
-use rayexec_io::{AsyncWriter, FileSink, FileSource};
+use rayexec_io::filesystem::FileSystemProvider;
+use rayexec_io::{FileSink, FileSource};
 use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 
 /// Standard file system access, nothing special.
@@ -60,17 +60,11 @@ pub struct LocalFile {
     file: File,
 }
 
-impl FileSource for LocalFile {
-    fn size(&mut self) -> BoxFuture<Result<usize>> {
-        async move { Ok(self.len) }.boxed()
-    }
-}
-
 /// Implementation of async reading on top of a file.
 ///
 /// Note that we're not using tokio's async read+sync traits as the
 /// implementation for files will attempt to spawn the read on a block thread.
-impl AsyncReader for LocalFile {
+impl FileSource for LocalFile {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let mut buf = vec![0; len];
         let result = read_at(&mut self.file, start, &mut buf);
@@ -92,6 +86,10 @@ impl AsyncReader for LocalFile {
         }
         .boxed()
     }
+
+    fn size(&mut self) -> BoxFuture<Result<usize>> {
+        async move { Ok(self.len) }.boxed()
+    }
 }
 
 #[derive(Debug)]
@@ -99,19 +97,17 @@ pub struct LocalFileSink {
     file: BufWriter<File>,
 }
 
-impl AsyncWriter for LocalFileSink {
+impl FileSink for LocalFileSink {
     fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>> {
         let result = self.file.write_all(buf).context("failed to write buffer");
         async move { result }.boxed()
     }
 
-    fn flush(&mut self) -> BoxFuture<Result<()>> {
+    fn finish(&mut self) -> BoxFuture<Result<()>> {
         let result = self.file.flush().context("failed to flush");
         async move { result }.boxed()
     }
 }
-
-impl FileSink for LocalFileSink {}
 
 struct FileStream {
     file: File,

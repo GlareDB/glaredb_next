@@ -43,7 +43,7 @@ impl ReadParquetHttp {
         let size = reader.size().await?;
         trace!(%size, "got content length of file");
 
-        let metadata = Metadata::load_from(&mut reader, size).await?;
+        let metadata = Metadata::load_from(reader.as_mut(), size).await?;
         let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(ReadParquetHttpRowGroupPartitioned {
@@ -64,7 +64,7 @@ struct HttpReaderBuilder {
     url: Url,
 }
 
-impl ReaderBuilder<Box<dyn FileSource>> for HttpReaderBuilder {
+impl ReaderBuilder for HttpReaderBuilder {
     fn new_reader(&self) -> Result<Box<dyn FileSource>> {
         Ok(self.client.reader(self.url.clone()))
     }

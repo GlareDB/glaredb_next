@@ -6,7 +6,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::{filesystem::FileSystemProvider, AsyncReader, AsyncWriter, FileSink, FileSource};
+use rayexec_io::{filesystem::FileSystemProvider, FileSink, FileSource};
 use std::{
     collections::HashMap,
     path::{Component, Path},
@@ -69,7 +69,7 @@ pub struct WasmMemoryFile {
     content: Bytes,
 }
 
-impl AsyncReader for WasmMemoryFile {
+impl FileSource for WasmMemoryFile {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let result = if start + len > self.content.len() {
             Err(RayexecError::new("Byte range out of bounds"))
@@ -87,9 +87,7 @@ impl AsyncReader for WasmMemoryFile {
         }
         .boxed()
     }
-}
 
-impl FileSource for WasmMemoryFile {
     fn size(&mut self) -> BoxFuture<Result<usize>> {
         let size = self.content.len();
         async move { Ok(size) }.boxed()
@@ -103,22 +101,18 @@ pub struct WasmMemoryFileSink {
     files: Arc<Mutex<HashMap<String, Bytes>>>,
 }
 
-impl AsyncWriter for WasmMemoryFileSink {
+impl FileSink for WasmMemoryFileSink {
     fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>> {
         self.buf.extend_from_slice(buf);
         async { Ok(()) }.boxed()
     }
 
-    fn flush(&mut self) -> BoxFuture<Result<()>> {
-        // TODO: What are the semantics here? Do we want to allow multiple
-        // write+flush iterations? Currently this would truncate every time.
+    fn finish(&mut self) -> BoxFuture<Result<()>> {
         let bytes = Bytes::from(std::mem::take(&mut self.buf));
         self.files.lock().insert(self.name.clone(), bytes);
         async { Ok(()) }.boxed()
     }
 }
-
-impl FileSink for WasmMemoryFileSink {}
 
 #[derive(Debug)]
 struct WasmMemoryFileStream {

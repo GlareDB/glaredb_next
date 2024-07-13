@@ -6,7 +6,7 @@ use futures::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::{
     http::{HttpClient, ReqwestClient, ReqwestClientReader},
-    {AsyncReader, FileSource},
+    FileSource,
 };
 use tracing::debug;
 use url::Url;
@@ -42,7 +42,7 @@ impl WrappedReqwestClientReader {
     }
 }
 
-impl AsyncReader for WrappedReqwestClientReader {
+impl FileSource for WrappedReqwestClientReader {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         self.read_range_inner(start, len).boxed()
     }
@@ -69,9 +69,7 @@ impl AsyncReader for WrappedReqwestClientReader {
 
         fut.try_flatten_stream().boxed()
     }
-}
 
-impl FileSource for WrappedReqwestClientReader {
     fn size(&mut self) -> BoxFuture<Result<usize>> {
         self.inner.content_length().boxed()
     }

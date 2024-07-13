@@ -1,7 +1,6 @@
 use std::{
     collections::VecDeque,
     fmt::{self, Debug},
-    marker::PhantomData,
     sync::Arc,
     task::{Context, Poll},
 };
@@ -14,44 +13,39 @@ use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
 };
-use rayexec_io::AsyncReader;
+use rayexec_io::FileSource;
 
 /// Helper trait for generating a reader per partition.
-pub trait ReaderBuilder<R: AsyncReader>: Sync + Send + Debug {
+pub trait ReaderBuilder: Sync + Send + Debug {
     /// Creates a new reader for reading a parquet file.
-    fn new_reader(&self) -> Result<R>;
+    fn new_reader(&self) -> Result<Box<dyn FileSource>>;
 }
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
 #[derive(Debug)]
-pub struct RowGroupPartitionedDataTable<B, R> {
+pub struct RowGroupPartitionedDataTable<B> {
     reader_builder: B,
     metadata: Arc<Metadata>,
     schema: Schema,
-
-    _reader: PhantomData<R>,
 }
 
-impl<B, R> RowGroupPartitionedDataTable<B, R>
+impl<B> RowGroupPartitionedDataTable<B>
 where
-    B: ReaderBuilder<R>,
-    R: AsyncReader + 'static,
+    B: ReaderBuilder,
 {
     pub fn new(reader_builder: B, metadata: Arc<Metadata>, schema: Schema) -> Self {
         RowGroupPartitionedDataTable {
             reader_builder,
             metadata,
             schema,
-            _reader: PhantomData,
         }
     }
 }
 
-impl<B, R> DataTable for RowGroupPartitionedDataTable<B, R>
+impl<B> DataTable for RowGroupPartitionedDataTable<B>
 where
-    B: ReaderBuilder<R>,
-    R: AsyncReader + 'static,
+    B: ReaderBuilder,
 {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
         let mut partitioned_row_groups = vec![VecDeque::new(); num_partitions];

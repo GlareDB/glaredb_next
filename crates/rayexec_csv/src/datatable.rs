@@ -12,7 +12,7 @@ use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
 };
-use rayexec_io::AsyncReader;
+use rayexec_io::FileSource;
 
 use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};
 
@@ -28,7 +28,7 @@ use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};
 // mutability limitations right now, and might be solved by just having the
 // `DataTable` interface table mutable references to allow for reader reuse.
 pub trait ReaderBuilder: Sync + Send + Debug {
-    fn new_reader(&self) -> Result<Box<dyn AsyncReader>>;
+    fn new_reader(&self) -> Result<Box<dyn FileSource>>;
 }
 
 /// Data table implementation that reads from a single file.

@@ -41,7 +41,7 @@ impl ReadParquetLocal {
         let mut file = fs.reader(&self.path)?;
         let size = file.size().await?;
 
-        let metadata = Metadata::load_from(&mut file, size).await?;
+        let metadata = Metadata::load_from(file.as_mut(), size).await?;
         let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(ReadParquetLocalRowGroupPartitioned {
@@ -62,7 +62,7 @@ struct FileReaderBuilder {
     path: PathBuf,
 }
 
-impl ReaderBuilder<Box<dyn FileSource>> for FileReaderBuilder {
+impl ReaderBuilder for FileReaderBuilder {
     fn new_reader(&self) -> Result<Box<dyn FileSource>> {
         self.fs.reader(&self.path)
     }

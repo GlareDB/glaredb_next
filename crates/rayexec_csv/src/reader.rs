@@ -35,7 +35,7 @@ use rayexec_bullet::{
     field::{Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::AsyncReader;
+use rayexec_io::{FileSink, FileSource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DialectOptions {
@@ -316,13 +316,13 @@ impl CsvSchema {
 }
 
 #[derive(Debug)]
-pub struct AsyncCsvReader<R: AsyncReader> {
+pub struct AsyncCsvReader<R: FileSource> {
     reader: R,
     csv_schema: CsvSchema,
     dialect: DialectOptions,
 }
 
-impl<R: AsyncReader> AsyncCsvReader<R> {
+impl<R: FileSource> AsyncCsvReader<R> {
     pub fn new(reader: R, csv_schema: CsvSchema, dialect: DialectOptions) -> Self {
         AsyncCsvReader {
             reader,

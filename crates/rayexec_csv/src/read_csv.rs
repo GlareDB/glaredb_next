@@ -9,7 +9,7 @@ use rayexec_execution::{
     },
     runtime::ExecutionRuntime,
 };
-use rayexec_io::{filesystem::FileSystemProvider, AsyncReader};
+use rayexec_io::{filesystem::FileSystemProvider, FileSource};
 use std::{path::PathBuf, sync::Arc};
 use url::Url;
 
@@ -117,7 +117,7 @@ struct FilesystemReaderBuilder {
 }
 
 impl ReaderBuilder for FilesystemReaderBuilder {
-    fn new_reader(&self) -> Result<Box<dyn AsyncReader>> {
+    fn new_reader(&self) -> Result<Box<dyn FileSource>> {
         let file = self.filesystem.reader(&self.path)?;
         Ok(Box::new(file))
     }
