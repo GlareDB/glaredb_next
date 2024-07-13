@@ -63,8 +63,7 @@ impl WrappedReqwestClientReader {
 
         let stream = response
             .bytes_stream()
-            .map(|result| result.context("failed to stream response"))
-            .boxed();
+            .map(|result| result.context("failed to stream response"));
 
         Ok(stream)
     }
