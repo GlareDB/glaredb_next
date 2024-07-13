@@ -6,7 +6,7 @@ use futures::{
     stream::{BoxStream, StreamExt},
     Stream,
 };
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{Result, ResultExt};
 use rayexec_io::{
     http::{HttpClient, ReqwestClient, ReqwestClientReader},
     FileSource,

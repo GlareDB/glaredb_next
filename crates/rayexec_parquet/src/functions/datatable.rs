@@ -12,42 +12,24 @@ use rayexec_error::Result;
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
+    runtime::ExecutionRuntime,
 };
-use rayexec_io::FileSource;
-
-/// Helper trait for generating a reader per partition.
-pub trait ReaderBuilder: Sync + Send + Debug {
-    /// Creates a new reader for reading a parquet file.
-    fn new_reader(&self) -> Result<Box<dyn FileSource>>;
-}
+use rayexec_io::FileLocation;
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
 #[derive(Debug)]
-pub struct RowGroupPartitionedDataTable<B> {
-    reader_builder: B,
-    metadata: Arc<Metadata>,
-    schema: Schema,
+pub struct RowGroupPartitionedDataTable {
+    pub metadata: Arc<Metadata>,
+    pub schema: Schema,
+    pub location: FileLocation,
+    pub runtime: Arc<dyn ExecutionRuntime>,
 }
 
-impl<B> RowGroupPartitionedDataTable<B>
-where
-    B: ReaderBuilder,
-{
-    pub fn new(reader_builder: B, metadata: Arc<Metadata>, schema: Schema) -> Self {
-        RowGroupPartitionedDataTable {
-            reader_builder,
-            metadata,
-            schema,
-        }
-    }
-}
-
-impl<B> DataTable for RowGroupPartitionedDataTable<B>
-where
-    B: ReaderBuilder,
-{
+impl DataTable for RowGroupPartitionedDataTable {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+        let file_provider = self.runtime.file_provider();
+
         let mut partitioned_row_groups = vec![VecDeque::new(); num_partitions];
 
         // Split row groups into individual partitions.
@@ -59,7 +41,7 @@ where
         let readers = partitioned_row_groups
             .into_iter()
             .map(|row_groups| {
-                let reader = self.reader_builder.new_reader()?;
+                let reader = file_provider.file_source(self.location.clone())?;
                 const BATCH_SIZE: usize = 2048; // TODO
                 AsyncBatchReader::try_new(
                     reader,

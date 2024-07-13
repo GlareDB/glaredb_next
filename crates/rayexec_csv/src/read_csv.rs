@@ -52,7 +52,7 @@ struct ReadCsvImpl {
 
 impl SpecializedTableFunction for ReadCsvImpl {
     fn name(&self) -> &'static str {
-        "read_csv_local"
+        "read_csv_impl"
     }
 
     fn initialize(
