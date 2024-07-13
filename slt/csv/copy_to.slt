@@ -1,0 +1,5 @@
+# Basic COPY TO statements
+
+statement ok
+COPY (select 1 as a, 2 as b) TO 'myfile.csv'
+

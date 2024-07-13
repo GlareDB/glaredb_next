@@ -350,6 +350,9 @@ impl<'a> Binder<'a> {
                     output: explain.output,
                 })
             }
+            Statement::CopyTo(copy_to) => {
+                Statement::CopyTo(self.bind_copy_to(copy_to, &mut bind_data).await?)
+            }
             Statement::Describe(describe) => match describe {
                 ast::Describe::Query(query) => Statement::Describe(ast::Describe::Query(
                     self.bind_query(query, &mut bind_data).await?,
@@ -425,6 +428,25 @@ impl<'a> Binder<'a> {
             attach_type: detach.attach_type,
             alias: Self::reference_to_strings(detach.alias).into(),
         })
+    }
+
+    async fn bind_copy_to(
+        &self,
+        copy_to: ast::CopyTo<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::CopyTo<Bound>> {
+        let source = match copy_to.source {
+            ast::CopyToSource::Query(query) => {
+                ast::CopyToSource::Query(self.bind_query(query, bind_data).await?)
+            }
+            ast::CopyToSource::Table(table) => {
+                let table = self.resolve_table_or_cte(table, bind_data).await?;
+                let idx = bind_data.push_table(table);
+                ast::CopyToSource::Table(idx)
+            }
+        };
+
+        unimplemented!()
     }
 
     async fn bind_drop(&self, drop: ast::DropStatement<Raw>) -> Result<ast::DropStatement<Bound>> {

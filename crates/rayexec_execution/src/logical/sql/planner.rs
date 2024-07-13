@@ -98,6 +98,7 @@ impl<'a> PlanContext<'a> {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
                 planner.plan_query(&mut context, query)?
             }
+            Statement::CopyTo(copy_to) => self.plan_copy_to(&mut context, copy_to)?,
             Statement::CreateTable(create) => self.plan_create_table(&mut context, create)?,
             Statement::CreateSchema(create) => self.plan_create_schema(create)?,
             Statement::Drop(drop) => self.plan_drop(drop)?,
@@ -240,6 +241,14 @@ impl<'a> PlanContext<'a> {
             }
             ast::AttachType::Table => Err(RayexecError::new("Detach tables not yet supported")),
         }
+    }
+
+    fn plan_copy_to(
+        &mut self,
+        context: &mut QueryContext,
+        copy_to: ast::CopyTo<Bound>,
+    ) -> Result<LogicalQuery> {
+        unimplemented!()
     }
 
     fn plan_insert(
