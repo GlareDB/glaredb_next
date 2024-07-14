@@ -226,6 +226,7 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
 
     fn finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
@@ -612,7 +613,7 @@ mod tests {
 
         // Partition input is finished.
         operator
-            .finalize_push(&mut push_states[0], &operator_state)
+            .finalize_push(&mut push_cx.context(), &mut push_states[0], &operator_state)
             .unwrap();
 
         // Now we can pull the sorted result.
@@ -732,10 +733,18 @@ mod tests {
 
         // Partition inputs is finished.
         operator
-            .finalize_push(&mut push_states[0], &operator_state)
+            .finalize_push(
+                &mut p0_push_cx.context(),
+                &mut push_states[0],
+                &operator_state,
+            )
             .unwrap();
         operator
-            .finalize_push(&mut push_states[1], &operator_state)
+            .finalize_push(
+                &mut p1_push_cx.context(),
+                &mut push_states[1],
+                &operator_state,
+            )
             .unwrap();
 
         // Now we can pull the sorted result.

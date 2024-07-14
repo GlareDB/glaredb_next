@@ -43,7 +43,7 @@ impl DataTableScan for EmptyTableScan {
 
 pub trait DataTableInsert: Debug + Sync + Send {
     fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
-    fn finalize(&mut self) -> Result<()>;
+    fn finalize(&mut self, cx: &mut Context) -> Result<()>;
 }
 
 pub trait DataTableUpdate: Debug + Sync + Send {}

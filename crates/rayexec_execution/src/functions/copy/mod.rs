@@ -4,7 +4,7 @@ use rayexec_error::Result;
 use rayexec_io::FileLocation;
 use std::{fmt::Debug, task::Context};
 
-use crate::execution::operators::PollPush;
+use crate::execution::operators::{PollFinalize, PollPush};
 
 pub trait CopyToFunction: Debug + Sync + Send + DynClone {
     /// Name of the copy to function.
@@ -39,5 +39,5 @@ pub trait CopyToDestination: Debug + Sync + Send {
 
 pub trait CopyToSink: Debug + Sync + Send {
     fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
-    fn finalize(&mut self) -> Result<()>;
+    fn finalize(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }

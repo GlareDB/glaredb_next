@@ -301,7 +301,7 @@ impl DataTableInsert for MemoryDataTableInsert {
         Ok(PollPush::NeedsMore)
     }
 
-    fn finalize(&mut self) -> Result<()> {
+    fn finalize(&mut self, _cx: &mut Context) -> Result<()> {
         let mut data = self.data.lock();
         data.append(&mut self.collected);
         Ok(())

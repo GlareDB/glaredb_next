@@ -1,5 +1,6 @@
 //! Implementations of physical operators in an execution pipeline.
 
+pub mod copy_to;
 pub mod create_schema;
 pub mod create_table;
 pub mod drop;
@@ -178,6 +179,7 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     /// partition, allowing the operator to execution some finalization logic.
     fn finalize_push(
         &self,
+        cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize>;

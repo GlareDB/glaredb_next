@@ -251,6 +251,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
 
     fn finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {

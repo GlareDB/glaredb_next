@@ -46,5 +46,5 @@ pub trait PartitionSink: Sync + Send + Debug {
     fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
 
     /// Finalize the push.
-    fn finalize_push(&mut self) -> Result<PollFinalize>;
+    fn finalize_push(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }

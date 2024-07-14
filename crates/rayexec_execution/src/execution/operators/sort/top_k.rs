@@ -38,6 +38,7 @@ impl PhysicalOperator for PhysicalTopK {
 
     fn finalize_push(
         &self,
+        _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {

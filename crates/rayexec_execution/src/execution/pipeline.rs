@@ -346,6 +346,7 @@ impl PartitionPipeline {
                         .get_mut(*operator_idx)
                         .expect("next operator to exist");
                     match next_operator.physical.finalize_push(
+                        cx,
                         &mut next_operator.partition_state,
                         &next_operator.operator_state,
                     ) {

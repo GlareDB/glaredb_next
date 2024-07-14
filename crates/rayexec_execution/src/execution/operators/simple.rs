@@ -101,6 +101,7 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
 
     fn finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
