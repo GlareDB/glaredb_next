@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::Context;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct TableFunctionPartitionState {
@@ -61,7 +61,7 @@ impl PhysicalOperator for PhysicalTableFunction {
         &self,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         Err(RayexecError::new("Cannot push to physical table function"))
     }
 

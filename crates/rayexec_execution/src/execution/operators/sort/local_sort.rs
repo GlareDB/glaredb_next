@@ -1,3 +1,4 @@
+use crate::execution::operators::PollFinalize;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
@@ -104,7 +105,7 @@ impl PhysicalOperator for PhysicalLocalSort {
         &self,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::LocalSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -142,7 +143,7 @@ impl PhysicalOperator for PhysicalLocalSort {
                 // Update partition state to "producing" using the merger.
                 *state = LocalSortPartitionState::Producing { merger };
 
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             LocalSortPartitionState::Producing { .. } => {
                 panic!("attempted to finalize partition that's already producing data")

@@ -117,19 +117,19 @@ pub trait FunctionInfo {
     }
 }
 
-pub trait SerializableFunction {
-    /// Name of the function inside the catalog.
-    ///
-    /// This is used to "tag" the function during serialization so we know which
-    /// function to try to deserialize to.
-    // TODO: This may need to change to be more specific if we allow adding
-    // functions outside the 'glare_catalog' schema.
-    fn catalog_name(&self) -> &'static str;
+// pub trait SerializableFunction {
+//     /// Name of the function inside the catalog.
+//     ///
+//     /// This is used to "tag" the function during serialization so we know which
+//     /// function to try to deserialize to.
+//     // TODO: This may need to change to be more specific if we allow adding
+//     // functions outside the 'glare_catalog' schema.
+//     fn catalog_name(&self) -> &'static str;
 
-    fn serialize_data<S>(&self, serializer: S) -> Result<(), S::Error>
-    where
-        S: Serializer;
-}
+//     fn serialize_data<S>(&self, serializer: S) -> Result<(), S::Error>
+//     where
+//         S: Serializer;
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CastType {

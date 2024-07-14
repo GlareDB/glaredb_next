@@ -7,7 +7,7 @@ use std::{sync::Arc, task::Waker};
 
 use crate::execution::operators::util::hash::hash_arrays;
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+    OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::operator::JoinType;
@@ -295,7 +295,7 @@ impl PhysicalOperator for PhysicalHashJoin {
         &self,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
                 let operator_state = match operator_state {
@@ -329,14 +329,14 @@ impl PhysicalOperator for PhysicalHashJoin {
                     }
                 }
 
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             PartitionState::HashJoinProbe(state) => {
                 state.input_finished = true;
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             other => panic!("invalid partition state: {other:?}"),
         }

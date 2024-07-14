@@ -7,7 +7,7 @@ use std::{
     task::{Context, Waker},
 };
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct MaterializePushPartitionState {}
@@ -131,7 +131,7 @@ impl PhysicalOperator for PhysicalMaterialize {
         &self,
         _partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let operator_state = match operator_state {
             OperatorState::Materialize(state) => state,
             other => panic!("invalid operator state: {other:?}"),
@@ -148,7 +148,7 @@ impl PhysicalOperator for PhysicalMaterialize {
             }
         }
 
-        Ok(())
+        Ok(PollFinalize::Finalized)
     }
 
     fn poll_pull(

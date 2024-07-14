@@ -6,7 +6,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::task::{Context, Waker};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct InsertPartitionState {
@@ -91,7 +91,7 @@ impl PhysicalOperator for PhysicalInsert {
         &self,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::Insert(state) => {
                 state.insert.finalize()?;
@@ -101,7 +101,7 @@ impl PhysicalOperator for PhysicalInsert {
                     waker.wake();
                 }
 
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             other => panic!("invalid partition state: {other:?}"),
         }

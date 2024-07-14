@@ -1,3 +1,4 @@
+use crate::execution::operators::PollFinalize;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
@@ -227,7 +228,7 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
         &self,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::MergeSortedPush(state) => state,
             PartitionState::MergeSortedPull(_) => {
@@ -250,7 +251,7 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
             }
         }
 
-        Ok(())
+        Ok(PollFinalize::Finalized)
     }
 
     fn poll_pull(

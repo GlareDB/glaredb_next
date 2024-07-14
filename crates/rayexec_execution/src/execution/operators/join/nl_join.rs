@@ -9,7 +9,7 @@ use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+    OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 use crate::expr::PhysicalScalarExpression;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -253,7 +253,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
         &self,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::NestedLoopJoinBuild(state) => {
                 let operator_state = match operator_state {
@@ -281,7 +281,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
                         }
 
                         // And we're done.
-                        Ok(())
+                        Ok(PollFinalize::Finalized)
                     }
                     other => panic!("inner join state is not building: {other:?}"),
                 }
@@ -291,7 +291,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             other => panic!("invalid partition state: {other:?}"),
         }

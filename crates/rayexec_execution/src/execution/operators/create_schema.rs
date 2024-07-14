@@ -8,7 +8,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::task::{Context, Poll};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 pub struct CreateSchemaPartitionState {
     create: BoxFuture<'static, Result<()>>,
@@ -63,7 +63,7 @@ impl PhysicalOperator for PhysicalCreateSchema {
         &self,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 

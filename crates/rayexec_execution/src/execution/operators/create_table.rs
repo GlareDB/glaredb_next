@@ -14,7 +14,7 @@ use rayexec_error::Result;
 use std::task::{Context, Poll};
 use std::{fmt, task::Waker};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 pub enum CreateTablePartitionState {
     /// State when we're creating the table.
@@ -219,7 +219,7 @@ impl PhysicalOperator for PhysicalCreateTable {
         &self,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::CreateTable(CreateTablePartitionState::Inserting {
                 finished,
@@ -235,7 +235,7 @@ impl PhysicalOperator for PhysicalCreateTable {
                 if let Some(waker) = pull_waker.take() {
                     waker.wake();
                 }
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             other => panic!("invalid partition state: {other:?}"),
         }

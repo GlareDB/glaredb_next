@@ -19,6 +19,8 @@ use crate::logical::grouping_set::GroupingSets;
 
 use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
 
+use super::PollFinalize;
+
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {
     /// Partition is currently aggregating inputs.
@@ -285,7 +287,7 @@ impl PhysicalOperator for PhysicalHashAggregate {
         &self,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -331,7 +333,7 @@ impl PhysicalOperator for PhysicalHashAggregate {
                     }
                 }
 
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             HashAggregatePartitionState::Producing { .. } => Err(RayexecError::new(
                 "Attempted to finalize a partition that's producing output",

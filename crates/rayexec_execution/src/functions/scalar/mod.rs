@@ -15,6 +15,7 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
+use serde::{de, Serialize, Serializer};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -128,6 +129,14 @@ impl PartialEq for dyn ScalarFunction + '_ {
 /// serializing pipelines for distributed execution.
 pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     fn name(&self) -> &'static str;
+
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        unimplemented!()
+    }
+
+    fn serializable_data(&self) -> &dyn erased_serde::Serialize {
+        unimplemented!()
+    }
 
     /// Return type of the function.
     fn return_type(&self) -> DataType;

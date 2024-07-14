@@ -156,6 +156,12 @@ pub enum PollPull {
     Exhausted,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum PollFinalize {
+    Finalized,
+    Pending,
+}
+
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     /// Try to push a batch for this partition.
     fn poll_push(
@@ -174,7 +180,7 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
         &self,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()>;
+    ) -> Result<PollFinalize>;
 
     /// Try to pull a batch for this partition.
     fn poll_pull(

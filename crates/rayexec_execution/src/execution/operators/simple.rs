@@ -6,7 +6,7 @@ use std::task::{Context, Waker};
 
 use crate::logical::explainable::Explainable;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct SimplePartitionState {
@@ -103,7 +103,7 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
         &self,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -115,7 +115,7 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
             waker.wake();
         }
 
-        Ok(())
+        Ok(PollFinalize::Finalized)
     }
 
     fn poll_pull(
