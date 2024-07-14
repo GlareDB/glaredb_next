@@ -46,7 +46,7 @@ impl PhysicalOperator for PhysicalValues {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

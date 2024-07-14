@@ -148,7 +148,7 @@ impl PartitionSink for ResultAdapterSink {
         Ok(PollPush::Pushed)
     }
 
-    fn finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
         let mut state = self.state.lock();
         state.finished = true;
         if let Some(waker) = state.pull_waker.take() {

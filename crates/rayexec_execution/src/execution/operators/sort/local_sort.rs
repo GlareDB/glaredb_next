@@ -101,7 +101,7 @@ impl PhysicalOperator for PhysicalLocalSort {
         }
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -235,7 +235,7 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .finalize_push(
+            .poll_finalize_push(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -277,7 +277,7 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .finalize_push(
+            .poll_finalize_push(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -319,7 +319,7 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .finalize_push(
+            .poll_finalize_push(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,

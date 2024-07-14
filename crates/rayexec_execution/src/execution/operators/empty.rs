@@ -32,7 +32,7 @@ impl PhysicalOperator for PhysicalEmpty {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

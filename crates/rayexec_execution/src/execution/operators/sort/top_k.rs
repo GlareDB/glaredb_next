@@ -36,7 +36,7 @@ impl PhysicalOperator for PhysicalTopK {
         unimplemented!()
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

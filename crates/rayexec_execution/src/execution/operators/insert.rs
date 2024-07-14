@@ -87,7 +87,7 @@ impl PhysicalOperator for PhysicalInsert {
         }
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -95,7 +95,9 @@ impl PhysicalOperator for PhysicalInsert {
     ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::Insert(state) => {
-                state.insert.finalize(cx)?;
+                if let PollFinalize::Pending = state.insert.poll_finalize_push(cx)? {
+                    return Ok(PollFinalize::Pending);
+                }
 
                 state.finished = true;
                 if let Some(waker) = state.pull_waker.take() {

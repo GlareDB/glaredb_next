@@ -66,7 +66,7 @@ impl PhysicalOperator for PhysicalScan {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

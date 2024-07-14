@@ -39,5 +39,5 @@ pub trait CopyToDestination: Debug + Sync + Send {
 
 pub trait CopyToSink: Debug + Sync + Send {
     fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
-    fn finalize(&mut self, cx: &mut Context) -> Result<PollFinalize>;
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }

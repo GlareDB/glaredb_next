@@ -59,7 +59,7 @@ impl PhysicalOperator for PhysicalCreateSchema {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

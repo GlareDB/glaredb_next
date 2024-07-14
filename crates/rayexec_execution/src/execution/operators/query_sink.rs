@@ -37,7 +37,7 @@ impl PhysicalOperator for PhysicalQuerySink {
         state.sink.poll_push(cx, batch)
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -48,7 +48,7 @@ impl PhysicalOperator for PhysicalQuerySink {
             other => panic!("invalid partition state: {other:?}"),
         };
 
-        state.sink.finalize_push(cx)
+        state.sink.poll_finalize_push(cx)
     }
 
     fn poll_pull(

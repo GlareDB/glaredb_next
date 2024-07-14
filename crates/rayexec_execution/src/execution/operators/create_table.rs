@@ -215,7 +215,7 @@ impl PhysicalOperator for PhysicalCreateTable {
         }
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -229,7 +229,9 @@ impl PhysicalOperator for PhysicalCreateTable {
                 ..
             }) => {
                 if let Some(insert) = insert {
-                    insert.finalize(cx)?;
+                    if let PollFinalize::Pending = insert.poll_finalize_push(cx)? {
+                        return Ok(PollFinalize::Pending);
+                    }
                 }
 
                 *finished = true;

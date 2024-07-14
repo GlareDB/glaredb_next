@@ -177,7 +177,7 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     ///
     /// This indicates the operator will receive no more input for a given
     /// partition, allowing the operator to execution some finalization logic.
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,

@@ -1,15 +1,24 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    functions::copy::{CopyToFunction, CopyToSink},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
+use rayexec_io::FileLocation;
 use std::task::Context;
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
-pub struct CopyToPartitionState {}
+pub enum CopyToPartitionState {
+    Writing { sink: Box<dyn CopyToSink> },
+}
 
 #[derive(Debug)]
-pub struct PhysicalCopyTo {}
+pub struct PhysicalCopyTo {
+    copy_to: Box<dyn CopyToFunction>,
+    location: FileLocation,
+}
 
 impl PhysicalCopyTo {}
 
@@ -24,7 +33,7 @@ impl PhysicalOperator for PhysicalCopyTo {
         unimplemented!()
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,

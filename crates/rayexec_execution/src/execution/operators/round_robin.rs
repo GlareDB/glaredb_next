@@ -146,7 +146,7 @@ impl PhysicalOperator for PhysicalRoundRobinRepartition {
         Ok(PollPush::Pushed)
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
