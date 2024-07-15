@@ -15,7 +15,7 @@ use crate::{
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
-            AttachDatabase, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
+            AttachDatabase, CopyTo, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
             Explain, ExplainFormat, Insert, LogicalOperator, Projection, ResetVar, Scan, SetVar,
             ShowVar, VariableOrAll,
         },
@@ -251,7 +251,7 @@ impl<'a> PlanContext<'a> {
         let source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
-                planner.plan_query(context, query)?.root
+                planner.plan_query(context, query)?
             }
             ast::CopyToSource::Table(table) => {
                 let (catalog, schema, ent) = match self.bind_data.get_bound_table(table)? {
@@ -266,15 +266,30 @@ impl<'a> PlanContext<'a> {
                     }
                 };
 
-                LogicalOperator::Scan(Scan {
-                    catalog: catalog.clone(),
-                    schema: schema.clone(),
-                    source: ent.clone(),
-                })
+                let scope = Scope::with_columns(None, ent.columns.iter().map(|f| f.name.clone()));
+
+                LogicalQuery {
+                    root: LogicalOperator::Scan(Scan {
+                        catalog: catalog.clone(),
+                        schema: schema.clone(),
+                        source: ent.clone(),
+                    }),
+                    scope,
+                }
             }
         };
 
-        unimplemented!()
+        let source_schema = source.schema()?;
+
+        Ok(LogicalQuery {
+            root: LogicalOperator::CopyTo(CopyTo {
+                source: Box::new(source.root),
+                source_schema,
+                location: copy_to.target.location,
+                copy_to: copy_to.target.func.unwrap(), // TODO, remove unwrap when serialization works
+            }),
+            scope: Scope::empty(),
+        })
     }
 
     fn plan_insert(

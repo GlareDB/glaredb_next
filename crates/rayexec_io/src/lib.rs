@@ -98,20 +98,20 @@ impl FileSource for Box<dyn FileSource + '_> {
 /// needed, a separate trait should be created.
 pub trait FileSink: Sync + Send + Debug {
     /// Write all bytes.
-    fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>>;
+    fn write_all(&mut self, buf: Bytes) -> BoxFuture<'static, Result<()>>;
 
     /// Finish the write, including flushing out any pending bytes.
     ///
     /// This should be called after _all_ data has been written.
-    fn finish(&mut self) -> BoxFuture<Result<()>>;
+    fn finish(&mut self) -> BoxFuture<'static, Result<()>>;
 }
 
 impl FileSink for Box<dyn FileSink + '_> {
-    fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>> {
+    fn write_all(&mut self, buf: Bytes) -> BoxFuture<'static, Result<()>> {
         self.as_mut().write_all(buf)
     }
 
-    fn finish(&mut self) -> BoxFuture<Result<()>> {
+    fn finish(&mut self) -> BoxFuture<'static, Result<()>> {
         self.as_mut().finish()
     }
 }

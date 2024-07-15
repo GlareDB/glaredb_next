@@ -1,10 +1,12 @@
 use crate::{
     functions::copy::{CopyToFunction, CopyToSink},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    runtime::ExecutionRuntime,
 };
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::FileLocation;
+use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
@@ -36,7 +38,12 @@ impl PhysicalCopyTo {
     // TODO: Only allows a single input partition for now. Multiple partitions
     // would required writing to separate files. We'd want to append the
     // partition number to file location, but exact behavior is still tbd.
-    pub fn try_create_states(&self, num_partitions: usize) -> Result<Vec<CopyToPartitionState>> {
+    pub fn try_create_states(
+        &self,
+        runtime: &Arc<dyn ExecutionRuntime>,
+        schema: Schema,
+        num_partitions: usize,
+    ) -> Result<Vec<CopyToPartitionState>> {
         if num_partitions != 1 {
             return Err(RayexecError::new(
                 "CopyTo operator only supports a single partition for now",
@@ -45,7 +52,7 @@ impl PhysicalCopyTo {
 
         let states = self
             .copy_to
-            .create_sinks(self.location.clone(), num_partitions)?
+            .create_sinks(runtime, schema, self.location.clone(), num_partitions)?
             .into_iter()
             .map(|sink| {
                 CopyToPartitionState::Writing(Some(CopyToInnerPartitionState {

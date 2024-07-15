@@ -582,6 +582,11 @@ impl Explainable for MaterializedScan {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopyTo {
     pub source: Box<LogicalOperator>,
+    /// Schema of input operator.
+    ///
+    /// Stored on this operator since the copy to sinks may need field names
+    /// (e.g. writing out a header in csv).
+    pub source_schema: Schema,
     pub location: FileLocation,
     pub copy_to: Box<dyn CopyToFunction>,
 }

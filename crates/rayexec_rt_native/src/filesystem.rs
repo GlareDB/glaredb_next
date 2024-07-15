@@ -97,12 +97,15 @@ pub struct LocalFileSink {
 }
 
 impl FileSink for LocalFileSink {
-    fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>> {
-        let result = self.file.write_all(buf).context("failed to write buffer");
+    fn write_all(&mut self, buf: Bytes) -> BoxFuture<'static, Result<()>> {
+        let result = self
+            .file
+            .write_all(buf.as_ref())
+            .context("failed to write buffer");
         async move { result }.boxed()
     }
 
-    fn finish(&mut self) -> BoxFuture<Result<()>> {
+    fn finish(&mut self) -> BoxFuture<'static, Result<()>> {
         let result = self.file.flush().context("failed to flush");
         async move { result }.boxed()
     }

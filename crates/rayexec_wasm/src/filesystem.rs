@@ -102,12 +102,12 @@ pub struct WasmMemoryFileSink {
 }
 
 impl FileSink for WasmMemoryFileSink {
-    fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>> {
-        self.buf.extend_from_slice(buf);
+    fn write_all(&mut self, buf: Bytes) -> BoxFuture<'static, Result<()>> {
+        self.buf.extend_from_slice(buf.as_ref());
         async { Ok(()) }.boxed()
     }
 
-    fn finish(&mut self) -> BoxFuture<Result<()>> {
+    fn finish(&mut self) -> BoxFuture<'static, Result<()>> {
         let bytes = Bytes::from(std::mem::take(&mut self.buf));
         self.files.lock().insert(self.name.clone(), bytes);
         async { Ok(()) }.boxed()

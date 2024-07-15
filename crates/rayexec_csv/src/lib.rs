@@ -1,11 +1,12 @@
-pub mod datatable;
 pub mod copy_to;
+pub mod datatable;
 pub mod reader;
 pub mod writer;
 
 mod decoder;
 mod read_csv;
 
+use copy_to::CsvCopyToFunction;
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
@@ -48,7 +49,7 @@ impl DataSource for CsvDataSource {
         vec![FileHandler {
             regex,
             table_func: Box::new(ReadCsv),
-            copy_to: None,
+            copy_to: Some(Box::new(CsvCopyToFunction)),
         }]
     }
 }

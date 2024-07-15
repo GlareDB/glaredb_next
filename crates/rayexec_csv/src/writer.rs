@@ -5,16 +5,12 @@ use rayexec_bullet::{
     format::{FormatOptions, Formatter},
 };
 use rayexec_error::{Result, ResultExt};
-use rayexec_io::FileSink;
 use std::io::Write as _;
 
 use crate::reader::DialectOptions;
 
 #[derive(Debug)]
-pub struct AsyncCsvWriter<S: FileSink> {
-    /// File we're writing to.
-    sink: S,
-
+pub struct CsvEncoder {
     /// Schema of the batches we're writing. Used to write the header out.
     schema: Schema,
 
@@ -27,35 +23,29 @@ pub struct AsyncCsvWriter<S: FileSink> {
     /// Buffer used for formatting the batch.
     format_buf: Vec<u8>,
 
-    /// Buffer used for storing the output.
-    output_buf: Vec<u8>,
-
     /// Buffer for current record.
     record: ByteRecord,
 }
 
-impl<S: FileSink> AsyncCsvWriter<S> {
-    pub fn new(sink: S, schema: Schema, dialect: DialectOptions) -> Self {
+impl CsvEncoder {
+    pub fn new(schema: Schema, dialect: DialectOptions) -> Self {
         let record = ByteRecord::with_capacity(1024, schema.fields.len());
-        AsyncCsvWriter {
-            sink,
+        CsvEncoder {
             schema,
             dialect,
             did_write_header: false,
             format_buf: Vec::with_capacity(1024),
-            output_buf: Vec::with_capacity(1024),
             record,
         }
     }
 
-    pub async fn write(&mut self, batch: &Batch) -> Result<()> {
+    pub fn encode(&mut self, batch: &Batch, output_buf: &mut Vec<u8>) -> Result<()> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
 
-        self.output_buf.clear();
         let mut csv_writer = csv::WriterBuilder::new()
             .delimiter(self.dialect.delimiter)
             .quote(self.dialect.quote)
-            .from_writer(&mut self.output_buf);
+            .from_writer(output_buf);
 
         if !self.did_write_header {
             for col_name in self.schema.fields.iter().map(|f| &f.name) {
@@ -87,14 +77,7 @@ impl<S: FileSink> AsyncCsvWriter<S> {
         }
 
         csv_writer.flush().context("failed to flush")?;
-        std::mem::drop(csv_writer);
-
-        self.sink.write_all(&self.output_buf).await?;
 
         Ok(())
-    }
-
-    pub fn into_inner(self) -> S {
-        self.sink
     }
 }
