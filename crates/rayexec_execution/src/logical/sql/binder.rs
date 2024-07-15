@@ -25,7 +25,7 @@ use crate::{
         aggregate::AggregateFunction,
         copy::CopyToFunction,
         scalar::ScalarFunction,
-        table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs},
+        table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     },
     logical::sql::expr::ExpressionContext,
     runtime::ExecutionRuntime,
@@ -130,7 +130,7 @@ pub struct TableFunctionReference {
     /// The initialized table function.
     // TODO: Remove option, temp until I get serialization/deserialization working.
     #[serde(skip)]
-    pub func: Option<Box<dyn InitializedTableFunction>>,
+    pub func: Option<Box<dyn PlannedTableFunction>>,
 }
 
 // TODO: Figure out how we want to represent things like tables in a CREATE
@@ -985,7 +985,7 @@ impl<'a> Binder<'a> {
     async fn resolve_table_function(
         &self,
         mut reference: ast::ObjectReference,
-    ) -> Result<Box<dyn GenericTableFunction>> {
+    ) -> Result<Box<dyn TableFunction>> {
         // TODO: Search path.
         let [catalog, schema, name] = match reference.0.len() {
             1 => [

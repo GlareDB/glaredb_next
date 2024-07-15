@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::table::GenericTableFunction;
+use crate::functions::table::TableFunction;
 use crate::runtime::ExecutionRuntime;
 
 /// An implementation of `DataSource` describes a data source type that we can
@@ -44,7 +44,7 @@ pub trait DataSource: Sync + Send + Debug {
     ///
     /// Note that these functions should be stateless, as they are registered
     /// into the system catalog at startup.
-    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>>;
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>>;
 
     /// Return file handlers that this data souce can handle.
     ///
@@ -79,7 +79,7 @@ pub struct FileHandler {
     pub regex: Regex,
 
     /// Table function to use to read the file.
-    pub table_func: Box<dyn GenericTableFunction>,
+    pub table_func: Box<dyn TableFunction>,
 
     /// Optional copy to function for writing out files.
     pub copy_to: Option<Box<dyn CopyToFunction>>,
@@ -187,7 +187,7 @@ impl DataSource for MemoryDataSource {
         })
     }
 
-    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         Vec::new()
     }
 }

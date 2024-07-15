@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
 use crate::functions::{
-    aggregate::AggregateFunction, scalar::ScalarFunction, table::GenericTableFunction,
+    aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction,
 };
 
 use super::{ddl::CatalogModifier, entry::TableEntry, table::DataTable};
@@ -71,7 +71,7 @@ pub trait Catalog: Debug + Sync + Send {
         _tx: &CatalogTx,
         _schema: &str,
         _name: &str,
-    ) -> Result<Option<Box<dyn GenericTableFunction>>> {
+    ) -> Result<Option<Box<dyn TableFunction>>> {
         Err(RayexecError::new("Cannot get table function from catalog"))
     }
 

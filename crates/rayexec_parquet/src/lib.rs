@@ -11,7 +11,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog::Catalog,
     datasource::{DataSource, FileHandler},
-    functions::table::GenericTableFunction,
+    functions::table::TableFunction,
     runtime::ExecutionRuntime,
 };
 use regex::RegexBuilder;
@@ -33,7 +33,7 @@ impl DataSource for ParquetDataSource {
         })
     }
 
-    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadParquet)]
     }
 

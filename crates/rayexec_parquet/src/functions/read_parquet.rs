@@ -4,8 +4,8 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{
-        check_named_args_is_empty, GenericTableFunction, InitializedTableFunction,
-        SpecializedTableFunction, TableFunctionArgs,
+        check_named_args_is_empty, PlannedTableFunction, SpecializedTableFunction, TableFunction,
+        TableFunctionArgs,
     },
     runtime::ExecutionRuntime,
 };
@@ -19,7 +19,7 @@ use super::datatable::RowGroupPartitionedDataTable;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadParquet;
 
-impl GenericTableFunction for ReadParquet {
+impl TableFunction for ReadParquet {
     fn name(&self) -> &'static str {
         "read_parquet"
     }
@@ -56,7 +56,7 @@ impl SpecializedTableFunction for ReadParquetImpl {
     fn initialize(
         self: Box<Self>,
         runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
+    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { self.initialize_inner(runtime.as_ref()).await })
     }
 }
@@ -65,7 +65,7 @@ impl ReadParquetImpl {
     async fn initialize_inner(
         self,
         runtime: &dyn ExecutionRuntime,
-    ) -> Result<Box<dyn InitializedTableFunction>> {
+    ) -> Result<Box<dyn PlannedTableFunction>> {
         let mut source = runtime.file_provider().file_source(self.location.clone())?;
 
         let size = source.size().await?;
@@ -88,7 +88,7 @@ pub struct ReadParquetLocalRowGroupPartitioned {
     schema: Schema,
 }
 
-impl InitializedTableFunction for ReadParquetLocalRowGroupPartitioned {
+impl PlannedTableFunction for ReadParquetLocalRowGroupPartitioned {
     fn specialized(&self) -> &dyn SpecializedTableFunction {
         &self.specialized
     }

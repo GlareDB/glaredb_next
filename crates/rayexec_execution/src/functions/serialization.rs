@@ -99,7 +99,7 @@ impl<'de> DeserializeSeed<'de> for FnApply {
     {
         let mut erased = <dyn erased_serde::Deserializer>::erase(deserializer);
         self.scalar
-            .planned_from_deserializer(&mut erased)
+            .state_deserialize(&mut erased)
             .map_err(serde::de::Error::custom)
     }
 }

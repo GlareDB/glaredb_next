@@ -10,7 +10,7 @@ use crate::database::table::DataTable;
 use crate::datasource::DataSourceRegistry;
 use crate::functions::aggregate::{AggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
 use crate::functions::scalar::{ScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
-use crate::functions::table::{GenericTableFunction, BUILTIN_TABLE_FUNCTIONS};
+use crate::functions::table::{TableFunction, BUILTIN_TABLE_FUNCTIONS};
 
 /// Read-only system catalog that cannot be modified once constructed.
 #[derive(Debug, Clone)]
@@ -149,7 +149,7 @@ impl SystemCatalog {
         _tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericTableFunction>>> {
+    ) -> Result<Option<Box<dyn TableFunction>>> {
         let schema = self
             .schemas
             .get(schema)
@@ -202,7 +202,7 @@ impl Catalog for SystemCatalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericTableFunction>>> {
+    ) -> Result<Option<Box<dyn TableFunction>>> {
         self.get_table_fn_inner(tx, schema, name)
     }
 

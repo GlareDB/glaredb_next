@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{
-        GenericTableFunction, InitializedTableFunction, SpecializedTableFunction, TableFunctionArgs,
+        PlannedTableFunction, SpecializedTableFunction, TableFunction, TableFunctionArgs,
     },
     runtime::ExecutionRuntime,
 };
@@ -15,7 +15,7 @@ use crate::{PostgresClient, PostgresDataTable};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadPostgres;
 
-impl GenericTableFunction for ReadPostgres {
+impl TableFunction for ReadPostgres {
     fn name(&self) -> &'static str {
         "read_postgres"
     }
@@ -65,7 +65,7 @@ impl SpecializedTableFunction for ReadPostgresArgs {
     fn initialize(
         self: Box<Self>,
         runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
+    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
         let client = PostgresClient::connect(self.conn_str.clone(), runtime.as_ref());
         Box::pin(async move {
             let client = client.await?;
@@ -95,7 +95,7 @@ pub struct ReadPostgresImpl {
     table_schema: Schema,
 }
 
-impl InitializedTableFunction for ReadPostgresImpl {
+impl PlannedTableFunction for ReadPostgresImpl {
     fn specialized(&self) -> &dyn SpecializedTableFunction {
         &self.args
     }

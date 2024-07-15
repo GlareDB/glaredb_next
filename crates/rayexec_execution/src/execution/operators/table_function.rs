@@ -1,6 +1,6 @@
 use crate::{
     database::table::DataTableScan,
-    functions::table::InitializedTableFunction,
+    functions::table::PlannedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::ExecutionRuntime,
 };
@@ -18,11 +18,11 @@ pub struct TableFunctionPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalTableFunction {
-    function: Box<dyn InitializedTableFunction>,
+    function: Box<dyn PlannedTableFunction>,
 }
 
 impl PhysicalTableFunction {
-    pub fn new(function: Box<dyn InitializedTableFunction>) -> Self {
+    pub fn new(function: Box<dyn PlannedTableFunction>) -> Self {
         PhysicalTableFunction { function }
     }
 

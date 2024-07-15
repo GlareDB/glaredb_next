@@ -14,7 +14,7 @@ use std::{collections::HashMap, fmt::Debug};
 use crate::database::table::DataTable;
 use crate::runtime::ExecutionRuntime;
 
-pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
+pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> =
     Lazy::new(|| vec![Box::new(GenerateSeries)]);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -34,7 +34,7 @@ pub struct TableFunctionArgs {
 /// object store, etc.
 ///
 /// The specialized variant should be determined by function argument inputs.
-pub trait GenericTableFunction: Debug + Sync + Send + DynClone {
+pub trait TableFunction: Debug + Sync + Send + DynClone {
     /// Name of the function.
     fn name(&self) -> &'static str;
 
@@ -47,20 +47,20 @@ pub trait GenericTableFunction: Debug + Sync + Send + DynClone {
     fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>>;
 }
 
-impl Clone for Box<dyn GenericTableFunction> {
+impl Clone for Box<dyn TableFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl PartialEq<dyn GenericTableFunction> for Box<dyn GenericTableFunction + '_> {
-    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+impl PartialEq<dyn TableFunction> for Box<dyn TableFunction + '_> {
+    fn eq(&self, other: &dyn TableFunction) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn GenericTableFunction + '_ {
-    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+impl PartialEq for dyn TableFunction + '_ {
+    fn eq(&self, other: &dyn TableFunction) -> bool {
         self.name() == other.name()
     }
 }
@@ -73,7 +73,7 @@ pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
     fn initialize(
         self: Box<Self>,
         runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>>;
+    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>>;
 }
 
 impl PartialEq<dyn SpecializedTableFunction> for Box<dyn SpecializedTableFunction + '_> {
@@ -88,7 +88,7 @@ impl PartialEq for dyn SpecializedTableFunction + '_ {
     }
 }
 
-pub trait InitializedTableFunction: Debug + Sync + Send + DynClone {
+pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// Returns a reference to the specialized function that initialized this
     /// function.
     fn specialized(&self) -> &dyn SpecializedTableFunction;
@@ -107,28 +107,25 @@ pub trait InitializedTableFunction: Debug + Sync + Send + DynClone {
     fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>>;
 }
 
-impl PartialEq<dyn InitializedTableFunction> for Box<dyn InitializedTableFunction + '_> {
-    fn eq(&self, other: &dyn InitializedTableFunction) -> bool {
+impl PartialEq<dyn PlannedTableFunction> for Box<dyn PlannedTableFunction + '_> {
+    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn InitializedTableFunction + '_ {
-    fn eq(&self, other: &dyn InitializedTableFunction) -> bool {
+impl PartialEq for dyn PlannedTableFunction + '_ {
+    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
         self.specialized() == other.specialized() && self.schema() == other.schema()
     }
 }
 
-impl Clone for Box<dyn InitializedTableFunction> {
+impl Clone for Box<dyn PlannedTableFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-pub fn check_named_args_is_empty(
-    func: &dyn GenericTableFunction,
-    args: &TableFunctionArgs,
-) -> Result<()> {
+pub fn check_named_args_is_empty(func: &dyn TableFunction, args: &TableFunctionArgs) -> Result<()> {
     if !args.named.is_empty() {
         return Err(RayexecError::new(format!(
             "'{}' does not take named arguments",

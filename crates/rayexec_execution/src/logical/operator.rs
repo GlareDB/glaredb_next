@@ -8,7 +8,7 @@ use crate::database::entry::TableEntry;
 use crate::engine::vars::SessionVar;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::table::InitializedTableFunction;
+use crate::functions::table::PlannedTableFunction;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -631,7 +631,7 @@ impl Explainable for Scan {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableFunction {
-    pub function: Box<dyn InitializedTableFunction>,
+    pub function: Box<dyn PlannedTableFunction>,
 }
 
 impl LogicalNode for TableFunction {

@@ -13,14 +13,12 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
 
-use super::{
-    GenericTableFunction, InitializedTableFunction, SpecializedTableFunction, TableFunctionArgs,
-};
+use super::{PlannedTableFunction, SpecializedTableFunction, TableFunction, TableFunctionArgs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenerateSeries;
 
-impl GenericTableFunction for GenerateSeries {
+impl TableFunction for GenerateSeries {
     fn name(&self) -> &'static str {
         "generate_series"
     }
@@ -75,12 +73,12 @@ impl SpecializedTableFunction for GenerateSeriesI64 {
     fn initialize(
         self: Box<Self>,
         _runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
+    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { Ok(self as _) })
     }
 }
 
-impl InitializedTableFunction for GenerateSeriesI64 {
+impl PlannedTableFunction for GenerateSeriesI64 {
     fn specialized(&self) -> &dyn SpecializedTableFunction {
         self
     }

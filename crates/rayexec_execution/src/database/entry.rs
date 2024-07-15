@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::functions::{
-    aggregate::AggregateFunction, scalar::ScalarFunction, table::GenericTableFunction,
+    aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction,
 };
 
 #[derive(Debug, Clone)]
@@ -44,5 +44,5 @@ pub struct FunctionEntry {
 pub enum FunctionImpl {
     Scalar(Box<dyn ScalarFunction>),
     Aggregate(Box<dyn AggregateFunction>),
-    Table(Box<dyn GenericTableFunction>),
+    Table(Box<dyn TableFunction>),
 }

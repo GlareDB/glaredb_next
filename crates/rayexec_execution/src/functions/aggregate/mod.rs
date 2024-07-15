@@ -36,6 +36,13 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
 pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        unimplemented!()
+    }
+
     /// Plans an aggregate function from input data types.
     ///
     /// The data types passed in correspond directly to the arguments to the
@@ -82,6 +89,14 @@ impl PartialEq for dyn AggregateFunction + '_ {
 
 pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
     fn name(&self) -> &'static str;
+
+    fn aggregate_function(&self) -> &dyn AggregateFunction {
+        unimplemented!()
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        unimplemented!()
+    }
 
     /// Return type of the aggregate.
     fn return_type(&self) -> DataType;

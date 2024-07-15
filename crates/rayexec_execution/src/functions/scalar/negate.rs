@@ -2,7 +2,8 @@ use crate::functions::scalar::macros::primitive_unary_execute;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_error::Result;
+use rayexec_error::{Result, ResultExt};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::{PlannedScalarFunction, ScalarFunction};
@@ -57,6 +58,15 @@ impl FunctionInfo for Negate {
 }
 
 impl ScalarFunction for Negate {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(
+            NegateImpl::deserialize(deserializer).context("failed to deserialize negate")?,
+        ))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
@@ -73,7 +83,7 @@ impl ScalarFunction for Negate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NegateImpl {
     datatype: DataType,
 }
