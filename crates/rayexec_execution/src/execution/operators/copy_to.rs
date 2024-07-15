@@ -77,16 +77,12 @@ impl PhysicalOperator for PhysicalCopyTo {
         match partition_state {
             PartitionState::CopyTo(state) => match state {
                 CopyToPartitionState::Writing(Some(inner)) => {
-                    let poll = match inner.sink.poll_push(cx, batch)? {
+                    let _poll = match inner.sink.poll_push(cx, batch)? {
                         PollPush::Pending(batch) => return Ok(PollPush::Pending(batch)),
                         other => other,
                     };
 
-                    if let Some(waker) = inner.pull_waker.take() {
-                        waker.wake();
-                    }
-
-                    Ok(poll)
+                    Ok(PollPush::NeedsMore)
                 }
                 other => Err(RayexecError::new(format!(
                     "CopyTo operator in wrong state: {other:?}"
