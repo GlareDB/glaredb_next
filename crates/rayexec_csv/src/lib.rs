@@ -1,5 +1,7 @@
 pub mod datatable;
+pub mod copy_to;
 pub mod reader;
+pub mod writer;
 
 mod decoder;
 mod read_csv;

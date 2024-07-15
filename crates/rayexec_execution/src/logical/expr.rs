@@ -351,6 +351,7 @@ impl LogicalExpression {
                 LogicalOperator::ShowVar(_) => (),
                 LogicalOperator::ResetVar(_) => (),
                 LogicalOperator::Insert(_) => (),
+                LogicalOperator::CopyTo(_) => (),
                 LogicalOperator::CreateSchema(_) => (),
                 LogicalOperator::CreateTable(_) => (),
                 LogicalOperator::CreateTableAs(_) => (),

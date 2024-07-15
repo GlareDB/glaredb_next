@@ -7,11 +7,13 @@ use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::engine::vars::SessionVar;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
+use crate::functions::copy::CopyToFunction;
 use crate::functions::table::InitializedTableFunction;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_io::FileLocation;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -54,6 +56,7 @@ pub enum LogicalOperator {
     DetachDatabase(DetachDatabase),
     Drop(DropEntry),
     Insert(Insert),
+    CopyTo(CopyTo),
     Explain(Explain),
     Describe(Describe),
 }
@@ -90,6 +93,7 @@ impl LogicalOperator {
             Self::DetachDatabase(n) => n.output_schema(outer),
             Self::Drop(n) => n.output_schema(outer),
             Self::Insert(n) => n.output_schema(outer),
+            Self::CopyTo(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
             Self::Describe(n) => n.output_schema(outer),
         }
@@ -205,6 +209,11 @@ impl LogicalOperator {
                 p.input.walk_mut(pre, post)?;
                 post(&mut p.input)?;
             }
+            LogicalOperator::CopyTo(p) => {
+                pre(&mut p.source)?;
+                p.source.walk_mut(pre, post)?;
+                post(&mut p.source)?;
+            }
             LogicalOperator::ExpressionList(_)
             | LogicalOperator::Empty
             | LogicalOperator::SetVar(_)
@@ -261,6 +270,7 @@ impl Explainable for LogicalOperator {
             Self::Drop(p) => p.explain_entry(conf),
             Self::Insert(p) => p.explain_entry(conf),
             Self::Explain(p) => p.explain_entry(conf),
+            Self::CopyTo(p) => p.explain_entry(conf),
             Self::Describe(p) => p.explain_entry(conf),
         }
     }
@@ -566,6 +576,25 @@ impl Explainable for MaterializedScan {
         ExplainEntry::new("MaterializedScan")
             .with_value("idx", self.idx)
             .with_values("column_types", &self.schema.types)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CopyTo {
+    pub source: Box<LogicalOperator>,
+    pub location: FileLocation,
+    pub copy_to: Box<dyn CopyToFunction>,
+}
+
+impl LogicalNode for CopyTo {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for CopyTo {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CopyTo").with_value("location", &self.location)
     }
 }
 

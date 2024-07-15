@@ -35,7 +35,7 @@ use rayexec_bullet::{
     field::{Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::{FileSink, FileSource};
+use rayexec_io::FileSource;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DialectOptions {

@@ -27,6 +27,7 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+use copy_to::CopyToPartitionState;
 use create_schema::CreateSchemaPartitionState;
 use create_table::{CreateTableOperatorState, CreateTablePartitionState};
 use drop::DropPartitionState;
@@ -92,6 +93,7 @@ pub enum PartitionState {
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
     Insert(InsertPartitionState),
+    CopyTo(CopyToPartitionState),
     CreateTable(CreateTablePartitionState),
     CreateSchema(CreateSchemaPartitionState),
     Drop(DropPartitionState),

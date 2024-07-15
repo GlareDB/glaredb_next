@@ -4,7 +4,10 @@ use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, path::PathBuf};
+use std::{
+    fmt::{self, Debug},
+    path::PathBuf,
+};
 use url::Url;
 
 /// Location for a file.
@@ -25,6 +28,15 @@ impl FileLocation {
         match Url::parse(s) {
             Ok(url) => FileLocation::Url(url),
             Err(_) => FileLocation::Path(PathBuf::from(s)),
+        }
+    }
+}
+
+impl fmt::Display for FileLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Url(u) => write!(f, "{}", u),
+            Self::Path(p) => write!(f, "{}", p.display()),
         }
     }
 }
@@ -92,4 +104,14 @@ pub trait FileSink: Sync + Send + Debug {
     ///
     /// This should be called after _all_ data has been written.
     fn finish(&mut self) -> BoxFuture<Result<()>>;
+}
+
+impl FileSink for Box<dyn FileSink + '_> {
+    fn write_all(&mut self, buf: &[u8]) -> BoxFuture<Result<()>> {
+        self.as_mut().write_all(buf)
+    }
+
+    fn finish(&mut self) -> BoxFuture<Result<()>> {
+        self.as_mut().finish()
+    }
 }

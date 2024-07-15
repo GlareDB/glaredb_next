@@ -12,7 +12,11 @@ pub trait CopyToFunction: Debug + Sync + Send + DynClone {
 
     /// Create a COPY TO destination that will write to the given location.
     // TODO: Additional COPY TO args once we have them.
-    fn create_destination(&self, location: FileLocation) -> Result<Box<dyn CopyToDestination>>;
+    fn create_sinks(
+        &self,
+        location: FileLocation,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn CopyToSink>>>;
 }
 
 impl Clone for Box<dyn CopyToFunction> {
@@ -33,11 +37,7 @@ impl PartialEq for dyn CopyToFunction + '_ {
     }
 }
 
-pub trait CopyToDestination: Debug + Sync + Send {
-    fn create_sinks(&self, num_partitions: usize) -> Result<Vec<Box<dyn CopyToSink>>>;
-}
-
-pub trait CopyToSink: Debug + Sync + Send {
+pub trait CopyToSink: Debug + Send {
     fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
     fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }
