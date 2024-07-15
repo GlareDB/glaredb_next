@@ -71,6 +71,13 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
 ///
 /// Generic scalar functions must be cheaply cloneable.
 pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+    fn planned_from_deserializer(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        unimplemented!()
+    }
+
     /// Plan a scalar function based on datatype inputs.
     ///
     /// The datatypes passed in correspond directly to the arguments to the
