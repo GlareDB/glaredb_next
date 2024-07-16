@@ -1,7 +1,7 @@
 pub mod bindref;
+pub mod resolver;
 
 use std::collections::HashMap;
-use std::fmt;
 use std::sync::Arc;
 
 use bindref::{
@@ -26,13 +26,11 @@ use rayexec_parser::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    database::{catalog::CatalogTx, entry::TableEntry, DatabaseContext},
+    database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     functions::{
-        aggregate::AggregateFunction,
         copy::CopyToFunction,
-        scalar::ScalarFunction,
-        table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
+        table::{TableFunction, TableFunctionArgs},
     },
     logical::sql::expr::ExpressionContext,
     runtime::ExecutionRuntime,
@@ -58,37 +56,12 @@ impl AstMeta for Bound {
     type CopyToDestination = BoundCopyTo;
 }
 
-/// Index into one of the bind lists.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BindIdx(pub usize);
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCopyTo {
     pub location: FileLocation,
     // TODO: Remote skip and Option when serializing is figured out.
     #[serde(skip)]
     pub func: Option<Box<dyn CopyToFunction>>,
-}
-
-/// Represents a bound function found in the select list, where clause, or order
-/// by/group by clause.
-// TODO: If we want to support table functions in the select list, this will
-// need to be extended.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum BoundFunctionReference {
-    #[serde(skip)]
-    Scalar(Box<dyn ScalarFunction>),
-    #[serde(skip)]
-    Aggregate(Box<dyn AggregateFunction>),
-}
-
-impl BoundFunctionReference {
-    pub fn name(&self) -> &str {
-        match self {
-            Self::Scalar(scalar) => scalar.name(),
-            Self::Aggregate(agg) => agg.name(),
-        }
-    }
 }
 
 // TODO: This might need some scoping information.

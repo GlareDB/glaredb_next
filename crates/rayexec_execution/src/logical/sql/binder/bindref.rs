@@ -22,6 +22,19 @@ pub enum MaybeBound<B, U> {
     Unbound(U),
 }
 
+impl<B, U> MaybeBound<B, U> {
+    pub const fn is_bound(&self) -> bool {
+        matches!(self, MaybeBound::Bound(_))
+    }
+
+    pub fn try_unwrap_bound(self) -> Result<B> {
+        match self {
+            Self::Bound(b) => Ok(b),
+            Self::Unbound(_) => Err(RayexecError::new("Bind reference is not bound")),
+        }
+    }
+}
+
 /// List for holding bound and unbound variants for a single logical concept
 /// (table, function, etc).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
