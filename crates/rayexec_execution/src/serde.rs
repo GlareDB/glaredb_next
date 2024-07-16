@@ -1,6 +1,6 @@
 //! Module containing the more tricky bits of database object (de)serialization.
 //!
-//! Specifically, this implements the relevant serde traits for functions (scalar,
+//! Specifically this implements the relevant serde traits for functions (scalar,
 //! aggregate, and table functions). Since a point of extension are functions, they
 //! need remain as boxed traits to enable that.
 //!
@@ -10,14 +10,14 @@
 //! name, which we then look up in the catalog when deserializing. For planned
 //! functions with potentially some state, we serialized the name of the function
 //! along with its state. When deserializing, we look up the function from the
-//! catalog (which will return and unplanned functin) which then is able continue
+//! catalog (which will return and unplanned function) which then is able continue
 //! deserialization of the planned function state.
 //!
-//! Current this assumes that all functions are registered in the
+//! Currently this assumes that all functions are registered in the
 //! 'glare_catalog' schema.
 //!
 //! This implementation takes inspiration from the `typetag` crate (specifically the
-//! externally tagged variant).
+//! externally tagged variant). See <https://github.com/dtolnay/typetag/blob/dc3f6d4ec6672945a024c105c91958c1e8fcacd5/src/externally.rs>
 use rayexec_error::{RayexecError, Result};
 use serde::{
     de::{self, DeserializeSeed, Deserializer, Visitor},
