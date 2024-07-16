@@ -5,6 +5,7 @@ use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -35,12 +36,16 @@ impl ScalarFunction for And {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AndImpl;
 
 impl PlannedScalarFunction for AndImpl {
-    fn name(&self) -> &'static str {
-        "and_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &And
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -88,12 +93,16 @@ impl ScalarFunction for Or {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrImpl;
 
 impl PlannedScalarFunction for OrImpl {
-    fn name(&self) -> &'static str {
-        "or_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Or
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

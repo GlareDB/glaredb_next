@@ -4,6 +4,7 @@ use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionI
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -152,12 +153,16 @@ impl ScalarFunction for Eq {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EqImpl;
 
 impl PlannedScalarFunction for EqImpl {
-    fn name(&self) -> &'static str {
-        "eq_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Eq
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -294,12 +299,16 @@ impl ScalarFunction for Neq {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeqImpl;
 
 impl PlannedScalarFunction for NeqImpl {
-    fn name(&self) -> &'static str {
-        "neq_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Neq
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -432,12 +441,16 @@ impl ScalarFunction for Lt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LtImpl;
 
 impl PlannedScalarFunction for LtImpl {
-    fn name(&self) -> &'static str {
-        "lt_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Lt
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -570,12 +583,16 @@ impl ScalarFunction for LtEq {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LtEqImpl;
 
 impl PlannedScalarFunction for LtEqImpl {
-    fn name(&self) -> &'static str {
-        "lt_eq_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &LtEq
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -708,12 +725,16 @@ impl ScalarFunction for Gt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GtImpl;
 
 impl PlannedScalarFunction for GtImpl {
-    fn name(&self) -> &'static str {
-        "gt_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Gt
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -846,12 +867,16 @@ impl ScalarFunction for GtEq {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GtEqImpl;
 
 impl PlannedScalarFunction for GtEqImpl {
-    fn name(&self) -> &'static str {
-        "gt_eq_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &GtEq
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

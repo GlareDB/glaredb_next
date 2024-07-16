@@ -129,21 +129,17 @@ impl PartialEq for dyn ScalarFunction + '_ {
     }
 }
 
-/// A specialized scalar function.
-///
-/// We're using a trait instead of returning the function pointer directly from
-/// `GenericScalarFunction` because this will be what's serialized when
-/// serializing pipelines for distributed execution.
+/// A scalar function with potentially some state associated with it.
 pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
-    fn name(&self) -> &'static str;
+    /// The scalar function that's able to produce an instance of this planned
+    /// function.
+    fn scalar_function(&self) -> &dyn ScalarFunction;
 
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        unimplemented!()
-    }
-
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        unimplemented!()
-    }
+    /// Return an reference to some serializable state.
+    ///
+    /// Typically this just returns `self` with Self implementing Serialize via
+    /// a derive macro.
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize;
 
     /// Return type of the function.
     fn return_type(&self) -> DataType;
@@ -164,7 +160,8 @@ impl PartialEq<dyn PlannedScalarFunction> for Box<dyn PlannedScalarFunction + '_
 
 impl PartialEq for dyn PlannedScalarFunction + '_ {
     fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
-        self.name() == other.name() && self.return_type() == other.return_type()
+        self.scalar_function() == other.scalar_function()
+            && self.return_type() == other.return_type()
     }
 }
 

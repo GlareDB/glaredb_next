@@ -57,8 +57,12 @@ impl ScalarFunction for Concat {
 pub struct StringConcatImpl;
 
 impl PlannedScalarFunction for StringConcatImpl {
-    fn name(&self) -> &'static str {
-        "string_concat_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Concat
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

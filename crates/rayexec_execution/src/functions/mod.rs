@@ -2,16 +2,14 @@ pub mod aggregate;
 pub mod copy;
 pub mod implicit;
 pub mod scalar;
-pub mod serialization;
 pub mod table;
 
-use std::{borrow::Borrow, fmt::Display};
+use std::{borrow::Borrow, error::Error, fmt::Display};
 
 use fmtutil::IntoDisplayableSlice;
 use implicit::implicit_cast_score;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
-use serde::{de, Serializer};
 
 /// Function signature.
 #[derive(Debug, Clone, PartialEq)]

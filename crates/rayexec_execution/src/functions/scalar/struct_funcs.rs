@@ -40,7 +40,11 @@ impl ScalarFunction for StructPack {
 pub struct StructPackDynamic;
 
 impl PlannedScalarFunction for StructPackDynamic {
-    fn name(&self) -> &'static str {
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &StructPack
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
         unimplemented!()
     }
 

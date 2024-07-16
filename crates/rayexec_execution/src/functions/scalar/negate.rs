@@ -89,8 +89,12 @@ pub struct NegateImpl {
 }
 
 impl PlannedScalarFunction for NegateImpl {
-    fn name(&self) -> &'static str {
-        "negate_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Negate
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

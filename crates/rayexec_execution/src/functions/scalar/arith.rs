@@ -8,6 +8,7 @@ use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::scalar::interval::Interval;
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -123,14 +124,18 @@ impl ScalarFunction for Add {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddPrimitiveImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for AddPrimitiveImpl {
-    fn name(&self) -> &'static str {
-        "add_primitive_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Add
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -247,14 +252,18 @@ impl ScalarFunction for Sub {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubPrimitiveImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for SubPrimitiveImpl {
-    fn name(&self) -> &'static str {
-        "sub_primitive_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Sub
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -371,14 +380,18 @@ impl ScalarFunction for Div {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DivPrimitiveImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for DivPrimitiveImpl {
-    fn name(&self) -> &'static str {
-        "div_primitive_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Div
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -493,14 +506,18 @@ impl ScalarFunction for Mul {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MulPrimitiveImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for MulPrimitiveImpl {
-    fn name(&self) -> &'static str {
-        "mul_primitive_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Mul
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -625,14 +642,18 @@ impl ScalarFunction for Rem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemPrimitiveImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for RemPrimitiveImpl {
-    fn name(&self) -> &'static str {
-        "rem_primitive_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Rem
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

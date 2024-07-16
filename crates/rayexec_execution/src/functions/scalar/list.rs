@@ -10,6 +10,7 @@ use rayexec_bullet::{
     field::TypeSchema,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     functions::{plan_check_num_args, FunctionInfo, Signature},
@@ -78,15 +79,19 @@ impl ScalarFunction for ListExtract {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListExtractImpl {
     datatype: DataType,
     index: usize,
 }
 
 impl PlannedScalarFunction for ListExtractImpl {
-    fn name(&self) -> &'static str {
-        "list_extract_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &ListExtract
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -256,14 +261,18 @@ impl ScalarFunction for ListValues {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListValuesImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for ListValuesImpl {
-    fn name(&self) -> &'static str {
-        "list_values_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &ListValues
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
