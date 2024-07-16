@@ -51,9 +51,68 @@ impl AstMeta for Bound {
     type CopyToDestination = BoundCopyTo;
 }
 
+/// Index into the bind list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BindListIdx {
+    /// Index into the `bound` list.
+    Bound(usize),
+    /// Index into the `unbound` list.
+    Unbound(usize),
+}
+
+/// List for holding bound and unbound variants for a single logical type.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BindList<B, U> {
+    pub bound: Vec<B>,
+    pub unbound: Vec<U>,
+}
+
+/// Bind list for table like objects (tables or CTEs).
+pub type TableBindList = BindList<TableOrCteReference, ast::ObjectReference>;
+
+/// Bind list for functions (scalar or aggs).
+pub type FunctionBindList = BindList<FunctionReference, ast::ObjectReference>;
+
+/// Bind list for table functions.
+pub type TableFunctionBindList = BindList<TableFunctionReference, ast::ObjectReference>;
+
+/// Bind list for table function arguments.
+pub type TableFunctionArgBindList = BindList<TableFunctionArgs, Vec<ast::FunctionArg<Raw>>>;
+
+impl<B, U> BindList<B, U> {
+    pub fn any_unbound(&self) -> bool {
+        !self.unbound.is_empty()
+    }
+
+    pub fn try_get_bound(&self, idx: BindListIdx) -> Result<&B> {
+        match idx {
+            BindListIdx::Bound(idx) => self
+                .bound
+                .get(idx)
+                .ok_or_else(|| RayexecError::new("Missing bound item")),
+            BindListIdx::Unbound(_) => Err(RayexecError::new("Invalid bind list idx variant")),
+        }
+    }
+}
+
+impl<B, U> Default for BindList<B, U> {
+    fn default() -> Self {
+        Self {
+            bound: Vec::new(),
+            unbound: Vec::new(),
+        }
+    }
+}
+
 /// Index into one of the bind lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BindIdx(pub usize);
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum FunctionReference {
+    Scalar(Box<dyn ScalarFunction>),
+    Aggregate(Box<dyn AggregateFunction>),
+}
 
 /// Describes an object that might have been bound.
 ///
@@ -209,7 +268,7 @@ pub struct BoundCte {
 /// and other database objects.
 ///
 /// Planning will reference these items directly.
-#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Serialize)]
 pub struct BindData {
     /// List of tables we've come across.
     ///
@@ -218,6 +277,9 @@ pub struct BindData {
     ///
     /// An unbound reference can only possibly reference a table.
     pub tables: Vec<MaybeBound<TableOrCteReference, ast::ObjectReference>>,
+
+    pub functions: FunctionBindList,
+    pub table_functions: TableFunctionBindList,
 
     /// How "deep" in the plan are we.
     ///
