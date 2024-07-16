@@ -18,6 +18,7 @@ use crate::functions::CastType;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
+use super::binder::bindref::FunctionReference;
 use super::query::QueryNodePlanner;
 use super::{
     binder::{Bound, BoundFunctionReference},
@@ -106,6 +107,7 @@ impl<'a> ExpressionContext<'a> {
                     explicit_alias: false,
                 }],
                 ast::Expr::Function(ast::Function { reference, .. }) => {
+                    let reference = self.planner.bind_data.functions.try_get_bound(*reference)?;
                     vec![ExpandedSelectExpr::Expr {
                         name: reference.name().to_string(),
                         expr,
@@ -273,8 +275,13 @@ impl<'a> ExpressionContext<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                match func.reference {
-                    BoundFunctionReference::Scalar(scalar) => {
+                let reference = self
+                    .planner
+                    .bind_data
+                    .functions
+                    .try_get_bound(func.reference)?;
+                match reference {
+                    FunctionReference::Scalar(scalar) => {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
@@ -283,7 +290,7 @@ impl<'a> ExpressionContext<'a> {
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
-                    BoundFunctionReference::Aggregate(agg) => {
+                    FunctionReference::Aggregate(agg) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
                         let agg = agg.plan_from_expressions(&inputs, self.input)?;

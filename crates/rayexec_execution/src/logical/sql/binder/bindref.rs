@@ -14,14 +14,9 @@ use crate::{
 
 /// Index into the bind list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BindListIdx {
-    /// Index into the `bound` list.
-    Bound(usize),
-    /// Index into the `unbound` list.
-    Unbound(usize),
-}
+pub struct BindListIdx(pub usize);
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MaybeBound<B, U> {
     Bound(B),
     Unbound(U),
@@ -31,8 +26,7 @@ pub enum MaybeBound<B, U> {
 /// (table, function, etc).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BindList<B, U> {
-    pub bound: Vec<B>,
-    pub unbound: Vec<U>,
+    pub inner: Vec<MaybeBound<B, U>>,
 }
 
 /// Bind list for table like objects (tables or CTEs).
@@ -49,45 +43,37 @@ pub type TableFunctionArgsBindList = BindList<TableFunctionArgs, Vec<ast::Functi
 
 impl<B, U> BindList<B, U> {
     pub fn any_unbound(&self) -> bool {
-        !self.unbound.is_empty()
+        self.inner
+            .iter()
+            .any(|v| matches!(v, MaybeBound::Unbound(_)))
     }
 
     pub fn try_get_bound(&self, idx: BindListIdx) -> Result<&B> {
-        match idx {
-            BindListIdx::Bound(idx) => self
-                .bound
-                .get(idx)
-                .ok_or_else(|| RayexecError::new("Missing bound item")),
-            BindListIdx::Unbound(_) => Err(RayexecError::new("Invalid bind list idx variant")),
+        match self.inner.get(idx.0) {
+            Some(MaybeBound::Bound(b)) => Ok(b),
+            Some(MaybeBound::Unbound(_)) => Err(RayexecError::new("Item not bound")),
+            None => Err(RayexecError::new("Missing bind item")),
         }
     }
 
     pub fn push_maybe_bound(&mut self, maybe: MaybeBound<B, U>) -> BindListIdx {
-        match maybe {
-            MaybeBound::Bound(b) => self.push_bound(b),
-            MaybeBound::Unbound(u) => self.push_unbound(u),
-        }
+        let idx = self.inner.len();
+        self.inner.push(maybe);
+        BindListIdx(idx)
     }
 
     pub fn push_bound(&mut self, bound: B) -> BindListIdx {
-        let idx = self.bound.len();
-        self.bound.push(bound);
-        BindListIdx::Bound(idx)
+        self.push_maybe_bound(MaybeBound::Bound(bound))
     }
 
     pub fn push_unbound(&mut self, unbound: U) -> BindListIdx {
-        let idx = self.bound.len();
-        self.unbound.push(unbound);
-        BindListIdx::Unbound(idx)
+        self.push_maybe_bound(MaybeBound::Unbound(unbound))
     }
 }
 
 impl<B, U> Default for BindList<B, U> {
     fn default() -> Self {
-        Self {
-            bound: Vec::new(),
-            unbound: Vec::new(),
-        }
+        Self { inner: Vec::new() }
     }
 }
 
@@ -95,6 +81,18 @@ impl<B, U> Default for BindList<B, U> {
 pub enum FunctionReference {
     Scalar(Box<dyn ScalarFunction>),
     Aggregate(Box<dyn AggregateFunction>),
+}
+
+impl FunctionReference {
+    /// Get the name of the function.
+    ///
+    /// Used when generating column names if user doesn't provide an alias.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Scalar(f) => f.name(),
+            Self::Aggregate(f) => f.name(),
+        }
+    }
 }
 
 /// Table or CTE found in the FROM clause.

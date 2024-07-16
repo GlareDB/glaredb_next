@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    binder::{BindData, Bound, TableOrCteReference},
+    binder::{bindref::TableOrCteReference, BindData, Bound},
     expr::ExpressionContext,
     scope::Scope,
 };
@@ -254,7 +254,7 @@ impl<'a> PlanContext<'a> {
                 planner.plan_query(context, query)?
             }
             ast::CopyToSource::Table(table) => {
-                let (catalog, schema, ent) = match self.bind_data.get_bound_table(table)? {
+                let (catalog, schema, ent) = match self.bind_data.tables.try_get_bound(table)? {
                     TableOrCteReference::Table {
                         catalog,
                         schema,
@@ -300,7 +300,7 @@ impl<'a> PlanContext<'a> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
         let source = planner.plan_query(context, insert.source)?;
 
-        let entry = match self.bind_data.get_bound_table(insert.table)? {
+        let entry = match self.bind_data.tables.try_get_bound(insert.table)? {
             TableOrCteReference::Table { entry, .. } => entry,
             TableOrCteReference::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")), // Shouldn't be possible.
         };

@@ -143,36 +143,6 @@ impl BindData {
             || self.table_function_args.any_unbound()
     }
 
-    /// Get a bound table from the bind data.
-    ///
-    /// Errors if the table wasn't bound (we couldn't resolve it).
-    pub fn get_bound_table(&self, idx: BindIdx) -> Result<&TableOrCteReference> {
-        unimplemented!()
-        // // This error shouldn't happen during normal operations.
-        // let table = self.tables.get(idx.0).ok_or_else(|| {
-        //     RayexecError::new(format!("Missing table reference at bind index {}", idx.0))
-        // })?;
-
-        // // This error may happen if we couldn't resolve a table, should be a
-        // // nice user facing error.
-        // match table {
-        //     MaybeBound::Bound(b) => Ok(b),
-        //     MaybeBound::Unbound(reference) => Err(RayexecError::new(format!(
-        //         "Unable to find table or view for '{reference}'",
-        //     ))),
-        // }
-    }
-
-    fn push_table(
-        &mut self,
-        reference: MaybeBound<TableOrCteReference, ast::ObjectReference>,
-    ) -> BindIdx {
-        unimplemented!()
-        // let idx = self.tables.len();
-        // self.tables.push(reference);
-        // BindIdx(idx)
-    }
-
     /// Try to find a CTE by its normalized name.
     ///
     /// This will iterate the cte vec right to left to find best cte that

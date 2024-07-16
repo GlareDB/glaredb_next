@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use super::{
     aggregate::AggregatePlanner,
-    binder::{BindData, Bound, BoundCteReference, TableOrCteReference},
+    binder::{
+        bindref::{CteReference, TableOrCteReference},
+        BindData, Bound,
+    },
     expr::{ExpandedSelectExpr, ExpressionContext},
     planner::LogicalQuery,
     scope::{ColumnRef, Scope, TableReference},
@@ -328,7 +331,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                match self.bind_data.get_bound_table(reference)? {
+                match self.bind_data.tables.try_get_bound(reference)? {
                     TableOrCteReference::Table {
                         catalog,
                         schema,
@@ -366,25 +369,19 @@ impl<'a> QueryNodePlanner<'a> {
                 nested.plan_query(context, query)?
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args: _ }) => {
+                let table_func = self.bind_data.table_functions.try_get_bound(reference)?;
                 let scope_reference = TableReference {
                     database: None,
                     schema: None,
-                    table: reference.name,
+                    table: table_func.name.clone(),
                 };
                 let scope = Scope::with_columns(
                     Some(scope_reference),
-                    reference
-                        .func
-                        .as_ref()
-                        .unwrap()
-                        .schema()
-                        .fields
-                        .into_iter()
-                        .map(|f| f.name),
+                    table_func.func.schema().fields.into_iter().map(|f| f.name),
                 );
 
                 let operator = LogicalOperator::TableFunction(TableFunction {
-                    function: reference.func.unwrap(),
+                    function: table_func.func.clone(),
                 });
 
                 LogicalQuery {
@@ -488,7 +485,7 @@ impl<'a> QueryNodePlanner<'a> {
     fn plan_cte_body(
         &self,
         context: &mut QueryContext,
-        bound: BoundCteReference,
+        bound: CteReference,
         current_schema: TypeSchema,
         current_scope: Scope,
     ) -> Result<LogicalQuery> {
