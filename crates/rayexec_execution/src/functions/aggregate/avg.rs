@@ -48,6 +48,13 @@ impl FunctionInfo for Avg {
 }
 
 impl AggregateFunction for Avg {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(AvgImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],

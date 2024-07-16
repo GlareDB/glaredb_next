@@ -39,9 +39,7 @@ pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     fn state_deserialize(
         &self,
         deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        unimplemented!()
-    }
+    ) -> Result<Box<dyn PlannedAggregateFunction>>;
 
     /// Plans an aggregate function from input data types.
     ///

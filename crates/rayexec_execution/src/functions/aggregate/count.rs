@@ -30,6 +30,13 @@ impl FunctionInfo for Count {
 }
 
 impl AggregateFunction for Count {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(CountNonNullImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
