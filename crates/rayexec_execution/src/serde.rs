@@ -127,7 +127,7 @@ impl ObjectLookup for TableFunctionLookup {
         object: Box<Self::Object>,
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<Self::StatefulObject>> {
-        unimplemented!()
+        object.state_deserialize(deserializer)
     }
 }
 
@@ -329,6 +329,62 @@ impl<'de, 'a> DeserializeSeed<'de> for PlannedAggregateFunctionDeserializer<'a> 
         deserializer.deserialize_map(TaggedVisitor {
             context: self.context,
             lookup: AggregateFunctionLookup,
+        })
+    }
+}
+
+impl Serialize for Box<dyn TableFunction + '_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.name().serialize(serializer)
+    }
+}
+
+pub struct TableFunctionDeserializer<'a> {
+    context: &'a DatabaseContext,
+}
+
+impl<'de, 'a> DeserializeSeed<'de> for TableFunctionDeserializer<'a> {
+    type Value = Box<dyn TableFunction>;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(DatabaseObjectVisitor {
+            context: self.context,
+            lookup: TableFunctionLookup,
+        })
+    }
+}
+
+impl Serialize for Box<dyn PlannedTableFunction + '_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_map(Some(1))?;
+        ser.serialize_entry(self.table_function().name(), self.serializable_state())?;
+        ser.end()
+    }
+}
+
+pub struct PlannedTableFunctionDeserializer<'a> {
+    context: &'a DatabaseContext,
+}
+
+impl<'de, 'a> DeserializeSeed<'de> for PlannedTableFunctionDeserializer<'a> {
+    type Value = Box<dyn PlannedTableFunction>;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(TaggedVisitor {
+            context: self.context,
+            lookup: TableFunctionLookup,
         })
     }
 }

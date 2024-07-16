@@ -9,6 +9,7 @@ use rayexec_execution::{
     runtime::ExecutionRuntime,
 };
 use rayexec_io::{FileLocation, FileSource};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{
@@ -36,9 +37,16 @@ impl TableFunction for ReadCsv {
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadCsvImpl::initialize(runtime.as_ref(), args))
     }
+
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        Ok(Box::new(ReadCsvImpl::deserialize(deserializer)?))
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ReadCsvImpl {
     location: FileLocation,
     csv_schema: CsvSchema,
@@ -94,6 +102,10 @@ impl ReadCsvImpl {
 }
 
 impl PlannedTableFunction for ReadCsvImpl {
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+
     fn table_function(&self) -> &dyn TableFunction {
         &ReadCsv
     }

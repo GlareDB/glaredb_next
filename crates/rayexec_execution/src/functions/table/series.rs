@@ -11,6 +11,7 @@ use rayexec_bullet::{
     field::{Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use std::{sync::Arc, task::Context};
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
@@ -29,6 +30,13 @@ impl TableFunction for GenerateSeries {
         args: TableFunctionArgs,
     ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { Self::plan_and_initialize_inner(args) })
+    }
+
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        Ok(Box::new(GenerateSeriesI64::deserialize(deserializer)?))
     }
 }
 
@@ -68,7 +76,7 @@ impl GenerateSeries {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GenerateSeriesI64 {
     start: i64,
     stop: i64,
@@ -76,6 +84,10 @@ pub struct GenerateSeriesI64 {
 }
 
 impl PlannedTableFunction for GenerateSeriesI64 {
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+
     fn table_function(&self) -> &dyn TableFunction {
         &GenerateSeries
     }

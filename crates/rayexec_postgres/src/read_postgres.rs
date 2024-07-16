@@ -6,6 +6,7 @@ use rayexec_execution::{
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::ExecutionRuntime,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{PostgresClient, PostgresDataTable};
@@ -25,9 +26,16 @@ impl TableFunction for ReadPostgres {
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadPostgresImpl::initialize(runtime.as_ref(), args))
     }
+
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        Ok(Box::new(ReadPostgresImpl::deserialize(deserializer)?))
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ReadPostgresImpl {
     conn_str: String,
     schema: String,
@@ -73,6 +81,10 @@ impl ReadPostgresImpl {
 }
 
 impl PlannedTableFunction for ReadPostgresImpl {
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+
     fn table_function(&self) -> &dyn TableFunction {
         &ReadPostgres
     }

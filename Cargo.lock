@@ -1816,12 +1816,14 @@ dependencies = [
  "bytes",
  "csv",
  "csv-core",
+ "erased-serde",
  "futures",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "regex",
+ "serde",
  "tracing",
  "url",
 ]
@@ -1881,6 +1883,7 @@ name = "rayexec_parquet"
 version = "0.0.16"
 dependencies = [
  "bytes",
+ "erased-serde",
  "futures",
  "parquet",
  "rayexec_bullet",
@@ -1888,6 +1891,7 @@ dependencies = [
  "rayexec_execution",
  "rayexec_io",
  "regex",
+ "serde",
  "tracing",
  "url",
 ]
@@ -1907,10 +1911,12 @@ dependencies = [
 name = "rayexec_postgres"
 version = "0.0.16"
 dependencies = [
+ "erased-serde",
  "futures",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "serde",
  "tokio-postgres",
  "tracing",
 ]

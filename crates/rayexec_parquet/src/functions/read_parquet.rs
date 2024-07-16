@@ -1,4 +1,4 @@
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
@@ -9,6 +9,7 @@ use rayexec_execution::{
     runtime::ExecutionRuntime,
 };
 use rayexec_io::FileLocation;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{metadata::Metadata, schema::convert_schema};
@@ -34,12 +35,23 @@ impl TableFunction for ReadParquet {
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadParquetImpl::initialize(runtime.as_ref(), args))
     }
+
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        Ok(Box::new(ReadParquetImpl::deserialize(deserializer)?))
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadParquetImpl {
     location: FileLocation,
-    metadata: Arc<Metadata>,
+    // TODO: Not sure what we want to do here. We could put
+    // Serialize/Deserialize macros on everything, but I'm not sure how
+    // deep/wide that would go.
+    #[serde(skip)]
+    metadata: Option<Arc<Metadata>>,
     schema: Schema,
 }
 
@@ -67,13 +79,17 @@ impl ReadParquetImpl {
 
         Ok(Box::new(Self {
             location,
-            metadata: Arc::new(metadata),
+            metadata: Some(Arc::new(metadata)),
             schema,
         }))
     }
 }
 
 impl PlannedTableFunction for ReadParquetImpl {
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+
     fn table_function(&self) -> &dyn TableFunction {
         &ReadParquet
     }
@@ -83,8 +99,13 @@ impl PlannedTableFunction for ReadParquetImpl {
     }
 
     fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
+        let metadata = match self.metadata.as_ref().cloned() {
+            Some(metadata) => metadata,
+            None => return Err(RayexecError::new("Missing parquet metadata on state")),
+        };
+
         Ok(Box::new(RowGroupPartitionedDataTable {
-            metadata: self.metadata.clone(),
+            metadata,
             schema: self.schema.clone(),
             location: self.location.clone(),
             runtime: runtime.clone(),

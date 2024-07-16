@@ -55,6 +55,17 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
         runtime: &'a Arc<dyn ExecutionRuntime>,
         args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
+
+    /// Deserialize existing state into a planned table function.
+    ///
+    /// The planned functions `renitialize` method will be called prior to
+    /// executing of the pipeline containing this function. `reinitialize` will
+    /// not be called if the machine deserializing the function will not be
+    /// executing the function.
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>>;
 }
 
 impl Clone for Box<dyn TableFunction> {
@@ -87,6 +98,12 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     fn reinitialize(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> BoxFuture<Result<()>> {
         async move { Ok(()) }.boxed()
     }
+
+    /// Return an reference to some serializable state.
+    ///
+    /// Typically this just returns `self` with Self implementing Serialize via
+    /// a derive macro.
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize;
 
     /// Returns a reference to the table function that initialized this
     /// function.

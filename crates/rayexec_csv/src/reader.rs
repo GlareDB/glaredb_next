@@ -36,8 +36,9 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::FileSource;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DialectOptions {
     /// Delimiter character.
     pub delimiter: u8,
@@ -222,7 +223,7 @@ impl CandidateType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CsvSchema {
     /// All fields in the the csv input.
     pub fields: Vec<Field>,
