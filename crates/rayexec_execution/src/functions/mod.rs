@@ -4,7 +4,7 @@ pub mod implicit;
 pub mod scalar;
 pub mod table;
 
-use std::{borrow::Borrow, error::Error, fmt::Display};
+use std::{borrow::Borrow, fmt::Display};
 
 use fmtutil::IntoDisplayableSlice;
 use implicit::implicit_cast_score;

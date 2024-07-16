@@ -643,7 +643,7 @@ impl LogicalNode for TableFunction {
 impl Explainable for TableFunction {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("TableFunction")
-            .with_value("function", self.function.specialized().name())
+            .with_value("function", self.function.table_function().name())
     }
 }
 

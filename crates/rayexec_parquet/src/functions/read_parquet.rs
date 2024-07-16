@@ -1,11 +1,10 @@
-use futures::future::BoxFuture;
+use futures::future::{BoxFuture, FutureExt};
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{
-        check_named_args_is_empty, PlannedTableFunction, SpecializedTableFunction, TableFunction,
-        TableFunctionArgs,
+        check_named_args_is_empty, PlannedTableFunction, TableFunction, TableFunctionArgs,
     },
     runtime::ExecutionRuntime,
 };
@@ -28,8 +27,28 @@ impl TableFunction for ReadParquet {
         &["parquet_scan"]
     }
 
-    fn specialize(&self, mut args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
-        check_named_args_is_empty(self, &args)?;
+    fn plan_and_initialize<'a>(
+        &'a self,
+        runtime: &'a Arc<dyn ExecutionRuntime>,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(ReadParquetImpl::initialize(runtime.as_ref(), args))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadParquetImpl {
+    location: FileLocation,
+    metadata: Arc<Metadata>,
+    schema: Schema,
+}
+
+impl ReadParquetImpl {
+    async fn initialize(
+        runtime: &dyn ExecutionRuntime,
+        mut args: TableFunctionArgs,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        check_named_args_is_empty(&ReadParquet, &args)?;
         if args.positional.len() != 1 {
             return Err(RayexecError::new("Expected one argument"));
         }
@@ -39,58 +58,24 @@ impl TableFunction for ReadParquet {
         let location = args.positional.pop().unwrap().try_into_string()?;
         let location = FileLocation::parse(&location);
 
-        Ok(Box::new(ReadParquetImpl { location }))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ReadParquetImpl {
-    pub(crate) location: FileLocation,
-}
-
-impl SpecializedTableFunction for ReadParquetImpl {
-    fn name(&self) -> &'static str {
-        "read_parquet_impl"
-    }
-
-    fn initialize(
-        self: Box<Self>,
-        runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(async move { self.initialize_inner(runtime.as_ref()).await })
-    }
-}
-
-impl ReadParquetImpl {
-    async fn initialize_inner(
-        self,
-        runtime: &dyn ExecutionRuntime,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
-        let mut source = runtime.file_provider().file_source(self.location.clone())?;
+        let mut source = runtime.file_provider().file_source(location.clone())?;
 
         let size = source.size().await?;
 
         let metadata = Metadata::load_from(source.as_mut(), size).await?;
         let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
-        Ok(Box::new(ReadParquetLocalRowGroupPartitioned {
-            specialized: self,
+        Ok(Box::new(Self {
+            location,
             metadata: Arc::new(metadata),
             schema,
         }))
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ReadParquetLocalRowGroupPartitioned {
-    specialized: ReadParquetImpl,
-    metadata: Arc<Metadata>,
-    schema: Schema,
-}
-
-impl PlannedTableFunction for ReadParquetLocalRowGroupPartitioned {
-    fn specialized(&self) -> &dyn SpecializedTableFunction {
-        &self.specialized
+impl PlannedTableFunction for ReadParquetImpl {
+    fn table_function(&self) -> &dyn TableFunction {
+        &ReadParquet
     }
 
     fn schema(&self) -> Schema {
@@ -101,7 +86,7 @@ impl PlannedTableFunction for ReadParquetLocalRowGroupPartitioned {
         Ok(Box::new(RowGroupPartitionedDataTable {
             metadata: self.metadata.clone(),
             schema: self.schema.clone(),
-            location: self.specialized.location.clone(),
+            location: self.location.clone(),
             runtime: runtime.clone(),
         }))
     }

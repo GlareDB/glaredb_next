@@ -13,7 +13,7 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
 
-use super::{PlannedTableFunction, SpecializedTableFunction, TableFunction, TableFunctionArgs};
+use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenerateSeries;
@@ -23,10 +23,20 @@ impl TableFunction for GenerateSeries {
         "generate_series"
     }
 
-    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+    fn plan_and_initialize(
+        &self,
+        _runtime: &Arc<dyn ExecutionRuntime>,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(async move { Self::plan_and_initialize_inner(args) })
+    }
+}
+
+impl GenerateSeries {
+    fn plan_and_initialize_inner(args: TableFunctionArgs) -> Result<Box<dyn PlannedTableFunction>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
-                "read_postgres does not accept named arguments",
+                "generate_series does not accept named arguments",
             ));
         }
 
@@ -65,22 +75,9 @@ pub struct GenerateSeriesI64 {
     step: i64,
 }
 
-impl SpecializedTableFunction for GenerateSeriesI64 {
-    fn name(&self) -> &'static str {
-        "generate_series"
-    }
-
-    fn initialize(
-        self: Box<Self>,
-        _runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(async move { Ok(self as _) })
-    }
-}
-
 impl PlannedTableFunction for GenerateSeriesI64 {
-    fn specialized(&self) -> &dyn SpecializedTableFunction {
-        self
+    fn table_function(&self) -> &dyn TableFunction {
+        &GenerateSeries
     }
 
     fn schema(&self) -> Schema {

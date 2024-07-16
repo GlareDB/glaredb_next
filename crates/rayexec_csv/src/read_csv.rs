@@ -4,8 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{
-        check_named_args_is_empty, PlannedTableFunction, SpecializedTableFunction, TableFunction,
-        TableFunctionArgs,
+        check_named_args_is_empty, PlannedTableFunction, TableFunction, TableFunctionArgs,
     },
     runtime::ExecutionRuntime,
 };
@@ -30,8 +29,28 @@ impl TableFunction for ReadCsv {
         &["csv_scan"]
     }
 
-    fn specialize(&self, mut args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
-        check_named_args_is_empty(self, &args)?;
+    fn plan_and_initialize<'a>(
+        &'a self,
+        runtime: &'a Arc<dyn ExecutionRuntime>,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(ReadCsvImpl::initialize(runtime.as_ref(), args))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ReadCsvImpl {
+    location: FileLocation,
+    csv_schema: CsvSchema,
+    dialect: DialectOptions,
+}
+
+impl ReadCsvImpl {
+    async fn initialize(
+        runtime: &dyn ExecutionRuntime,
+        mut args: TableFunctionArgs,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        check_named_args_is_empty(&ReadCsv, &args)?;
         if args.positional.len() != 1 {
             return Err(RayexecError::new("Expected one argument"));
         }
@@ -41,34 +60,7 @@ impl TableFunction for ReadCsv {
         let location = args.positional.pop().unwrap().try_into_string()?;
         let location = FileLocation::parse(&location);
 
-        Ok(Box::new(ReadCsvImpl { location }))
-    }
-}
-
-#[derive(Debug, Clone)]
-struct ReadCsvImpl {
-    location: FileLocation,
-}
-
-impl SpecializedTableFunction for ReadCsvImpl {
-    fn name(&self) -> &'static str {
-        "read_csv_impl"
-    }
-
-    fn initialize(
-        self: Box<Self>,
-        runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(async move { self.initialize_inner(runtime.as_ref()).await })
-    }
-}
-
-impl ReadCsvImpl {
-    async fn initialize_inner(
-        self,
-        runtime: &dyn ExecutionRuntime,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
-        let mut source = runtime.file_provider().file_source(self.location.clone())?;
+        let mut source = runtime.file_provider().file_source(location.clone())?;
 
         let mut stream = source.read_stream();
         // TODO: Actually make sure this is a sufficient size to infer from.
@@ -86,31 +78,24 @@ impl ReadCsvImpl {
             None => return Err(RayexecError::new("Stream returned no data")),
         };
 
-        let options = DialectOptions::infer_from_sample(&infer_buf)?;
-        let mut decoder = CsvDecoder::new(options);
+        let dialect = DialectOptions::infer_from_sample(&infer_buf)?;
+        let mut decoder = CsvDecoder::new(dialect);
         let mut state = DecoderState::default();
         let _ = decoder.decode(&infer_buf, &mut state)?;
         let completed = state.completed_records();
-        let schema = CsvSchema::infer_from_records(completed)?;
+        let csv_schema = CsvSchema::infer_from_records(completed)?;
 
-        Ok(Box::new(InitializedLocalCsvFunction {
-            specialized: self,
-            options,
-            csv_schema: schema,
+        Ok(Box::new(Self {
+            location,
+            dialect,
+            csv_schema,
         }))
     }
 }
 
-#[derive(Debug, Clone)]
-struct InitializedLocalCsvFunction {
-    specialized: ReadCsvImpl,
-    options: DialectOptions,
-    csv_schema: CsvSchema,
-}
-
-impl PlannedTableFunction for InitializedLocalCsvFunction {
-    fn specialized(&self) -> &dyn SpecializedTableFunction {
-        &self.specialized
+impl PlannedTableFunction for ReadCsvImpl {
+    fn table_function(&self) -> &dyn TableFunction {
+        &ReadCsv
     }
 
     fn schema(&self) -> Schema {
@@ -121,9 +106,9 @@ impl PlannedTableFunction for InitializedLocalCsvFunction {
 
     fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(SingleFileCsvDataTable {
-            options: self.options,
+            options: self.dialect,
             csv_schema: self.csv_schema.clone(),
-            location: self.specialized.location.clone(),
+            location: self.location.clone(),
             runtime: runtime.clone(),
         }))
     }

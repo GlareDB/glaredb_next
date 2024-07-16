@@ -852,8 +852,7 @@ impl<'a> Binder<'a> {
                         let name = handler.table_func.name().to_string();
                         let func = handler
                             .table_func
-                            .specialize(args.clone())?
-                            .initialize(self.runtime)
+                            .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {
@@ -879,8 +878,7 @@ impl<'a> Binder<'a> {
 
                 let name = table_fn.name().to_string();
                 let func = table_fn
-                    .specialize(args.clone())?
-                    .initialize(self.runtime)
+                    .plan_and_initialize(self.runtime, args.clone())
                     .await?;
 
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {

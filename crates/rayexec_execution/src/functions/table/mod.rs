@@ -2,6 +2,7 @@ pub mod series;
 
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
+use futures::FutureExt;
 use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -43,8 +44,17 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
         &[]
     }
 
-    /// Specializes this function with the given arguments.
-    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>>;
+    /// Plan the table function using the provide args, and do any necessary
+    /// initialization.
+    ///
+    /// Intialization may include opening connections a remote database, and
+    /// should be used determine the schema of the table we'll be returning. Any
+    /// connections should remain open through execution.
+    fn plan_and_initialize<'a>(
+        &'a self,
+        runtime: &'a Arc<dyn ExecutionRuntime>,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
 }
 
 impl Clone for Box<dyn TableFunction> {
@@ -65,33 +75,22 @@ impl PartialEq for dyn TableFunction + '_ {
     }
 }
 
-pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
-    /// Name of the specialized function.
-    fn name(&self) -> &'static str;
-
-    /// Initializes the table function using the provided runtime.
-    fn initialize(
-        self: Box<Self>,
-        runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>>;
-}
-
-impl PartialEq<dyn SpecializedTableFunction> for Box<dyn SpecializedTableFunction + '_> {
-    fn eq(&self, other: &dyn SpecializedTableFunction) -> bool {
-        self.as_ref() == other
-    }
-}
-
-impl PartialEq for dyn SpecializedTableFunction + '_ {
-    fn eq(&self, other: &dyn SpecializedTableFunction) -> bool {
-        self.name() == other.name()
-    }
-}
-
 pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
-    /// Returns a reference to the specialized function that initialized this
+    /// Reinitialize the table function, including re-opening any connections
+    /// needed.
+    ///
+    /// This is called immediately after deserializing a planned function in
+    /// order populate fields that cannot be serialized and moved across
+    /// machines.
+    ///
+    /// The default implementation does nothing.
+    fn reinitialize(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> BoxFuture<Result<()>> {
+        async move { Ok(()) }.boxed()
+    }
+
+    /// Returns a reference to the table function that initialized this
     /// function.
-    fn specialized(&self) -> &dyn SpecializedTableFunction;
+    fn table_function(&self) -> &dyn TableFunction;
 
     /// Get the schema for the function output.
     ///
@@ -115,7 +114,7 @@ impl PartialEq<dyn PlannedTableFunction> for Box<dyn PlannedTableFunction + '_> 
 
 impl PartialEq for dyn PlannedTableFunction + '_ {
     fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
-        self.specialized() == other.specialized() && self.schema() == other.schema()
+        self.table_function() == other.table_function() && self.schema() == other.schema()
     }
 }
 
