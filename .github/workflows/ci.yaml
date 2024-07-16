@@ -23,6 +23,9 @@ jobs:
       - name: SLTs Parquet
         run: cargo test slt_datasource_parquet
 
+      - name: SLTs CSV
+        run: cargo test slt_datasource_csv
+
       - name: SLTs Postgres
         run: |
           ./scripts/create-test-postgres-db.sh
