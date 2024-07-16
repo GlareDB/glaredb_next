@@ -1,7 +1,14 @@
+pub mod bindref;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
+use bindref::{
+    BindListIdx, CteReference, FunctionBindList, FunctionReference, ItemReference, MaybeBound,
+    TableBindList, TableFunctionArgsBindList, TableFunctionBindList, TableFunctionReference,
+    TableOrCteReference,
+};
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
@@ -40,90 +47,20 @@ pub struct Bound;
 
 impl AstMeta for Bound {
     type DataSourceName = String;
-    type ItemReference = BoundItemReference;
-    type TableReference = BindIdx;
-    type TableFunctionReference = TableFunctionReference;
-    type TableFunctionArguments = TableFunctionArgs;
-    type CteReference = BoundCteReference;
-    type FunctionReference = BoundFunctionReference;
+    type ItemReference = ItemReference;
+    type TableReference = BindListIdx;
+    type TableFunctionReference = BindListIdx;
+    type TableFunctionArguments = BindListIdx;
+    type CteReference = CteReference;
+    type FunctionReference = BindListIdx;
     type ColumnReference = String;
     type DataType = DataType;
     type CopyToDestination = BoundCopyTo;
 }
 
-/// Index into the bind list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BindListIdx {
-    /// Index into the `bound` list.
-    Bound(usize),
-    /// Index into the `unbound` list.
-    Unbound(usize),
-}
-
-/// List for holding bound and unbound variants for a single logical type.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct BindList<B, U> {
-    pub bound: Vec<B>,
-    pub unbound: Vec<U>,
-}
-
-/// Bind list for table like objects (tables or CTEs).
-pub type TableBindList = BindList<TableOrCteReference, ast::ObjectReference>;
-
-/// Bind list for functions (scalar or aggs).
-pub type FunctionBindList = BindList<FunctionReference, ast::ObjectReference>;
-
-/// Bind list for table functions.
-pub type TableFunctionBindList = BindList<TableFunctionReference, ast::ObjectReference>;
-
-/// Bind list for table function arguments.
-pub type TableFunctionArgBindList = BindList<TableFunctionArgs, Vec<ast::FunctionArg<Raw>>>;
-
-impl<B, U> BindList<B, U> {
-    pub fn any_unbound(&self) -> bool {
-        !self.unbound.is_empty()
-    }
-
-    pub fn try_get_bound(&self, idx: BindListIdx) -> Result<&B> {
-        match idx {
-            BindListIdx::Bound(idx) => self
-                .bound
-                .get(idx)
-                .ok_or_else(|| RayexecError::new("Missing bound item")),
-            BindListIdx::Unbound(_) => Err(RayexecError::new("Invalid bind list idx variant")),
-        }
-    }
-}
-
-impl<B, U> Default for BindList<B, U> {
-    fn default() -> Self {
-        Self {
-            bound: Vec::new(),
-            unbound: Vec::new(),
-        }
-    }
-}
-
 /// Index into one of the bind lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BindIdx(pub usize);
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum FunctionReference {
-    Scalar(Box<dyn ScalarFunction>),
-    Aggregate(Box<dyn AggregateFunction>),
-}
-
-/// Describes an object that might have been bound.
-///
-/// The use case for this is to allow a single ast statement to contain both
-/// bound and unbound objects, with the idea being that if we have any unbound
-/// objects, we trigger hybrid execution.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum MaybeBound<B, U> {
-    Bound(B),
-    Unbound(U),
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCopyTo {
@@ -154,98 +91,6 @@ impl BoundFunctionReference {
     }
 }
 
-/// References a CTE that can be found in `BindData`.
-///
-/// Note that this doesn't hold the CTE itself since it may be referenced more
-/// than once in a query.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct BoundCteReference {
-    /// Index into the CTE map.
-    pub idx: usize,
-}
-
-/// Table or CTE found in the FROM clause.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TableOrCteReference {
-    /// Resolved table.
-    Table {
-        catalog: String,
-        schema: String,
-        entry: TableEntry,
-    },
-    /// Resolved CTE.
-    Cte(BoundCteReference),
-}
-
-/// Table function found in the FROM clause.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TableFunctionReference {
-    /// Name of the original function.
-    ///
-    /// This is used to allow the user to reference the output of the function
-    /// if not provided an alias.
-    pub name: String,
-
-    /// The initialized table function.
-    // TODO: Remove option, temp until I get serialization/deserialization working.
-    #[serde(skip)]
-    pub func: Option<Box<dyn PlannedTableFunction>>,
-}
-
-// TODO: Figure out how we want to represent things like tables in a CREATE
-// TABLE. We don't want to resolve, so a vec of strings works for now.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BoundItemReference(pub Vec<String>);
-
-impl BoundItemReference {
-    pub fn pop(&mut self) -> Result<String> {
-        // TODO: Could be more informative with this error.
-        self.0
-            .pop()
-            .ok_or_else(|| RayexecError::new("End of reference"))
-    }
-
-    pub fn pop_2(&mut self) -> Result<[String; 2]> {
-        let a = self
-            .0
-            .pop()
-            .ok_or_else(|| RayexecError::new("Expected 2 identifiers, got 0"))?;
-        let b = self
-            .0
-            .pop()
-            .ok_or_else(|| RayexecError::new("Expected 2 identifiers, got 1"))?;
-        Ok([b, a])
-    }
-
-    pub fn pop_3(&mut self) -> Result<[String; 3]> {
-        let a = self
-            .0
-            .pop()
-            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 0"))?;
-        let b = self
-            .0
-            .pop()
-            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 1"))?;
-        let c = self
-            .0
-            .pop()
-            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 2"))?;
-        Ok([c, b, a])
-    }
-}
-
-impl From<Vec<String>> for BoundItemReference {
-    fn from(value: Vec<String>) -> Self {
-        BoundItemReference(value)
-    }
-}
-
-impl fmt::Display for BoundItemReference {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.join(","))
-    }
-}
-
 // TODO: This might need some scoping information.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCte {
@@ -270,16 +115,10 @@ pub struct BoundCte {
 /// Planning will reference these items directly.
 #[derive(Debug, Default, PartialEq, Serialize)]
 pub struct BindData {
-    /// List of tables we've come across.
-    ///
-    /// A bound reference may be referencing either a CTE or an actual database
-    /// table.
-    ///
-    /// An unbound reference can only possibly reference a table.
-    pub tables: Vec<MaybeBound<TableOrCteReference, ast::ObjectReference>>,
-
+    pub tables: TableBindList,
     pub functions: FunctionBindList,
     pub table_functions: TableFunctionBindList,
+    pub table_function_args: TableFunctionArgsBindList,
 
     /// How "deep" in the plan are we.
     ///
@@ -298,37 +137,40 @@ pub struct BindData {
 impl BindData {
     /// Checks if there's any unbound references in this query's bind data.
     pub fn any_unbound(&self) -> bool {
-        self.tables
-            .iter()
-            .any(|t| matches!(t, MaybeBound::Unbound(_)))
+        self.tables.any_unbound()
+            || self.functions.any_unbound()
+            || self.table_functions.any_unbound()
+            || self.table_function_args.any_unbound()
     }
 
     /// Get a bound table from the bind data.
     ///
     /// Errors if the table wasn't bound (we couldn't resolve it).
     pub fn get_bound_table(&self, idx: BindIdx) -> Result<&TableOrCteReference> {
-        // This error shouldn't happen during normal operations.
-        let table = self.tables.get(idx.0).ok_or_else(|| {
-            RayexecError::new(format!("Missing table reference at bind index {}", idx.0))
-        })?;
+        unimplemented!()
+        // // This error shouldn't happen during normal operations.
+        // let table = self.tables.get(idx.0).ok_or_else(|| {
+        //     RayexecError::new(format!("Missing table reference at bind index {}", idx.0))
+        // })?;
 
-        // This error may happen if we couldn't resolve a table, should be a
-        // nice user facing error.
-        match table {
-            MaybeBound::Bound(b) => Ok(b),
-            MaybeBound::Unbound(reference) => Err(RayexecError::new(format!(
-                "Unable to find table or view for '{reference}'",
-            ))),
-        }
+        // // This error may happen if we couldn't resolve a table, should be a
+        // // nice user facing error.
+        // match table {
+        //     MaybeBound::Bound(b) => Ok(b),
+        //     MaybeBound::Unbound(reference) => Err(RayexecError::new(format!(
+        //         "Unable to find table or view for '{reference}'",
+        //     ))),
+        // }
     }
 
     fn push_table(
         &mut self,
         reference: MaybeBound<TableOrCteReference, ast::ObjectReference>,
     ) -> BindIdx {
-        let idx = self.tables.len();
-        self.tables.push(reference);
-        BindIdx(idx)
+        unimplemented!()
+        // let idx = self.tables.len();
+        // self.tables.push(reference);
+        // BindIdx(idx)
     }
 
     /// Try to find a CTE by its normalized name.
@@ -343,7 +185,7 @@ impl BindData {
     // TODO: This doesn't account for CTEs defined in sibling subqueries yet
     // that happen to have the same name and depths _and_ there's no CTEs in the
     // parent.
-    fn find_cte(&self, name: &str) -> Option<BoundCteReference> {
+    fn find_cte(&self, name: &str) -> Option<CteReference> {
         let mut search_depth = self.current_depth;
 
         for (idx, cte) in self.ctes.iter().rev().enumerate() {
@@ -354,7 +196,7 @@ impl BindData {
 
             if cte.name == name {
                 // We found a good reference.
-                return Some(BoundCteReference {
+                return Some(CteReference {
                     idx: (self.ctes.len() - 1) - idx, // Since we're iterating backwards.
                 });
             }
@@ -376,10 +218,10 @@ impl BindData {
     }
 
     /// Push a CTE into bind data, returning a CTE reference.
-    fn push_cte(&mut self, cte: BoundCte) -> BoundCteReference {
+    fn push_cte(&mut self, cte: BoundCte) -> CteReference {
         let idx = self.ctes.len();
         self.ctes.push(cte);
-        BoundCteReference { idx }
+        CteReference { idx }
     }
 }
 
@@ -514,7 +356,7 @@ impl<'a> Binder<'a> {
             }
             ast::CopyToSource::Table(table) => {
                 let table = self.resolve_table_or_cte(table, bind_data).await?;
-                let idx = bind_data.push_table(table);
+                let idx = bind_data.tables.push_maybe_bound(table);
                 ast::CopyToSource::Table(idx)
             }
         };
@@ -542,7 +384,7 @@ impl<'a> Binder<'a> {
 
     async fn bind_drop(&self, drop: ast::DropStatement<Raw>) -> Result<ast::DropStatement<Bound>> {
         // TODO: Use search path.
-        let mut name: BoundItemReference = Self::reference_to_strings(drop.name).into();
+        let mut name: ItemReference = Self::reference_to_strings(drop.name).into();
         match drop.drop_type {
             ast::DropType::Schema => {
                 if name.0.len() == 1 {
@@ -573,7 +415,7 @@ impl<'a> Binder<'a> {
         create: ast::CreateSchema<Raw>,
     ) -> Result<ast::CreateSchema<Bound>> {
         // TODO: Search path.
-        let mut name: BoundItemReference = Self::reference_to_strings(create.name).into();
+        let mut name: ItemReference = Self::reference_to_strings(create.name).into();
         if name.0.len() == 1 {
             name.0.insert(0, "temp".to_string()); // Catalog
         }
@@ -590,7 +432,7 @@ impl<'a> Binder<'a> {
         bind_data: &mut BindData,
     ) -> Result<ast::CreateTable<Bound>> {
         // TODO: Search path
-        let mut name: BoundItemReference = Self::reference_to_strings(create.name).into();
+        let mut name: ItemReference = Self::reference_to_strings(create.name).into();
         if create.temp {
             if name.0.len() == 1 {
                 name.0.insert(0, "temp".to_string()); // Schema
@@ -637,7 +479,7 @@ impl<'a> Binder<'a> {
         let table = self.resolve_table_or_cte(insert.table, bind_data).await?;
         let source = self.bind_query(insert.source, bind_data).await?;
 
-        let idx = bind_data.push_table(table);
+        let idx = bind_data.tables.push_maybe_bound(table);
 
         Ok(ast::Insert {
             table: idx,
@@ -895,7 +737,7 @@ impl<'a> Binder<'a> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 let table = self.resolve_table_or_cte(reference, bind_data).await?;
-                let idx = bind_data.push_table(table);
+                let idx = bind_data.tables.push_maybe_bound(table);
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
@@ -917,12 +759,14 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
+                        let func_idx = bind_data
+                            .table_functions
+                            .push_bound(TableFunctionReference { name, func });
+                        let args_idx = bind_data.table_function_args.push_bound(args);
+
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                            reference: TableFunctionReference {
-                                name,
-                                func: Some(func),
-                            },
-                            args,
+                            reference: func_idx,
+                            args: args_idx,
                         })
                     }
                     None => {
@@ -943,12 +787,16 @@ impl<'a> Binder<'a> {
                     .plan_and_initialize(self.runtime, args.clone())
                     .await?;
 
+                // TODO: Allow unbound.
+
+                let func_idx = bind_data
+                    .table_functions
+                    .push_bound(TableFunctionReference { name, func });
+                let args_idx = bind_data.table_function_args.push_bound(args);
+
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                    reference: TableFunctionReference {
-                        name,
-                        func: Some(func),
-                    },
-                    args,
+                    reference: func_idx,
+                    args: args_idx,
                 })
             }
             ast::FromNodeBody::Join(ast::FromJoin {
@@ -1452,8 +1300,12 @@ impl<'a> ExpressionBinder<'a> {
                     schema,
                     func_name,
                 )? {
+                    // TODO: Allow unbound scalars?
+                    let idx = bind_data
+                        .functions
+                        .push_bound(FunctionReference::Scalar(scalar));
                     return Ok(ast::Expr::Function(ast::Function {
-                        reference: BoundFunctionReference::Scalar(scalar),
+                        reference: idx,
                         args,
                         filter,
                     }));
@@ -1466,8 +1318,12 @@ impl<'a> ExpressionBinder<'a> {
                     .get_catalog(catalog)?
                     .get_aggregate_fn(self.binder.tx, schema, func_name)?
                 {
+                    // TODO: Allow unbound aggregates?
+                    let idx = bind_data
+                        .functions
+                        .push_bound(FunctionReference::Aggregate(aggregate));
                     return Ok(ast::Expr::Function(ast::Function {
-                        reference: BoundFunctionReference::Aggregate(aggregate),
+                        reference: idx,
                         args,
                         filter,
                     }));
