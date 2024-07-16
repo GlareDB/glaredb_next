@@ -37,6 +37,13 @@ impl FunctionInfo for ListExtract {
 }
 
 impl ScalarFunction for ListExtract {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(ListExtractImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unreachable!("plan_from_expressions implemented")
     }
@@ -235,6 +242,13 @@ impl FunctionInfo for ListValues {
 }
 
 impl ScalarFunction for ListValues {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(ListValuesImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         let first = match inputs.first() {
             Some(dt) => dt,

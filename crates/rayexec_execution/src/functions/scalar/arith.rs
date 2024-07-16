@@ -101,6 +101,13 @@ impl FunctionInfo for Add {
 }
 
 impl ScalarFunction for Add {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(AddImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -116,7 +123,7 @@ impl ScalarFunction for Add {
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Decimal64(_), DataType::Decimal64(_)) // TODO: Split out decimal
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Date32, DataType::Int64) => Ok(Box::new(AddPrimitiveImpl {
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(AddImpl {
                 datatype: inputs[0].clone(),
             })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
@@ -125,11 +132,11 @@ impl ScalarFunction for Add {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddPrimitiveImpl {
+pub struct AddImpl {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for AddPrimitiveImpl {
+impl PlannedScalarFunction for AddImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Add
     }
@@ -229,6 +236,13 @@ impl FunctionInfo for Sub {
 }
 
 impl ScalarFunction for Sub {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(SubImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -244,7 +258,7 @@ impl ScalarFunction for Sub {
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Date32, DataType::Int64) => Ok(Box::new(SubPrimitiveImpl {
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(SubImpl {
                 datatype: inputs[0].clone(),
             })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
@@ -253,11 +267,11 @@ impl ScalarFunction for Sub {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SubPrimitiveImpl {
+pub struct SubImpl {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for SubPrimitiveImpl {
+impl PlannedScalarFunction for SubImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Sub
     }
@@ -357,6 +371,13 @@ impl FunctionInfo for Div {
 }
 
 impl ScalarFunction for Div {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(DivImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -372,7 +393,7 @@ impl ScalarFunction for Div {
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Date32, DataType::Int64) => Ok(Box::new(DivPrimitiveImpl {
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(DivImpl {
                 datatype: inputs[0].clone(),
             })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
@@ -381,11 +402,11 @@ impl ScalarFunction for Div {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DivPrimitiveImpl {
+pub struct DivImpl {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for DivPrimitiveImpl {
+impl PlannedScalarFunction for DivImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Div
     }
@@ -482,6 +503,13 @@ impl FunctionInfo for Mul {
 }
 
 impl ScalarFunction for Mul {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(MulImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -498,7 +526,7 @@ impl ScalarFunction for Mul {
             | (DataType::Date32, DataType::Int64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulPrimitiveImpl {
+            | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulImpl {
                 datatype: inputs[0].clone(),
             })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
@@ -507,11 +535,11 @@ impl ScalarFunction for Mul {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MulPrimitiveImpl {
+pub struct MulImpl {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for MulPrimitiveImpl {
+impl PlannedScalarFunction for MulImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Mul
     }
@@ -620,6 +648,13 @@ impl FunctionInfo for Rem {
 }
 
 impl ScalarFunction for Rem {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(RemImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -634,7 +669,7 @@ impl ScalarFunction for Rem {
             | (DataType::UInt32, DataType::UInt32)
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Date32, DataType::Int64)
-            | (DataType::Interval, DataType::Int64) => Ok(Box::new(RemPrimitiveImpl {
+            | (DataType::Interval, DataType::Int64) => Ok(Box::new(RemImpl {
                 datatype: inputs[0].clone(),
             })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
@@ -643,11 +678,11 @@ impl ScalarFunction for Rem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RemPrimitiveImpl {
+pub struct RemImpl {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for RemPrimitiveImpl {
+impl PlannedScalarFunction for RemImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Rem
     }

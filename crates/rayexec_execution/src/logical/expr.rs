@@ -145,7 +145,7 @@ impl fmt::Display for LogicalExpression {
             } => write!(
                 f,
                 "{}({})",
-                function.name(),
+                function.scalar_function().name(),
                 inputs
                     .iter()
                     .map(|input| input.to_string())

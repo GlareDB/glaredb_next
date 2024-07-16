@@ -45,6 +45,13 @@ impl FunctionInfo for Like {
 }
 
 impl ScalarFunction for Like {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(LikeImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unreachable!("plan_from_expressions implemented")
     }
@@ -126,6 +133,37 @@ impl ScalarFunction for Like {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LikeImpl {
+    StartsWith(StartsWithImpl),
+    EndsWith(EndsWithImpl),
+    Contains(ContainsImpl),
+    Regex(),
+}
+
+impl PlannedScalarFunction for LikeImpl {
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Like
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        match self {
+            Self::StartsWith(f) => f.execute(inputs),
+            Self::EndsWith(f) => f.execute(inputs),
+            Self::Contains(f) => f.execute(inputs),
+            Self::Regex() => not_implemented!("like regex exec"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StartsWith;
 
@@ -151,6 +189,13 @@ impl FunctionInfo for StartsWith {
 }
 
 impl ScalarFunction for StartsWith {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(StartsWithImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
@@ -228,6 +273,13 @@ impl FunctionInfo for EndsWith {
 }
 
 impl ScalarFunction for EndsWith {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(EndsWithImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
@@ -305,6 +357,13 @@ impl FunctionInfo for Contains {
 }
 
 impl ScalarFunction for Contains {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(ContainsImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
