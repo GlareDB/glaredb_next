@@ -49,10 +49,7 @@ pub type TableBindList = BindList<TableOrCteReference, ast::ObjectReference>;
 pub type FunctionBindList = BindList<FunctionReference, ast::ObjectReference>;
 
 /// Bind list for table functions.
-pub type TableFunctionBindList = BindList<TableFunctionReference, ast::ObjectReference>;
-
-/// Bind list for table function arguments.
-pub type TableFunctionArgsBindList = BindList<TableFunctionArgs, Vec<ast::FunctionArg<Raw>>>;
+pub type TableFunctionBindList = BindList<TableFunctionReference, ast::FromTableFunction<Raw>>;
 
 impl<B, U> BindList<B, U> {
     pub fn any_unbound(&self) -> bool {
@@ -142,6 +139,9 @@ pub struct TableFunctionReference {
 
     /// The initialized table function.
     pub func: Box<dyn PlannedTableFunction>,
+
+    /// Arguments to the function.
+    pub args: TableFunctionArgs,
 }
 
 // TODO: Figure out how we want to represent things like tables in a CREATE

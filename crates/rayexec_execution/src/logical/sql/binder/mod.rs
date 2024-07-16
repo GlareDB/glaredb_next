@@ -1,13 +1,12 @@
 pub mod bindref;
-pub mod resolver;
+pub mod hybrid;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use bindref::{
     BindListIdx, CteReference, FunctionBindList, FunctionReference, ItemReference, MaybeBound,
-    TableBindList, TableFunctionArgsBindList, TableFunctionBindList, TableFunctionReference,
-    TableOrCteReference,
+    TableBindList, TableFunctionBindList, TableFunctionReference, TableOrCteReference,
 };
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
@@ -48,7 +47,6 @@ impl AstMeta for Bound {
     type ItemReference = ItemReference;
     type TableReference = BindListIdx;
     type TableFunctionReference = BindListIdx;
-    type TableFunctionArguments = BindListIdx;
     type CteReference = CteReference;
     type FunctionReference = BindListIdx;
     type ColumnReference = String;
@@ -91,7 +89,6 @@ pub struct BindData {
     pub tables: TableBindList,
     pub functions: FunctionBindList,
     pub table_functions: TableFunctionBindList,
-    pub table_function_args: TableFunctionArgsBindList,
 
     /// How "deep" in the plan are we.
     ///
@@ -113,7 +110,6 @@ impl BindData {
         self.tables.any_unbound()
             || self.functions.any_unbound()
             || self.table_functions.any_unbound()
-            || self.table_function_args.any_unbound()
     }
 
     /// Try to find a CTE by its normalized name.
@@ -171,10 +167,10 @@ impl BindData {
 /// Binds a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
 pub struct Binder<'a> {
-    tx: &'a CatalogTx,
-    context: &'a DatabaseContext,
-    file_handlers: &'a FileHandlers,
-    runtime: &'a Arc<dyn ExecutionRuntime>,
+    pub tx: &'a CatalogTx,
+    pub context: &'a DatabaseContext,
+    pub file_handlers: &'a FileHandlers,
+    pub runtime: &'a Arc<dyn ExecutionRuntime>,
 }
 
 impl<'a> Binder<'a> {
@@ -704,13 +700,9 @@ impl<'a> Binder<'a> {
 
                         let func_idx = bind_data
                             .table_functions
-                            .push_bound(TableFunctionReference { name, func });
-                        let args_idx = bind_data.table_function_args.push_bound(args);
+                            .push_bound(TableFunctionReference { name, func, args });
 
-                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                            reference: func_idx,
-                            args: args_idx,
-                        })
+                        ast::FromNodeBody::TableFunction(func_idx)
                     }
                     None => {
                         return Err(RayexecError::new(format!(
@@ -720,27 +712,31 @@ impl<'a> Binder<'a> {
                 }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
-                let table_fn = self.resolve_table_function(reference).await?;
-                let args = ExpressionBinder::new(self)
-                    .bind_table_function_args(args)
-                    .await?;
+                match self.resolve_table_function(reference.clone()).await? {
+                    Some(table_fn) => {
+                        let args = ExpressionBinder::new(self)
+                            .bind_table_function_args(args)
+                            .await?;
 
-                let name = table_fn.name().to_string();
-                let func = table_fn
-                    .plan_and_initialize(self.runtime, args.clone())
-                    .await?;
+                        let name = table_fn.name().to_string();
+                        let func = table_fn
+                            .plan_and_initialize(self.runtime, args.clone())
+                            .await?;
 
-                // TODO: Allow unbound.
+                        let func_idx = bind_data
+                            .table_functions
+                            .push_bound(TableFunctionReference { name, func, args });
 
-                let func_idx = bind_data
-                    .table_functions
-                    .push_bound(TableFunctionReference { name, func });
-                let args_idx = bind_data.table_function_args.push_bound(args);
+                        ast::FromNodeBody::TableFunction(func_idx)
+                    }
+                    None => {
+                        let func_idx = bind_data
+                            .table_functions
+                            .push_unbound(ast::FromTableFunction { reference, args });
 
-                ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                    reference: func_idx,
-                    args: args_idx,
-                })
+                        ast::FromNodeBody::TableFunction(func_idx)
+                    }
+                }
             }
             ast::FromNodeBody::Join(ast::FromJoin {
                 left,
@@ -833,10 +829,10 @@ impl<'a> Binder<'a> {
         }
     }
 
-    async fn resolve_table_function(
+    pub(crate) async fn resolve_table_function(
         &self,
         mut reference: ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunction>> {
+    ) -> Result<Option<Box<dyn TableFunction>>> {
         // TODO: Search path.
         let [catalog, schema, name] = match reference.0.len() {
             1 => [
@@ -867,11 +863,9 @@ impl<'a> Binder<'a> {
             .get_catalog(&catalog)?
             .get_table_fn(self.tx, &schema, &name)?
         {
-            Ok(entry)
+            Ok(Some(entry))
         } else {
-            Err(RayexecError::new(format!(
-                "Unable to find table function '{catalog}.{schema}.{name}'"
-            )))
+            Ok(None)
         }
     }
 

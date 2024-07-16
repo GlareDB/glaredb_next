@@ -368,7 +368,7 @@ impl<'a> QueryNodePlanner<'a> {
                 let mut nested = self.nested(current_schema, current_scope);
                 nested.plan_query(context, query)?
             }
-            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args: _ }) => {
+            ast::FromNodeBody::TableFunction(reference) => {
                 let table_func = self.bind_data.table_functions.try_get_bound(reference)?;
                 let scope_reference = TableReference {
                     database: None,

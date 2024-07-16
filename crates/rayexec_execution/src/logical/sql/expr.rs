@@ -21,7 +21,7 @@ use crate::logical::expr::{LogicalExpression, Subquery};
 use super::binder::bindref::FunctionReference;
 use super::query::QueryNodePlanner;
 use super::{
-    binder::{Bound, BoundFunctionReference},
+    binder::Bound,
     scope::{Scope, TableReference},
 };
 
