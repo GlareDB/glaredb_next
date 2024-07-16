@@ -9,7 +9,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
     Ok(match arr {
-        Array::Null(arr) => Array::Null(NullArray::new(selection.true_count())),
+        Array::Null(_) => Array::Null(NullArray::new(selection.true_count())),
         Array::Boolean(arr) => Array::Boolean(filter_boolean(arr, selection)?),
         Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
         Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),

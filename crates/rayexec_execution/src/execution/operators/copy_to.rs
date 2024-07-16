@@ -96,17 +96,17 @@ impl PhysicalOperator for PhysicalCopyTo {
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::CopyTo(state) => match state {
                 CopyToPartitionState::Writing(inner) => {
                     *state = CopyToPartitionState::Finalizing(inner.take());
-                    self.poll_finalize_push(cx, partition_state, operator_state)
+                    self.poll_finalize_push(cx, partition_state, _operator_state)
                 }
                 CopyToPartitionState::Finalizing(Some(inner)) => {
                     match inner.sink.poll_finalize(cx)? {
-                        PollFinalize::Pending => return Ok(PollFinalize::Pending),
+                        PollFinalize::Pending => Ok(PollFinalize::Pending),
                         PollFinalize::Finalized => {
                             if let Some(waker) = inner.pull_waker.take() {
                                 waker.wake();
@@ -135,9 +135,9 @@ impl PhysicalOperator for PhysicalCopyTo {
         match partition_state {
             PartitionState::CopyTo(state) => match state {
                 CopyToPartitionState::Writing(inner) | CopyToPartitionState::Finalizing(inner) => {
-                    inner
-                        .as_mut()
-                        .map(|inner| inner.pull_waker = Some(cx.waker().clone()));
+                    if let Some(inner) = inner.as_mut() {
+                        inner.pull_waker = Some(cx.waker().clone());
+                    }
                     Ok(PollPull::Pending)
                 }
                 CopyToPartitionState::Finished => Ok(PollPull::Exhausted),

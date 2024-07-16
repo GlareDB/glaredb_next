@@ -36,6 +36,7 @@ impl LocalFileSystemProvider {
         let file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .map_err(|e| {
                 RayexecError::with_source(

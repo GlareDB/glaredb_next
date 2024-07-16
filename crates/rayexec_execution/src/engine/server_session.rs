@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use rayexec_error::Result;
 use rayexec_parser::statement::Statement;
 

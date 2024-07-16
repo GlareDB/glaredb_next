@@ -460,7 +460,7 @@ impl<'a> Binder<'a> {
         let target = match copy_to.target {
             ast::CopyToTarget::File(file_name) => {
                 let handler = self.file_handlers.find_match(&file_name).ok_or_else(|| {
-                    RayexecError::new(format!("No registered file handler for file 'file_name'"))
+                    RayexecError::new(format!("No registered file handler for file '{file_name}'"))
                 })?;
                 let func = handler
                     .copy_to

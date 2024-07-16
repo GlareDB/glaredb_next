@@ -357,7 +357,7 @@ impl<'a> QueryNodePlanner<'a> {
                         }
                     }
                     TableOrCteReference::Cte(bound) => {
-                        self.plan_cte_body(context, bound.clone(), current_schema, current_scope)?
+                        self.plan_cte_body(context, *bound, current_schema, current_scope)?
                     }
                 }
             }

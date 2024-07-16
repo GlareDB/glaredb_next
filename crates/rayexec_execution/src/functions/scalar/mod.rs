@@ -15,7 +15,6 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
-use serde::{de, Serialize, Serializer};
 use std::fmt::Debug;
 use std::sync::Arc;
 
