@@ -88,15 +88,11 @@ impl PartialEq for dyn AggregateFunction + '_ {
 }
 
 pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
-    fn name(&self) -> &'static str;
+    /// The aggregate function that produce this instance.
+    fn aggregate_function(&self) -> &dyn AggregateFunction;
 
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        unimplemented!()
-    }
-
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        unimplemented!()
-    }
+    /// Serializable state for the function
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize;
 
     /// Return type of the aggregate.
     fn return_type(&self) -> DataType;
@@ -120,7 +116,8 @@ impl PartialEq<dyn PlannedAggregateFunction> for Box<dyn PlannedAggregateFunctio
 
 impl PartialEq for dyn PlannedAggregateFunction + '_ {
     fn eq(&self, other: &dyn PlannedAggregateFunction) -> bool {
-        self.name() == other.name() && self.return_type() == other.return_type()
+        self.aggregate_function() == other.aggregate_function()
+            && self.return_type() == other.return_type()
     }
 }
 

@@ -165,7 +165,7 @@ impl fmt::Display for LogicalExpression {
                 write!(
                     f,
                     "{}({})",
-                    agg.name(),
+                    agg.aggregate_function().name(),
                     inputs
                         .iter()
                         .map(|input| input.to_string())
