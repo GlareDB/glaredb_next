@@ -4,7 +4,7 @@ use crate::{
     logical::{
         context::QueryContext,
         expr::{LogicalExpression, Subquery},
-        operator::{Aggregate, CrossJoin, Limit, LogicalOperator, Projection},
+        operator::{Aggregate, CrossJoin, Limit, LogicalNode, LogicalOperator, Projection},
     },
 };
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
@@ -24,9 +24,10 @@ impl SubqueryPlanner {
     ) -> Result<LogicalOperator> {
         plan.walk_mut_post(&mut |plan| {
             match plan {
-                LogicalOperator::Projection(p) => {
-                    for expr in &mut p.exprs {
-                        self.plan_subquery_expr(context, expr, &mut p.input)?;
+                LogicalOperator::Projection(node) => {
+                    let proj = node.as_mut();
+                    for expr in &mut proj.exprs {
+                        self.plan_subquery_expr(context, expr, &mut proj.input)?;
                     }
                 }
                 LogicalOperator::Aggregate(p) => {
@@ -164,12 +165,14 @@ impl SubqueryPlanner {
                     input: Box::new(LogicalOperator::Limit(Limit {
                         offset: None,
                         limit: 1,
-                        input: Box::new(LogicalOperator::Projection(Projection {
-                            exprs: vec![LogicalExpression::Literal(OwnedScalarValue::Boolean(
-                                true,
-                            ))],
-                            input: root,
-                        })),
+                        input: Box::new(LogicalOperator::Projection(LogicalNode::new(
+                            Projection {
+                                exprs: vec![LogicalExpression::Literal(OwnedScalarValue::Boolean(
+                                    true,
+                                ))],
+                                input: root,
+                            },
+                        ))),
                     })),
                 });
 

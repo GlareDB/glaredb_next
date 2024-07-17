@@ -4,7 +4,7 @@ use crate::logical::{
     context::QueryContext,
     expr::LogicalExpression,
     grouping_set::GroupingSets,
-    operator::{Aggregate, LogicalOperator, Projection},
+    operator::{Aggregate, LogicalNode, LogicalOperator, Projection},
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
@@ -153,10 +153,10 @@ impl AggregatePlanner {
             projections.push(old);
         }
 
-        let projection = LogicalOperator::Projection(Projection {
+        let projection = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: projections,
             input: Box::new(current),
-        });
+        }));
 
         Ok(LogicalOperator::Aggregate(Aggregate {
             aggregates: agg_exprs,

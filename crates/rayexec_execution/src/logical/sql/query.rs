@@ -14,7 +14,7 @@ use super::{
 use crate::logical::{
     context::QueryContext,
     expr::LogicalExpression,
-    operator::{SetOpKind, SetOperation},
+    operator::{LogicalNode, SetOpKind, SetOperation},
 };
 use crate::{
     functions::implicit::implicit_cast_score,
@@ -267,10 +267,10 @@ impl<'a> QueryNodePlanner<'a> {
 
         // Project the full select list.
         plan = LogicalQuery {
-            root: LogicalOperator::Projection(Projection {
+            root: LogicalOperator::Projection(LogicalNode::new(Projection {
                 exprs: select_exprs.clone(),
                 input: Box::new(plan.root),
-            }),
+            })),
             scope: plan.scope,
         };
 
@@ -304,10 +304,10 @@ impl<'a> QueryNodePlanner<'a> {
             let projections = (0..output_len).map(LogicalExpression::new_column).collect();
 
             plan = LogicalQuery {
-                root: LogicalOperator::Projection(Projection {
+                root: LogicalOperator::Projection(LogicalNode::new(Projection {
                     exprs: projections,
                     input: Box::new(plan.root),
-                }),
+                })),
                 scope: plan.scope,
             };
         }
@@ -766,10 +766,10 @@ impl<'a> QueryNodePlanner<'a> {
                 }
             }
 
-            top = LogicalOperator::Projection(Projection {
+            top = LogicalOperator::Projection(LogicalNode::new(Projection {
                 exprs: projections,
                 input: Box::new(top),
-            })
+            }))
         }
 
         if bottom_cast_needed {
@@ -785,10 +785,10 @@ impl<'a> QueryNodePlanner<'a> {
                 }
             }
 
-            bottom = LogicalOperator::Projection(Projection {
+            bottom = LogicalOperator::Projection(LogicalNode::new(Projection {
                 exprs: projections,
                 input: Box::new(bottom),
-            })
+            }))
         }
 
         Ok([top, bottom])

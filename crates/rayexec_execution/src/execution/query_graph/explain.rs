@@ -82,7 +82,9 @@ impl ExplainNode {
         conf: ExplainConfig,
     ) -> ExplainNode {
         let children = match plan {
-            LogicalOperator::Projection(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Projection(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
             LogicalOperator::Filter(p) => vec![Self::walk_logical(context, &p.input, conf)],
             LogicalOperator::Aggregate(p) => vec![Self::walk_logical(context, &p.input, conf)],
             LogicalOperator::Order(p) => vec![Self::walk_logical(context, &p.input, conf)],

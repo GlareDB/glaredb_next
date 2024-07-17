@@ -16,8 +16,8 @@ use crate::{
         expr::LogicalExpression,
         operator::{
             AttachDatabase, CopyTo, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
-            Explain, ExplainFormat, Insert, LogicalOperator, Projection, ResetVar, Scan, SetVar,
-            ShowVar, VariableOrAll,
+            Explain, ExplainFormat, Insert, LogicalNode, LogicalOperator, Projection, ResetVar,
+            Scan, SetVar, ShowVar, VariableOrAll,
         },
         sql::query::QueryNodePlanner,
     },
@@ -500,9 +500,9 @@ impl<'a> PlanContext<'a> {
         }
 
         // Otherwise apply projection.
-        Ok(LogicalOperator::Projection(Projection {
+        Ok(LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: projections,
             input: Box::new(root),
-        }))
+        })))
     }
 }

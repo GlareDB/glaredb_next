@@ -41,7 +41,7 @@ use crate::{
     logical::{
         context::QueryContext,
         grouping_set::GroupingSets,
-        operator::{self, LogicalOperator},
+        operator::{self, LogicalNode, LogicalOperator},
     },
     runtime::ExecutionRuntime,
 };
@@ -1092,9 +1092,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        project: operator::Projection,
+        project: LogicalNode<operator::Projection>,
     ) -> Result<()> {
-        let input_schema = project.input.output_schema(&[])?;
+        let input_schema = project.as_ref().input.output_schema(&[])?;
+        let project = project.into_inner();
         self.walk(conf, materializations, id_gen, *project.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;

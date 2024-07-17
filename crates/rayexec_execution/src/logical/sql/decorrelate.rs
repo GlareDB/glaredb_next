@@ -127,9 +127,14 @@ impl DependentJoinPushDown {
         // Walk post to determine correlations in children first.
         root.walk_mut_post(&mut |plan| {
             let has_correlation = match plan {
-                LogicalOperator::Projection(Projection { exprs, input }) => {
-                    let has_correlation = self.add_any_correlated_columns(exprs)?;
-                    has_correlation || self.has_correlations.get(input).unwrap_or(false)
+                LogicalOperator::Projection(node) => {
+                    let has_correlation =
+                        self.add_any_correlated_columns(&mut node.as_mut().exprs)?;
+                    has_correlation
+                        || self
+                            .has_correlations
+                            .get(&node.as_ref().input)
+                            .unwrap_or(false)
                 }
                 LogicalOperator::Filter(Filter { predicate, input }) => {
                     let has_correlation = self.add_any_correlated_columns([predicate])?;
@@ -276,10 +281,10 @@ impl DependentJoinPushDown {
                 // Filter is simple, don't need to do anything special.
                 let _ = self.rewrite_correlated_columns([predicate])?;
             }
-            LogicalOperator::Projection(Projection { exprs, input }) => {
-                self.push_down(context, materialized_idx, input)?;
+            LogicalOperator::Projection(node) => {
+                self.push_down(context, materialized_idx, &mut node.as_mut().input)?;
                 // yolo
-                let _ = self.rewrite_correlated_columns(exprs)?;
+                let _ = self.rewrite_correlated_columns(&mut node.as_mut().exprs)?;
             }
             other => {
                 // TODO: More operators

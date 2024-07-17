@@ -38,6 +38,12 @@ pub enum LocationRequirement {
     /// Required to be executed remotely.
     Remote,
     /// Can be executed either locally or remote.
+    ///
+    /// Unless explicitly required during binding, all nodes should start with
+    /// this variant.
+    ///
+    /// An optimization pass will walk the plan an flip this to either local or
+    /// remote depending on where the node sits in the plan.
     Any,
 }
 
@@ -49,9 +55,40 @@ pub struct LogicalNode<N> {
     pub location: LocationRequirement,
 }
 
+impl<N> LogicalNode<N> {
+    /// Create a new logical node without an explicit location requirement.
+    pub fn new(node: N) -> Self {
+        LogicalNode {
+            node,
+            location: LocationRequirement::Any,
+        }
+    }
+
+    /// Create a logical node with a specified location requirement.
+    pub fn with_location(node: N, location: LocationRequirement) -> Self {
+        LogicalNode { node, location }
+    }
+
+    pub fn into_inner(self) -> N {
+        self.node
+    }
+}
+
+impl<N> AsRef<N> for LogicalNode<N> {
+    fn as_ref(&self) -> &N {
+        &self.node
+    }
+}
+
+impl<N> AsMut<N> for LogicalNode<N> {
+    fn as_mut(&mut self) -> &mut N {
+        &mut self.node
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalOperator {
-    Projection(Projection),
+    Projection(LogicalNode<Projection>),
     Filter(Filter),
     Aggregate(Aggregate),
     Order(Order),
@@ -88,7 +125,7 @@ impl LogicalOperator {
     /// the schema of the outer scopes.
     pub fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         match self {
-            Self::Projection(n) => n.output_schema(outer),
+            Self::Projection(n) => n.as_ref().output_schema(outer),
             Self::Filter(n) => n.output_schema(outer),
             Self::Aggregate(n) => n.output_schema(outer),
             Self::Order(n) => n.output_schema(outer),
@@ -145,9 +182,9 @@ impl LogicalOperator {
         pre(self)?;
         match self {
             LogicalOperator::Projection(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::Filter(p) => {
                 pre(&mut p.input)?;
@@ -264,7 +301,7 @@ impl LogicalOperator {
 impl Explainable for LogicalOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         match self {
-            Self::Projection(p) => p.explain_entry(conf),
+            Self::Projection(p) => p.as_ref().explain_entry(conf),
             Self::Filter(p) => p.explain_entry(conf),
             Self::Aggregate(p) => p.explain_entry(conf),
             Self::Order(p) => p.explain_entry(conf),
@@ -994,18 +1031,19 @@ mod tests {
 
     #[test]
     fn walk_plan_pre_post() {
-        let mut plan = LogicalOperator::Projection(Projection {
+        let mut plan = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: Vec::new(),
             input: Box::new(LogicalOperator::Filter(Filter {
                 predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
                 input: Box::new(LogicalOperator::Empty),
             })),
-        });
+        }));
 
         plan.walk_mut(
             &mut |child| {
                 match child {
                     LogicalOperator::Projection(proj) => proj
+                        .as_mut()
                         .exprs
                         .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
                     LogicalOperator::Filter(_) => {}
@@ -1019,9 +1057,10 @@ mod tests {
                     LogicalOperator::Projection(proj) => {
                         assert_eq!(
                             vec![LogicalExpression::Literal(OwnedScalarValue::Int8(1))],
-                            proj.exprs
+                            proj.as_ref().exprs
                         );
-                        proj.exprs
+                        proj.as_mut()
+                            .exprs
                             .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
                     }
                     LogicalOperator::Filter(_) => {}
@@ -1040,7 +1079,7 @@ mod tests {
                         LogicalExpression::Literal(OwnedScalarValue::Int8(1)),
                         LogicalExpression::Literal(OwnedScalarValue::Int8(2)),
                     ],
-                    proj.exprs
+                    proj.as_ref().exprs
                 );
             }
             other => panic!("unexpected root {other:?}"),

@@ -47,8 +47,9 @@ impl Subquery {
         let mut correlated = false;
         self.get_root_mut().walk_mut_pre(&mut |plan| {
             match plan {
-                LogicalOperator::Projection(Projection { exprs, .. }) => {
-                    exprs
+                LogicalOperator::Projection(node) => {
+                    node.as_mut()
+                        .exprs
                         .iter_mut()
                         .for_each(|expr| correlated |= expr.is_correlated());
                 }
@@ -321,7 +322,7 @@ impl LogicalExpression {
         {
             match plan {
                 LogicalOperator::Projection(p) => {
-                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?
+                    LogicalExpression::walk_mut_many(&mut p.as_mut().exprs, pre, post)?
                 }
                 LogicalOperator::Filter(p) => p.predicate.walk_mut(pre, post)?,
                 LogicalOperator::Aggregate(p) => {
