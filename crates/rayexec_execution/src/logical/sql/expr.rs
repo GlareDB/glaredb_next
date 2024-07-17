@@ -107,7 +107,8 @@ impl<'a> ExpressionContext<'a> {
                     explicit_alias: false,
                 }],
                 ast::Expr::Function(ast::Function { reference, .. }) => {
-                    let reference = self.planner.bind_data.functions.try_get_bound(*reference)?;
+                    let (reference, _) =
+                        self.planner.bind_data.functions.try_get_bound(*reference)?;
                     vec![ExpandedSelectExpr::Expr {
                         name: reference.name().to_string(),
                         expr,
@@ -280,8 +281,11 @@ impl<'a> ExpressionContext<'a> {
                     .bind_data
                     .functions
                     .try_get_bound(func.reference)?;
+                // TODO: This should probably assert that location == any since
+                // I don't think it makes sense to try to handle different sets
+                // of scalar/aggs in the hybrid case yet.
                 match reference {
-                    FunctionReference::Scalar(scalar) => {
+                    (FunctionReference::Scalar(scalar), _) => {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
@@ -290,7 +294,7 @@ impl<'a> ExpressionContext<'a> {
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
-                    FunctionReference::Aggregate(agg) => {
+                    (FunctionReference::Aggregate(agg), _) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
                         let agg = agg.plan_from_expressions(&inputs, self.input)?;

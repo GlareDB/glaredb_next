@@ -14,10 +14,11 @@ use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_io::FileLocation;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
-pub trait LogicalNode {
+pub trait SchemaNode {
     /// Get the output type schema of the operator.
     ///
     /// Since we're working with possibly correlated columns, this also accepts
@@ -27,6 +28,25 @@ pub trait LogicalNode {
     /// completely decorrelated, and as such will be provided and empty outer
     /// schema.
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema>;
+}
+
+/// Requirement for where a node in the plan needs to be executed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocationRequirement {
+    /// Required to be executed locally.
+    Local,
+    /// Required to be executed remotely.
+    Remote,
+    /// Can be executed either locally or remote.
+    Any,
+}
+
+/// Wrapper around nodes in the logical plan to holds additional metadata for
+/// the node.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LogicalNode<N> {
+    pub node: N,
+    pub location: LocationRequirement,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -282,7 +302,7 @@ pub struct Projection {
     pub input: Box<LogicalOperator>,
 }
 
-impl LogicalNode for Projection {
+impl SchemaNode for Projection {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let current = self.input.output_schema(outer)?;
         let types = self
@@ -309,7 +329,7 @@ pub struct Filter {
     pub input: Box<LogicalOperator>,
 }
 
-impl LogicalNode for Filter {
+impl SchemaNode for Filter {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         // Filter just filters out rows, no column changes happen.
         self.input.output_schema(outer)
@@ -351,7 +371,7 @@ pub struct Order {
     pub input: Box<LogicalOperator>,
 }
 
-impl LogicalNode for Order {
+impl SchemaNode for Order {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         // Order by doesn't change row output.
         self.input.output_schema(outer)
@@ -399,7 +419,7 @@ pub struct AnyJoin {
     pub on: LogicalExpression,
 }
 
-impl LogicalNode for AnyJoin {
+impl SchemaNode for AnyJoin {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let left = self.left.output_schema(outer)?;
         let right = self.right.output_schema(outer)?;
@@ -427,7 +447,7 @@ pub struct EqualityJoin {
     // TODO: NULL == NULL
 }
 
-impl LogicalNode for EqualityJoin {
+impl SchemaNode for EqualityJoin {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let left = self.left.output_schema(outer)?;
         let right = self.right.output_schema(outer)?;
@@ -450,7 +470,7 @@ pub struct CrossJoin {
     pub right: Box<LogicalOperator>,
 }
 
-impl LogicalNode for CrossJoin {
+impl SchemaNode for CrossJoin {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let left = self.left.output_schema(outer)?;
         let right = self.right.output_schema(outer)?;
@@ -471,7 +491,7 @@ pub struct DependentJoin {
     pub right: Box<LogicalOperator>,
 }
 
-impl LogicalNode for DependentJoin {
+impl SchemaNode for DependentJoin {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let left = self.left.output_schema(outer)?;
         let right = self.right.output_schema(outer)?;
@@ -492,7 +512,7 @@ pub struct Limit {
     pub input: Box<LogicalOperator>,
 }
 
-impl LogicalNode for Limit {
+impl SchemaNode for Limit {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         self.input.output_schema(outer)
     }
@@ -529,7 +549,7 @@ pub struct SetOperation {
     pub all: bool,
 }
 
-impl LogicalNode for SetOperation {
+impl SchemaNode for SetOperation {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         self.top.output_schema(outer)
     }
@@ -565,7 +585,7 @@ pub struct MaterializedScan {
     pub schema: TypeSchema,
 }
 
-impl LogicalNode for MaterializedScan {
+impl SchemaNode for MaterializedScan {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(self.schema.clone())
     }
@@ -591,7 +611,7 @@ pub struct CopyTo {
     pub copy_to: Box<dyn CopyToFunction>,
 }
 
-impl LogicalNode for CopyTo {
+impl SchemaNode for CopyTo {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -613,7 +633,7 @@ pub struct Scan {
     // TODO: Pushdowns
 }
 
-impl LogicalNode for Scan {
+impl SchemaNode for Scan {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         let schema = TypeSchema::new(self.source.columns.iter().map(|f| f.datatype.clone()));
         Ok(schema)
@@ -634,7 +654,7 @@ pub struct TableFunction {
     pub function: Box<dyn PlannedTableFunction>,
 }
 
-impl LogicalNode for TableFunction {
+impl SchemaNode for TableFunction {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(self.function.schema().type_schema())
     }
@@ -653,7 +673,7 @@ pub struct ExpressionList {
     // TODO: Table index.
 }
 
-impl LogicalNode for ExpressionList {
+impl SchemaNode for ExpressionList {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let first = self
             .rows
@@ -704,7 +724,7 @@ pub struct Aggregate {
     pub input: Box<LogicalOperator>,
 }
 
-impl LogicalNode for Aggregate {
+impl SchemaNode for Aggregate {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let current = self.input.output_schema(outer)?;
         let types = self
@@ -739,7 +759,7 @@ pub struct CreateSchema {
     pub on_conflict: OnConflict,
 }
 
-impl LogicalNode for CreateSchema {
+impl SchemaNode for CreateSchema {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -762,7 +782,7 @@ pub struct CreateTable {
     pub input: Option<Box<LogicalOperator>>,
 }
 
-impl LogicalNode for CreateTable {
+impl SchemaNode for CreateTable {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -795,7 +815,7 @@ pub struct AttachDatabase {
     pub options: HashMap<String, OwnedScalarValue>,
 }
 
-impl LogicalNode for AttachDatabase {
+impl SchemaNode for AttachDatabase {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -814,7 +834,7 @@ pub struct DetachDatabase {
     pub name: String,
 }
 
-impl LogicalNode for DetachDatabase {
+impl SchemaNode for DetachDatabase {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -831,7 +851,7 @@ pub struct DropEntry {
     pub info: DropInfo,
 }
 
-impl LogicalNode for DropEntry {
+impl SchemaNode for DropEntry {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -849,7 +869,7 @@ pub struct Insert {
     pub input: Box<LogicalOperator>,
 }
 
-impl LogicalNode for Insert {
+impl SchemaNode for Insert {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         // TODO: This would be someting in the case of RETURNING.
         Ok(TypeSchema::empty())
@@ -868,7 +888,7 @@ pub struct SetVar {
     pub value: OwnedScalarValue,
 }
 
-impl LogicalNode for SetVar {
+impl SchemaNode for SetVar {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -885,7 +905,7 @@ pub struct ShowVar {
     pub var: SessionVar,
 }
 
-impl LogicalNode for ShowVar {
+impl SchemaNode for ShowVar {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         // TODO: Double check with postgres if they convert everything to
         // string in SHOW. I'm adding this in right now just to quickly
@@ -911,7 +931,7 @@ pub struct ResetVar {
     pub var: VariableOrAll,
 }
 
-impl LogicalNode for ResetVar {
+impl SchemaNode for ResetVar {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::empty())
     }
@@ -937,7 +957,7 @@ pub struct Explain {
     pub input: Box<LogicalOperator>,
 }
 
-impl LogicalNode for Explain {
+impl SchemaNode for Explain {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::new(vec![DataType::Utf8, DataType::Utf8]))
     }
@@ -954,7 +974,7 @@ pub struct Describe {
     pub schema: Schema,
 }
 
-impl LogicalNode for Describe {
+impl SchemaNode for Describe {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
         Ok(TypeSchema::new(vec![DataType::Utf8, DataType::Utf8]))
     }

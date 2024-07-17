@@ -33,6 +33,7 @@ use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     functions::{copy::CopyToFunction, table::TableFunctionArgs},
+    logical::operator::LocationRequirement,
     runtime::ExecutionRuntime,
 };
 
@@ -313,7 +314,7 @@ impl<'a> Binder<'a> {
                         let table = Resolver::new(self.tx, &self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
-                        MaybeBound::Bound(table)
+                        MaybeBound::Bound(table, LocationRequirement::Local)
                     }
                     BindMode::Hybrid => {
                         let table = Resolver::new(self.tx, &self.context)
@@ -321,7 +322,7 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         match table {
-                            Some(table) => MaybeBound::Bound(table),
+                            Some(table) => MaybeBound::Bound(table, LocationRequirement::Local),
                             None => MaybeBound::Unbound(reference),
                         }
                     }
@@ -452,7 +453,7 @@ impl<'a> Binder<'a> {
                 let table = Resolver::new(self.tx, &self.context)
                     .require_resolve_table_or_cte(&insert.table, bind_data)
                     .await?;
-                MaybeBound::Bound(table)
+                MaybeBound::Bound(table, LocationRequirement::Local)
             }
             BindMode::Hybrid => {
                 let table = Resolver::new(self.tx, &self.context)
@@ -460,7 +461,7 @@ impl<'a> Binder<'a> {
                     .await?;
 
                 match table {
-                    Some(table) => MaybeBound::Bound(table),
+                    Some(table) => MaybeBound::Bound(table, LocationRequirement::Local),
                     None => MaybeBound::Unbound(insert.table),
                 }
             }
@@ -730,7 +731,7 @@ impl<'a> Binder<'a> {
                         let table = Resolver::new(self.tx, &self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
-                        MaybeBound::Bound(table)
+                        MaybeBound::Bound(table, LocationRequirement::Local)
                     }
                     BindMode::Hybrid => {
                         let table = Resolver::new(self.tx, &self.context)
@@ -738,7 +739,7 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         match table {
-                            Some(table) => MaybeBound::Bound(table),
+                            Some(table) => MaybeBound::Bound(table, LocationRequirement::Local),
                             None => MaybeBound::Unbound(reference),
                         }
                     }
@@ -766,9 +767,10 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
-                        let func_idx = bind_data
-                            .table_functions
-                            .push_bound(TableFunctionReference { name, func, args });
+                        let func_idx = bind_data.table_functions.push_bound(
+                            TableFunctionReference { name, func, args },
+                            LocationRequirement::Local,
+                        );
 
                         ast::FromNodeBody::TableFunction(func_idx)
                     }
@@ -791,9 +793,10 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
-                        let func_idx = bind_data
-                            .table_functions
-                            .push_bound(TableFunctionReference { name, func, args });
+                        let func_idx = bind_data.table_functions.push_bound(
+                            TableFunctionReference { name, func, args },
+                            LocationRequirement::Local,
+                        );
 
                         ast::FromNodeBody::TableFunction(func_idx)
                     }

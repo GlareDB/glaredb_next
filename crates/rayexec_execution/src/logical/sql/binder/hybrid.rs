@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
-    logical::sql::binder::BindMode,
+    logical::{operator::LocationRequirement, sql::binder::BindMode},
     runtime::ExecutionRuntime,
 };
 use rayexec_error::Result;
@@ -100,7 +100,7 @@ impl<'a> HybridResolver<'a> {
                     .require_resolve_table_or_cte(unbound, &empty)
                     .await?;
 
-                *item = MaybeBound::Bound(table)
+                *item = MaybeBound::Bound(table, LocationRequirement::Remote)
             }
         }
 
@@ -123,7 +123,10 @@ impl<'a> HybridResolver<'a> {
                     .await?;
 
                 // TODO: Marker indicating this needs to be executing remotely.
-                *item = MaybeBound::Bound(TableFunctionReference { name, func, args })
+                *item = MaybeBound::Bound(
+                    TableFunctionReference { name, func, args },
+                    LocationRequirement::Remote,
+                )
             }
         }
 

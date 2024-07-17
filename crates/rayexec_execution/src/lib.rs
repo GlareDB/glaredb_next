@@ -4,7 +4,6 @@ pub mod engine;
 pub mod execution;
 pub mod expr;
 pub mod functions;
-pub mod hybrid_client;
 pub mod logical;
 pub mod optimizer;
 pub mod runtime;

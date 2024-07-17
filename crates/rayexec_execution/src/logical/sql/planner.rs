@@ -255,12 +255,15 @@ impl<'a> PlanContext<'a> {
             }
             ast::CopyToSource::Table(table) => {
                 let (catalog, schema, ent) = match self.bind_data.tables.try_get_bound(table)? {
-                    TableOrCteReference::Table {
-                        catalog,
-                        schema,
-                        entry,
-                    } => (catalog, schema, entry),
-                    TableOrCteReference::Cte(_) => {
+                    (
+                        TableOrCteReference::Table {
+                            catalog,
+                            schema,
+                            entry,
+                        },
+                        _,
+                    ) => (catalog, schema, entry),
+                    (TableOrCteReference::Cte(_), _) => {
                         // Shouldn't be possible.
                         return Err(RayexecError::new("Cannot COPY from CTE"));
                     }
@@ -301,8 +304,10 @@ impl<'a> PlanContext<'a> {
         let source = planner.plan_query(context, insert.source)?;
 
         let entry = match self.bind_data.tables.try_get_bound(insert.table)? {
-            TableOrCteReference::Table { entry, .. } => entry,
-            TableOrCteReference::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")), // Shouldn't be possible.
+            (TableOrCteReference::Table { entry, .. }, _) => entry,
+            (TableOrCteReference::Cte(_), _) => {
+                return Err(RayexecError::new("Cannot insert into CTE"))
+            } // Shouldn't be possible.
         };
 
         let table_type_schema = TypeSchema::new(entry.columns.iter().map(|c| c.datatype.clone()));

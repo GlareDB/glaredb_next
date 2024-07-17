@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{functions::table::TableFunctionArgs, logical::sql::expr::ExpressionContext};
+use crate::{
+    functions::table::TableFunctionArgs,
+    logical::{operator::LocationRequirement, sql::expr::ExpressionContext},
+};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::{
     ast::{self, FunctionArg, ReplaceColumn},
@@ -315,9 +318,11 @@ impl<'a> ExpressionBinder<'a> {
                     func_name,
                 )? {
                     // TODO: Allow unbound scalars?
+                    // TODO: This also assumes scalars (and aggs) are the same everywhere, which
+                    // they probably should be for now.
                     let idx = bind_data
                         .functions
-                        .push_bound(FunctionReference::Scalar(scalar));
+                        .push_bound(FunctionReference::Scalar(scalar), LocationRequirement::Any);
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: idx,
                         args,
@@ -333,9 +338,10 @@ impl<'a> ExpressionBinder<'a> {
                     .get_aggregate_fn(self.binder.tx, schema, func_name)?
                 {
                     // TODO: Allow unbound aggregates?
-                    let idx = bind_data
-                        .functions
-                        .push_bound(FunctionReference::Aggregate(aggregate));
+                    let idx = bind_data.functions.push_bound(
+                        FunctionReference::Aggregate(aggregate),
+                        LocationRequirement::Any,
+                    );
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: idx,
                         args,

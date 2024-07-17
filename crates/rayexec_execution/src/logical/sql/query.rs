@@ -332,11 +332,14 @@ impl<'a> QueryNodePlanner<'a> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match self.bind_data.tables.try_get_bound(reference)? {
-                    TableOrCteReference::Table {
-                        catalog,
-                        schema,
-                        entry,
-                    } => {
+                    (
+                        TableOrCteReference::Table {
+                            catalog,
+                            schema,
+                            entry,
+                        },
+                        _,
+                    ) => {
                         // Scope reference for base tables is always fully
                         // qualified. This query is valid:
                         //
@@ -359,7 +362,7 @@ impl<'a> QueryNodePlanner<'a> {
                             scope,
                         }
                     }
-                    TableOrCteReference::Cte(bound) => {
+                    (TableOrCteReference::Cte(bound), _) => {
                         self.plan_cte_body(context, *bound, current_schema, current_scope)?
                     }
                 }
@@ -369,7 +372,7 @@ impl<'a> QueryNodePlanner<'a> {
                 nested.plan_query(context, query)?
             }
             ast::FromNodeBody::TableFunction(reference) => {
-                let table_func = self.bind_data.table_functions.try_get_bound(reference)?;
+                let (table_func, _) = self.bind_data.table_functions.try_get_bound(reference)?;
                 let scope_reference = TableReference {
                     database: None,
                     schema: None,

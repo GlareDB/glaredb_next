@@ -10,6 +10,7 @@ use crate::{
         scalar::ScalarFunction,
         table::{PlannedTableFunction, TableFunctionArgs},
     },
+    logical::operator::LocationRequirement,
 };
 
 /// Index into the bind list.
@@ -18,18 +19,20 @@ pub struct BindListIdx(pub usize);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MaybeBound<B, U> {
-    Bound(B),
+    /// The object has been bound, and has a given location requirement.
+    Bound(B, LocationRequirement),
+    /// Object is unbound.
     Unbound(U),
 }
 
 impl<B, U> MaybeBound<B, U> {
     pub const fn is_bound(&self) -> bool {
-        matches!(self, MaybeBound::Bound(_))
+        matches!(self, MaybeBound::Bound(_, _))
     }
 
-    pub fn try_unwrap_bound(self) -> Result<B> {
+    pub fn try_unwrap_bound(self) -> Result<(B, LocationRequirement)> {
         match self {
-            Self::Bound(b) => Ok(b),
+            Self::Bound(b, loc) => Ok((b, loc)),
             Self::Unbound(_) => Err(RayexecError::new("Bind reference is not bound")),
         }
     }
@@ -58,9 +61,9 @@ impl<B, U> BindList<B, U> {
             .any(|v| matches!(v, MaybeBound::Unbound(_)))
     }
 
-    pub fn try_get_bound(&self, idx: BindListIdx) -> Result<&B> {
+    pub fn try_get_bound(&self, idx: BindListIdx) -> Result<(&B, LocationRequirement)> {
         match self.inner.get(idx.0) {
-            Some(MaybeBound::Bound(b)) => Ok(b),
+            Some(MaybeBound::Bound(b, loc)) => Ok((b, *loc)),
             Some(MaybeBound::Unbound(_)) => Err(RayexecError::new("Item not bound")),
             None => Err(RayexecError::new("Missing bind item")),
         }
@@ -72,8 +75,8 @@ impl<B, U> BindList<B, U> {
         BindListIdx(idx)
     }
 
-    pub fn push_bound(&mut self, bound: B) -> BindListIdx {
-        self.push_maybe_bound(MaybeBound::Bound(bound))
+    pub fn push_bound(&mut self, bound: B, loc: LocationRequirement) -> BindListIdx {
+        self.push_maybe_bound(MaybeBound::Bound(bound, loc))
     }
 
     pub fn push_unbound(&mut self, unbound: U) -> BindListIdx {
