@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bindref::{
-    BindListIdx, CteReference, FunctionBindList, FunctionReference, ItemReference, MaybeBound,
-    TableBindList, TableFunctionBindList, TableFunctionReference, TableOrCteReference,
+    BindListIdx, CteReference, FunctionBindList, ItemReference, MaybeBound, TableBindList,
+    TableFunctionBindList, TableFunctionReference,
 };
 use exprbinder::ExpressionBinder;
 use rayexec_bullet::{
@@ -19,10 +19,10 @@ use rayexec_bullet::{
         OwnedScalarValue,
     },
 };
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_io::FileLocation;
 use rayexec_parser::{
-    ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
+    ast::{self, ColumnDef, ObjectReference, QueryNode},
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
@@ -32,11 +32,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
-    functions::{
-        copy::CopyToFunction,
-        table::{TableFunction, TableFunctionArgs},
-    },
-    logical::sql::expr::ExpressionContext,
+    functions::{copy::CopyToFunction, table::TableFunctionArgs},
     runtime::ExecutionRuntime,
 };
 
@@ -83,6 +79,16 @@ pub struct BoundCte {
     pub body: QueryNode<Bound>,
 
     pub materialized: bool,
+}
+
+/// Determines the logic taken when encountering an unknown object in a query.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BindMode {
+    /// Normal binding, on missing object, return an appropriate error.
+    Normal,
+    /// Hybrid binding, allow query binding to continue with the assumption that
+    /// a remote node will handle anything that's left unbound.
+    Hybrid,
 }
 
 /// Data that's collected during binding, including resolved tables, functions,
@@ -172,6 +178,7 @@ impl BindData {
 /// Binds a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
 pub struct Binder<'a> {
+    pub bindmode: BindMode,
     pub tx: &'a CatalogTx,
     pub context: &'a DatabaseContext,
     pub file_handlers: &'a FileHandlers,
@@ -180,12 +187,14 @@ pub struct Binder<'a> {
 
 impl<'a> Binder<'a> {
     pub fn new(
+        bindmode: BindMode,
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
         runtime: &'a Arc<dyn ExecutionRuntime>,
     ) -> Self {
         Binder {
+            bindmode,
             tx,
             context,
             file_handlers,
@@ -299,13 +308,23 @@ impl<'a> Binder<'a> {
                 ast::CopyToSource::Query(self.bind_query(query, bind_data).await?)
             }
             ast::CopyToSource::Table(reference) => {
-                let table = Resolver::new(self.tx, &self.context)
-                    .resolve_table_or_cte(&reference, bind_data)
-                    .await?;
+                let table = match self.bindmode {
+                    BindMode::Normal => {
+                        let table = Resolver::new(self.tx, &self.context)
+                            .require_resolve_table_or_cte(&reference, bind_data)
+                            .await?;
+                        MaybeBound::Bound(table)
+                    }
+                    BindMode::Hybrid => {
+                        let table = Resolver::new(self.tx, &self.context)
+                            .resolve_table_or_cte(&reference, bind_data)
+                            .await?;
 
-                let table = match table {
-                    Some(table) => MaybeBound::Bound(table),
-                    None => MaybeBound::Unbound(reference),
+                        match table {
+                            Some(table) => MaybeBound::Bound(table),
+                            None => MaybeBound::Unbound(reference),
+                        }
+                    }
                 };
 
                 let idx = bind_data.tables.push_maybe_bound(table);
@@ -428,13 +447,23 @@ impl<'a> Binder<'a> {
         insert: ast::Insert<Raw>,
         bind_data: &mut BindData,
     ) -> Result<ast::Insert<Bound>> {
-        let table = Resolver::new(self.tx, &self.context)
-            .resolve_table_or_cte(&insert.table, bind_data)
-            .await?;
+        let table = match self.bindmode {
+            BindMode::Normal => {
+                let table = Resolver::new(self.tx, &self.context)
+                    .require_resolve_table_or_cte(&insert.table, bind_data)
+                    .await?;
+                MaybeBound::Bound(table)
+            }
+            BindMode::Hybrid => {
+                let table = Resolver::new(self.tx, &self.context)
+                    .resolve_table_or_cte(&insert.table, bind_data)
+                    .await?;
 
-        let table = match table {
-            Some(table) => MaybeBound::Bound(table),
-            None => MaybeBound::Unbound(insert.table),
+                match table {
+                    Some(table) => MaybeBound::Bound(table),
+                    None => MaybeBound::Unbound(insert.table),
+                }
+            }
         };
 
         let source = self.bind_query(insert.source, bind_data).await?;
@@ -696,13 +725,23 @@ impl<'a> Binder<'a> {
     ) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                let table = Resolver::new(self.tx, &self.context)
-                    .resolve_table_or_cte(&reference, bind_data)
-                    .await?;
+                let table = match self.bindmode {
+                    BindMode::Normal => {
+                        let table = Resolver::new(self.tx, &self.context)
+                            .require_resolve_table_or_cte(&reference, bind_data)
+                            .await?;
+                        MaybeBound::Bound(table)
+                    }
+                    BindMode::Hybrid => {
+                        let table = Resolver::new(self.tx, &self.context)
+                            .resolve_table_or_cte(&reference, bind_data)
+                            .await?;
 
-                let table = match table {
-                    Some(table) => MaybeBound::Bound(table),
-                    None => MaybeBound::Unbound(reference),
+                        match table {
+                            Some(table) => MaybeBound::Bound(table),
+                            None => MaybeBound::Unbound(reference),
+                        }
+                    }
                 };
 
                 let idx = bind_data.tables.push_maybe_bound(table);

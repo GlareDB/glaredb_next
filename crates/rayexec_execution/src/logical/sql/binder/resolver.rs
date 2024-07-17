@@ -5,7 +5,7 @@ use crate::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::{bindref::TableOrCteReference, BindData, BoundCte};
+use super::{bindref::TableOrCteReference, BindData};
 
 // TODO: Search path
 #[derive(Debug)]

@@ -14,7 +14,10 @@ use crate::{
     logical::{
         context::QueryContext,
         operator::{LogicalOperator, ResetVar, VariableOrAll},
-        sql::{binder::Binder, planner::PlanContext},
+        sql::{
+            binder::{BindMode, Binder},
+            planner::PlanContext,
+        },
     },
     optimizer::Optimizer,
     runtime::ExecutionRuntime,
@@ -149,6 +152,7 @@ impl Session {
 
         let tx = CatalogTx::new();
         let (bound_stmt, bind_data) = Binder::new(
+            BindMode::Normal,
             &tx,
             &self.context,
             self.registry.get_file_handlers(),

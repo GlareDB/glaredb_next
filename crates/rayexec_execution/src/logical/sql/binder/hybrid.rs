@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
+    logical::sql::binder::BindMode,
     runtime::ExecutionRuntime,
 };
 use rayexec_error::Result;
@@ -63,8 +64,16 @@ impl<'a> HybridResolver<'a> {
         // would still be fine being empty.
         const EMPTY_FILE_HANDLER_REF: &'static FileHandlers = &FileHandlers::empty();
 
+        // Note we're using bindmode normal here since everything we attempt to
+        // bind in this resolver should succeed.
         HybridResolver {
-            binder: Binder::new(tx, context, EMPTY_FILE_HANDLER_REF, runtime),
+            binder: Binder::new(
+                BindMode::Normal,
+                tx,
+                context,
+                EMPTY_FILE_HANDLER_REF,
+                runtime,
+            ),
         }
     }
 
