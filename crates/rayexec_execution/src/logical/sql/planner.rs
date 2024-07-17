@@ -85,12 +85,12 @@ impl<'a> PlanContext<'a> {
                     None => ExplainFormat::Text,
                 };
                 LogicalQuery {
-                    root: LogicalOperator::Explain(Explain {
+                    root: LogicalOperator::Explain(LogicalNode::new(Explain {
                         analyze: explain.analyze,
                         verbose: explain.verbose,
                         format,
                         input: Box::new(plan.root),
-                    }),
+                    })),
                     scope: Scope::with_columns(None, ["plan_type", "plan"]),
                 }
             }
@@ -111,10 +111,10 @@ impl<'a> PlanContext<'a> {
                 let expr_ctx = ExpressionContext::new(&planner, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(&mut context, value)?;
                 LogicalQuery {
-                    root: LogicalOperator::SetVar(SetVar {
+                    root: LogicalOperator::SetVar(LogicalNode::new(SetVar {
                         name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
-                    }),
+                    })),
                     scope: Scope::empty(),
                 }
             }
@@ -123,7 +123,7 @@ impl<'a> PlanContext<'a> {
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 LogicalQuery {
-                    root: LogicalOperator::ShowVar(ShowVar { var: var.clone() }),
+                    root: LogicalOperator::ShowVar(LogicalNode::new(ShowVar { var: var.clone() })),
                     scope,
                 }
             }
@@ -137,7 +137,7 @@ impl<'a> PlanContext<'a> {
                     ast::VariableOrAll::All => VariableOrAll::All,
                 };
                 LogicalQuery {
-                    root: LogicalOperator::ResetVar(ResetVar { var }),
+                    root: LogicalOperator::ResetVar(LogicalNode::new(ResetVar { var })),
                     scope: Scope::empty(),
                 }
             }
@@ -167,7 +167,7 @@ impl<'a> PlanContext<'a> {
                 );
 
                 LogicalQuery {
-                    root: LogicalOperator::Describe(Describe { schema }),
+                    root: LogicalOperator::Describe(LogicalNode::new(Describe { schema })),
                     scope: Scope::with_columns(None, ["column_name", "datatype"]),
                 }
             }
@@ -211,11 +211,11 @@ impl<'a> PlanContext<'a> {
                 let datasource = attach.datasource_name;
 
                 Ok(LogicalQuery {
-                    root: LogicalOperator::AttachDatabase(AttachDatabase {
+                    root: LogicalOperator::AttachDatabase(LogicalNode::new(AttachDatabase {
                         datasource,
                         name,
                         options,
-                    }),
+                    })),
                     scope: Scope::empty(),
                 })
             }
@@ -235,7 +235,9 @@ impl<'a> PlanContext<'a> {
                 let name = detach.alias.pop()?;
 
                 Ok(LogicalQuery {
-                    root: LogicalOperator::DetachDatabase(DetachDatabase { name }),
+                    root: LogicalOperator::DetachDatabase(LogicalNode::new(DetachDatabase {
+                        name,
+                    })),
                     scope: Scope::empty(),
                 })
             }
@@ -271,12 +273,13 @@ impl<'a> PlanContext<'a> {
 
                 let scope = Scope::with_columns(None, ent.columns.iter().map(|f| f.name.clone()));
 
+                // TODO: Loc
                 LogicalQuery {
-                    root: LogicalOperator::Scan(Scan {
+                    root: LogicalOperator::Scan(LogicalNode::new(Scan {
                         catalog: catalog.clone(),
                         schema: schema.clone(),
                         source: ent.clone(),
-                    }),
+                    })),
                     scope,
                 }
             }
@@ -285,12 +288,12 @@ impl<'a> PlanContext<'a> {
         let source_schema = source.schema()?;
 
         Ok(LogicalQuery {
-            root: LogicalOperator::CopyTo(CopyTo {
+            root: LogicalOperator::CopyTo(LogicalNode::new(CopyTo {
                 source: Box::new(source.root),
                 source_schema,
                 location: copy_to.target.location,
                 copy_to: copy_to.target.func.unwrap(), // TODO, remove unwrap when serialization works
-            }),
+            })),
             scope: Scope::empty(),
         })
     }
@@ -319,10 +322,10 @@ impl<'a> PlanContext<'a> {
         // maps the columns to the right position.
 
         Ok(LogicalQuery {
-            root: LogicalOperator::Insert(Insert {
+            root: LogicalOperator::Insert(LogicalNode::new(Insert {
                 table: entry.clone(),
                 input: Box::new(input),
-            }),
+            })),
             scope: Scope::empty(),
         })
     }
@@ -335,7 +338,7 @@ impl<'a> PlanContext<'a> {
                 // Dropping defaults to restricting (erroring) on dependencies.
                 let deps = drop.deps.unwrap_or(ast::DropDependents::Restrict);
 
-                let plan = LogicalOperator::Drop(DropEntry {
+                let plan = LogicalOperator::Drop(LogicalNode::new(DropEntry {
                     info: DropInfo {
                         catalog,
                         schema,
@@ -343,7 +346,7 @@ impl<'a> PlanContext<'a> {
                         cascade: ast::DropDependents::Cascade == deps,
                         if_exists: drop.if_exists,
                     },
-                });
+                }));
 
                 Ok(LogicalQuery {
                     root: plan,
@@ -364,11 +367,11 @@ impl<'a> PlanContext<'a> {
         let [catalog, schema] = create.name.pop_2()?;
 
         Ok(LogicalQuery {
-            root: LogicalOperator::CreateSchema(CreateSchema {
+            root: LogicalOperator::CreateSchema(LogicalNode::new(CreateSchema {
                 catalog,
                 name: schema,
                 on_conflict,
-            }),
+            })),
             scope: Scope::empty(),
         })
     }
@@ -439,14 +442,14 @@ impl<'a> PlanContext<'a> {
         let [catalog, schema, name] = create.name.pop_3()?;
 
         Ok(LogicalQuery {
-            root: LogicalOperator::CreateTable(CreateTable {
+            root: LogicalOperator::CreateTable(LogicalNode::new(CreateTable {
                 catalog,
                 schema,
                 name,
                 columns,
                 on_conflict,
                 input,
-            }),
+            })),
             scope: Scope::empty(),
         })
     }

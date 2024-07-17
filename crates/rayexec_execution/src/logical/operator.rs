@@ -89,33 +89,33 @@ impl<N> AsMut<N> for LogicalNode<N> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalOperator {
     Projection(LogicalNode<Projection>),
-    Filter(Filter),
-    Aggregate(Aggregate),
-    Order(Order),
-    AnyJoin(AnyJoin),
-    EqualityJoin(EqualityJoin),
-    CrossJoin(CrossJoin),
-    DependentJoin(DependentJoin),
-    Limit(Limit),
-    SetOperation(SetOperation),
-    MaterializedScan(MaterializedScan),
-    Scan(Scan),
-    TableFunction(TableFunction),
-    ExpressionList(ExpressionList),
+    Filter(LogicalNode<Filter>),
+    Aggregate(LogicalNode<Aggregate>),
+    Order(LogicalNode<Order>),
+    AnyJoin(LogicalNode<AnyJoin>),
+    EqualityJoin(LogicalNode<EqualityJoin>),
+    CrossJoin(LogicalNode<CrossJoin>),
+    DependentJoin(LogicalNode<DependentJoin>),
+    Limit(LogicalNode<Limit>),
+    SetOperation(LogicalNode<SetOperation>),
+    MaterializedScan(LogicalNode<MaterializedScan>),
+    Scan(LogicalNode<Scan>),
+    TableFunction(LogicalNode<TableFunction>),
+    ExpressionList(LogicalNode<ExpressionList>),
     Empty,
-    SetVar(SetVar),
-    ShowVar(ShowVar),
-    ResetVar(ResetVar),
-    CreateSchema(CreateSchema),
-    CreateTable(CreateTable),
-    CreateTableAs(CreateTableAs),
-    AttachDatabase(AttachDatabase),
-    DetachDatabase(DetachDatabase),
-    Drop(DropEntry),
-    Insert(Insert),
-    CopyTo(CopyTo),
-    Explain(Explain),
-    Describe(Describe),
+    SetVar(LogicalNode<SetVar>),
+    ShowVar(LogicalNode<ShowVar>),
+    ResetVar(LogicalNode<ResetVar>),
+    CreateSchema(LogicalNode<CreateSchema>),
+    CreateTable(LogicalNode<CreateTable>),
+    CreateTableAs(LogicalNode<CreateTableAs>),
+    AttachDatabase(LogicalNode<AttachDatabase>),
+    DetachDatabase(LogicalNode<DetachDatabase>),
+    Drop(LogicalNode<DropEntry>),
+    Insert(LogicalNode<Insert>),
+    CopyTo(LogicalNode<CopyTo>),
+    Explain(LogicalNode<Explain>),
+    Describe(LogicalNode<Describe>),
 }
 
 impl LogicalOperator {
@@ -126,33 +126,33 @@ impl LogicalOperator {
     pub fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         match self {
             Self::Projection(n) => n.as_ref().output_schema(outer),
-            Self::Filter(n) => n.output_schema(outer),
-            Self::Aggregate(n) => n.output_schema(outer),
-            Self::Order(n) => n.output_schema(outer),
-            Self::AnyJoin(n) => n.output_schema(outer),
-            Self::EqualityJoin(n) => n.output_schema(outer),
-            Self::CrossJoin(n) => n.output_schema(outer),
-            Self::DependentJoin(n) => n.output_schema(outer),
-            Self::Limit(n) => n.output_schema(outer),
-            Self::SetOperation(n) => n.output_schema(outer),
-            Self::MaterializedScan(n) => n.output_schema(outer),
-            Self::Scan(n) => n.output_schema(outer),
-            Self::TableFunction(n) => n.output_schema(outer),
-            Self::ExpressionList(n) => n.output_schema(outer),
+            Self::Filter(n) => n.as_ref().output_schema(outer),
+            Self::Aggregate(n) => n.as_ref().output_schema(outer),
+            Self::Order(n) => n.as_ref().output_schema(outer),
+            Self::AnyJoin(n) => n.as_ref().output_schema(outer),
+            Self::EqualityJoin(n) => n.as_ref().output_schema(outer),
+            Self::CrossJoin(n) => n.as_ref().output_schema(outer),
+            Self::DependentJoin(n) => n.as_ref().output_schema(outer),
+            Self::Limit(n) => n.as_ref().output_schema(outer),
+            Self::SetOperation(n) => n.as_ref().output_schema(outer),
+            Self::MaterializedScan(n) => n.as_ref().output_schema(outer),
+            Self::Scan(n) => n.as_ref().output_schema(outer),
+            Self::TableFunction(n) => n.as_ref().output_schema(outer),
+            Self::ExpressionList(n) => n.as_ref().output_schema(outer),
             Self::Empty => Ok(TypeSchema::empty()),
-            Self::SetVar(n) => n.output_schema(outer),
-            Self::ShowVar(n) => n.output_schema(outer),
-            Self::ResetVar(n) => n.output_schema(outer),
-            Self::CreateSchema(n) => n.output_schema(outer),
-            Self::CreateTable(n) => n.output_schema(outer),
+            Self::SetVar(n) => n.as_ref().output_schema(outer),
+            Self::ShowVar(n) => n.as_ref().output_schema(outer),
+            Self::ResetVar(n) => n.as_ref().output_schema(outer),
+            Self::CreateSchema(n) => n.as_ref().output_schema(outer),
+            Self::CreateTable(n) => n.as_ref().output_schema(outer),
             Self::CreateTableAs(_) => not_implemented!("create table as output schema"),
-            Self::AttachDatabase(n) => n.output_schema(outer),
-            Self::DetachDatabase(n) => n.output_schema(outer),
-            Self::Drop(n) => n.output_schema(outer),
-            Self::Insert(n) => n.output_schema(outer),
-            Self::CopyTo(n) => n.output_schema(outer),
-            Self::Explain(n) => n.output_schema(outer),
-            Self::Describe(n) => n.output_schema(outer),
+            Self::AttachDatabase(n) => n.as_ref().output_schema(outer),
+            Self::DetachDatabase(n) => n.as_ref().output_schema(outer),
+            Self::Drop(n) => n.as_ref().output_schema(outer),
+            Self::Insert(n) => n.as_ref().output_schema(outer),
+            Self::CopyTo(n) => n.as_ref().output_schema(outer),
+            Self::Explain(n) => n.as_ref().output_schema(outer),
+            Self::Describe(n) => n.as_ref().output_schema(outer),
         }
     }
 
@@ -187,89 +187,89 @@ impl LogicalOperator {
                 post(&mut p.as_mut().input)?;
             }
             LogicalOperator::Filter(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::Aggregate(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::Order(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::Limit(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::CrossJoin(p) => {
-                pre(&mut p.left)?;
-                p.left.walk_mut(pre, post)?;
-                post(&mut p.left)?;
+                pre(&mut p.as_mut().left)?;
+                p.as_mut().left.walk_mut(pre, post)?;
+                post(&mut p.as_mut().left)?;
 
-                pre(&mut p.right)?;
-                p.right.walk_mut(pre, post)?;
-                post(&mut p.right)?;
+                pre(&mut p.as_mut().right)?;
+                p.as_mut().right.walk_mut(pre, post)?;
+                post(&mut p.as_mut().right)?;
             }
             LogicalOperator::DependentJoin(p) => {
-                pre(&mut p.left)?;
-                p.left.walk_mut(pre, post)?;
-                post(&mut p.left)?;
+                pre(&mut p.as_mut().left)?;
+                p.as_mut().left.walk_mut(pre, post)?;
+                post(&mut p.as_mut().left)?;
 
-                pre(&mut p.right)?;
-                p.right.walk_mut(pre, post)?;
-                post(&mut p.right)?;
+                pre(&mut p.as_mut().right)?;
+                p.as_mut().right.walk_mut(pre, post)?;
+                post(&mut p.as_mut().right)?;
             }
             LogicalOperator::AnyJoin(p) => {
-                pre(&mut p.left)?;
-                p.left.walk_mut(pre, post)?;
-                post(&mut p.left)?;
+                pre(&mut p.as_mut().left)?;
+                p.as_mut().left.walk_mut(pre, post)?;
+                post(&mut p.as_mut().left)?;
 
-                pre(&mut p.right)?;
-                p.right.walk_mut(pre, post)?;
-                post(&mut p.right)?;
+                pre(&mut p.as_mut().right)?;
+                p.as_mut().right.walk_mut(pre, post)?;
+                post(&mut p.as_mut().right)?;
             }
             LogicalOperator::EqualityJoin(p) => {
-                pre(&mut p.left)?;
-                p.left.walk_mut(pre, post)?;
-                post(&mut p.left)?;
+                pre(&mut p.as_mut().left)?;
+                p.as_mut().left.walk_mut(pre, post)?;
+                post(&mut p.as_mut().left)?;
 
-                pre(&mut p.right)?;
-                p.right.walk_mut(pre, post)?;
-                post(&mut p.right)?;
+                pre(&mut p.as_mut().right)?;
+                p.as_mut().right.walk_mut(pre, post)?;
+                post(&mut p.as_mut().right)?;
             }
             LogicalOperator::SetOperation(p) => {
-                pre(&mut p.top)?;
-                p.top.walk_mut(pre, post)?;
-                post(&mut p.top)?;
+                pre(&mut p.as_mut().top)?;
+                p.as_mut().top.walk_mut(pre, post)?;
+                post(&mut p.as_mut().top)?;
 
-                pre(&mut p.bottom)?;
-                p.bottom.walk_mut(pre, post)?;
-                post(&mut p.bottom)?;
+                pre(&mut p.as_mut().bottom)?;
+                p.as_mut().bottom.walk_mut(pre, post)?;
+                post(&mut p.as_mut().bottom)?;
             }
             LogicalOperator::CreateTableAs(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::Insert(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::Explain(p) => {
-                pre(&mut p.input)?;
-                p.input.walk_mut(pre, post)?;
-                post(&mut p.input)?;
+                pre(&mut p.as_mut().input)?;
+                p.as_mut().input.walk_mut(pre, post)?;
+                post(&mut p.as_mut().input)?;
             }
             LogicalOperator::CopyTo(p) => {
-                pre(&mut p.source)?;
-                p.source.walk_mut(pre, post)?;
-                post(&mut p.source)?;
+                pre(&mut p.as_mut().source)?;
+                p.as_mut().source.walk_mut(pre, post)?;
+                post(&mut p.as_mut().source)?;
             }
             LogicalOperator::ExpressionList(_)
             | LogicalOperator::Empty
@@ -302,33 +302,33 @@ impl Explainable for LogicalOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         match self {
             Self::Projection(p) => p.as_ref().explain_entry(conf),
-            Self::Filter(p) => p.explain_entry(conf),
-            Self::Aggregate(p) => p.explain_entry(conf),
-            Self::Order(p) => p.explain_entry(conf),
-            Self::AnyJoin(p) => p.explain_entry(conf),
-            Self::EqualityJoin(p) => p.explain_entry(conf),
-            Self::CrossJoin(p) => p.explain_entry(conf),
-            Self::DependentJoin(p) => p.explain_entry(conf),
-            Self::Limit(p) => p.explain_entry(conf),
-            Self::SetOperation(p) => p.explain_entry(conf),
-            Self::MaterializedScan(p) => p.explain_entry(conf),
-            Self::Scan(p) => p.explain_entry(conf),
-            Self::TableFunction(p) => p.explain_entry(conf),
-            Self::ExpressionList(p) => p.explain_entry(conf),
+            Self::Filter(p) => p.as_ref().explain_entry(conf),
+            Self::Aggregate(p) => p.as_ref().explain_entry(conf),
+            Self::Order(p) => p.as_ref().explain_entry(conf),
+            Self::AnyJoin(p) => p.as_ref().explain_entry(conf),
+            Self::EqualityJoin(p) => p.as_ref().explain_entry(conf),
+            Self::CrossJoin(p) => p.as_ref().explain_entry(conf),
+            Self::DependentJoin(p) => p.as_ref().explain_entry(conf),
+            Self::Limit(p) => p.as_ref().explain_entry(conf),
+            Self::SetOperation(p) => p.as_ref().explain_entry(conf),
+            Self::MaterializedScan(p) => p.as_ref().explain_entry(conf),
+            Self::Scan(p) => p.as_ref().explain_entry(conf),
+            Self::TableFunction(p) => p.as_ref().explain_entry(conf),
+            Self::ExpressionList(p) => p.as_ref().explain_entry(conf),
             Self::Empty => ExplainEntry::new("Empty"),
-            Self::SetVar(p) => p.explain_entry(conf),
-            Self::ShowVar(p) => p.explain_entry(conf),
-            Self::ResetVar(p) => p.explain_entry(conf),
-            Self::CreateSchema(p) => p.explain_entry(conf),
-            Self::CreateTable(p) => p.explain_entry(conf),
-            Self::CreateTableAs(p) => p.explain_entry(conf),
-            Self::AttachDatabase(n) => n.explain_entry(conf),
-            Self::DetachDatabase(n) => n.explain_entry(conf),
-            Self::Drop(p) => p.explain_entry(conf),
-            Self::Insert(p) => p.explain_entry(conf),
-            Self::Explain(p) => p.explain_entry(conf),
-            Self::CopyTo(p) => p.explain_entry(conf),
-            Self::Describe(p) => p.explain_entry(conf),
+            Self::SetVar(p) => p.as_ref().explain_entry(conf),
+            Self::ShowVar(p) => p.as_ref().explain_entry(conf),
+            Self::ResetVar(p) => p.as_ref().explain_entry(conf),
+            Self::CreateSchema(p) => p.as_ref().explain_entry(conf),
+            Self::CreateTable(p) => p.as_ref().explain_entry(conf),
+            Self::CreateTableAs(p) => p.as_ref().explain_entry(conf),
+            Self::AttachDatabase(n) => n.as_ref().explain_entry(conf),
+            Self::DetachDatabase(n) => n.as_ref().explain_entry(conf),
+            Self::Drop(p) => p.as_ref().explain_entry(conf),
+            Self::Insert(p) => p.as_ref().explain_entry(conf),
+            Self::Explain(p) => p.as_ref().explain_entry(conf),
+            Self::CopyTo(p) => p.as_ref().explain_entry(conf),
+            Self::Describe(p) => p.as_ref().explain_entry(conf),
         }
     }
 }
@@ -1033,10 +1033,10 @@ mod tests {
     fn walk_plan_pre_post() {
         let mut plan = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: Vec::new(),
-            input: Box::new(LogicalOperator::Filter(Filter {
+            input: Box::new(LogicalOperator::Filter(LogicalNode::new(Filter {
                 predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
                 input: Box::new(LogicalOperator::Empty),
-            })),
+            }))),
         }));
 
         plan.walk_mut(

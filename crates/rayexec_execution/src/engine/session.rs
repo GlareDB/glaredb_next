@@ -183,6 +183,7 @@ impl Session {
 
         let query_graph = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
+                let attach = attach.into_inner();
                 // Here to avoid lifetime issues.
                 let empty = planner.create_graph(
                     LogicalOperator::Empty,
@@ -196,7 +197,7 @@ impl Session {
                 let catalog = datasource
                     .create_catalog(&self.runtime, attach.options)
                     .await?;
-                self.context.attach_catalog(attach.name, catalog)?;
+                self.context.attach_catalog(&attach.name, catalog)?;
                 empty
             }
             LogicalOperator::DetachDatabase(detach) => {
@@ -205,7 +206,7 @@ impl Session {
                     QueryContext::new(),
                     query_sink,
                 )?; // Here to avoid lifetime issues.
-                self.context.detach_catalog(&detach.name)?;
+                self.context.detach_catalog(&detach.as_ref().name)?;
                 empty
             }
             LogicalOperator::SetVar(set_var) => {
@@ -219,15 +220,16 @@ impl Session {
                 // We could have an implementation for the local session, and a
                 // separate implementation used for nodes taking part in
                 // distributed execution.
+                let set_var = set_var.into_inner();
                 let val = self
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
                 planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
             }
-            LogicalOperator::ResetVar(ResetVar { var }) => {
+            LogicalOperator::ResetVar(reset) => {
                 // Same TODO as above.
-                match var {
+                match &reset.as_ref().var {
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }

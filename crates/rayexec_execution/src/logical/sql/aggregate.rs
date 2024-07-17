@@ -158,12 +158,12 @@ impl AggregatePlanner {
             input: Box::new(current),
         }));
 
-        Ok(LogicalOperator::Aggregate(Aggregate {
+        Ok(LogicalOperator::Aggregate(LogicalNode::new(Aggregate {
             aggregates: agg_exprs,
             group_exprs,
             grouping_sets,
             input: Box::new(projection),
-        }))
+        })))
     }
 
     /// Extract aggregates functions from the logical select list, returning them.

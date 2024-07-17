@@ -30,13 +30,15 @@ impl SubqueryPlanner {
                         self.plan_subquery_expr(context, expr, &mut proj.input)?;
                     }
                 }
-                LogicalOperator::Aggregate(p) => {
-                    for expr in &mut p.aggregates {
-                        self.plan_subquery_expr(context, expr, &mut p.input)?;
+                LogicalOperator::Aggregate(node) => {
+                    let agg = node.as_mut();
+                    for expr in &mut agg.aggregates {
+                        self.plan_subquery_expr(context, expr, &mut agg.input)?;
                     }
                 }
-                LogicalOperator::Filter(p) => {
-                    self.plan_subquery_expr(context, &mut p.predicate, &mut p.input)?;
+                LogicalOperator::Filter(node) => {
+                    let filter = node.as_mut();
+                    self.plan_subquery_expr(context, &mut filter.predicate, &mut filter.input)?;
                 }
                 _other => (),
             };
@@ -105,17 +107,17 @@ impl SubqueryPlanner {
                 // column around here.
 
                 // LIMIT the original subquery to 1
-                let subquery = LogicalOperator::Limit(Limit {
+                let subquery = LogicalOperator::Limit(LogicalNode::new(Limit {
                     offset: None,
                     limit: 1,
                     input: root,
-                });
+                }));
 
                 let orig_input = Box::new(std::mem::replace(input, LogicalOperator::Empty));
-                *input = LogicalOperator::CrossJoin(CrossJoin {
+                *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),
-                });
+                }));
 
                 Ok(column_ref)
             }
@@ -149,7 +151,7 @@ impl SubqueryPlanner {
                 };
 
                 // COUNT(*) and LIMIT the original query.
-                let subquery = LogicalOperator::Aggregate(Aggregate {
+                let subquery = LogicalOperator::Aggregate(LogicalNode::new(Aggregate {
                     // TODO: Replace with CountStar once that's in.
                     //
                     // This currently just includes a 'true'
@@ -162,7 +164,7 @@ impl SubqueryPlanner {
                     }],
                     grouping_sets: None,
                     group_exprs: Vec::new(),
-                    input: Box::new(LogicalOperator::Limit(Limit {
+                    input: Box::new(LogicalOperator::Limit(LogicalNode::new(Limit {
                         offset: None,
                         limit: 1,
                         input: Box::new(LogicalOperator::Projection(LogicalNode::new(
@@ -173,14 +175,14 @@ impl SubqueryPlanner {
                                 input: root,
                             },
                         ))),
-                    })),
-                });
+                    }))),
+                }));
 
                 let orig_input = Box::new(std::mem::replace(input, LogicalOperator::Empty));
-                *input = LogicalOperator::CrossJoin(CrossJoin {
+                *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),
-                });
+                }));
 
                 Ok(expr)
             }
