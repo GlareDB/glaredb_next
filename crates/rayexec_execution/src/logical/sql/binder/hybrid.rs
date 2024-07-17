@@ -5,10 +5,11 @@ use crate::{
     datasource::FileHandlers,
     runtime::ExecutionRuntime,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::{
     bindref::{MaybeBound, TableFunctionReference},
+    resolver::Resolver,
     BindData, Binder, ExpressionBinder,
 };
 
@@ -37,6 +38,7 @@ use super::{
 ///
 /// Once resolved, the remote node can continue with planning the statement,
 /// sending back parts of the pipeline that the "local" side should execute.
+// TODO: Somehow do search path.
 #[derive(Debug)]
 pub struct HybridResolver<'a> {
     pub binder: Binder<'a>,
@@ -71,30 +73,36 @@ impl<'a> HybridResolver<'a> {
     ///
     /// Bound items should not be checked.
     pub async fn resolve_all_unbound(&self, mut bind_data: BindData) -> Result<BindData> {
-        self.resolve_unbound_table_fn(&mut bind_data).await?;
-        // TODO: Tables, etc.
+        self.resolve_unbound_table_fns(&mut bind_data).await?;
+        self.resolve_unbound_tables(&mut bind_data).await?;
         // TODO: Might be worth doing these in parallel since we have the
         // complete context of the query.
         Ok(bind_data)
     }
 
-    async fn resolve_unbound_table_fn(&self, bind_data: &mut BindData) -> Result<()> {
+    async fn resolve_unbound_tables(&self, bind_data: &mut BindData) -> Result<()> {
+        for item in bind_data.tables.inner.iter_mut() {
+            if let MaybeBound::Unbound(unbound) = item {
+                // Pass in empty bind data to resolver since it's only used for
+                // CTE lookup, which shouldn't be possible here.
+                let empty = BindData::default();
+
+                let table = Resolver::new(self.binder.tx, &self.binder.context)
+                    .require_resolve_table_or_cte(unbound, &empty)
+                    .await?;
+
+                *item = MaybeBound::Bound(table)
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn resolve_unbound_table_fns(&self, bind_data: &mut BindData) -> Result<()> {
         for item in bind_data.table_functions.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
-                // TODO: Definitely want to return a better error if we couldn't
-                // find a function.
-                // TODO: Reduce duplication with binder.
-
-                let table_fn = self
-                    .binder
-                    .resolve_table_function(unbound.reference.clone())
-                    .await?
-                    .ok_or_else(|| {
-                        RayexecError::new(format!(
-                            "Missing table function for reference '{}'",
-                            unbound.reference
-                        ))
-                    })?;
+                let table_fn = Resolver::new(self.binder.tx, &self.binder.context)
+                    .require_resolve_table_function(&unbound.reference)?;
 
                 let args = ExpressionBinder::new(&self.binder)
                     .bind_table_function_args(unbound.args.clone())

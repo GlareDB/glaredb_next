@@ -2,6 +2,7 @@ pub mod bindref;
 pub mod hybrid;
 
 mod exprbinder;
+mod resolver;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,6 +26,7 @@ use rayexec_parser::{
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
+use resolver::Resolver;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -296,8 +298,16 @@ impl<'a> Binder<'a> {
             ast::CopyToSource::Query(query) => {
                 ast::CopyToSource::Query(self.bind_query(query, bind_data).await?)
             }
-            ast::CopyToSource::Table(table) => {
-                let table = self.resolve_table_or_cte(table, bind_data).await?;
+            ast::CopyToSource::Table(reference) => {
+                let table = Resolver::new(self.tx, &self.context)
+                    .resolve_table_or_cte(&reference, bind_data)
+                    .await?;
+
+                let table = match table {
+                    Some(table) => MaybeBound::Bound(table),
+                    None => MaybeBound::Unbound(reference),
+                };
+
                 let idx = bind_data.tables.push_maybe_bound(table);
                 ast::CopyToSource::Table(idx)
             }
@@ -418,7 +428,15 @@ impl<'a> Binder<'a> {
         insert: ast::Insert<Raw>,
         bind_data: &mut BindData,
     ) -> Result<ast::Insert<Bound>> {
-        let table = self.resolve_table_or_cte(insert.table, bind_data).await?;
+        let table = Resolver::new(self.tx, &self.context)
+            .resolve_table_or_cte(&insert.table, bind_data)
+            .await?;
+
+        let table = match table {
+            Some(table) => MaybeBound::Bound(table),
+            None => MaybeBound::Unbound(insert.table),
+        };
+
         let source = self.bind_query(insert.source, bind_data).await?;
 
         let idx = bind_data.tables.push_maybe_bound(table);
@@ -678,7 +696,15 @@ impl<'a> Binder<'a> {
     ) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                let table = self.resolve_table_or_cte(reference, bind_data).await?;
+                let table = Resolver::new(self.tx, &self.context)
+                    .resolve_table_or_cte(&reference, bind_data)
+                    .await?;
+
+                let table = match table {
+                    Some(table) => MaybeBound::Bound(table),
+                    None => MaybeBound::Unbound(reference),
+                };
+
                 let idx = bind_data.tables.push_maybe_bound(table);
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
             }
@@ -715,7 +741,7 @@ impl<'a> Binder<'a> {
                 }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
-                match self.resolve_table_function(reference.clone()).await? {
+                match Resolver::new(self.tx, &self.context).resolve_table_function(&reference)? {
                     Some(table_fn) => {
                         let args = ExpressionBinder::new(self)
                             .bind_table_function_args(args)
@@ -775,101 +801,6 @@ impl<'a> Binder<'a> {
             alias: from.alias,
             body,
         })
-    }
-
-    async fn resolve_table_or_cte(
-        &self,
-        reference: ast::ObjectReference,
-        bind_data: &BindData,
-    ) -> Result<MaybeBound<TableOrCteReference, ast::ObjectReference>> {
-        // TODO: Seach path.
-        let [catalog, schema, table] = match reference.0.len() {
-            1 => {
-                let name = reference.0[0].as_normalized_string();
-
-                // Check bind data for cte that would satisfy this reference.
-                if let Some(cte) = bind_data.find_cte(&name) {
-                    return Ok(MaybeBound::Bound(TableOrCteReference::Cte(cte)));
-                }
-
-                // Otherwise continue with trying to resolve from the catalogs.
-                ["temp".to_string(), "temp".to_string(), name]
-            }
-            2 => {
-                let table = reference.0[1].as_normalized_string();
-                let schema = reference.0[0].as_normalized_string();
-                ["temp".to_string(), schema, table]
-            }
-            3 => {
-                let table = reference.0[2].as_normalized_string();
-                let schema = reference.0[1].as_normalized_string();
-                let catalog = reference.0[0].as_normalized_string();
-                [catalog, schema, table]
-            }
-            _ => {
-                return Err(RayexecError::new(
-                    "Unexpected number of identifiers in table reference",
-                ))
-            }
-        };
-
-        if let Some(entry) = self
-            .context
-            .get_catalog(&catalog)?
-            .get_table_entry(self.tx, &schema, &table)
-            .await?
-        {
-            Ok(MaybeBound::Bound(TableOrCteReference::Table {
-                catalog,
-                schema,
-                entry,
-            }))
-        } else {
-            Ok(MaybeBound::Unbound(reference))
-            // Err(RayexecError::new(format!(
-            //     "Unable to find table or view for '{catalog}.{schema}.{table}'"
-            // )))
-        }
-    }
-
-    pub(crate) async fn resolve_table_function(
-        &self,
-        mut reference: ast::ObjectReference,
-    ) -> Result<Option<Box<dyn TableFunction>>> {
-        // TODO: Search path.
-        let [catalog, schema, name] = match reference.0.len() {
-            1 => [
-                "system".to_string(),
-                "glare_catalog".to_string(),
-                reference.0.pop().unwrap().into_normalized_string(),
-            ],
-            2 => {
-                let name = reference.0.pop().unwrap().into_normalized_string();
-                let schema = reference.0.pop().unwrap().into_normalized_string();
-                ["system".to_string(), schema, name]
-            }
-            3 => {
-                let name = reference.0.pop().unwrap().into_normalized_string();
-                let schema = reference.0.pop().unwrap().into_normalized_string();
-                let catalog = reference.0.pop().unwrap().into_normalized_string();
-                [catalog, schema, name]
-            }
-            _ => {
-                return Err(RayexecError::new(
-                    "Unexpected number of identifiers in table function reference",
-                ))
-            }
-        };
-
-        if let Some(entry) = self
-            .context
-            .get_catalog(&catalog)?
-            .get_table_fn(self.tx, &schema, &name)?
-        {
-            Ok(Some(entry))
-        } else {
-            Ok(None)
-        }
     }
 
     fn reference_to_strings(reference: ObjectReference) -> Vec<String> {
