@@ -1842,6 +1842,7 @@ dependencies = [
  "rayexec_io",
  "regex",
  "serde",
+ "serde_json",
  "tracing",
  "url",
 ]
