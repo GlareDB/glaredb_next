@@ -1829,6 +1829,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_delta"
+version = "0.0.18"
+dependencies = [
+ "bytes",
+ "erased-serde",
+ "futures",
+ "parquet",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_io",
+ "regex",
+ "serde",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "rayexec_error"
 version = "0.0.18"
 dependencies = [
