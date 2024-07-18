@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
 use super::action::{Action, ActionAddFile, ActionChangeMetadata, ActionRemoveFile};
@@ -21,6 +21,35 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
+    /// Try to create a new snapshot from the provided actions.
+    ///
+    /// There should be exactly one "metadata" action in the list of actions.
+    /// This should either be retrieved from the first version of the table, or
+    /// a checkpoint.
+    pub fn try_new_from_actions(actions: Vec<Action>) -> Result<Self> {
+        let metadata = actions
+            .iter()
+            .find_map(|action| match action {
+                Action::ChangeMetadata(metadata) => Some(metadata.clone()),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                RayexecError::new("Cannot construct snapshop without a metadata action")
+            })?;
+
+        let mut snapshot = Snapshot {
+            metadata,
+            add: HashMap::new(),
+            remove: HashMap::new(),
+        };
+
+        // Technically this reapplies the metadata change, but that doesn't
+        // matter since it's the same thing.
+        snapshot.apply_actions(actions)?;
+
+        Ok(snapshot)
+    }
+
     /// Apply actions to produce an updated snapshot.
     pub fn apply_actions(&mut self, actions: impl IntoIterator<Item = Action>) -> Result<()> {
         for action in actions {
