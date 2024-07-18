@@ -1785,6 +1785,7 @@ dependencies = [
  "logutil",
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_parquet",
@@ -2580,6 +2581,7 @@ version = "0.0.18"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_parquet",

@@ -4,6 +4,7 @@ use rayexec_execution::{
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::ExecutionRuntime,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,3 +34,6 @@ impl TableFunction for ReadDelta {
         unimplemented!()
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReadDeltaImpl {}

@@ -1,0 +1,5 @@
+# Simple read
+
+query ITR rowsort
+select * from read_delta('../testdata/delta/table1');
+----
