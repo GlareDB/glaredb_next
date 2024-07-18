@@ -1,5 +1,11 @@
 # Simple read
 
-query ITR rowsort
-select * from read_delta('../testdata/delta/table1');
+query TT
+describe read_delta('../testdata/delta/table1');
 ----
+a  Int32
+b  Utf8
+
+# query ITR rowsort
+# select * from read_delta('../testdata/delta/table1');
+# ----

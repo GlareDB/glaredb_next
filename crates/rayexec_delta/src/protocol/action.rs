@@ -1,6 +1,8 @@
+use rayexec_error::{Result, ResultExt};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use super::schema::StructType;
 
 /// Action for modifying a table.
 ///
@@ -43,6 +45,16 @@ pub struct ActionChangeMetadata {
     pub description: Option<String>,
     pub format: FormatSpec,
     pub schema_string: String,
+}
+
+impl ActionChangeMetadata {
+    /// Deserializes the table schema from the metadata.
+    ///
+    /// The metadata stores this as a json string, so this second
+    /// deserialization is needed to get the actual schema.
+    pub fn deserialize_schema(&self) -> Result<StructType> {
+        serde_json::from_str(&self.schema_string).context("failed to deserialize schema string")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

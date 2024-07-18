@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
-use super::action::{
-    Action, ActionAddFile, ActionChangeMetadata, ActionProtocol, ActionRemoveFile,
+use super::{
+    action::{Action, ActionAddFile, ActionChangeMetadata, ActionProtocol, ActionRemoveFile},
+    schema::StructType,
 };
 
 /// Snapshot of a table reconstructed from delta logs.
@@ -97,6 +98,10 @@ impl Snapshot {
         }
 
         Ok(())
+    }
+
+    pub fn schema(&self) -> Result<StructType> {
+        self.metadata.deserialize_schema()
     }
 }
 

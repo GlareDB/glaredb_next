@@ -31,6 +31,7 @@ pub struct MapType {
     pub value_type: SchemaType,
 }
 
+// TODO: Timestamp timezone
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PrimitiveType {

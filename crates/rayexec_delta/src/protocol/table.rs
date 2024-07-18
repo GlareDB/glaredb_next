@@ -1,11 +1,22 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use rayexec_error::{Result, ResultExt};
+use rayexec_bullet::{
+    datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
+    field::{Field, Schema},
+    scalar::decimal::{Decimal128Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+};
+use rayexec_error::{not_implemented, Result, ResultExt};
 use rayexec_io::{FileLocation, FileProvider};
 use serde_json::Deserializer;
 
-use super::{action::Action, snapshot::Snapshot};
+use crate::protocol::schema::{PrimitiveType, SchemaType};
+
+use super::{
+    action::Action,
+    schema::{StructField, StructType},
+    snapshot::Snapshot,
+};
 
 /// Relative path to delta log files.
 const DELTA_LOG_PATH: &'static str = "_delta_log";
@@ -55,4 +66,48 @@ impl Table {
             snapshot,
         })
     }
+
+    pub fn table_schema(&self) -> Result<Schema> {
+        let schema = self.snapshot.schema()?;
+        schema_from_struct_type(schema)
+    }
+}
+
+/// Create a schema from a struct type representing the schema of a delta table.
+pub fn schema_from_struct_type(typ: StructType) -> Result<Schema> {
+    let fields = typ
+        .fields
+        .into_iter()
+        .map(struct_field_to_field)
+        .collect::<Result<Vec<_>>>()?;
+    Ok(Schema::new(fields))
+}
+
+fn struct_field_to_field(field: StructField) -> Result<Field> {
+    let datatype = match field.typ {
+        SchemaType::Primitive(prim) => match prim {
+            PrimitiveType::String => DataType::Utf8,
+            PrimitiveType::Long => DataType::Int64,
+            PrimitiveType::Integer => DataType::Int32,
+            PrimitiveType::Short => DataType::Int16,
+            PrimitiveType::Byte => DataType::Int8,
+            PrimitiveType::Float => DataType::Float32,
+            PrimitiveType::Double => DataType::Float64,
+            PrimitiveType::Decimal => DataType::Decimal128(DecimalTypeMeta::new(
+                Decimal128Type::MAX_PRECISION,
+                DECIMAL_DEFUALT_SCALE,
+            )),
+            PrimitiveType::Boolean => DataType::Boolean,
+            PrimitiveType::Binary => DataType::Binary,
+            PrimitiveType::Date => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Second)), // TODO: This is just year/month/day
+            PrimitiveType::Timestamp => {
+                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+            }
+        },
+        SchemaType::Struct(_) => not_implemented!("delta struct"),
+        SchemaType::Array(_) => not_implemented!("delta array"),
+        SchemaType::Map(_) => not_implemented!("delta map"),
+    };
+
+    Ok(Field::new(field.name, datatype, field.nullable))
 }

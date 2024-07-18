@@ -45,6 +45,7 @@ impl TableFunction for ReadDelta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDeltaImpl {
     location: FileLocation,
+    schema: Schema,
     #[serde(skip)]
     table: Option<Arc<Table>>, // Populate on re-init if needed.
 }
@@ -65,9 +66,11 @@ impl ReadDeltaImpl {
         let provider = runtime.file_provider();
 
         let table = Table::load(location.clone(), provider).await?;
+        let schema = table.table_schema()?;
 
         Ok(Box::new(ReadDeltaImpl {
             location,
+            schema,
             table: Some(Arc::new(table)),
         }))
     }
@@ -88,7 +91,7 @@ impl PlannedTableFunction for ReadDeltaImpl {
     }
 
     fn schema(&self) -> Schema {
-        unimplemented!()
+        self.schema.clone()
     }
 
     fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
