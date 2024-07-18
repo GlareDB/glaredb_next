@@ -27,7 +27,7 @@ use rayexec_parser::{
     statement::{RawStatement, Statement},
 };
 use resolver::Resolver;
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -54,6 +54,39 @@ impl AstMeta for Bound {
     type ColumnReference = String;
     type DataType = DataType;
     type CopyToDestination = BoundCopyTo;
+}
+
+/// Simple wrapper around a bound statement and its bind data.
+///
+/// This also requires custom (de)serializations logic due to the stateful
+/// nature of deserializing functions. While the manual serialization
+/// implementation isn't needed, having it makes it easier to determine the
+/// correct deserialization logic.
+#[derive(Debug, PartialEq)]
+pub struct StatementWithBindData {
+    pub statement: BoundStatement,
+    pub bind_data: BindData,
+}
+
+impl Serialize for StatementWithBindData {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("StatementWithBindData", 2)?;
+        s.serialize_field("statement", &self.statement)?;
+        unimplemented!()
+    }
+}
+
+impl Serialize for BindData {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("BindData", 5)?;
+        unimplemented!()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -92,11 +125,17 @@ pub enum BindMode {
     Hybrid,
 }
 
+impl BindMode {
+    pub const fn is_hybrid(&self) -> bool {
+        matches!(self, BindMode::Hybrid)
+    }
+}
+
 /// Data that's collected during binding, including resolved tables, functions,
 /// and other database objects.
 ///
 /// Planning will reference these items directly.
-#[derive(Debug, Default, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq)]
 pub struct BindData {
     pub tables: TableBindList,
     pub functions: FunctionBindList,

@@ -1,10 +1,13 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, meta::Raw};
-use serde::{Deserialize, Serialize};
-use std::fmt;
+use serde::{
+    de::DeserializeSeed, ser::SerializeTupleVariant, Deserialize, Deserializer, Serialize,
+    Serializer,
+};
+use std::{fmt, marker::PhantomData};
 
 use crate::{
-    database::entry::TableEntry,
+    database::{entry::TableEntry, DatabaseContext},
     functions::{
         aggregate::AggregateFunction,
         scalar::ScalarFunction,
@@ -17,7 +20,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BindListIdx(pub usize);
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaybeBound<B, U> {
     /// The object has been bound, and has a given location requirement.
     Bound(B, LocationRequirement),
@@ -35,6 +38,47 @@ impl<B, U> MaybeBound<B, U> {
             Self::Bound(b, loc) => Ok((b, loc)),
             Self::Unbound(_) => Err(RayexecError::new("Bind reference is not bound")),
         }
+    }
+}
+
+impl<B: Serialize, U: Serialize> Serialize for MaybeBound<B, U> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Bound(bound, loc) => {
+                let mut s = serializer.serialize_tuple_variant("MaybeBound", 0, "Bound", 2)?;
+                s.serialize_field(bound)?;
+                s.serialize_field(loc)?;
+                s.end()
+            }
+            Self::Unbound(unbound) => {
+                let mut s = serializer.serialize_tuple_variant("MaybeBound", 1, "Unbound", 1)?;
+                s.serialize_field(unbound)?;
+                s.end()
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MaybeBoundDeserializer<'a, B, U> {
+    pub context: &'a DatabaseContext,
+    pub _bound: PhantomData<B>,
+    pub _unbound: PhantomData<U>,
+}
+
+impl<'de, 'a> DeserializeSeed<'de>
+    for MaybeBoundDeserializer<'a, TableOrCteReference, ast::ObjectReference>
+{
+    type Value = MaybeBound<TableOrCteReference, ast::ObjectReference>;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        unimplemented!()
     }
 }
 

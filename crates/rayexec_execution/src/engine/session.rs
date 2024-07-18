@@ -151,8 +151,15 @@ impl Session {
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
         let tx = CatalogTx::new();
+
+        let bindmode = if self.hybrid_client.is_some() {
+            BindMode::Hybrid
+        } else {
+            BindMode::Normal
+        };
+
         let (bound_stmt, bind_data) = Binder::new(
-            BindMode::Normal,
+            bindmode,
             &tx,
             &self.context,
             self.registry.get_file_handlers(),
@@ -161,7 +168,7 @@ impl Session {
         .bind_statement(stmt)
         .await?;
 
-        if bind_data.any_unbound() && self.hybrid_client.is_some() {
+        if bind_data.any_unbound() && bindmode.is_hybrid() {
             // Hybrid
         }
 
@@ -243,7 +250,7 @@ impl Session {
             .spawn_query_graph(query_graph, Arc::new(adapter_stream.error_sink()));
 
         Ok(ExecutionResult {
-            output_schema: schema, // TODO
+            output_schema: schema,
             stream: adapter_stream,
             handle,
         })
