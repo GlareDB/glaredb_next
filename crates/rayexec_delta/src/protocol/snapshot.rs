@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
-use super::action::{Action, ActionAddFile, ActionChangeMetadata, ActionRemoveFile};
+use super::action::{
+    Action, ActionAddFile, ActionChangeMetadata, ActionProtocol, ActionRemoveFile,
+};
 
 /// Snapshot of a table reconstructed from delta logs.
 ///
@@ -82,6 +84,14 @@ impl Snapshot {
                 }
                 Action::Transaction(_txn) => {
                     // TODO: Track latest tx version per app id.
+                }
+                Action::Protocol(_) => {
+                    // TODO: Track protocol, store on table for reader/writer compat
+                }
+                Action::CommitInfo(_) => {
+                    // TODO: This holds arbitrary json. We could potentially
+                    // structure it specific to our use case, then fall back to
+                    // just a json Value if it doesn't fit.
                 }
             }
         }

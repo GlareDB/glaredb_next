@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 /// Action for modifying a table.
 ///
 /// See <https://github.com/delta-io/delta/blob/master/PROTOCOL.md#actions>
-// TODO: Protocol evolution, commit info, domain metadata, sidecar, checkpoint
-// metadata
+// TODO: domain metadata, sidecar, checkpoint metadata
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
     #[serde(rename = "metaData")]
@@ -25,6 +24,15 @@ pub enum Action {
 
     #[serde(rename = "txn")]
     Transaction(ActionTransaction),
+
+    #[serde(rename = "protocol")]
+    Protocol(ActionProtocol),
+
+    /// Commit provenance.
+    ///
+    /// Contains arbitrary json.
+    #[serde(rename = "commitInfo")]
+    CommitInfo(serde_json::Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,6 +79,15 @@ pub struct ActionTransaction {
     pub app_id: String,
     pub version: usize,
     pub last_updated: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionProtocol {
+    pub min_reader_version: usize,
+    pub min_writer_version: usize,
+    pub reader_features: Option<Vec<String>>,
+    pub writer_features: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -241,6 +258,28 @@ mod tests {
             app_id: "3ba13872-2d47-4e17-86a0-21afd2a22395".to_string(),
             version: 364475,
             last_updated: None,
+        });
+
+        assert_eq!(expected, action);
+    }
+
+    #[test]
+    fn action_protocol() {
+        let input = r#"
+        {
+          "protocol":{
+            "minReaderVersion":1,
+            "minWriterVersion":2
+          }
+        }
+        "#;
+
+        let action: Action = serde_json::from_str(input).unwrap();
+        let expected = Action::Protocol(ActionProtocol {
+            min_reader_version: 1,
+            min_writer_version: 2,
+            reader_features: None,
+            writer_features: None,
         });
 
         assert_eq!(expected, action);
