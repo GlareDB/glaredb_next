@@ -11,7 +11,7 @@ use rayexec_bullet::{
     scalar::decimal::{Decimal128Type, DecimalType, DECIMAL_DEFUALT_SCALE},
 };
 use rayexec_error::{not_implemented, Result, ResultExt};
-use rayexec_io::{FileLocation, FileProvider, FileSource};
+use rayexec_io::{location::FileLocation, FileProvider, FileSource};
 use rayexec_parquet::{array::AsyncBatchReader, metadata::Metadata};
 use serde_json::Deserializer;
 
@@ -139,7 +139,11 @@ impl TableScan {
 
                 match scan.current.as_mut().unwrap().read_next().await {
                     Ok(Some(batch)) => return Ok(Some((batch, scan))),
-                    Ok(None) => continue, // Loads next read at beginning of loop.
+                    Ok(None) => {
+                        // Loads next read at beginning of loop.
+                        scan.current = None;
+                        continue;
+                    }
                     Err(e) => return Err(e),
                 }
             }

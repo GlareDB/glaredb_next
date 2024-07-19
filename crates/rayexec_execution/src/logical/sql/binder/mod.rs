@@ -20,7 +20,7 @@ use rayexec_bullet::{
     },
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::FileLocation;
+use rayexec_io::location::FileLocation;
 use rayexec_parser::{
     ast::{self, ColumnDef, ObjectReference, QueryNode},
     meta::{AstMeta, Raw},

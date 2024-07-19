@@ -13,7 +13,7 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_io::FileLocation;
+use rayexec_io::location::FileLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;

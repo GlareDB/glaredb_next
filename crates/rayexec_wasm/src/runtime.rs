@@ -4,7 +4,7 @@ use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{http::ReqwestClient, FileLocation, FileProvider, FileSink, FileSource};
+use rayexec_io::{http::ReqwestClient, location::FileLocation, FileProvider, FileSink, FileSource};
 use std::{
     collections::BTreeMap,
     sync::Arc,

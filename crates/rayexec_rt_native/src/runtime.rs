@@ -6,7 +6,7 @@ use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{http::ReqwestClient, FileLocation, FileProvider, FileSink, FileSource};
+use rayexec_io::{http::ReqwestClient, location::FileLocation, FileProvider, FileSink, FileSource};
 
 use crate::{
     filesystem::LocalFileSystemProvider, http::WrappedReqwestClientReader,
