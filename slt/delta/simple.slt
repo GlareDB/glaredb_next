@@ -9,3 +9,6 @@ b  Utf8
 query ITR rowsort
 select * from read_delta('../testdata/delta/table1');
 ----
+1  hello
+2  world
+

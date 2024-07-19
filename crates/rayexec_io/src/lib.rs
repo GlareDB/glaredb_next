@@ -4,12 +4,8 @@ pub mod location;
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream};
 use location::FileLocation;
-use rayexec_error::{RayexecError, Result};
-use serde::{Deserialize, Serialize};
-use std::{
-    fmt::{self, Debug},
-    path::{Path, PathBuf},
-};
+use rayexec_error::Result;
+use std::fmt::Debug;
 
 /// Provide file sources and sinks.
 ///
@@ -24,6 +20,18 @@ pub trait FileProvider: Sync + Send + Debug {
 
     /// Gets a file sink at some location
     fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>>;
+
+    /// Return a stream of paths relative to `prefix`.
+    ///
+    /// This is stream of vecs to allow for easily adapting to object store
+    /// pagination.
+    ///
+    /// The relative paths returned should be for "objects". Specifically for
+    /// the filesystem implementation, directory paths should not be returned,
+    /// only paths to a file.
+    ///
+    /// Paths should be returned lexicographically ascending order.
+    fn list_prefix(&self, prefix: FileLocation) -> BoxStream<'static, Result<Vec<String>>>;
 }
 
 /// Asynchronous reads of some file source.

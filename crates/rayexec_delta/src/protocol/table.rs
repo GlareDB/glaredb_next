@@ -2,7 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use futures::{
     stream::{self, BoxStream},
-    StreamExt,
+    StreamExt, TryStreamExt,
 };
 use rayexec_bullet::{
     batch::Batch,
@@ -10,7 +10,7 @@ use rayexec_bullet::{
     field::{Field, Schema},
     scalar::decimal::{Decimal128Type, DecimalType, DECIMAL_DEFUALT_SCALE},
 };
-use rayexec_error::{not_implemented, Result, ResultExt};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_io::{location::FileLocation, FileProvider, FileSource};
 use rayexec_parquet::{array::AsyncBatchReader, metadata::Metadata};
 use serde_json::Deserializer;
@@ -40,12 +40,59 @@ pub struct Table {
 impl Table {
     /// Try to load a table at the given location.
     pub async fn load(root: FileLocation, provider: Arc<dyn FileProvider>) -> Result<Self> {
-        // TODO: Actually iterate through the commit log...
+        // TODO: Look at checkpoints & compacted logs
+        let log_root = root.join([DELTA_LOG_PATH])?;
+        let mut log_stream = provider.list_prefix(log_root.clone());
 
-        let first = root.join([DELTA_LOG_PATH, "00000000000000000000.json"])?;
+        let first_page = log_stream
+            .try_next()
+            .await?
+            .ok_or_else(|| RayexecError::new("No logs for delta table"))?;
 
+        let mut snapshot = match first_page.first() {
+            Some(first) => {
+                let actions =
+                    Self::read_actions_from_log(provider.as_ref(), &log_root, first).await?;
+                Snapshot::try_new_from_actions(actions)?
+            }
+            None => {
+                return Err(RayexecError::new(
+                    "No logs in first page returned from provider",
+                ))
+            }
+        };
+
+        // Apply rest of first page.
+        for log_path in first_page.iter().skip(1) {
+            let actions =
+                Self::read_actions_from_log(provider.as_ref(), &log_root, log_path).await?;
+            snapshot.apply_actions(actions)?;
+        }
+
+        // Apply rest of log stream.
+        while let Some(page) = log_stream.try_next().await? {
+            for log_path in page {
+                let actions =
+                    Self::read_actions_from_log(provider.as_ref(), &log_root, &log_path).await?;
+                snapshot.apply_actions(actions)?;
+            }
+        }
+
+        Ok(Table {
+            root,
+            provider,
+            snapshot,
+        })
+    }
+
+    // TODO: Maybe don't allocate new vec for every log file.
+    async fn read_actions_from_log(
+        provider: &dyn FileProvider,
+        root: &FileLocation,
+        path: &str,
+    ) -> Result<Vec<Action>> {
         let bytes = provider
-            .file_source(first)?
+            .file_source(root.join([path])?)? // TODO: Path segments
             .read_stream()
             .collect::<Vec<_>>()
             .await
@@ -61,15 +108,9 @@ impl Table {
         let actions = Deserializer::from_slice(&bytes)
             .into_iter::<Action>()
             .collect::<Result<Vec<_>, _>>()
-            .context("failed to read first commit log")?;
+            .context("failed to read actions from log file")?;
 
-        let snapshot = Snapshot::try_new_from_actions(actions)?;
-
-        Ok(Table {
-            root,
-            provider,
-            snapshot,
-        })
+        Ok(actions)
     }
 
     pub fn table_schema(&self) -> Result<Schema> {
