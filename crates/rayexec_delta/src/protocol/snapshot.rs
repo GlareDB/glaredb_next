@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
 use super::{
-    action::{Action, ActionAddFile, ActionChangeMetadata, ActionProtocol, ActionRemoveFile},
+    action::{Action, ActionAddFile, ActionChangeMetadata, ActionRemoveFile},
     schema::StructType,
 };
 

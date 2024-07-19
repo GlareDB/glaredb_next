@@ -13,7 +13,7 @@ use crate::{
     },
     logical::{
         context::QueryContext,
-        operator::{LogicalOperator, ResetVar, VariableOrAll},
+        operator::{LogicalOperator, VariableOrAll},
         sql::{
             binder::{BindMode, Binder},
             planner::PlanContext,

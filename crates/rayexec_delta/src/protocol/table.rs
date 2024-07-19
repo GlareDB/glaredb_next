@@ -24,7 +24,7 @@ use super::{
 };
 
 /// Relative path to delta log files.
-const DELTA_LOG_PATH: &'static str = "_delta_log";
+const DELTA_LOG_PATH: &str = "_delta_log";
 
 #[derive(Debug)]
 pub struct Table {

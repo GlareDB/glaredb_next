@@ -1,4 +1,4 @@
-use super::operator::{Filter, LogicalOperator, Projection};
+use super::operator::LogicalOperator;
 use super::sql::scope::ColumnRef;
 use crate::expr::scalar::VariadicOperator;
 use crate::expr::scalar::{PlannedBinaryOperator, PlannedUnaryOperator};

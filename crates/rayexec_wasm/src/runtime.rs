@@ -94,11 +94,9 @@ impl FileProvider for WasmFileProvider {
 
     fn list_prefix(&self, prefix: FileLocation) -> BoxStream<'static, Result<Vec<String>>> {
         match prefix {
-            FileLocation::Url(_) => {
-                return Box::pin(stream::once(async move {
-                    Err(RayexecError::new("Cannot list for http file sources"))
-                }))
-            }
+            FileLocation::Url(_) => Box::pin(stream::once(async move {
+                Err(RayexecError::new("Cannot list for http file sources"))
+            })),
             FileLocation::Path(_) => unimplemented!(),
         }
     }

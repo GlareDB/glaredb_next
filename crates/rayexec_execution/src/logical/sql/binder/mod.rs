@@ -84,7 +84,7 @@ impl Serialize for BindData {
     where
         S: Serializer,
     {
-        let mut s = serializer.serialize_struct("BindData", 5)?;
+        let mut _s = serializer.serialize_struct("BindData", 5)?;
         unimplemented!()
     }
 }
@@ -350,13 +350,13 @@ impl<'a> Binder<'a> {
             ast::CopyToSource::Table(reference) => {
                 let table = match self.bindmode {
                     BindMode::Normal => {
-                        let table = Resolver::new(self.tx, &self.context)
+                        let table = Resolver::new(self.tx, self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
                         MaybeBound::Bound(table, LocationRequirement::Local)
                     }
                     BindMode::Hybrid => {
-                        let table = Resolver::new(self.tx, &self.context)
+                        let table = Resolver::new(self.tx, self.context)
                             .resolve_table_or_cte(&reference, bind_data)
                             .await?;
 
@@ -489,13 +489,13 @@ impl<'a> Binder<'a> {
     ) -> Result<ast::Insert<Bound>> {
         let table = match self.bindmode {
             BindMode::Normal => {
-                let table = Resolver::new(self.tx, &self.context)
+                let table = Resolver::new(self.tx, self.context)
                     .require_resolve_table_or_cte(&insert.table, bind_data)
                     .await?;
                 MaybeBound::Bound(table, LocationRequirement::Local)
             }
             BindMode::Hybrid => {
-                let table = Resolver::new(self.tx, &self.context)
+                let table = Resolver::new(self.tx, self.context)
                     .resolve_table_or_cte(&insert.table, bind_data)
                     .await?;
 
@@ -767,13 +767,13 @@ impl<'a> Binder<'a> {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 let table = match self.bindmode {
                     BindMode::Normal => {
-                        let table = Resolver::new(self.tx, &self.context)
+                        let table = Resolver::new(self.tx, self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
                         MaybeBound::Bound(table, LocationRequirement::Local)
                     }
                     BindMode::Hybrid => {
-                        let table = Resolver::new(self.tx, &self.context)
+                        let table = Resolver::new(self.tx, self.context)
                             .resolve_table_or_cte(&reference, bind_data)
                             .await?;
 
@@ -821,7 +821,7 @@ impl<'a> Binder<'a> {
                 }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
-                match Resolver::new(self.tx, &self.context).resolve_table_function(&reference)? {
+                match Resolver::new(self.tx, self.context).resolve_table_function(&reference)? {
                     Some(table_fn) => {
                         let args = ExpressionBinder::new(self)
                             .bind_table_function_args(args)

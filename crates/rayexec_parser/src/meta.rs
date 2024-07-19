@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::ast::{
-    CommonTableExpr, CopyToTarget, DataType, FromTableFunction, FunctionArg, Ident, ObjectReference,
+    CommonTableExpr, CopyToTarget, DataType, FromTableFunction, Ident, ObjectReference,
 };
 
 /// Metadata associated with sql statements.

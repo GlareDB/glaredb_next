@@ -62,7 +62,7 @@ impl<'a> HybridResolver<'a> {
         // The second point will likely be handled in a way where we replace the
         // file with the proper function on the "local" side anyways, so this
         // would still be fine being empty.
-        const EMPTY_FILE_HANDLER_REF: &'static FileHandlers = &FileHandlers::empty();
+        const EMPTY_FILE_HANDLER_REF: &FileHandlers = &FileHandlers::empty();
 
         // Note we're using bindmode normal here since everything we attempt to
         // bind in this resolver should succeed.
@@ -96,7 +96,7 @@ impl<'a> HybridResolver<'a> {
                 // CTE lookup, which shouldn't be possible here.
                 let empty = BindData::default();
 
-                let table = Resolver::new(self.binder.tx, &self.binder.context)
+                let table = Resolver::new(self.binder.tx, self.binder.context)
                     .require_resolve_table_or_cte(unbound, &empty)
                     .await?;
 
@@ -110,7 +110,7 @@ impl<'a> HybridResolver<'a> {
     async fn resolve_unbound_table_fns(&self, bind_data: &mut BindData) -> Result<()> {
         for item in bind_data.table_functions.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
-                let table_fn = Resolver::new(self.binder.tx, &self.binder.context)
+                let table_fn = Resolver::new(self.binder.tx, self.binder.context)
                     .require_resolve_table_function(&unbound.reference)?;
 
                 let args = ExpressionBinder::new(&self.binder)

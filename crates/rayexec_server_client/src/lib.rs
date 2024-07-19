@@ -62,7 +62,7 @@ impl HybridClient {
     pub async fn ping(&self) -> Result<()> {
         let url = self
             .url
-            .join(&ENDPOINTS.healthz)
+            .join(ENDPOINTS.healthz)
             .context("failed to parse healthz url")?;
         let resp = self
             .client

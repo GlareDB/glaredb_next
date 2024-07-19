@@ -3,10 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use crate::logical::{
     context::QueryContext,
     expr::{LogicalExpression, Subquery},
-    operator::{
-        Aggregate, CrossJoin, EqualityJoin, Filter, JoinType, LogicalNode, LogicalOperator,
-        Projection,
-    },
+    operator::{CrossJoin, EqualityJoin, JoinType, LogicalNode, LogicalOperator},
 };
 use rayexec_error::{RayexecError, Result};
 

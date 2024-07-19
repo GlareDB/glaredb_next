@@ -74,7 +74,7 @@ impl<'de, 'a> DeserializeSeed<'de>
 {
     type Value = MaybeBound<TableOrCteReference, ast::ObjectReference>;
 
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    fn deserialize<D>(self, _deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: Deserializer<'de>,
     {
