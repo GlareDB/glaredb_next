@@ -12,10 +12,10 @@ use futures::{
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::{
-    http::{BoxingResponse, HttpClient, ReqwestClientReader},
+    http::{HttpClient, HttpResponse, ReqwestClientReader},
     FileSource,
 };
-use reqwest::{header::HeaderMap, Body, IntoUrl, Method};
+use reqwest::{header::HeaderMap, Body, IntoUrl, Method, StatusCode};
 use tokio::task::JoinHandle;
 use tracing::debug;
 
@@ -71,6 +71,37 @@ impl HttpClient for TokioWrappedHttpClient {
         });
 
         ResponseJoinHandle { join_handle }
+    }
+}
+
+/// Wrapper around a reqwest response that boxes the futures and streams.
+#[derive(Debug)]
+pub struct BoxingResponse(pub reqwest::Response);
+
+impl HttpResponse for BoxingResponse {
+    type BytesFuture = BoxFuture<'static, Result<Bytes>>;
+    type BytesStream = BoxStream<'static, Result<Bytes>>;
+
+    fn status(&self) -> StatusCode {
+        self.0.status()
+    }
+
+    fn headers(&self) -> &HeaderMap {
+        self.0.headers()
+    }
+
+    fn bytes(self) -> Self::BytesFuture {
+        self.0
+            .bytes()
+            .map(|r| r.context("failed to get byte response"))
+            .boxed()
+    }
+
+    fn bytes_stream(self) -> Self::BytesStream {
+        self.0
+            .bytes_stream()
+            .map(|r| r.context("failed to get byte stream"))
+            .boxed()
     }
 }
 

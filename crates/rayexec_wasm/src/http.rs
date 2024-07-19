@@ -5,13 +5,107 @@ use futures::{
     Stream,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::{http::ReqwestClientReader, FileSource};
+use rayexec_io::{
+    http::{HttpClient, HttpResponse, ReqwestClientReader},
+    FileSource,
+};
+use reqwest::{header::HeaderMap, Body, IntoUrl, Method, StatusCode};
 use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 use tracing::debug;
+
+#[derive(Debug, Clone)]
+pub struct WasmHttpClient {
+    client: reqwest::Client,
+}
+
+impl HttpClient for WasmHttpClient {
+    type Response = WasmBoxingResponse;
+    type RequestFuture = BoxFuture<'static, Result<Self::Response>>;
+
+    fn request_with_body<U: IntoUrl, B: Into<Body>>(
+        &self,
+        method: Method,
+        url: U,
+        headers: HeaderMap,
+        body: B,
+    ) -> Self::RequestFuture {
+        let fut = self
+            .client
+            .request(method, url)
+            .headers(headers)
+            .body(body)
+            .send()
+            .map(|result| match result {
+                Ok(resp) => Ok(WasmBoxingResponse(resp)),
+                Err(e) => Err(RayexecError::with_source(
+                    "Failed to make request",
+                    Box::new(e),
+                )),
+            });
+
+        unsafe { FakeSendFuture::new(Box::pin(fut)) }.boxed()
+    }
+
+    fn request<U: IntoUrl>(
+        &self,
+        method: Method,
+        url: U,
+        headers: HeaderMap,
+    ) -> Self::RequestFuture {
+        let fut = self
+            .client
+            .request(method, url)
+            .headers(headers)
+            .send()
+            .map(|result| match result {
+                Ok(resp) => Ok(WasmBoxingResponse(resp)),
+                Err(e) => Err(RayexecError::with_source(
+                    "Failed to make request",
+                    Box::new(e),
+                )),
+            });
+
+        unsafe { FakeSendFuture::new(Box::pin(fut)) }.boxed()
+    }
+}
+
+#[derive(Debug)]
+pub struct WasmBoxingResponse(pub reqwest::Response);
+
+/// Same rationale as below for the fake send future/stream.
+unsafe impl Send for WasmBoxingResponse {}
+
+impl HttpResponse for WasmBoxingResponse {
+    type BytesFuture = BoxFuture<'static, Result<Bytes>>;
+    type BytesStream = BoxStream<'static, Result<Bytes>>;
+
+    fn status(&self) -> StatusCode {
+        self.0.status()
+    }
+
+    fn headers(&self) -> &HeaderMap {
+        self.0.headers()
+    }
+
+    fn bytes(self) -> Self::BytesFuture {
+        let fut = Box::pin(self.0.bytes());
+        let fut = unsafe { FakeSendFuture::new(fut) };
+        fut.map(|r| r.context("failed to get byte response"))
+            .boxed()
+    }
+
+    fn bytes_stream(self) -> Self::BytesStream {
+        let stream = Box::pin(self.0.bytes_stream());
+        let stream = unsafe { FakeSendStream::new(stream) };
+        stream
+            .map(|r| r.context("failed to get byte stream"))
+            .boxed()
+    }
+}
 
 #[derive(Debug)]
 pub struct WrappedReqwestClientReader {
@@ -81,7 +175,7 @@ impl FileSource for WrappedReqwestClientReader {
 /// the implemenation requires Send futures or not, but I (Sean) did not feel
 /// like spending the time to figure that out in the initial implemenation.
 #[derive(Debug)]
-struct FakeSendFuture<O, F: Future<Output = O> + Unpin> {
+pub struct FakeSendFuture<O, F: Future<Output = O> + Unpin> {
     fut: F,
 }
 
@@ -103,11 +197,17 @@ impl<O, F: Future<Output = O> + Unpin> Future for FakeSendFuture<O, F> {
 
 /// Similar to `FakeSendFuture`, this unsafely makes a stream send.
 #[derive(Debug)]
-struct FakeSendStream<O, S: Stream<Item = O> + Unpin> {
+pub struct FakeSendStream<O, S: Stream<Item = O> + Unpin> {
     stream: S,
 }
 
 unsafe impl<O, S: Stream<Item = O> + Unpin> Send for FakeSendStream<O, S> {}
+
+impl<O, S: Stream<Item = O> + Unpin> FakeSendStream<O, S> {
+    pub unsafe fn new(stream: S) -> Self {
+        FakeSendStream { stream }
+    }
+}
 
 impl<O, S: Stream<Item = O> + Unpin> Stream for FakeSendStream<O, S> {
     type Item = O;

@@ -2045,6 +2045,7 @@ dependencies = [
  "rayexec_io",
  "rayexec_parquet",
  "rayexec_shell",
+ "reqwest",
  "tokio",
  "tracing",
  "tracing-subscriber",
