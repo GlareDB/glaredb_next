@@ -7,10 +7,15 @@ use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{http::ReqwestClient, location::FileLocation, FileProvider, FileSink, FileSource};
+use rayexec_io::{
+    http::{HttpClientReader, ReqwestClient},
+    location::FileLocation,
+    FileProvider, FileSink, FileSource,
+};
 
 use crate::{
-    filesystem::LocalFileSystemProvider, http::WrappedReqwestClientReader,
+    filesystem::LocalFileSystemProvider,
+    http::{TokioWrappedHttpClient, WrappedReqwestClientReader},
     threaded::ThreadedScheduler,
 };
 
@@ -107,10 +112,11 @@ pub struct NativeFileProvider {
 impl FileProvider for NativeFileProvider {
     fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>> {
         match (location, self.handle.as_ref()) {
-            (FileLocation::Url(url), Some(handle)) => Ok(Box::new(WrappedReqwestClientReader {
-                inner: ReqwestClient::default().reader(url),
-                handle: handle.clone(),
-            })),
+            (FileLocation::Url(url), Some(handle)) => {
+                let client =
+                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
+                Ok(Box::new(HttpClientReader { client, url }))
+            }
             (FileLocation::Url(_), None) => Err(RayexecError::new(
                 "Cannot create http client, missing tokio runtime",
             )),

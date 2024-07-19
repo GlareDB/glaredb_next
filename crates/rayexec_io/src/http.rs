@@ -4,7 +4,11 @@ use std::fmt::Debug;
 use tracing::debug;
 use url::Url;
 
-use futures::{future::BoxFuture, stream::BoxStream, Future, FutureExt, Stream, StreamExt};
+use futures::{
+    future::BoxFuture,
+    stream::{self, BoxStream},
+    Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt,
+};
 use reqwest::{
     header::{HeaderMap, CONTENT_LENGTH, RANGE},
     Body, IntoUrl, Method, Response, StatusCode,
@@ -12,16 +16,29 @@ use reqwest::{
 
 use crate::FileSource;
 
-pub trait HttpClient {
-    type Response: HttpResponse;
-    type RequestFuture: Future<Output = Result<Self::Response>>;
+pub trait HttpClient: Sync + Send + Debug + Clone {
+    type Response: HttpResponse + Send;
+    type RequestFuture: Future<Output = Result<Self::Response>> + Send;
 
-    fn request<U: IntoUrl, B: Into<Body>>(&self, method: Method, url: U) -> Self::RequestFuture;
+    fn request_with_body<U: IntoUrl, B: Into<Body>>(
+        &self,
+        method: Method,
+        url: U,
+        headers: HeaderMap,
+        body: B,
+    ) -> Self::RequestFuture;
+
+    fn request<U: IntoUrl>(
+        &self,
+        method: Method,
+        url: U,
+        headers: HeaderMap,
+    ) -> Self::RequestFuture;
 }
 
 pub trait HttpResponse {
-    type BytesFuture: Future<Output = Result<Bytes, reqwest::Error>>;
-    type BytesStream: Stream<Item = Result<Bytes, reqwest::Error>>;
+    type BytesFuture: Future<Output = Result<Bytes>> + Send;
+    type BytesStream: Stream<Item = Result<Bytes>> + Send;
 
     fn status(&self) -> StatusCode;
     fn headers(&self) -> &HeaderMap;
@@ -29,12 +46,13 @@ pub trait HttpResponse {
     fn bytes_stream(self) -> Self::BytesStream;
 }
 
+/// Wrapper around a reqwest response that boxes the futures and streams.
 #[derive(Debug)]
-pub struct BoxedResponse(pub reqwest::Response);
+pub struct BoxingResponse(pub reqwest::Response);
 
-impl HttpResponse for BoxedResponse {
-    type BytesFuture = BoxFuture<'static, Result<Bytes, reqwest::Error>>;
-    type BytesStream = BoxStream<'static, Result<Bytes, reqwest::Error>>;
+impl HttpResponse for BoxingResponse {
+    type BytesFuture = BoxFuture<'static, Result<Bytes>>;
+    type BytesStream = BoxStream<'static, Result<Bytes>>;
 
     fn status(&self) -> StatusCode {
         self.0.status()
@@ -45,12 +63,93 @@ impl HttpResponse for BoxedResponse {
     }
 
     fn bytes(self) -> Self::BytesFuture {
-        self.0.bytes().boxed()
+        self.0
+            .bytes()
+            .map(|r| r.context("failed to get byte response"))
+            .boxed()
     }
 
     fn bytes_stream(self) -> Self::BytesStream {
-        self.0.bytes_stream().boxed()
+        self.0
+            .bytes_stream()
+            .map(|r| r.context("failed to get byte stream"))
+            .boxed()
     }
+}
+
+#[derive(Debug)]
+pub struct HttpClientReader<C: HttpClient> {
+    pub client: C,
+    pub url: Url,
+}
+
+impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
+    fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
+        debug!(url = %self.url, %start, %len, "http reading range");
+
+        let range = format_range_header(start, start + len - 1);
+        let mut headers = HeaderMap::new();
+        headers.insert(RANGE, range.try_into().unwrap());
+
+        let fut = self.client.request(Method::GET, self.url.clone(), headers);
+
+        Box::pin(async move {
+            let resp = fut.await?;
+
+            if resp.status() != StatusCode::PARTIAL_CONTENT {
+                return Err(RayexecError::new("Server does not support range requests"));
+            }
+
+            resp.bytes().await.context("failed to get response body")
+        })
+    }
+
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
+        debug!(url = %self.url, "http reading stream");
+
+        let url = self.url.clone();
+        let client = self.client.clone();
+
+        let stream = stream::once(async move {
+            let resp = client.request(Method::GET, url, HeaderMap::new()).await?;
+
+            Ok::<_, RayexecError>(resp.bytes_stream())
+        })
+        .try_flatten();
+
+        stream.boxed()
+    }
+
+    fn size(&mut self) -> BoxFuture<Result<usize>> {
+        debug!(url = %self.url, "http getting content length");
+
+        let fut = self
+            .client
+            .request(Method::HEAD, self.url.clone(), HeaderMap::new());
+
+        Box::pin(async move {
+            let resp = fut.await?;
+
+            if !resp.status().is_success() {
+                return Err(RayexecError::new("Failed to get content-length"));
+            }
+
+            let len = match resp.headers().get(CONTENT_LENGTH) {
+                Some(header) => header
+                    .to_str()
+                    .context("failed to convert to string")?
+                    .parse::<usize>()
+                    .context("failed to parse content length")?,
+                None => return Err(RayexecError::new("Response missing content-length header")),
+            };
+
+            Ok(len)
+        })
+    }
+}
+
+fn format_range_header(start: usize, end: usize) -> String {
+    format!("bytes={start}-{end}")
 }
 
 /// Shared logic for http clients implemented on top of reqwest.

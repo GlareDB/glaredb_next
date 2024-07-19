@@ -12,29 +12,62 @@ use futures::{
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::{
-    http::{BoxedResponse, HttpClient, ReqwestClientReader},
+    http::{BoxingResponse, HttpClient, ReqwestClientReader},
     FileSource,
 };
-use reqwest::{Body, IntoUrl, Method};
+use reqwest::{header::HeaderMap, Body, IntoUrl, Method};
 use tokio::task::JoinHandle;
 use tracing::debug;
 
 /// Wrapper around a reqwest client that ensures are request are done in a tokio
 /// context.
+#[derive(Debug, Clone)]
 pub struct TokioWrappedHttpClient {
     client: reqwest::Client,
     handle: tokio::runtime::Handle,
 }
 
+impl TokioWrappedHttpClient {
+    pub fn new(client: reqwest::Client, handle: tokio::runtime::Handle) -> Self {
+        TokioWrappedHttpClient { client, handle }
+    }
+}
+
 impl HttpClient for TokioWrappedHttpClient {
-    type Response = BoxedResponse;
+    type Response = BoxingResponse;
     type RequestFuture = ResponseJoinHandle;
 
-    fn request<U: IntoUrl, B: Into<Body>>(&self, method: Method, url: U) -> Self::RequestFuture {
-        let fut = self.client.request(method, url).send();
+    fn request_with_body<U: IntoUrl, B: Into<Body>>(
+        &self,
+        method: Method,
+        url: U,
+        headers: HeaderMap,
+        body: B,
+    ) -> Self::RequestFuture {
+        let fut = self
+            .client
+            .request(method, url)
+            .headers(headers)
+            .body(body)
+            .send();
         let join_handle = self.handle.spawn(async move {
             let resp = fut.await.context("Failed to send request")?;
-            Ok(BoxedResponse(resp))
+            Ok(BoxingResponse(resp))
+        });
+
+        ResponseJoinHandle { join_handle }
+    }
+
+    fn request<U: IntoUrl>(
+        &self,
+        method: Method,
+        url: U,
+        headers: HeaderMap,
+    ) -> Self::RequestFuture {
+        let fut = self.client.request(method, url).headers(headers).send();
+        let join_handle = self.handle.spawn(async move {
+            let resp = fut.await.context("Failed to send request")?;
+            Ok(BoxingResponse(resp))
         });
 
         ResponseJoinHandle { join_handle }
@@ -43,11 +76,11 @@ impl HttpClient for TokioWrappedHttpClient {
 
 /// Wrapper around a tokio join handle waiting on a boxed response.
 pub struct ResponseJoinHandle {
-    join_handle: JoinHandle<Result<BoxedResponse>>,
+    join_handle: JoinHandle<Result<BoxingResponse>>,
 }
 
 impl Future for ResponseJoinHandle {
-    type Output = Result<BoxedResponse>;
+    type Output = Result<BoxingResponse>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.join_handle.poll_unpin(cx) {
