@@ -5,7 +5,10 @@ use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{http::ReqwestClient, location::FileLocation, FileProvider, FileSink, FileSource};
+use rayexec_io::{
+    http::ReqwestClient, location::FileLocation, memory::MemoryFileSystem, FileProvider, FileSink,
+    FileSource,
+};
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -14,7 +17,7 @@ use std::{
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{filesystem::WasmMemoryFileSystem, http::WrappedReqwestClientReader};
+use crate::http::WrappedReqwestClientReader;
 
 /// Execution runtime for wasm.
 ///
@@ -22,14 +25,15 @@ use crate::{filesystem::WasmMemoryFileSystem, http::WrappedReqwestClientReader};
 /// spawned local to the thread (using js promises under the hood).
 #[derive(Debug)]
 pub struct WasmExecutionRuntime {
-    pub(crate) fs: Arc<WasmMemoryFileSystem>,
+    // TODO: Remove Arc? Arc already used internally for the memory fs.
+    pub(crate) fs: Arc<MemoryFileSystem>,
 }
 
 impl WasmExecutionRuntime {
     pub fn try_new() -> Result<Self> {
         debug!("creating wasm execution runtime");
         Ok(WasmExecutionRuntime {
-            fs: Arc::new(WasmMemoryFileSystem::default()),
+            fs: Arc::new(MemoryFileSystem::default()),
         })
     }
 }
@@ -72,7 +76,7 @@ impl ExecutionRuntime for WasmExecutionRuntime {
 
 #[derive(Debug, Clone)]
 pub struct WasmFileProvider {
-    fs: Arc<WasmMemoryFileSystem>,
+    fs: Arc<MemoryFileSystem>,
 }
 
 impl FileProvider for WasmFileProvider {

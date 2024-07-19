@@ -1892,6 +1892,7 @@ version = "0.0.18"
 dependencies = [
  "bytes",
  "futures",
+ "parking_lot",
  "rayexec_error",
  "reqwest",
  "serde",
