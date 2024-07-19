@@ -12,7 +12,7 @@ use rayexec_io::FileLocation;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::protocol::table::Table;
+use crate::{datatable::DeltaDataTable, protocol::table::Table};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadDelta;
@@ -79,6 +79,7 @@ impl ReadDeltaImpl {
 impl PlannedTableFunction for ReadDeltaImpl {
     fn reinitialize(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> BoxFuture<Result<()>> {
         // TODO: Reinit table.
+        // TODO: Needs mut
         unimplemented!()
     }
 
@@ -94,7 +95,12 @@ impl PlannedTableFunction for ReadDeltaImpl {
         self.schema.clone()
     }
 
-    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
-        unimplemented!()
+    fn datatable(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
+        let table = match self.table.as_ref() {
+            Some(table) => table.clone(),
+            None => return Err(RayexecError::new("Delta table not initialized")),
+        };
+
+        Ok(Box::new(DeltaDataTable { table }))
     }
 }

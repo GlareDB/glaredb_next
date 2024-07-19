@@ -1,13 +1,18 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
-use futures::StreamExt;
+use futures::{
+    stream::{self, BoxStream},
+    StreamExt,
+};
 use rayexec_bullet::{
+    batch::Batch,
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     field::{Field, Schema},
     scalar::decimal::{Decimal128Type, DecimalType, DECIMAL_DEFUALT_SCALE},
 };
 use rayexec_error::{not_implemented, Result, ResultExt};
-use rayexec_io::{FileLocation, FileProvider};
+use rayexec_io::{FileLocation, FileProvider, FileSource};
+use rayexec_parquet::{array::AsyncBatchReader, metadata::Metadata};
 use serde_json::Deserializer;
 
 use crate::protocol::schema::{PrimitiveType, SchemaType};
@@ -70,6 +75,97 @@ impl Table {
     pub fn table_schema(&self) -> Result<Schema> {
         let schema = self.snapshot.schema()?;
         schema_from_struct_type(schema)
+    }
+
+    // TODO: batch size, projection
+    // TODO: Reference partition values.
+    // TODO: Properly filter based on deletion vector.
+    pub fn scan(&self, num_partitions: usize) -> Result<Vec<TableScan>> {
+        // Each partitions gets some subset of files.
+        let mut paths: Vec<_> = (0..num_partitions).map(|_| VecDeque::new()).collect();
+
+        for (idx, file_key) in self.snapshot.add.keys().enumerate() {
+            let partition = idx % num_partitions;
+            paths[partition].push_back(file_key.path.clone());
+        }
+
+        let schema = self.table_schema()?;
+
+        let scans = paths
+            .into_iter()
+            .map(|partition_paths| TableScan {
+                root: self.root.clone(),
+                schema: schema.clone(),
+                paths: partition_paths,
+                provider: self.provider.clone(),
+                current: None,
+            })
+            .collect();
+
+        Ok(scans)
+    }
+}
+
+#[derive(Debug)]
+pub struct TableScan {
+    root: FileLocation,
+    /// Schema of the table as determined by the metadata action.
+    schema: Schema,
+    /// Paths to data files this scan should read one after another.
+    paths: VecDeque<String>,
+    /// File provider for getting the actual file sources.
+    provider: Arc<dyn FileProvider>,
+    /// Current reader, initially empty and populated on first stream.
+    ///
+    /// Once a reader runs out, the next file is loaded, and gets placed here.
+    current: Option<AsyncBatchReader<Box<dyn FileSource>>>,
+}
+
+impl TableScan {
+    pub fn into_stream(self) -> BoxStream<'static, Result<Batch>> {
+        let stream = stream::try_unfold(self, |mut scan| async move {
+            loop {
+                if scan.current.is_none() {
+                    let path = match scan.paths.pop_front() {
+                        Some(path) => path,
+                        None => return Ok(None), // We're done.
+                    };
+
+                    scan.current = Some(
+                        Self::load_reader(&scan.root, path, scan.provider.as_ref(), &scan.schema)
+                            .await?,
+                    )
+                }
+
+                match scan.current.as_mut().unwrap().read_next().await {
+                    Ok(Some(batch)) => return Ok(Some((batch, scan))),
+                    Ok(None) => continue, // Loads next read at beginning of loop.
+                    Err(e) => return Err(e),
+                }
+            }
+        });
+
+        stream.boxed()
+    }
+
+    async fn load_reader(
+        root: &FileLocation,
+        path: String,
+        provider: &dyn FileProvider,
+        schema: &Schema,
+    ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {
+        // TODO: Need to split path into segments.
+        let location = root.join([path])?;
+        let mut source = provider.file_source(location)?;
+
+        let size = source.size().await?;
+        let metadata = Arc::new(Metadata::load_from(source.as_mut(), size).await?);
+        let row_groups: VecDeque<_> = (0..metadata.parquet_metadata.row_groups().len()).collect();
+
+        const BATCH_SIZE: usize = 2048; // TODO
+        let reader = AsyncBatchReader::try_new(source, row_groups, metadata, schema, BATCH_SIZE)?;
+
+        Ok(reader)
     }
 }
 

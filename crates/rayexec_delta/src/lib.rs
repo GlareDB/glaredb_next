@@ -1,5 +1,6 @@
 pub mod protocol;
 
+mod datatable;
 mod read_delta;
 
 use futures::future::BoxFuture;

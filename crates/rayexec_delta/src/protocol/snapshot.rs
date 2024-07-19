@@ -14,13 +14,13 @@ use super::{
 #[derive(Debug)]
 pub struct Snapshot {
     /// Latest metadata seen.
-    metadata: ActionChangeMetadata,
+    pub(crate) metadata: ActionChangeMetadata,
 
     /// Add actions we've seen.
-    add: HashMap<FileKey, ActionAddFile>,
+    pub(crate) add: HashMap<FileKey, ActionAddFile>,
 
     /// Remove actions we've seen.
-    remove: HashMap<FileKey, ActionRemoveFile>,
+    pub(crate) remove: HashMap<FileKey, ActionRemoveFile>,
 }
 
 impl Snapshot {
@@ -107,9 +107,9 @@ impl Snapshot {
 
 /// Key representing the "primary key" for a file.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct FileKey {
+pub struct FileKey {
     /// Path to the file.
-    path: String,
+    pub(crate) path: String,
     /// Deletion vector ID if there is one associated for this key.
-    dv_id: Option<String>,
+    pub(crate) dv_id: Option<String>,
 }

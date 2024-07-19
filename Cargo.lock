@@ -1841,6 +1841,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
+ "rayexec_parquet",
  "regex",
  "serde",
  "serde_json",

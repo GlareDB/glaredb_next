@@ -161,6 +161,9 @@ mod tests {
 
         location.join_mut(["c"]).unwrap();
         assert_eq!("./dir/a/b/c", location.to_string());
+
+        location.join_mut(["d/e"]).unwrap();
+        assert_eq!("./dir/a/b/c/d/e", location.to_string());
     }
 
     #[test]
@@ -172,5 +175,9 @@ mod tests {
 
         location.join_mut(["c"]).unwrap();
         assert_eq!("s3://bucket/path/a/b/c", location.to_string());
+
+        // TODO: Should this be allowed?
+        // location.join_mut(["d/e"]).unwrap();
+        // assert_eq!("s3://bucket/path/a/b/c/d/e", location.to_string());
     }
 }
