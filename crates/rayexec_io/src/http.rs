@@ -1,18 +1,56 @@
 use bytes::Bytes;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use reqwest::{
-    header::{CONTENT_LENGTH, RANGE},
-    StatusCode,
-};
 use std::fmt::Debug;
 use tracing::debug;
 use url::Url;
 
+use futures::{future::BoxFuture, stream::BoxStream, Future, FutureExt, Stream, StreamExt};
+use reqwest::{
+    header::{HeaderMap, CONTENT_LENGTH, RANGE},
+    Body, IntoUrl, Method, Response, StatusCode,
+};
+
 use crate::FileSource;
 
-pub trait HttpClient: Debug + Sync + Send + 'static {
-    /// Create a reader for the given url.
-    fn reader(&self, url: Url) -> Box<dyn FileSource>;
+pub trait HttpClient {
+    type Response: HttpResponse;
+    type RequestFuture: Future<Output = Result<Self::Response>>;
+
+    fn request<U: IntoUrl, B: Into<Body>>(&self, method: Method, url: U) -> Self::RequestFuture;
+}
+
+pub trait HttpResponse {
+    type BytesFuture: Future<Output = Result<Bytes, reqwest::Error>>;
+    type BytesStream: Stream<Item = Result<Bytes, reqwest::Error>>;
+
+    fn status(&self) -> StatusCode;
+    fn headers(&self) -> &HeaderMap;
+    fn bytes(self) -> Self::BytesFuture;
+    fn bytes_stream(self) -> Self::BytesStream;
+}
+
+#[derive(Debug)]
+pub struct BoxedResponse(pub reqwest::Response);
+
+impl HttpResponse for BoxedResponse {
+    type BytesFuture = BoxFuture<'static, Result<Bytes, reqwest::Error>>;
+    type BytesStream = BoxStream<'static, Result<Bytes, reqwest::Error>>;
+
+    fn status(&self) -> StatusCode {
+        self.0.status()
+    }
+
+    fn headers(&self) -> &HeaderMap {
+        self.0.headers()
+    }
+
+    fn bytes(self) -> Self::BytesFuture {
+        self.0.bytes().boxed()
+    }
+
+    fn bytes_stream(self) -> Self::BytesStream {
+        self.0.bytes_stream().boxed()
+    }
 }
 
 /// Shared logic for http clients implemented on top of reqwest.

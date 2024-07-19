@@ -1,6 +1,7 @@
 pub mod http;
 pub mod location;
 pub mod memory;
+pub mod s3;
 
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream};

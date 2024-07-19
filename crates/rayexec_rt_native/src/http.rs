@@ -1,14 +1,63 @@
-use std::convert;
+use std::{
+    convert,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use bytes::Bytes;
 use futures::{
     future::{BoxFuture, FutureExt, TryFutureExt},
     stream::{BoxStream, StreamExt},
-    Stream,
+    Future, Stream,
 };
-use rayexec_error::{Result, ResultExt};
-use rayexec_io::{http::ReqwestClientReader, FileSource};
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_io::{
+    http::{BoxedResponse, HttpClient, ReqwestClientReader},
+    FileSource,
+};
+use reqwest::{Body, IntoUrl, Method};
+use tokio::task::JoinHandle;
 use tracing::debug;
+
+/// Wrapper around a reqwest client that ensures are request are done in a tokio
+/// context.
+pub struct TokioWrappedHttpClient {
+    client: reqwest::Client,
+    handle: tokio::runtime::Handle,
+}
+
+impl HttpClient for TokioWrappedHttpClient {
+    type Response = BoxedResponse;
+    type RequestFuture = ResponseJoinHandle;
+
+    fn request<U: IntoUrl, B: Into<Body>>(&self, method: Method, url: U) -> Self::RequestFuture {
+        let fut = self.client.request(method, url).send();
+        let join_handle = self.handle.spawn(async move {
+            let resp = fut.await.context("Failed to send request")?;
+            Ok(BoxedResponse(resp))
+        });
+
+        ResponseJoinHandle { join_handle }
+    }
+}
+
+/// Wrapper around a tokio join handle waiting on a boxed response.
+pub struct ResponseJoinHandle {
+    join_handle: JoinHandle<Result<BoxedResponse>>,
+}
+
+impl Future for ResponseJoinHandle {
+    type Output = Result<BoxedResponse>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.join_handle.poll_unpin(cx) {
+            Poll::Ready(Err(_)) => Poll::Ready(Err(RayexecError::new("tokio join error"))),
+            Poll::Ready(Ok(Err(e))) => Poll::Ready(Err(e)),
+            Poll::Ready(Ok(Ok(b))) => Poll::Ready(Ok(b)),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct WrappedReqwestClientReader {

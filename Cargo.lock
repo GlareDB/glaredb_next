@@ -1956,6 +1956,7 @@ dependencies = [
  "rayexec_execution",
  "rayexec_io",
  "rayon",
+ "reqwest",
  "tokio",
  "tracing",
  "url",
