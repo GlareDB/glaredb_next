@@ -1,25 +1,27 @@
 use bytes::Bytes;
 use futures::{
-    future::{BoxFuture, FutureExt, TryFutureExt},
+    future::{BoxFuture, FutureExt},
     stream::{BoxStream, StreamExt},
     Stream,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::{
-    http::{HttpClient, HttpResponse, ReqwestClientReader},
-    FileSource,
-};
+use rayexec_io::http::{HttpClient, HttpResponse};
 use reqwest::{header::HeaderMap, Body, IntoUrl, Method, StatusCode};
 use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
-use tracing::debug;
 
 #[derive(Debug, Clone)]
 pub struct WasmHttpClient {
     client: reqwest::Client,
+}
+
+impl WasmHttpClient {
+    pub fn new(client: reqwest::Client) -> Self {
+        WasmHttpClient { client }
+    }
 }
 
 impl HttpClient for WasmHttpClient {
@@ -104,53 +106,6 @@ impl HttpResponse for WasmBoxingResponse {
         stream
             .map(|r| r.context("failed to get byte stream"))
             .boxed()
-    }
-}
-
-#[derive(Debug)]
-pub struct WrappedReqwestClientReader {
-    pub inner: ReqwestClientReader,
-}
-
-impl FileSource for WrappedReqwestClientReader {
-    fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
-        let fut = self.inner.read_range(start, len);
-        let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
-        fut.boxed()
-    }
-
-    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
-        debug!(url = %self.inner.url, "http streaming (local stream)");
-
-        // Similar to what we do for the "native" client, but boxes everything
-        // local. Needed since no part of the stream can be Send in wasm, it's
-        // not sufficient to just `boxed_local` the stream, the inner GET
-        // requested needs to be local too.
-        let fut =
-            self.inner
-                .client
-                .get(self.inner.url.as_str())
-                .send()
-                .map(|result| match result {
-                    Ok(resp) => Ok(resp
-                        .bytes_stream()
-                        .map(|result| result.context("failed to stream response"))
-                        .boxed_local()),
-                    Err(e) => Err(RayexecError::with_source(
-                        "Failed to send GET request",
-                        Box::new(e),
-                    )),
-                });
-
-        let stream = fut.try_flatten_stream().boxed_local();
-
-        FakeSendStream { stream }.boxed()
-    }
-
-    fn size(&mut self) -> BoxFuture<Result<usize>> {
-        let fut = self.inner.content_length();
-        let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
-        fut.boxed()
     }
 }
 

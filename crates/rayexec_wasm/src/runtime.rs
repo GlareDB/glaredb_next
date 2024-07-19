@@ -6,8 +6,8 @@ use rayexec_execution::{
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
 use rayexec_io::{
-    http::ReqwestClient, location::FileLocation, memory::MemoryFileSystem, FileProvider, FileSink,
-    FileSource,
+    http::HttpClientReader, location::FileLocation, memory::MemoryFileSystem, FileProvider,
+    FileSink, FileSource,
 };
 use std::{
     collections::BTreeMap,
@@ -17,7 +17,7 @@ use std::{
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::http::WrappedReqwestClientReader;
+use crate::http::WasmHttpClient;
 
 /// Execution runtime for wasm.
 ///
@@ -82,8 +82,9 @@ pub struct WasmFileProvider {
 impl FileProvider for WasmFileProvider {
     fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>> {
         match location {
-            FileLocation::Url(url) => Ok(Box::new(WrappedReqwestClientReader {
-                inner: ReqwestClient::default().reader(url),
+            FileLocation::Url(url) => Ok(Box::new(HttpClientReader {
+                client: WasmHttpClient::new(reqwest::Client::default()),
+                url,
             })),
             FileLocation::Path(path) => self.fs.file_source(&path),
         }

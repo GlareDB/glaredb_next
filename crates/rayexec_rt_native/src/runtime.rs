@@ -8,15 +8,11 @@ use rayexec_execution::{
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
 use rayexec_io::{
-    http::{HttpClientReader, ReqwestClient},
-    location::FileLocation,
-    FileProvider, FileSink, FileSource,
+    http::HttpClientReader, location::FileLocation, FileProvider, FileSink, FileSource,
 };
 
 use crate::{
-    filesystem::LocalFileSystemProvider,
-    http::{TokioWrappedHttpClient, WrappedReqwestClientReader},
-    threaded::ThreadedScheduler,
+    filesystem::LocalFileSystemProvider, http::TokioWrappedHttpClient, threaded::ThreadedScheduler,
 };
 
 /// Inner behavior of the execution runtime.
