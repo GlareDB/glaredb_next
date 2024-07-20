@@ -11,7 +11,7 @@ use futures::{
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
-use reqwest::{header::HeaderMap, Body, IntoUrl, Method, StatusCode};
+use reqwest::{header::HeaderMap, Body, IntoUrl, Method, Request, StatusCode};
 use tokio::task::JoinHandle;
 
 /// Wrapper around a reqwest client that ensures are request are done in a tokio
@@ -32,34 +32,8 @@ impl HttpClient for TokioWrappedHttpClient {
     type Response = BoxingResponse;
     type RequestFuture = ResponseJoinHandle;
 
-    fn request_with_body<U: IntoUrl, B: Into<Body>>(
-        &self,
-        method: Method,
-        url: U,
-        headers: HeaderMap,
-        body: B,
-    ) -> Self::RequestFuture {
-        let fut = self
-            .client
-            .request(method, url)
-            .headers(headers)
-            .body(body)
-            .send();
-        let join_handle = self.handle.spawn(async move {
-            let resp = fut.await.context("Failed to send request")?;
-            Ok(BoxingResponse(resp))
-        });
-
-        ResponseJoinHandle { join_handle }
-    }
-
-    fn request<U: IntoUrl>(
-        &self,
-        method: Method,
-        url: U,
-        headers: HeaderMap,
-    ) -> Self::RequestFuture {
-        let fut = self.client.request(method, url).headers(headers).send();
+    fn do_request(&self, request: Request) -> Self::RequestFuture {
+        let fut = self.client.execute(request);
         let join_handle = self.handle.spawn(async move {
             let resp = fut.await.context("Failed to send request")?;
             Ok(BoxingResponse(resp))

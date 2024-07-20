@@ -1891,11 +1891,15 @@ name = "rayexec_io"
 version = "0.0.18"
 dependencies = [
  "bytes",
+ "chrono",
  "futures",
+ "hmac",
  "parking_lot",
+ "percent-encoding",
  "rayexec_error",
  "reqwest",
  "serde",
+ "sha2",
  "tracing",
  "url",
 ]

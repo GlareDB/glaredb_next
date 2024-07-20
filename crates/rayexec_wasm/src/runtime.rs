@@ -82,10 +82,10 @@ pub struct WasmFileProvider {
 impl FileProvider for WasmFileProvider {
     fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>> {
         match location {
-            FileLocation::Url(url) => Ok(Box::new(HttpClientReader {
-                client: WasmHttpClient::new(reqwest::Client::default()),
-                url,
-            })),
+            FileLocation::Url(url) => {
+                let client = WasmHttpClient::new(reqwest::Client::default());
+                Ok(Box::new(HttpClientReader::new(client, url)))
+            }
             FileLocation::Path(path) => self.fs.file_source(&path),
         }
     }

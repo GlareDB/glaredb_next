@@ -6,7 +6,7 @@ use futures::{
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
-use reqwest::{header::HeaderMap, Body, IntoUrl, Method, StatusCode};
+use reqwest::{header::HeaderMap, Request, StatusCode};
 use std::{
     future::Future,
     pin::Pin,
@@ -28,48 +28,14 @@ impl HttpClient for WasmHttpClient {
     type Response = WasmBoxingResponse;
     type RequestFuture = BoxFuture<'static, Result<Self::Response>>;
 
-    fn request_with_body<U: IntoUrl, B: Into<Body>>(
-        &self,
-        method: Method,
-        url: U,
-        headers: HeaderMap,
-        body: B,
-    ) -> Self::RequestFuture {
-        let fut = self
-            .client
-            .request(method, url)
-            .headers(headers)
-            .body(body)
-            .send()
-            .map(|result| match result {
-                Ok(resp) => Ok(WasmBoxingResponse(resp)),
-                Err(e) => Err(RayexecError::with_source(
-                    "Failed to make request",
-                    Box::new(e),
-                )),
-            });
-
-        unsafe { FakeSendFuture::new(Box::pin(fut)) }.boxed()
-    }
-
-    fn request<U: IntoUrl>(
-        &self,
-        method: Method,
-        url: U,
-        headers: HeaderMap,
-    ) -> Self::RequestFuture {
-        let fut = self
-            .client
-            .request(method, url)
-            .headers(headers)
-            .send()
-            .map(|result| match result {
-                Ok(resp) => Ok(WasmBoxingResponse(resp)),
-                Err(e) => Err(RayexecError::with_source(
-                    "Failed to make request",
-                    Box::new(e),
-                )),
-            });
+    fn do_request(&self, request: Request) -> Self::RequestFuture {
+        let fut = self.client.execute(request).map(|result| match result {
+            Ok(resp) => Ok(WasmBoxingResponse(resp)),
+            Err(e) => Err(RayexecError::with_source(
+                "Failed to make request",
+                Box::new(e),
+            )),
+        });
 
         unsafe { FakeSendFuture::new(Box::pin(fut)) }.boxed()
     }

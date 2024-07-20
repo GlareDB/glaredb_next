@@ -12,3 +12,7 @@ url = { workspace = true, features = ["serde"] }
 bytes = { version = "1.1", default-features = false, features = ["std"] }
 serde = { workspace = true }
 parking_lot = { workspace = true }
+chrono = "0.4.38"
+hmac = "0.12.1"
+sha2 = "0.10.8"
+percent-encoding = "2.3.1"

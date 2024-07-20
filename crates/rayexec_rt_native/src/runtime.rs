@@ -111,7 +111,7 @@ impl FileProvider for NativeFileProvider {
             (FileLocation::Url(url), Some(handle)) => {
                 let client =
                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
-                Ok(Box::new(HttpClientReader { client, url }))
+                Ok(Box::new(HttpClientReader::new(client, url)))
             }
             (FileLocation::Url(_), None) => Err(RayexecError::new(
                 "Cannot create http client, missing tokio runtime",

@@ -3,6 +3,8 @@ pub mod location;
 pub mod memory;
 pub mod s3;
 
+mod util;
+
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream};
 use location::FileLocation;

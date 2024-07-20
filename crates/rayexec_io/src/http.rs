@@ -11,7 +11,7 @@ use futures::{
 };
 use reqwest::{
     header::{HeaderMap, CONTENT_LENGTH, RANGE},
-    Body, IntoUrl, Method, StatusCode,
+    Body, IntoUrl, Method, Request, StatusCode,
 };
 
 use crate::FileSource;
@@ -20,20 +20,7 @@ pub trait HttpClient: Sync + Send + Debug + Clone {
     type Response: HttpResponse + Send;
     type RequestFuture: Future<Output = Result<Self::Response>> + Send;
 
-    fn request_with_body<U: IntoUrl, B: Into<Body>>(
-        &self,
-        method: Method,
-        url: U,
-        headers: HeaderMap,
-        body: B,
-    ) -> Self::RequestFuture;
-
-    fn request<U: IntoUrl>(
-        &self,
-        method: Method,
-        url: U,
-        headers: HeaderMap,
-    ) -> Self::RequestFuture;
+    fn do_request(&self, request: Request) -> Self::RequestFuture;
 }
 
 pub trait HttpResponse {
@@ -48,8 +35,27 @@ pub trait HttpResponse {
 
 #[derive(Debug)]
 pub struct HttpClientReader<C: HttpClient> {
-    pub client: C,
-    pub url: Url,
+    client: C,
+    url: Url,
+    default_headers: HeaderMap,
+}
+
+impl<C: HttpClient> HttpClientReader<C> {
+    pub fn new(client: C, url: Url) -> Self {
+        HttpClientReader {
+            client,
+            url,
+            default_headers: HeaderMap::new(),
+        }
+    }
+
+    pub fn with_default_headers(client: C, url: Url, default_headers: HeaderMap) -> Self {
+        HttpClientReader {
+            client,
+            url,
+            default_headers,
+        }
+    }
 }
 
 impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
@@ -57,10 +63,13 @@ impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
         debug!(url = %self.url, %start, %len, "http reading range");
 
         let range = format_range_header(start, start + len - 1);
-        let mut headers = HeaderMap::new();
-        headers.insert(RANGE, range.try_into().unwrap());
 
-        let fut = self.client.request(Method::GET, self.url.clone(), headers);
+        let mut request = Request::new(Method::GET, self.url.clone());
+        request
+            .headers_mut()
+            .insert(RANGE, range.try_into().unwrap());
+
+        let fut = self.client.do_request(request);
 
         Box::pin(async move {
             let resp = fut.await?;
@@ -76,11 +85,11 @@ impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
     fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         debug!(url = %self.url, "http reading stream");
 
-        let url = self.url.clone();
         let client = self.client.clone();
+        let req = Request::new(Method::GET, self.url.clone());
 
         let stream = stream::once(async move {
-            let resp = client.request(Method::GET, url, HeaderMap::new()).await?;
+            let resp = client.do_request(req).await?;
 
             Ok::<_, RayexecError>(resp.bytes_stream())
         })
@@ -94,7 +103,7 @@ impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
 
         let fut = self
             .client
-            .request(Method::HEAD, self.url.clone(), HeaderMap::new());
+            .do_request(Request::new(Method::GET, self.url.clone()));
 
         Box::pin(async move {
             let resp = fut.await?;
