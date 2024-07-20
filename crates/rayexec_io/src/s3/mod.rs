@@ -1,6 +1,8 @@
 pub mod credentials;
 
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
+use credentials::{AwsCredentials, AwsRequestAuthorizer};
 use futures::{
     future::BoxFuture,
     stream::{self, BoxStream},
@@ -15,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    http::{format_range_header, HttpClient, HttpResponse},
+    http::{format_range_header, read_text, HttpClient, HttpResponse},
     FileSource,
 };
 
@@ -44,7 +46,7 @@ impl S3Location {
                 };
 
                 let object = url.path(); // Should include leading slash.
-                let formatted = format!("https://{bucket}.{region}.{AWS_ENDPOINT}{object}");
+                let formatted = format!("https://{bucket}.s3.{region}.{AWS_ENDPOINT}{object}");
                 let url = Url::parse(&formatted)
                     .context_fn(|| format!("Failed to parse '{formatted}' into url"))?;
 
@@ -64,11 +66,33 @@ impl S3Location {
 pub struct S3Reader<C: HttpClient> {
     client: C,
     location: S3Location,
+    credentials: AwsCredentials,
+    region: String,
 }
 
 impl<C: HttpClient + 'static> S3Reader<C> {
-    pub fn new(client: C, location: S3Location) -> Self {
-        S3Reader { client, location }
+    pub fn new(
+        client: C,
+        location: S3Location,
+        credentials: AwsCredentials,
+        region: String,
+    ) -> Self {
+        S3Reader {
+            client,
+            location,
+            credentials,
+            region,
+        }
+    }
+
+    fn authorize_request(&self, request: Request) -> Result<Request> {
+        let authorizer = AwsRequestAuthorizer {
+            date: Utc::now(),
+            credentials: &self.credentials,
+            region: &self.region,
+        };
+
+        authorizer.authorize(request)
     }
 }
 
@@ -81,10 +105,12 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
             .headers_mut()
             .insert(RANGE, range.try_into().unwrap());
 
-        let fut = self.client.do_request(request);
+        let client = self.client.clone();
+        let request = self.authorize_request(request);
 
         Box::pin(async move {
-            let resp = fut.await?;
+            let request = request?;
+            let resp = client.do_request(request).await?;
 
             if resp.status() != StatusCode::PARTIAL_CONTENT {
                 return Err(RayexecError::new("Server does not support range requests"));
@@ -96,10 +122,12 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
 
     fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
         let client = self.client.clone();
-        let req = Request::new(Method::GET, self.location.url.clone());
+        let request = Request::new(Method::GET, self.location.url.clone());
+        let request = self.authorize_request(request);
 
         let stream = stream::once(async move {
-            let resp = client.do_request(req).await?;
+            let request = request?;
+            let resp = client.do_request(request).await?;
 
             Ok::<_, RayexecError>(resp.bytes_stream())
         })
@@ -109,15 +137,18 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
     }
 
     fn size(&mut self) -> BoxFuture<Result<usize>> {
-        let fut = self
-            .client
-            .do_request(Request::new(Method::GET, self.location.url.clone()));
+        let client = self.client.clone();
+        let request = self.authorize_request(Request::new(Method::GET, self.location.url.clone()));
 
         Box::pin(async move {
-            let resp = fut.await?;
+            let request = request?;
+            let resp = client.do_request(request).await?;
 
             if !resp.status().is_success() {
-                return Err(RayexecError::new("Failed to get content-length"));
+                let text = read_text(resp).await.unwrap_or_default();
+                return Err(RayexecError::new(format!(
+                    "Failed to get content-length: {text}"
+                )));
             }
 
             let len = match resp.headers().get(CONTENT_LENGTH) {
@@ -140,7 +171,7 @@ mod tests {
 
     #[test]
     fn parse_s3_valid_location() {
-        let expected = Url::parse("https://my_bucket.us-east1.amazonaws.com/my/object").unwrap();
+        let expected = Url::parse("https://my_bucket.s3.us-east1.amazonaws.com/my/object").unwrap();
         let location =
             S3Location::from_url(Url::parse("s3://my_bucket/my/object").unwrap(), "us-east1")
                 .unwrap();

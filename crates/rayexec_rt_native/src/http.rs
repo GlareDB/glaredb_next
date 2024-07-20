@@ -35,7 +35,14 @@ impl HttpClient for TokioWrappedHttpClient {
     fn do_request(&self, request: Request) -> Self::RequestFuture {
         let fut = self.client.execute(request);
         let join_handle = self.handle.spawn(async move {
-            let resp = fut.await.context("Failed to send request")?;
+            let result = fut.await;
+
+            if result.is_err() {
+                println!("ERROR: {result:?}");
+            }
+
+            let resp = result.context("Failed to send request")?;
+
             Ok(BoxingResponse(resp))
         });
 

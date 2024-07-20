@@ -3,7 +3,7 @@ use hmac::{Hmac, Mac};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use rayexec_error::{not_implemented, Result};
 use reqwest::{
-    header::{HeaderMap, AUTHORIZATION},
+    header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, HOST},
     Request,
 };
 use serde::{Deserialize, Serialize};
@@ -44,8 +44,6 @@ impl<'a> AwsRequestAuthorizer<'a> {
     ///
     /// See <https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html>
     pub fn authorize(&self, mut request: Request) -> Result<Request> {
-        let (canonical_headers, signed_headers) = canonical_headers(request.headers());
-
         let payload_hash = {
             let mut hasher = Sha256::new();
             match request.body() {
@@ -59,6 +57,22 @@ impl<'a> AwsRequestAuthorizer<'a> {
             let result = hasher.finalize();
             hex::encode(result)
         };
+
+        // Manually add host header here to ensure it's included as a signed header.
+        let host_val =
+            HeaderValue::from_str(request.url().host_str().expect("host to exist")).unwrap();
+        request.headers_mut().insert(HOST, host_val);
+
+        request.headers_mut().insert(
+            HeaderName::from_static("x-amz-content-sha256"),
+            HeaderValue::from_str(&payload_hash).unwrap(),
+        );
+        request.headers_mut().insert(
+            HeaderName::from_static("x-amz-date"),
+            HeaderValue::from_str(&self.date.format("%Y%m%dT%H%M%SZ").to_string()).unwrap(),
+        );
+
+        let (canonical_headers, signed_headers) = canonical_headers(request.headers());
 
         let canonical_request = format!(
             "{}\n{}\n{}\n{}\n{}\n{}",
@@ -101,17 +115,42 @@ impl<'a> AwsRequestAuthorizer<'a> {
     }
 
     fn compute_signature(&self, string_to_sign: &str) -> String {
-        let sig = HmacSha256::new_from_slice(format!("AWS4{}", self.credentials.secret).as_bytes())
-            .unwrap()
-            .chain_update(self.date.format("%Y%m%d").to_string().as_bytes())
-            .chain_update(self.region)
-            .chain_update("s3")
-            .chain_update("aws4_request".as_bytes())
-            .chain_update(string_to_sign)
-            .finalize()
-            .into_bytes();
+        // DateKey = HMAC-SHA256("AWS4"+"<SecretAccessKey>", "<YYYYMMDD>")
+        // DateRegionKey = HMAC-SHA256(<DateKey>, "<aws-region>")
+        // DateRegionServiceKey = HMAC-SHA256(<DateRegionKey>, "<aws-service>")
+        // SigningKey = HMAC-SHA256(<DateRegionServiceKey>, "aws4_request")
 
-        hex::encode(sig)
+        // Note that we have to get the output of each hmac call and feed it
+        // into the next to get the correct signature. It's not sufficient to
+        // create a single hmac state and continually call `chain_update`.
+
+        let date_key =
+            HmacSha256::new_from_slice(format!("AWS4{}", self.credentials.secret).as_bytes())
+                .unwrap()
+                .chain_update(self.date.format("%Y%m%d").to_string())
+                .finalize();
+
+        let region_key = HmacSha256::new_from_slice(&date_key.into_bytes())
+            .unwrap()
+            .chain_update(self.region)
+            .finalize();
+
+        let service_key = HmacSha256::new_from_slice(&region_key.into_bytes())
+            .unwrap()
+            .chain_update("s3")
+            .finalize();
+
+        let signing_key = HmacSha256::new_from_slice(&service_key.into_bytes())
+            .unwrap()
+            .chain_update("aws4_request")
+            .finalize();
+
+        let sig = HmacSha256::new_from_slice(&signing_key.into_bytes())
+            .unwrap()
+            .chain_update(string_to_sign)
+            .finalize();
+
+        hex::encode(sig.into_bytes())
     }
 
     fn credential_scope(&self) -> String {
@@ -162,6 +201,7 @@ fn canonical_headers(header_map: &HeaderMap) -> (String, String) {
 
         header_buf.push_str(key);
         header_buf.push(':');
+        signed_buf.push_str(key);
 
         for (val_idx, val) in val.into_iter().enumerate() {
             if val_idx > 0 {

@@ -33,6 +33,11 @@ pub trait HttpResponse {
     fn bytes_stream(self) -> Self::BytesStream;
 }
 
+pub async fn read_text(resp: impl HttpResponse) -> Result<String> {
+    let full = resp.bytes().await?;
+    Ok(String::from_utf8_lossy(&full).to_string())
+}
+
 #[derive(Debug)]
 pub struct HttpClientReader<C: HttpClient> {
     client: C,

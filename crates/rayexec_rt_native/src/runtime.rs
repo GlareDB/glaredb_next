@@ -10,6 +10,7 @@ use rayexec_execution::{
 use rayexec_io::{
     http::HttpClientReader,
     location::{AccessConfig, FileLocation},
+    s3::{S3Location, S3Reader},
     FileProvider, FileSink, FileSource,
 };
 
@@ -113,16 +114,30 @@ impl FileProvider for NativeFileProvider {
         location: FileLocation,
         config: &AccessConfig,
     ) -> Result<Box<dyn FileSource>> {
-        match (location, self.handle.as_ref()) {
-            (FileLocation::Url(url), Some(handle)) => {
+        match (location, config, self.handle.as_ref()) {
+            (FileLocation::Url(url), AccessConfig::None, Some(handle)) => {
                 let client =
                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
                 Ok(Box::new(HttpClientReader::new(client, url)))
             }
-            (FileLocation::Url(_), None) => Err(RayexecError::new(
+            (
+                FileLocation::Url(url),
+                AccessConfig::S3 {
+                    credentials,
+                    region,
+                },
+                Some(handle),
+            ) => {
+                let client =
+                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
+                let location = S3Location::from_url(url, &region)?;
+                let reader = S3Reader::new(client, location, credentials.clone(), region.clone());
+                Ok(Box::new(reader))
+            }
+            (FileLocation::Url(_), _, None) => Err(RayexecError::new(
                 "Cannot create http client, missing tokio runtime",
             )),
-            (FileLocation::Path(path), _) => LocalFileSystemProvider.file_source(&path),
+            (FileLocation::Path(path), _, _) => LocalFileSystemProvider.file_source(&path),
         }
     }
 
