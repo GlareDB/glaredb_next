@@ -6,8 +6,11 @@ use rayexec_execution::{
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
 use rayexec_io::{
-    http::HttpClientReader, location::FileLocation, memory::MemoryFileSystem, FileProvider,
-    FileSink, FileSource,
+    http::HttpClientReader,
+    location::{AccessConfig, FileLocation},
+    memory::MemoryFileSystem,
+    s3::S3Reader,
+    FileProvider, FileSink, FileSource,
 };
 use std::{
     collections::BTreeMap,
@@ -80,7 +83,11 @@ pub struct WasmFileProvider {
 }
 
 impl FileProvider for WasmFileProvider {
-    fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>> {
+    fn file_source(
+        &self,
+        location: FileLocation,
+        config: &AccessConfig,
+    ) -> Result<Box<dyn FileSource>> {
         match location {
             FileLocation::Url(url) => {
                 let client = WasmHttpClient::new(reqwest::Client::default());
@@ -90,14 +97,22 @@ impl FileProvider for WasmFileProvider {
         }
     }
 
-    fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>> {
+    fn file_sink(
+        &self,
+        location: FileLocation,
+        config: &AccessConfig,
+    ) -> Result<Box<dyn FileSink>> {
         match location {
             FileLocation::Url(_url) => not_implemented!("http sink wasm"),
             FileLocation::Path(path) => self.fs.file_sink(&path),
         }
     }
 
-    fn list_prefix(&self, prefix: FileLocation) -> BoxStream<'static, Result<Vec<String>>> {
+    fn list_prefix(
+        &self,
+        prefix: FileLocation,
+        config: &AccessConfig,
+    ) -> BoxStream<'static, Result<Vec<String>>> {
         match prefix {
             FileLocation::Url(_) => Box::pin(stream::once(async move {
                 Err(RayexecError::new("Cannot list for http file sources"))

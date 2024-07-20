@@ -6,8 +6,9 @@ use reqwest::{
     header::{HeaderMap, AUTHORIZATION},
     Request,
 };
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::{collections::BTreeMap, fmt, fmt::Write as _};
 use url::Url;
 
 use crate::util::hex;
@@ -16,10 +17,19 @@ const SIGN_ALG: &str = "AWS4-HMAC-SHA256";
 
 type HmacSha256 = Hmac<Sha256>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AwsCredentials {
     pub key_id: String,
-    pub secret_key: String,
+    pub secret: String,
+}
+
+impl fmt::Debug for AwsCredentials {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AwsCredentials")
+            .field("key_id", &self.key_id)
+            .field("secret_key", &"<secret>")
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -91,16 +101,15 @@ impl<'a> AwsRequestAuthorizer<'a> {
     }
 
     fn compute_signature(&self, string_to_sign: &str) -> String {
-        let sig =
-            HmacSha256::new_from_slice(format!("AWS4{}", self.credentials.secret_key).as_bytes())
-                .unwrap()
-                .chain_update(self.date.format("%Y%m%d").to_string().as_bytes())
-                .chain_update(self.region)
-                .chain_update("s3")
-                .chain_update("aws4_request".as_bytes())
-                .chain_update(string_to_sign)
-                .finalize()
-                .into_bytes();
+        let sig = HmacSha256::new_from_slice(format!("AWS4{}", self.credentials.secret).as_bytes())
+            .unwrap()
+            .chain_update(self.date.format("%Y%m%d").to_string().as_bytes())
+            .chain_update(self.region)
+            .chain_update("s3")
+            .chain_update("aws4_request".as_bytes())
+            .chain_update(string_to_sign)
+            .finalize()
+            .into_bytes();
 
         hex::encode(sig)
     }

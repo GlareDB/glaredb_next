@@ -8,7 +8,9 @@ use rayexec_execution::{
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
 use rayexec_io::{
-    http::HttpClientReader, location::FileLocation, FileProvider, FileSink, FileSource,
+    http::HttpClientReader,
+    location::{AccessConfig, FileLocation},
+    FileProvider, FileSink, FileSource,
 };
 
 use crate::{
@@ -106,7 +108,11 @@ pub struct NativeFileProvider {
 }
 
 impl FileProvider for NativeFileProvider {
-    fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>> {
+    fn file_source(
+        &self,
+        location: FileLocation,
+        config: &AccessConfig,
+    ) -> Result<Box<dyn FileSource>> {
         match (location, self.handle.as_ref()) {
             (FileLocation::Url(url), Some(handle)) => {
                 let client =
@@ -120,14 +126,22 @@ impl FileProvider for NativeFileProvider {
         }
     }
 
-    fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>> {
+    fn file_sink(
+        &self,
+        location: FileLocation,
+        config: &AccessConfig,
+    ) -> Result<Box<dyn FileSink>> {
         match (location, self.handle.as_ref()) {
             (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
             (FileLocation::Path(path), _) => LocalFileSystemProvider.file_sink(&path),
         }
     }
 
-    fn list_prefix(&self, prefix: FileLocation) -> BoxStream<'static, Result<Vec<String>>> {
+    fn list_prefix(
+        &self,
+        prefix: FileLocation,
+        config: &AccessConfig,
+    ) -> BoxStream<'static, Result<Vec<String>>> {
         match prefix {
             FileLocation::Url(_) => Box::pin(stream::once(async move {
                 Err(RayexecError::new("Cannot list for http file sources"))

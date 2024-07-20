@@ -37,24 +37,11 @@ pub trait HttpResponse {
 pub struct HttpClientReader<C: HttpClient> {
     client: C,
     url: Url,
-    default_headers: HeaderMap,
 }
 
 impl<C: HttpClient> HttpClientReader<C> {
     pub fn new(client: C, url: Url) -> Self {
-        HttpClientReader {
-            client,
-            url,
-            default_headers: HeaderMap::new(),
-        }
-    }
-
-    pub fn with_default_headers(client: C, url: Url, default_headers: HeaderMap) -> Self {
-        HttpClientReader {
-            client,
-            url,
-            default_headers,
-        }
+        HttpClientReader { client, url }
     }
 }
 
@@ -126,6 +113,6 @@ impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
     }
 }
 
-fn format_range_header(start: usize, end: usize) -> String {
+pub(crate) fn format_range_header(start: usize, end: usize) -> String {
     format!("bytes={start}-{end}")
 }
