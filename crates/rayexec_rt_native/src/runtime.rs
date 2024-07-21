@@ -157,11 +157,24 @@ impl FileProvider for NativeFileProvider {
         prefix: FileLocation,
         config: &AccessConfig,
     ) -> BoxStream<'static, Result<Vec<String>>> {
-        match prefix {
-            FileLocation::Url(_) => Box::pin(stream::once(async move {
+        match (prefix, config, self.handle.as_ref()) {
+            (
+                FileLocation::Url(url),
+                AccessConfig::S3 {
+                    credentials,
+                    region,
+                },
+                Some(handle),
+            ) => {
+                let client =
+                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
+                // let location = S3Location::from_url(url, &region)?;
+                unimplemented!()
+            }
+            (FileLocation::Url(_), _, _) => Box::pin(stream::once(async move {
                 Err(RayexecError::new("Cannot list for http file sources"))
             })),
-            FileLocation::Path(path) => Box::pin(stream::once(async move {
+            (FileLocation::Path(path), _, _) => Box::pin(stream::once(async move {
                 LocalFileSystemProvider.list_prefix(&path)
             })),
         }

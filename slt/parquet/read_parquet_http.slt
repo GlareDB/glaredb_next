@@ -29,8 +29,3 @@ Mccoy
 Williams
 Henderson
 
-# query I
-# select last_name
-#   from read_parquet('s3://glaredb-test/userdata1.parquet', region='us-east-1', key_id='...', secret='...')
-#   order by id desc limit 8;
-# ----

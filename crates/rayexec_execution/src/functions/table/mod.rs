@@ -67,7 +67,7 @@ impl TableFunctionArgs {
     pub fn try_get_named(&self, name: &str) -> Result<&OwnedScalarValue> {
         self.named
             .get(name)
-            .ok_or_else(|| RayexecError::new("Expected named argument '{name}'"))
+            .ok_or_else(|| RayexecError::new(format!("Expected named argument '{name}'")))
     }
 }
 

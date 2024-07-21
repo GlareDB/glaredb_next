@@ -21,6 +21,9 @@ jobs:
         run: cargo test -- --skip slt_datasource_  --skip slt_tpch
 
       - name: SLTs Parquet
+        env:
+          AWS_KEY: ${{ secrets.AWS_KEY }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt_datasource_parquet
 
       - name: SLTs CSV
