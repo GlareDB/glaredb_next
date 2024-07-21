@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use rayexec_error::{not_implemented, Result};
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, HOST},
@@ -162,6 +162,15 @@ impl<'a> AwsRequestAuthorizer<'a> {
     }
 }
 
+/// URI encodding set following aws rules.
+///
+/// See <https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html>
+const S3_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
+
 fn canonical_query_string<'a>(url: &'a Url) -> String {
     // TODO: Sort should happen on encoded keys.
     let params: BTreeMap<_, _> = url.query_pairs().collect();
@@ -172,8 +181,8 @@ fn canonical_query_string<'a>(url: &'a Url) -> String {
             buf.push('&');
         }
 
-        let key = utf8_percent_encode(key.as_ref(), NON_ALPHANUMERIC);
-        let val = utf8_percent_encode(val.as_ref(), NON_ALPHANUMERIC);
+        let key = utf8_percent_encode(key.as_ref(), S3_ENCODE_SET);
+        let val = utf8_percent_encode(val.as_ref(), S3_ENCODE_SET);
 
         write!(buf, "{key}={val}").expect("writing to string not to fail");
     }

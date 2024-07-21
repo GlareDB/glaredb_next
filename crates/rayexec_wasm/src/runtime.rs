@@ -9,7 +9,7 @@ use rayexec_io::{
     http::HttpClientReader,
     location::{AccessConfig, FileLocation},
     memory::MemoryFileSystem,
-    s3::{S3Location, S3Reader},
+    s3::{S3Client, S3Location, S3Reader},
     FileProvider, FileSink, FileSource,
 };
 use std::{
@@ -100,10 +100,13 @@ impl FileProvider for WasmFileProvider {
                     region,
                 },
             ) => {
-                let client = WasmHttpClient::new(reqwest::Client::default());
+                let client = S3Client::new(
+                    WasmHttpClient::new(reqwest::Client::default()),
+                    credentials.clone(),
+                );
                 let location = S3Location::from_url(url, &region)?;
-                let reader = S3Reader::new(client, location, credentials.clone(), region.clone());
-                Ok(Box::new(reader))
+                let reader = client.file_source(location, &region)?;
+                Ok(reader)
             }
             (FileLocation::Path(path), _) => self.fs.file_source(&path),
         }

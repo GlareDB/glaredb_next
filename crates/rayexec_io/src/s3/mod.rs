@@ -1,13 +1,15 @@
 pub mod credentials;
+pub mod list;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use chrono::{DateTime, Utc};
 use credentials::{AwsCredentials, AwsRequestAuthorizer};
 use futures::{
     future::BoxFuture,
     stream::{self, BoxStream},
-    StreamExt, TryStreamExt,
+    Stream, StreamExt, TryStreamExt,
 };
+use list::{S3ListContents, S3ListResponse};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use reqwest::{
     header::{CONTENT_LENGTH, RANGE},
@@ -20,6 +22,8 @@ use crate::{
     http::{format_range_header, read_text, HttpClient, HttpResponse},
     FileSource,
 };
+
+// TODO: Lots of cloning...
 
 const AWS_ENDPOINT: &str = "amazonaws.com";
 
@@ -59,6 +63,126 @@ impl S3Location {
                 "Invalid schema for s3 location: {scheme}"
             ))),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct S3Client<C: HttpClient> {
+    client: C,
+    credentials: AwsCredentials,
+}
+
+impl<C: HttpClient + 'static> S3Client<C> {
+    pub fn new(client: C, credentials: AwsCredentials) -> Self {
+        S3Client {
+            client,
+            credentials,
+        }
+    }
+
+    fn authorize_request(&self, request: Request, region: &str) -> Result<Request> {
+        let authorizer = AwsRequestAuthorizer {
+            date: Utc::now(),
+            credentials: &self.credentials,
+            region: &region,
+        };
+
+        authorizer.authorize(request)
+    }
+
+    pub fn file_source(&self, location: S3Location, region: &str) -> Result<Box<dyn FileSource>> {
+        Ok(Box::new(S3Reader::new(
+            self.client.clone(),
+            location,
+            self.credentials.clone(),
+            region.to_string(),
+        )))
+    }
+
+    pub fn list_prefix(
+        &self,
+        location: S3Location,
+        region: &str,
+    ) -> impl Stream<Item = Result<Vec<String>>> {
+        let state = ListState {
+            client: self.clone(),
+            location,
+            region: region.to_string(),
+            continue_listing: true,
+            continuation_token: None,
+        };
+
+        futures::stream::try_unfold(state, |state| async move {
+            if !state.continue_listing {
+                return Ok(None);
+            }
+
+            let (state, contents) = state.do_list_request().await?;
+            let keys: Vec<_> = contents
+                .into_iter()
+                .map(|c| {
+                    // TODO: Probably want to be little less cowboy-y about
+                    // this.
+                    c.key
+                        .strip_prefix(&state.location.url.path()[1..])
+                        .unwrap()
+                        .strip_prefix('/')
+                        .unwrap()
+                        .to_string()
+                })
+                .collect();
+
+            Ok(Some((keys, state)))
+        })
+    }
+}
+
+#[derive(Debug)]
+struct ListState<C: HttpClient> {
+    client: S3Client<C>,
+    location: S3Location,
+    region: String,
+    continuation_token: Option<String>,
+    continue_listing: bool,
+}
+
+impl<C: HttpClient + 'static> ListState<C> {
+    async fn do_list_request(mut self) -> Result<(Self, Vec<S3ListContents>)> {
+        // Object path only, does not include bucket. We also don't want to
+        // include the leading slash.
+        let prefix = &self.location.url.path()[1..];
+
+        let mut url = self.location.url.clone();
+        url.query_pairs_mut()
+            .append_pair("list-type", "2")
+            .append_pair("prefix", &prefix);
+
+        // Clear path, since it's not part of the request.
+        url.path_segments_mut().unwrap().clear();
+
+        if let Some(continuation_token) = self.continuation_token.take() {
+            url.query_pairs_mut()
+                .append_pair("continuation-token", &continuation_token);
+        }
+
+        let request = Request::new(Method::GET, url);
+        let request = self.client.authorize_request(request, &self.region)?;
+
+        let resp = self.client.client.do_request(request).await?;
+        if resp.status() != StatusCode::OK {
+            let text = read_text(resp).await?;
+            return Err(RayexecError::new(format!("List error: {text}")));
+        }
+
+        let bytes = resp.bytes().await?;
+
+        let list_resp: S3ListResponse = quick_xml::de::from_reader(bytes.reader())
+            .context("failed to deserialize list response")?;
+
+        self.continuation_token = list_resp.next_continuation_token;
+        self.continue_listing = self.continuation_token.is_some();
+
+        Ok((self, list_resp.contents))
     }
 }
 
@@ -128,6 +252,11 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
         let stream = stream::once(async move {
             let request = request?;
             let resp = client.do_request(request).await?;
+
+            if resp.status() != StatusCode::OK {
+                let text = read_text(resp).await?;
+                return Err(RayexecError::new(format!("Stream results: {text}")));
+            }
 
             Ok::<_, RayexecError>(resp.bytes_stream())
         })

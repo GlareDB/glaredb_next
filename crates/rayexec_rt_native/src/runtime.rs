@@ -1,7 +1,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use futures::stream::{self, BoxStream};
+use futures::{
+    stream::{self, BoxStream},
+    StreamExt,
+};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::query_graph::QueryGraph,
@@ -10,7 +13,7 @@ use rayexec_execution::{
 use rayexec_io::{
     http::HttpClientReader,
     location::{AccessConfig, FileLocation},
-    s3::{S3Location, S3Reader},
+    s3::{S3Client, S3Location, S3Reader},
     FileProvider, FileSink, FileSource,
 };
 
@@ -128,11 +131,13 @@ impl FileProvider for NativeFileProvider {
                 },
                 Some(handle),
             ) => {
-                let client =
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
+                let client = S3Client::new(
+                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
+                    credentials.clone(),
+                );
                 let location = S3Location::from_url(url, &region)?;
-                let reader = S3Reader::new(client, location, credentials.clone(), region.clone());
-                Ok(Box::new(reader))
+                let reader = client.file_source(location, &region)?;
+                Ok(reader)
             }
             (FileLocation::Url(_), _, None) => Err(RayexecError::new(
                 "Cannot create http client, missing tokio runtime",
@@ -144,7 +149,7 @@ impl FileProvider for NativeFileProvider {
     fn file_sink(
         &self,
         location: FileLocation,
-        config: &AccessConfig,
+        _config: &AccessConfig,
     ) -> Result<Box<dyn FileSink>> {
         match (location, self.handle.as_ref()) {
             (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
@@ -166,10 +171,13 @@ impl FileProvider for NativeFileProvider {
                 },
                 Some(handle),
             ) => {
-                let client =
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
-                // let location = S3Location::from_url(url, &region)?;
-                unimplemented!()
+                let client = S3Client::new(
+                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
+                    credentials.clone(),
+                );
+                let location = S3Location::from_url(url, &region).unwrap(); // TODO
+                let stream = client.list_prefix(location, region);
+                stream.boxed()
             }
             (FileLocation::Url(_), _, _) => Box::pin(stream::once(async move {
                 Err(RayexecError::new("Cannot list for http file sources"))

@@ -332,6 +332,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-targets 0.52.0",
 ]
@@ -1730,6 +1731,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4091e032efecb09d7b1f711f487b85ab925632a842627e3200fb088382cde32c"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1896,6 +1907,7 @@ dependencies = [
  "hmac",
  "parking_lot",
  "percent-encoding",
+ "quick-xml",
  "rayexec_error",
  "reqwest",
  "serde",
@@ -2044,6 +2056,7 @@ dependencies = [
  "parking_lot",
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
