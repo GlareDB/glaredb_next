@@ -117,3 +117,9 @@ Easy to add, just need to document. And additional headers will be needed for
 writing.
 
 Similar probably needs to happen with GCS: https://cloud.google.com/storage/docs/using-cors#console
+
+# Don't use usize for "long" in protocol messages
+
+Because wasm is 32 bit.
+
+Most likely to hit the issue with microsecond resolution timestamps.

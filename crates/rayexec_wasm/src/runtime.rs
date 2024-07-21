@@ -1,4 +1,7 @@
-use futures::stream::{self, BoxStream};
+use futures::{
+    stream::{self, BoxStream},
+    StreamExt,
+};
 use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
@@ -115,7 +118,7 @@ impl FileProvider for WasmFileProvider {
     fn file_sink(
         &self,
         location: FileLocation,
-        config: &AccessConfig,
+        _config: &AccessConfig,
     ) -> Result<Box<dyn FileSink>> {
         match location {
             FileLocation::Url(_url) => not_implemented!("http sink wasm"),
@@ -128,11 +131,28 @@ impl FileProvider for WasmFileProvider {
         prefix: FileLocation,
         config: &AccessConfig,
     ) -> BoxStream<'static, Result<Vec<String>>> {
-        match prefix {
-            FileLocation::Url(_) => Box::pin(stream::once(async move {
+        match (prefix, config) {
+            (
+                FileLocation::Url(url),
+                AccessConfig::S3 {
+                    credentials,
+                    region,
+                },
+            ) => {
+                let client = S3Client::new(
+                    WasmHttpClient::new(reqwest::Client::default()),
+                    credentials.clone(),
+                );
+                let location = S3Location::from_url(url, &region).unwrap(); // TODO
+                let stream = client.list_prefix(location, region);
+                stream.boxed()
+            }
+            (FileLocation::Url(_), AccessConfig::None) => Box::pin(stream::once(async move {
                 Err(RayexecError::new("Cannot list for http file sources"))
             })),
-            FileLocation::Path(_) => unimplemented!(),
+            (FileLocation::Path(_), _) => {
+                stream::once(async move { not_implemented!("wasm list fs") }).boxed()
+            }
         }
     }
 }
