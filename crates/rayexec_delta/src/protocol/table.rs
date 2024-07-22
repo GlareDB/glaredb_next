@@ -15,7 +15,7 @@ use rayexec_io::{
     location::{AccessConfig, FileLocation},
     FileProvider, FileSource,
 };
-use rayexec_parquet::{array::AsyncBatchReader, metadata::Metadata};
+use rayexec_parquet::{metadata::Metadata, reader::AsyncBatchReader};
 use serde_json::Deserializer;
 
 use crate::protocol::schema::{PrimitiveType, SchemaType};

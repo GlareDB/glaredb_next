@@ -5,7 +5,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{array::AsyncBatchReader, metadata::Metadata};
+use crate::{metadata::Metadata, reader::AsyncBatchReader};
 use futures::{stream::BoxStream, StreamExt};
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;

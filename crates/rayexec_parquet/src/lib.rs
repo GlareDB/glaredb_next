@@ -1,6 +1,6 @@
-pub mod array;
 pub mod functions;
 pub mod metadata;
+pub mod reader;
 
 mod schema;
 
