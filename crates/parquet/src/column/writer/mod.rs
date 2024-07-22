@@ -44,21 +44,6 @@ use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
 
 pub(crate) mod encoder;
 
-macro_rules! downcast_writer {
-    ($e:expr, $i:ident, $b:expr) => {
-        match $e {
-            Self::BoolColumnWriter($i) => $b,
-            Self::Int32ColumnWriter($i) => $b,
-            Self::Int64ColumnWriter($i) => $b,
-            Self::Int96ColumnWriter($i) => $b,
-            Self::FloatColumnWriter($i) => $b,
-            Self::DoubleColumnWriter($i) => $b,
-            Self::ByteArrayColumnWriter($i) => $b,
-            Self::FixedLenByteArrayColumnWriter($i) => $b,
-        }
-    };
-}
-
 /// Column writer for a Parquet type.
 pub enum ColumnWriter<'a> {
     BoolColumnWriter(ColumnWriterImpl<'a, BoolType>),
@@ -74,7 +59,16 @@ pub enum ColumnWriter<'a> {
 impl<'a> ColumnWriter<'a> {
     /// Close this [`ColumnWriter`]
     pub fn close(self) -> Result<ColumnCloseResult> {
-        downcast_writer!(self, typed, typed.close())
+        match self {
+            Self::BoolColumnWriter(w) => w.close(),
+            Self::Int32ColumnWriter(w) => w.close(),
+            Self::Int64ColumnWriter(w) => w.close(),
+            Self::Int96ColumnWriter(w) => w.close(),
+            Self::FloatColumnWriter(w) => w.close(),
+            Self::DoubleColumnWriter(w) => w.close(),
+            Self::ByteArrayColumnWriter(w) => w.close(),
+            Self::FixedLenByteArrayColumnWriter(w) => w.close(),
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 pub mod functions;
 pub mod metadata;
 pub mod reader;
+pub mod writer;
 
 mod schema;
 
