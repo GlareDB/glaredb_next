@@ -27,7 +27,7 @@ use std::str;
 
 use crate::basic::{Compression, ConvertedType, Encoding, LogicalType, PageType, Type};
 use crate::column::page::{CompressedPage, Page, PageWriteSpec, PageWriter};
-use crate::column::writer::encoder::{ColumnValueEncoder, ColumnValueEncoderImpl, ColumnValues};
+use crate::column::writer::encoder::ColumnValueEncoder;
 use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
@@ -188,10 +188,7 @@ struct ColumnMetrics<T> {
     column_distinct_count: Option<u64>,
 }
 
-/// Typed column writer for a primitive column.
-pub type ColumnWriterImpl<'a, T> = GenericColumnWriter<'a, ColumnValueEncoderImpl<T>>;
-
-pub struct GenericColumnWriter<'a, E: ColumnValueEncoder> {
+pub struct ColumnWriterImpl<'a, T: DataType> {
     // Column writer properties
     descr: ColumnDescPtr,
     props: WriterPropertiesPtr,
@@ -200,11 +197,11 @@ pub struct GenericColumnWriter<'a, E: ColumnValueEncoder> {
     page_writer: Box<dyn PageWriter + 'a>,
     codec: Compression,
     compressor: Option<Box<dyn Codec>>,
-    encoder: E,
+    encoder: ColumnValueEncoder<T>,
 
     page_metrics: PageMetrics,
     // Metrics per column writer
-    column_metrics: ColumnMetrics<E::T>,
+    column_metrics: ColumnMetrics<T::T>,
 
     /// The order of encodings within the generated metadata does not impact its meaning,
     /// but we use a BTreeSet so that the output is deterministic
@@ -222,10 +219,10 @@ pub struct GenericColumnWriter<'a, E: ColumnValueEncoder> {
     data_page_boundary_ascending: bool,
     data_page_boundary_descending: bool,
     /// (min, max)
-    last_non_null_data_page_min_max: Option<(E::T, E::T)>,
+    last_non_null_data_page_min_max: Option<(T::T, T::T)>,
 }
 
-impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
+impl<'a, T: DataType> ColumnWriterImpl<'a, T> {
     pub fn new(
         descr: ColumnDescPtr,
         props: WriterPropertiesPtr,
@@ -234,7 +231,7 @@ impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
         let codec = props.compression(descr.path());
         let codec_options = CodecOptionsBuilder::default().build();
         let compressor = create_codec(codec, &codec_options).unwrap();
-        let encoder = E::try_new(&descr, props.as_ref()).unwrap();
+        let encoder = ColumnValueEncoder::try_new(&descr, props.as_ref()).unwrap();
 
         let statistics_enabled = props.statistics_enabled(descr.path());
 
@@ -283,12 +280,12 @@ impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn write_batch_internal(
         &mut self,
-        values: &E::Values,
+        values: &[T::T],
         value_indices: Option<&[usize]>,
         def_levels: Option<&[i16]>,
         rep_levels: Option<&[i16]>,
-        min: Option<&E::T>,
-        max: Option<&E::T>,
+        min: Option<&T::T>,
+        max: Option<&T::T>,
         distinct_count: Option<u64>,
     ) -> Result<usize> {
         // Check if number of definition levels is the same as number of repetition levels.
@@ -373,7 +370,7 @@ impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
     /// non-nullable and/or non-repeated.
     pub fn write_batch(
         &mut self,
-        values: &E::Values,
+        values: &[T::T],
         def_levels: Option<&[i16]>,
         rep_levels: Option<&[i16]>,
     ) -> Result<usize> {
@@ -389,11 +386,11 @@ impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
     /// computed page statistics
     pub fn write_batch_with_statistics(
         &mut self,
-        values: &E::Values,
+        values: &[T::T],
         def_levels: Option<&[i16]>,
         rep_levels: Option<&[i16]>,
-        min: Option<&E::T>,
-        max: Option<&E::T>,
+        min: Option<&T::T>,
+        max: Option<&T::T>,
         distinct_count: Option<u64>,
     ) -> Result<usize> {
         self.write_batch_internal(
@@ -473,7 +470,7 @@ impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
     /// page size.
     fn write_mini_batch(
         &mut self,
-        values: &E::Values,
+        values: &[T::T],
         values_offset: usize,
         value_indices: Option<&[usize]>,
         num_levels: usize,
@@ -595,7 +592,7 @@ impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
     }
 
     /// Update the column index and offset index when adding the data page
-    fn update_column_offset_index(&mut self, page_statistics: Option<&ValueStatistics<E::T>>) {
+    fn update_column_offset_index(&mut self, page_statistics: Option<&ValueStatistics<T::T>>) {
         // update the column index
         let null_page =
             (self.page_metrics.num_buffered_rows as u64) == self.page_metrics.num_page_nulls;
@@ -896,7 +893,7 @@ impl<'a, E: ColumnValueEncoder> GenericColumnWriter<'a, E> {
         if self.statistics_enabled != EnabledStatistics::None {
             let backwards_compatible_min_max = self.descr.sort_order().is_signed();
 
-            let statistics = ValueStatistics::<E::T>::new(
+            let statistics = ValueStatistics::<T::T>::new(
                 self.column_metrics.min_column_value.clone(),
                 self.column_metrics.max_column_value.clone(),
                 self.column_metrics.column_distinct_count,
