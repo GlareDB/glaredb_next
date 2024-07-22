@@ -2,7 +2,7 @@ pub mod credentials;
 pub mod list;
 
 use bytes::{Buf, Bytes};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use credentials::{AwsCredentials, AwsRequestAuthorizer};
 use futures::{
     future::BoxFuture,
@@ -84,7 +84,7 @@ impl<C: HttpClient + 'static> S3Client<C> {
         let authorizer = AwsRequestAuthorizer {
             date: Utc::now(),
             credentials: &self.credentials,
-            region: &region,
+            region,
         };
 
         authorizer.authorize(request)
@@ -155,7 +155,7 @@ impl<C: HttpClient + 'static> ListState<C> {
         let mut url = self.location.url.clone();
         url.query_pairs_mut()
             .append_pair("list-type", "2")
-            .append_pair("prefix", &prefix);
+            .append_pair("prefix", prefix);
 
         // Clear path, since it's not part of the request.
         url.path_segments_mut().unwrap().clear();

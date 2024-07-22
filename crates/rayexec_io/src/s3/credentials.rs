@@ -171,7 +171,7 @@ const S3_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'_')
     .remove(b'~');
 
-fn canonical_query_string<'a>(url: &'a Url) -> String {
+fn canonical_query_string(url: &Url) -> String {
     // TODO: Sort should happen on encoded keys.
     let params: BTreeMap<_, _> = url.query_pairs().collect();
     let mut buf = String::with_capacity(url.query().map(|q| q.len()).unwrap_or(0));

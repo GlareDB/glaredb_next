@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use dump::QueryDump;
 use rayexec_error::RayexecError;
-use rayexec_io::location::AccessConfig;
 use rayexec_io::FileProvider;
 
 use crate::execution::query_graph::QueryGraph;

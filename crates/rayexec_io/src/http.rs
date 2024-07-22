@@ -11,7 +11,7 @@ use futures::{
 };
 use reqwest::{
     header::{HeaderMap, CONTENT_LENGTH, RANGE},
-    Body, IntoUrl, Method, Request, StatusCode,
+    Method, Request, StatusCode,
 };
 
 use crate::FileSource;

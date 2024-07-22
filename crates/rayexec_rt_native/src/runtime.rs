@@ -13,7 +13,7 @@ use rayexec_execution::{
 use rayexec_io::{
     http::HttpClientReader,
     location::{AccessConfig, FileLocation},
-    s3::{S3Client, S3Location, S3Reader},
+    s3::{S3Client, S3Location},
     FileProvider, FileSink, FileSource,
 };
 
@@ -135,8 +135,8 @@ impl FileProvider for NativeFileProvider {
                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
                     credentials.clone(),
                 );
-                let location = S3Location::from_url(url, &region)?;
-                let reader = client.file_source(location, &region)?;
+                let location = S3Location::from_url(url, region)?;
+                let reader = client.file_source(location, region)?;
                 Ok(reader)
             }
             (FileLocation::Url(_), _, None) => Err(RayexecError::new(
@@ -175,7 +175,7 @@ impl FileProvider for NativeFileProvider {
                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
                     credentials.clone(),
                 );
-                let location = S3Location::from_url(url, &region).unwrap(); // TODO
+                let location = S3Location::from_url(url, region).unwrap(); // TODO
                 let stream = client.list_prefix(location, region);
                 stream.boxed()
             }

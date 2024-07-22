@@ -3,9 +3,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
-    functions::table::{
-        check_named_args_is_empty, PlannedTableFunction, TableFunction, TableFunctionArgs,
-    },
+    functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::ExecutionRuntime,
 };
 use rayexec_io::{

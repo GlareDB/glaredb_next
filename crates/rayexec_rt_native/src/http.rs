@@ -11,7 +11,7 @@ use futures::{
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
-use reqwest::{header::HeaderMap, Body, IntoUrl, Method, Request, StatusCode};
+use reqwest::{header::HeaderMap, Request, StatusCode};
 use tokio::task::JoinHandle;
 
 /// Wrapper around a reqwest client that ensures are request are done in a tokio
