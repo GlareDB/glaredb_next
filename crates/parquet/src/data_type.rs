@@ -29,7 +29,7 @@ use crate::basic::Type;
 use crate::column::page::PageReader;
 use crate::column::page::PageWriter;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
-use crate::column::writer::{ColumnWriter, ColumnWriterImpl};
+use crate::column::writer::{ColumnWriter, GenericColumnWriter};
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::FromBytes;
 
@@ -1080,19 +1080,19 @@ pub trait DataType: 'static + Send + fmt::Debug {
 
     fn get_column_writer<P: PageWriter>(
         column_writer: ColumnWriter<P>,
-    ) -> Option<ColumnWriterImpl<Self, P>>
+    ) -> Option<GenericColumnWriter<Self, P>>
     where
         Self: Sized;
 
     fn get_column_writer_ref<P: PageWriter>(
         column_writer: &ColumnWriter<P>,
-    ) -> Option<&ColumnWriterImpl<Self, P>>
+    ) -> Option<&GenericColumnWriter<Self, P>>
     where
         Self: Sized;
 
     fn get_column_writer_mut<P: PageWriter>(
         column_writer: &mut ColumnWriter<P>,
-    ) -> Option<&mut ColumnWriterImpl<Self, P>>
+    ) -> Option<&mut GenericColumnWriter<Self, P>>
     where
         Self: Sized;
 }
@@ -1134,7 +1134,7 @@ macro_rules! make_type {
 
             fn get_column_writer<P: PageWriter>(
                 column_writer: ColumnWriter<P>,
-            ) -> Option<ColumnWriterImpl<Self, P>> {
+            ) -> Option<GenericColumnWriter<Self, P>> {
                 match column_writer {
                     ColumnWriter::$writer_ident(w) => Some(w),
                     _ => None,
@@ -1143,7 +1143,7 @@ macro_rules! make_type {
 
             fn get_column_writer_ref<P: PageWriter>(
                 column_writer: &ColumnWriter<P>,
-            ) -> Option<&ColumnWriterImpl<Self, P>> {
+            ) -> Option<&GenericColumnWriter<Self, P>> {
                 match column_writer {
                     ColumnWriter::$writer_ident(w) => Some(w),
                     _ => None,
@@ -1152,7 +1152,7 @@ macro_rules! make_type {
 
             fn get_column_writer_mut<P: PageWriter>(
                 column_writer: &mut ColumnWriter<P>,
-            ) -> Option<&mut ColumnWriterImpl<Self, P>> {
+            ) -> Option<&mut GenericColumnWriter<Self, P>> {
                 match column_writer {
                     ColumnWriter::$writer_ident(w) => Some(w),
                     _ => None,
