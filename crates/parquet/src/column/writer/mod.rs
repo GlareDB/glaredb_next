@@ -57,8 +57,8 @@ pub enum ColumnWriter<P: PageWriter> {
 }
 
 impl<P: PageWriter> ColumnWriter<P> {
-    /// Close this [`ColumnWriter`]
-    pub fn close(self) -> Result<ColumnCloseResult> {
+    /// Close this [`ColumnWriter`] and returns the result alongside the page writer.
+    pub fn close(self) -> Result<(ColumnCloseResult, P)> {
         match self {
             Self::BoolColumnWriter(w) => w.close(),
             Self::Int32ColumnWriter(w) => w.close(),
@@ -423,8 +423,13 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
     }
 
     /// Finalizes writes and closes the column writer.
-    /// Returns total bytes written, total rows written and column chunk metadata.
-    pub fn close(mut self) -> Result<ColumnCloseResult> {
+    ///
+    /// Returns a close result containing total bytes written, total rows
+    /// written and column chunk metadata.
+    ///
+    /// Additionally returns the inner page writer as well, allowing for buffer
+    /// reuse.
+    pub fn close(mut self) -> Result<(ColumnCloseResult, P)> {
         if self.page_metrics.num_buffered_values > 0 {
             self.add_data_page()?;
         }
@@ -453,14 +458,17 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
             .then(|| self.column_index_builder.build_to_thrift());
         let offset_index = Some(self.offset_index_builder.build_to_thrift());
 
-        Ok(ColumnCloseResult {
-            bytes_written: self.column_metrics.total_bytes_written,
-            rows_written: self.column_metrics.total_rows_written,
-            bloom_filter: self.encoder.flush_bloom_filter(),
-            metadata,
-            column_index,
-            offset_index,
-        })
+        Ok((
+            ColumnCloseResult {
+                bytes_written: self.column_metrics.total_bytes_written,
+                rows_written: self.column_metrics.total_rows_written,
+                bloom_filter: self.encoder.flush_bloom_filter(),
+                metadata,
+                column_index,
+                offset_index,
+            },
+            self.page_writer,
+        ))
     }
 
     /// Writes mini batch of values, definition and repetition levels.
@@ -1377,10 +1385,10 @@ mod tests {
         let r = writer.close().unwrap();
         // PlainEncoder uses bit writer to write boolean values, which all fit into 1
         // byte.
-        assert_eq!(r.bytes_written, 1);
-        assert_eq!(r.rows_written, 4);
+        assert_eq!(r.0.bytes_written, 1);
+        assert_eq!(r.0.rows_written, 4);
 
-        let metadata = r.metadata;
+        let metadata = r.0.metadata;
         assert_eq!(metadata.encodings(), &vec![Encoding::PLAIN, Encoding::RLE]);
         assert_eq!(metadata.num_values(), 4); // just values
         assert_eq!(metadata.dictionary_page_offset(), None);
@@ -1650,10 +1658,10 @@ mod tests {
         writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
 
         let r = writer.close().unwrap();
-        assert_eq!(r.bytes_written, 20);
-        assert_eq!(r.rows_written, 4);
+        assert_eq!(r.0.bytes_written, 20);
+        assert_eq!(r.0.rows_written, 4);
 
-        let metadata = r.metadata;
+        let metadata = r.0.metadata;
         assert_eq!(
             metadata.encodings(),
             &vec![Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY]
@@ -1708,7 +1716,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        let metadata = writer.close().unwrap().metadata;
+        let metadata = writer.close().unwrap().0.metadata;
         if let Some(stats) = metadata.statistics() {
             assert!(stats.has_min_max_set());
             if let Statistics::ByteArray(stats) = stats {
@@ -1745,7 +1753,7 @@ mod tests {
             props,
         );
         writer.write_batch(&[0, 1, 2, 3, 4, 5], None, None).unwrap();
-        let metadata = writer.close().unwrap().metadata;
+        let metadata = writer.close().unwrap().0.metadata;
         if let Some(stats) = metadata.statistics() {
             assert!(stats.has_min_max_set());
             if let Statistics::Int32(stats) = stats {
@@ -1780,10 +1788,10 @@ mod tests {
             .unwrap();
 
         let r = writer.close().unwrap();
-        assert_eq!(r.bytes_written, 20);
-        assert_eq!(r.rows_written, 4);
+        assert_eq!(r.0.bytes_written, 20);
+        assert_eq!(r.0.rows_written, 4);
 
-        let metadata = r.metadata;
+        let metadata = r.0.metadata;
         assert_eq!(
             metadata.encodings(),
             &vec![Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY]
@@ -1821,15 +1829,13 @@ mod tests {
             .write_batch_with_statistics(&[5, 6, 7], None, None, Some(&5), Some(&7), Some(3))
             .unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
 
         let stats = r.metadata.statistics().unwrap();
         assert_eq!(stats.min_bytes(), 1_i32.to_le_bytes());
         assert_eq!(stats.max_bytes(), 7_i32.to_le_bytes());
         assert_eq!(stats.null_count(), 0);
         assert!(stats.distinct_count().is_none());
-
-        drop(write);
 
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
@@ -1872,10 +1878,8 @@ mod tests {
             .write_batch(&[1, 2, 3, 4], Some(&[1, 0, 0, 1, 1, 1]), None)
             .unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
         assert!(r.metadata.statistics().is_none());
-
-        drop(write);
 
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
@@ -2006,9 +2010,7 @@ mod tests {
         let data = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
         writer.write_batch(data, None, None).unwrap();
-        let r = writer.close().unwrap();
-
-        drop(write);
+        let (r, _) = writer.close().unwrap();
 
         // Read pages and check the sequence
         let props = ReaderProperties::builder()
@@ -2513,7 +2515,7 @@ mod tests {
         // second page
         writer.write_batch(&[4, 8, 2, -5], None, None).unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
         let column_index = r.column_index.unwrap();
         let offset_index = r.offset_index.unwrap();
 
@@ -2571,7 +2573,7 @@ mod tests {
 
         writer.flush_data_pages().unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
         let column_index = r.column_index.unwrap();
         let offset_index = r.offset_index.unwrap();
 
@@ -2639,7 +2641,7 @@ mod tests {
 
         writer.flush_data_pages().unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
         let column_index = r.column_index.unwrap();
         let offset_index = r.offset_index.unwrap();
 
@@ -2689,7 +2691,7 @@ mod tests {
         writer.write_batch(&data, None, None).unwrap();
         writer.flush_data_pages().unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
 
         // stats should still be written
         // ensure bytes weren't truncated for column index
@@ -2729,7 +2731,7 @@ mod tests {
         writer.write_batch(&data, None, None).unwrap();
         writer.flush_data_pages().unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
 
         // stats should still be written
         // ensure bytes weren't truncated for column index
@@ -2772,7 +2774,7 @@ mod tests {
 
         writer.flush_data_pages().unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
 
         assert_eq!(1, r.rows_written);
 
@@ -2826,7 +2828,7 @@ mod tests {
 
         writer.flush_data_pages().unwrap();
 
-        let r = writer.close().unwrap();
+        let (r, _) = writer.close().unwrap();
 
         assert_eq!(1, r.rows_written);
 
@@ -3123,7 +3125,7 @@ mod tests {
         let mut writer = get_test_interval_column_writer(page_writer);
         writer.write_batch(&input, None, None).unwrap();
 
-        let metadata = writer.close().unwrap().metadata;
+        let metadata = writer.close().unwrap().0.metadata;
         let stats = if let Some(Statistics::FixedLenByteArray(stats)) = metadata.statistics() {
             stats.clone()
         } else {
@@ -3153,7 +3155,7 @@ mod tests {
             writer.flush_data_pages()?;
         }
 
-        writer.close()
+        writer.close().map(|(r, _)| r)
     }
 
     /// Performs write-read roundtrip with randomly generated values and levels.
@@ -3238,9 +3240,7 @@ mod tests {
 
         let values_written = writer.write_batch(values, def_levels, rep_levels).unwrap();
         assert_eq!(values_written, values.len());
-        let result = writer.close().unwrap();
-
-        drop(write);
+        let (result, _) = writer.close().unwrap();
 
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
@@ -3307,7 +3307,7 @@ mod tests {
         let props = Arc::new(props);
         let mut writer = get_test_column_writer::<T, _>(page_writer, 0, 0, props);
         writer.write_batch(values, None, None).unwrap();
-        writer.close().unwrap().metadata
+        writer.close().unwrap().0.metadata
     }
 
     // Function to use in tests for EncodingWriteSupport. This checks that dictionary
@@ -3403,7 +3403,7 @@ mod tests {
         let mut writer = get_test_column_writer::<T, _>(page_writer, 0, 0, props);
         writer.write_batch(values, None, None).unwrap();
 
-        let metadata = writer.close().unwrap().metadata;
+        let metadata = writer.close().unwrap().0.metadata;
         if let Some(stats) = metadata.statistics() {
             stats.clone()
         } else {
@@ -3452,7 +3452,7 @@ mod tests {
         let mut writer = get_test_float16_column_writer(page_writer, Default::default());
         writer.write_batch(values, None, None).unwrap();
 
-        let metadata = writer.close().unwrap().metadata;
+        let metadata = writer.close().unwrap().0.metadata;
         if let Some(Statistics::FixedLenByteArray(stats)) = metadata.statistics() {
             stats.clone()
         } else {

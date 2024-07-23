@@ -1,20 +1,37 @@
+use bytes::Bytes;
 use parquet::{
     column::{
-        page::{PageReader, PageWriter},
-        writer::ColumnWriter,
+        page::{CompressedPage, PageReader, PageWriteSpec, PageWriter},
+        writer::{get_column_writer, ColumnCloseResult, ColumnWriter, GenericColumnWriter},
     },
-    file::writer::{SerializedFileWriter, SerializedPageWriter},
+    errors::ParquetError,
+    file::{
+        metadata::ColumnChunkMetaData,
+        properties::{WriterProperties, WriterPropertiesPtr},
+        reader::ChunkReader,
+        writer::{write_page, SerializedFileWriter, SerializedPageWriter},
+    },
+    format::FileMetaData,
+    schema::types::SchemaDescriptor,
 };
-use rayexec_bullet::{array::Array, batch::Batch};
+use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType, field::Schema};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_io::FileSink;
 use std::{cell::RefCell, fmt, io, sync::Arc};
 
+use crate::schema::to_parquet_schema;
+
+/// Writes batches out to a parquet file.
+///
+/// During writes, a complete row group is buffered in memory. Once that row
+/// group is complete, it'll automatically be flushed out to the file sink.
 pub struct AsyncBatchWriter {
     /// Underlying sink.
     sink: Box<dyn FileSink>,
-    /// Desired row group size.
-    row_group_size: usize,
+    /// Schema of parquet file we're writing.
+    schema: Schema,
+    /// Write properties.
+    props: Arc<WriterProperties>,
     /// In-memory writer.
     writer: SerializedFileWriter<Vec<u8>>,
     /// Current row group we're working on.
@@ -22,19 +39,85 @@ pub struct AsyncBatchWriter {
 }
 
 impl AsyncBatchWriter {
-    /// Encode and write a batch to the underlying file sink.
-    pub async fn write(&mut self, batch: &Batch) -> Result<()> {
-        unimplemented!()
+    pub fn try_new(sink: Box<dyn FileSink>, schema: Schema) -> Result<Self> {
+        let props = Arc::new(WriterProperties::new());
+        let parquet_schema = to_parquet_schema(&schema)?;
+        let writer =
+            SerializedFileWriter::new(Vec::new(), parquet_schema.root_schema_ptr(), props.clone())
+                .context("failed to build writer")?;
+
+        let current_row_group = RowGroupWriter::try_new(writer.schema_descr(), &schema, &props)?;
+
+        Ok(AsyncBatchWriter {
+            sink,
+            schema,
+            props,
+            writer,
+            current_row_group,
+        })
     }
 
-    fn write_buffered(&mut self, batch: &Batch) -> Result<()> {
+    /// Encode and write a batch to the underlying file sink.
+    pub async fn write(&mut self, batch: &Batch) -> Result<()> {
         if batch.num_rows() == 0 {
             return Ok(());
         }
 
         self.current_row_group.write(batch)?;
 
-        unimplemented!()
+        // TODO: Slice buffer before right to make sure number of rows in row
+        // groups are exact.
+        if self.current_row_group.num_rows >= self.props.max_row_group_size() {
+            self.flush_row_group()?;
+            self.flush_writer_buffer().await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn finish(&mut self) -> Result<FileMetaData> {
+        self.flush_row_group()?;
+        let meta = self.writer.finish().context("failed to finish")?;
+
+        self.flush_writer_buffer().await?;
+        self.sink.finish().await?;
+
+        Ok(meta)
+    }
+
+    fn flush_row_group(&mut self) -> Result<()> {
+        let new_row_group = RowGroupWriter::try_new(
+            self.writer.schema_descr(),
+            &self.schema,
+            self.writer.properties(),
+        )?;
+
+        let current_row_group = std::mem::replace(&mut self.current_row_group, new_row_group);
+
+        // Row group corresponding to the serialized file writer. Appended
+        // to directly from current (buffered) row group.
+        let mut next = self.writer.next_row_group().context("next row group")?;
+
+        let results = current_row_group.close()?;
+        for (result, buffer) in results {
+            // TODO: Could be cool to reuse this, but...
+            let bytes = Bytes::from(buffer.0);
+            // TODO: This uses the whack ChunkReader trait.
+            next.append_column(&bytes, result)
+                .context("failed to append column")?;
+        }
+
+        next.close().context("failed to close row group")?;
+
+        Ok(())
+    }
+
+    /// Take the underlying buffer and flush it to the file sink. Does not alter
+    /// state of the writer, so it can continue on as normal.
+    async fn flush_writer_buffer(&mut self) -> Result<()> {
+        let buf = std::mem::take(self.writer.inner_mut());
+        self.sink.write_all(buf.into()).await?;
+        Ok(())
     }
 }
 
@@ -45,12 +128,53 @@ impl fmt::Debug for AsyncBatchWriter {
 }
 
 struct RowGroupWriter {
-    column_writers: Vec<ColumnWriter<SerializedPageWriter<'static, Vec<u8>>>>,
+    column_writers: Vec<ColumnWriter<BufferedPageWriter>>,
     /// Number of rows currently serialized in the row group.
     num_rows: usize,
 }
 
 impl RowGroupWriter {
+    fn try_new(
+        parquet_schema: &SchemaDescriptor,
+        schema: &Schema,
+        props: &WriterPropertiesPtr,
+    ) -> Result<Self> {
+        let mut leaves = parquet_schema.columns().iter();
+        let mut writers = Vec::with_capacity(schema.fields.len());
+
+        for field in schema.fields.iter() {
+            match &field.datatype {
+                DataType::Int8
+                | DataType::Int16
+                | DataType::Int32
+                | DataType::Int64
+                | DataType::UInt8
+                | DataType::UInt16
+                | DataType::UInt32
+                | DataType::UInt64
+                | DataType::Float32
+                | DataType::Float64
+                | DataType::Decimal64(_)
+                | DataType::Decimal128(_) => {
+                    let page_writer = BufferedPageWriter {
+                        buf: ColumnBuffer(Vec::new()), // TODO: Could reuse across row groups.
+                    };
+                    let desc = leaves
+                        .next()
+                        .ok_or_else(|| RayexecError::new("Missing column desc"))?;
+                    let writer = get_column_writer(desc.clone(), props.clone(), page_writer);
+                    writers.push(writer);
+                }
+                other => not_implemented!("writer datatype {other}"),
+            }
+        }
+
+        Ok(RowGroupWriter {
+            column_writers: writers,
+            num_rows: 0,
+        })
+    }
+
     fn write(&mut self, batch: &Batch) -> Result<()> {
         for (writer, col) in self.column_writers.iter_mut().zip(batch.columns()) {
             write_array(writer, col)?;
@@ -58,6 +182,44 @@ impl RowGroupWriter {
 
         self.num_rows += batch.num_rows();
 
+        Ok(())
+    }
+
+    /// Close the writers and collect all buffers for each column in the row
+    /// group.
+    fn close(self) -> Result<Vec<(ColumnCloseResult, ColumnBuffer)>> {
+        self.column_writers
+            .into_iter()
+            .map(|w| {
+                let (r, page_writer) = w.close()?;
+                Ok((r, page_writer.buf))
+            })
+            .collect::<Result<Vec<_>, ParquetError>>()
+            .context("failed to close columns")
+    }
+}
+
+#[derive(Debug)]
+struct ColumnBuffer(Vec<u8>);
+
+#[derive(Debug)]
+struct BufferedPageWriter {
+    buf: ColumnBuffer,
+}
+
+impl PageWriter for BufferedPageWriter {
+    fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec, ParquetError> {
+        let offset = self.buf.0.len();
+        let mut spec = write_page(page, &mut self.buf.0)?;
+        spec.offset = offset as u64;
+        Ok(spec)
+    }
+
+    fn write_metadata(&mut self, _metadata: &ColumnChunkMetaData) -> Result<(), ParquetError> {
+        Ok(())
+    }
+
+    fn close(&mut self) -> Result<(), ParquetError> {
         Ok(())
     }
 }

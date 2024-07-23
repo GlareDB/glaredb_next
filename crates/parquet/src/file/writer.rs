@@ -704,7 +704,7 @@ impl<'a, P: PageWriter> SerializedColumnWriter<'a, P> {
 
     /// Close this [`SerializedColumnWriter`]
     pub fn close(mut self) -> Result<()> {
-        let r = self.inner.close()?;
+        let (r, _) = self.inner.close()?;
         if let Some(on_close) = self.on_close.take() {
             on_close(r)?
         }
