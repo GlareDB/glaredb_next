@@ -558,7 +558,7 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
         F: FnOnce(
             ColumnDescPtr,
             WriterPropertiesPtr,
-            Box<dyn PageWriter + 'b>,
+            SerializedPageWriter<W>,
             OnCloseColumnChunk<'b>,
         ) -> Result<C>,
     {
@@ -567,7 +567,7 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
             Some(column) => {
                 let props = self.props.clone();
                 let (buf, on_close) = self.get_on_close();
-                let page_writer = Box::new(SerializedPageWriter::new(buf));
+                let page_writer = SerializedPageWriter::new(buf);
                 Some(factory(column, props, page_writer, Box::new(on_close))?)
             }
             None => None,
@@ -577,10 +577,20 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
     /// Returns the next column writer, if available; otherwise returns `None`.
     /// In case of any IO error or Thrift error, or if row group writer has already been
     /// closed returns `Err`.
-    pub fn next_column(&mut self) -> Result<Option<SerializedColumnWriter<'_>>> {
-        self.next_column_with_factory(|descr, props, page_writer, on_close| {
-            let column_writer = get_column_writer(descr, props, page_writer);
-            Ok(SerializedColumnWriter::new(column_writer, Some(on_close)))
+    pub fn next_column(
+        &mut self,
+    ) -> Result<Option<SerializedColumnWriter<'_, SerializedPageWriter<W>>>> {
+        self.assert_previous_writer_closed()?;
+        Ok(match self.next_column_desc() {
+            Some(column) => {
+                let props = self.props.clone();
+                let (buf, on_close) = self.get_on_close();
+                let page_writer = SerializedPageWriter::new(buf);
+
+                let column_writer = get_column_writer(column, props, page_writer);
+                Some(SerializedColumnWriter::new(column_writer, Some(on_close)))
+            }
+            None => None,
         })
     }
 
@@ -697,25 +707,25 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
 }
 
 /// A wrapper around a [`ColumnWriter`] that invokes a callback on [`Self::close`]
-pub struct SerializedColumnWriter<'a> {
-    inner: ColumnWriter<'a>,
+pub struct SerializedColumnWriter<'a, P: PageWriter + 'a> {
+    inner: ColumnWriter<P>,
     on_close: Option<OnCloseColumnChunk<'a>>,
 }
 
-impl<'a> SerializedColumnWriter<'a> {
+impl<'a, P: PageWriter> SerializedColumnWriter<'a, P> {
     /// Create a new [`SerializedColumnWriter`] from a [`ColumnWriter`] and an
     /// optional callback to be invoked on [`Self::close`]
-    pub fn new(inner: ColumnWriter<'a>, on_close: Option<OnCloseColumnChunk<'a>>) -> Self {
+    pub fn new(inner: ColumnWriter<P>, on_close: Option<OnCloseColumnChunk<'a>>) -> Self {
         Self { inner, on_close }
     }
 
     /// Returns a reference to an untyped [`ColumnWriter`]
-    pub fn untyped(&mut self) -> &mut ColumnWriter<'a> {
+    pub fn untyped(&mut self) -> &mut ColumnWriter<P> {
         &mut self.inner
     }
 
     /// Returns a reference to a typed [`ColumnWriterImpl`]
-    pub fn typed<T: DataType>(&mut self) -> &mut ColumnWriterImpl<'a, T> {
+    pub fn typed<T: DataType>(&mut self) -> &mut ColumnWriterImpl<T, P> {
         get_typed_column_writer_mut(&mut self.inner)
     }
 
@@ -1703,7 +1713,7 @@ mod tests {
             let ((buf, out), tail) = column_state_slice.split_first_mut().unwrap();
             column_state_slice = tail;
 
-            let page_writer = Box::new(SerializedPageWriter::new(buf));
+            let page_writer = SerializedPageWriter::new(buf);
             let col_writer = get_column_writer(c.clone(), props.clone(), page_writer);
             column_writers.push(SerializedColumnWriter::new(
                 col_writer,
