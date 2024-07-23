@@ -44,7 +44,8 @@ pub fn to_parquet_schema(schema: &Schema) -> Result<SchemaDescriptor> {
 
 fn to_parquet_type(field: &Field) -> Result<Type> {
     let rep = if field.nullable {
-        Repetition::OPTIONAL
+        // TODO: CHANGE ME.
+        Repetition::REQUIRED
     } else {
         Repetition::REQUIRED
     };

@@ -25,6 +25,11 @@ use futures::future::BoxFuture;
 /// It _might_ be possible to remove this by threading down a 'query or
 /// 'pipeline lifetime through all of the execution layer, but I don't know if
 /// that will work, nor if it's worth the time right now.
+///
+/// See:
+///
+/// - <https://internals.rust-lang.org/t/is-it-ever-legal-to-transmute-a-t-to-a-longer-lifetime/19915/7>
+/// - <https://github.com/crossbeam-rs/crossbeam/blob/2a82b619bef638f328776714ec7ccf022859dda2/crossbeam-utils/src/thread.rs#L464-L467>
 pub unsafe fn make_static<'a, T>(fut: BoxFuture<'a, T>) -> BoxFuture<'static, T> {
     transmute(fut)
 }
