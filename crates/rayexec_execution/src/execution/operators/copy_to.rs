@@ -3,19 +3,36 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::ExecutionRuntime,
 };
+use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use std::sync::Arc;
 use std::task::{Context, Waker};
+use std::{fmt, task::Poll};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    util::futures::make_static, OperatorState, PartitionState, PhysicalOperator, PollFinalize,
+    PollPull, PollPush,
+};
 
-#[derive(Debug)]
 pub enum CopyToPartitionState {
-    Writing(Option<CopyToInnerPartitionState>),
-    Finalizing(Option<CopyToInnerPartitionState>),
+    Writing {
+        inner: Option<CopyToInnerPartitionState>,
+        future: Option<BoxFuture<'static, Result<()>>>,
+    },
+    Finalizing {
+        inner: Option<CopyToInnerPartitionState>,
+        future: Option<BoxFuture<'static, Result<()>>>,
+    },
     Finished,
+}
+
+impl fmt::Debug for CopyToPartitionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CopyToPartitionState")
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug)]
@@ -50,19 +67,20 @@ impl PhysicalCopyTo {
             ));
         }
 
-        let states = self
-            .copy_to
-            .create_sinks(runtime, schema, self.location.clone(), num_partitions)?
-            .into_iter()
-            .map(|sink| {
-                CopyToPartitionState::Writing(Some(CopyToInnerPartitionState {
-                    sink,
-                    pull_waker: None,
-                }))
-            })
-            .collect::<Vec<_>>();
+        unimplemented!()
+        // let states = self
+        //     .copy_to
+        //     .create_sinks(runtime, schema, self.location.clone(), num_partitions)?
+        //     .into_iter()
+        //     .map(|sink| {
+        //         CopyToPartitionState::Writing(Some(CopyToInnerPartitionState {
+        //             sink,
+        //             pull_waker: None,
+        //         }))
+        //     })
+        //     .collect::<Vec<_>>();
 
-        Ok(states)
+        // Ok(states)
     }
 }
 
@@ -76,13 +94,38 @@ impl PhysicalOperator for PhysicalCopyTo {
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::CopyTo(state) => match state {
-                CopyToPartitionState::Writing(Some(inner)) => {
-                    let _poll = match inner.sink.poll_push(cx, batch)? {
-                        PollPush::Pending(batch) => return Ok(PollPush::Pending(batch)),
-                        other => other,
-                    };
+                CopyToPartitionState::Writing { inner, future } => {
+                    if let Some(future) = future {
+                        match future.poll_unpin(cx) {
+                            Poll::Ready(Ok(_)) => (), // Continue on.
+                            Poll::Ready(Err(e)) => return Err(e),
+                            Poll::Pending => return Ok(PollPush::Pending(batch)),
+                        }
+                    }
 
-                    Ok(PollPush::NeedsMore)
+                    let mut push_future = inner.as_mut().unwrap().sink.push(batch);
+                    match push_future.poll_unpin(cx) {
+                        Poll::Ready(Ok(_)) => {
+                            // Future completed, need more batches.
+                            Ok(PollPush::NeedsMore)
+                        }
+                        Poll::Ready(Err(e)) => Err(e),
+                        Poll::Pending => {
+                            // We successfully pushed.
+
+                            // RATIONALE: Lifetime of the CopyToSink (on the
+                            // partition state) outlives the future.
+                            *future = Some(unsafe { make_static(push_future) });
+
+                            // TODO: This is a bit hacky. But we want to keep calling poll push
+                            // until the future completes. I think the signature for poll push
+                            // might change a bit a accommodate this.
+                            //
+                            // I think we'll want to do a similar thing for inserts so that
+                            // we can implement them as "just" async functions.
+                            Ok(PollPush::Pending(Batch::empty()))
+                        }
+                    }
                 }
                 other => Err(RayexecError::new(format!(
                     "CopyTo operator in wrong state: {other:?}"
@@ -98,32 +141,33 @@ impl PhysicalOperator for PhysicalCopyTo {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        match partition_state {
-            PartitionState::CopyTo(state) => match state {
-                CopyToPartitionState::Writing(inner) => {
-                    *state = CopyToPartitionState::Finalizing(inner.take());
-                    self.poll_finalize_push(cx, partition_state, _operator_state)
-                }
-                CopyToPartitionState::Finalizing(Some(inner)) => {
-                    match inner.sink.poll_finalize(cx)? {
-                        PollFinalize::Pending => Ok(PollFinalize::Pending),
-                        PollFinalize::Finalized => {
-                            if let Some(waker) = inner.pull_waker.take() {
-                                waker.wake();
-                            }
+        unimplemented!()
+        // match partition_state {
+        //     PartitionState::CopyTo(state) => match state {
+        //         CopyToPartitionState::Writing(inner) => {
+        //             *state = CopyToPartitionState::Finalizing(inner.take());
+        //             self.poll_finalize_push(cx, partition_state, _operator_state)
+        //         }
+        //         CopyToPartitionState::Finalizing(Some(inner)) => {
+        //             match inner.sink.poll_finalize(cx)? {
+        //                 PollFinalize::Pending => Ok(PollFinalize::Pending),
+        //                 PollFinalize::Finalized => {
+        //                     if let Some(waker) = inner.pull_waker.take() {
+        //                         waker.wake();
+        //                     }
 
-                            *state = CopyToPartitionState::Finished;
+        //                     *state = CopyToPartitionState::Finished;
 
-                            Ok(PollFinalize::Finalized)
-                        }
-                    }
-                }
-                other => Err(RayexecError::new(format!(
-                    "CopyTo operator in wrong state: {other:?}"
-                ))),
-            },
-            other => panic!("invalid partition state: {other:?}"),
-        }
+        //                     Ok(PollFinalize::Finalized)
+        //                 }
+        //             }
+        //         }
+        //         other => Err(RayexecError::new(format!(
+        //             "CopyTo operator in wrong state: {other:?}"
+        //         ))),
+        //     },
+        //     other => panic!("invalid partition state: {other:?}"),
+        // }
     }
 
     fn poll_pull(
@@ -132,18 +176,19 @@ impl PhysicalOperator for PhysicalCopyTo {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::CopyTo(state) => match state {
-                CopyToPartitionState::Writing(inner) | CopyToPartitionState::Finalizing(inner) => {
-                    if let Some(inner) = inner.as_mut() {
-                        inner.pull_waker = Some(cx.waker().clone());
-                    }
-                    Ok(PollPull::Pending)
-                }
-                CopyToPartitionState::Finished => Ok(PollPull::Exhausted),
-            },
-            other => panic!("invalid partition state: {other:?}"),
-        }
+        unimplemented!()
+        // match partition_state {
+        //     PartitionState::CopyTo(state) => match state {
+        //         CopyToPartitionState::Writing(inner) | CopyToPartitionState::Finalizing(inner) => {
+        //             if let Some(inner) = inner.as_mut() {
+        //                 inner.pull_waker = Some(cx.waker().clone());
+        //             }
+        //             Ok(PollPull::Pending)
+        //         }
+        //         CopyToPartitionState::Finished => Ok(PollPull::Exhausted),
+        //     },
+        //     other => panic!("invalid partition state: {other:?}"),
+        // }
     }
 }
 

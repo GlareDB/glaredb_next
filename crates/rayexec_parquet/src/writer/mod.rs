@@ -1,15 +1,14 @@
 use bytes::Bytes;
 use parquet::{
     column::{
-        page::{CompressedPage, PageReader, PageWriteSpec, PageWriter},
-        writer::{get_column_writer, ColumnCloseResult, ColumnWriter, GenericColumnWriter},
+        page::{CompressedPage, PageWriteSpec, PageWriter},
+        writer::{get_column_writer, ColumnCloseResult, ColumnWriter},
     },
     errors::ParquetError,
     file::{
         metadata::ColumnChunkMetaData,
         properties::{WriterProperties, WriterPropertiesPtr},
-        reader::ChunkReader,
-        writer::{write_page, SerializedFileWriter, SerializedPageWriter},
+        writer::{write_page, SerializedFileWriter},
     },
     format::FileMetaData,
     schema::types::SchemaDescriptor,
@@ -17,7 +16,7 @@ use parquet::{
 use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType, field::Schema};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_io::FileSink;
-use std::{cell::RefCell, fmt, io, sync::Arc};
+use std::{fmt, sync::Arc};
 
 use crate::schema::to_parquet_schema;
 

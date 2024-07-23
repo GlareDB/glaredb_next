@@ -1,4 +1,5 @@
 use dyn_clone::DynClone;
+use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
@@ -45,6 +46,6 @@ impl PartialEq for dyn CopyToFunction + '_ {
 }
 
 pub trait CopyToSink: Debug + Send {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
-    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize>;
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>>;
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>>;
 }

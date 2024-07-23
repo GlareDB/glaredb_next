@@ -61,56 +61,74 @@ pub struct CsvCopyToSink {
     sink: Box<dyn FileSink>,
 }
 
-impl CopyToSink for CsvCopyToSink {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
-        if let Some(mut future) = self.future.take() {
-            match future.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => (),
-                Poll::Ready(Err(e)) => return Err(e),
-                Poll::Pending => {
-                    self.future = Some(future);
-                    return Ok(PollPush::Pending(batch));
-                }
-            }
-        }
-
+impl CsvCopyToSink {
+    async fn push_inner(&mut self, batch: Batch) -> Result<()> {
         let mut buf = Vec::with_capacity(1024);
         self.encoder.encode(&batch, &mut buf)?;
+        self.sink.write_all(buf.into()).await?;
 
-        let mut fut = self.sink.write_all(buf.into()).boxed();
-        match fut.poll_unpin(cx) {
-            Poll::Ready(Ok(_)) => Ok(PollPush::Pushed),
-            Poll::Ready(Err(e)) => Err(e),
-            Poll::Pending => {
-                self.future = Some(fut);
-                // A bit confusing... but we've "accepted" the batch. This will
-                // likely be refactored a bit.
-                Ok(PollPush::Pushed)
-            }
-        }
+        Ok(())
+    }
+}
+
+impl CopyToSink for CsvCopyToSink {
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+        self.push_inner(batch).boxed()
     }
 
-    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
-        if let Some(mut future) = self.future.take() {
-            match future.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => (),
-                Poll::Ready(Err(e)) => return Err(e),
-                Poll::Pending => {
-                    self.future = Some(future);
-                    return Ok(PollFinalize::Pending);
-                }
-            }
-        }
-
-        if !self.did_finalize {
-            let fut = self.sink.finish().boxed();
-            self.did_finalize = true;
-            self.future = Some(fut);
-            return self.poll_finalize(cx);
-        }
-
-        Ok(PollFinalize::Finalized)
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+        unimplemented!()
     }
+
+    // fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
+    //     if let Some(mut future) = self.future.take() {
+    //         match future.poll_unpin(cx) {
+    //             Poll::Ready(Ok(_)) => (),
+    //             Poll::Ready(Err(e)) => return Err(e),
+    //             Poll::Pending => {
+    //                 self.future = Some(future);
+    //                 return Ok(PollPush::Pending(batch));
+    //             }
+    //         }
+    //     }
+
+    //     let mut buf = Vec::with_capacity(1024);
+    //     self.encoder.encode(&batch, &mut buf)?;
+
+    //     let mut fut = self.sink.write_all(buf.into()).boxed();
+    //     match fut.poll_unpin(cx) {
+    //         Poll::Ready(Ok(_)) => Ok(PollPush::Pushed),
+    //         Poll::Ready(Err(e)) => Err(e),
+    //         Poll::Pending => {
+    //             self.future = Some(fut);
+    //             // A bit confusing... but we've "accepted" the batch. This will
+    //             // likely be refactored a bit.
+    //             Ok(PollPush::Pushed)
+    //         }
+    //     }
+    // }
+
+    // fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+    //     if let Some(mut future) = self.future.take() {
+    //         match future.poll_unpin(cx) {
+    //             Poll::Ready(Ok(_)) => (),
+    //             Poll::Ready(Err(e)) => return Err(e),
+    //             Poll::Pending => {
+    //                 self.future = Some(future);
+    //                 return Ok(PollFinalize::Pending);
+    //             }
+    //         }
+    //     }
+
+    //     if !self.did_finalize {
+    //         let fut = self.sink.finish().boxed();
+    //         self.did_finalize = true;
+    //         self.future = Some(fut);
+    //         return self.poll_finalize(cx);
+    //     }
+
+    //     Ok(PollFinalize::Finalized)
+    // }
 }
 
 impl fmt::Debug for CsvCopyToSink {
