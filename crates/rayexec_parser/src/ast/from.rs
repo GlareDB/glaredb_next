@@ -257,7 +257,7 @@ pub struct FromSubquery<T: AstMeta> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FromTableFunction<T: AstMeta> {
     pub reference: T::TableFunctionReference,
-    pub args: Vec<T::TableFunctionArg>,
+    pub args: T::TableFunctionArgs,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

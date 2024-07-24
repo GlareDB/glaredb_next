@@ -9,9 +9,9 @@ use crate::{
 use rayexec_error::Result;
 
 use super::{
-    bindref::{MaybeBound, TableFunctionReference},
+    bind_data::{BoundTableFunctionReference, MaybeBound},
     resolver::Resolver,
-    BindData, Binder, ExpressionBinder,
+    BindData, Binder,
 };
 
 /// Resolver for resolving partially bound statements.
@@ -90,7 +90,7 @@ impl<'a> HybridResolver<'a> {
     }
 
     async fn resolve_unbound_tables(&self, bind_data: &mut BindData) -> Result<()> {
-        for item in bind_data.tables.inner.iter_mut() {
+        for item in bind_data.lists.tables.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
                 // Pass in empty bind data to resolver since it's only used for
                 // CTE lookup, which shouldn't be possible here.
@@ -108,23 +108,23 @@ impl<'a> HybridResolver<'a> {
     }
 
     async fn resolve_unbound_table_fns(&self, bind_data: &mut BindData) -> Result<()> {
-        for item in bind_data.table_functions.inner.iter_mut() {
+        for item in bind_data.lists.table_functions.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
                 let table_fn = Resolver::new(self.binder.tx, self.binder.context)
                     .require_resolve_table_function(&unbound.reference)?;
 
-                let args = ExpressionBinder::new(&self.binder)
-                    .bind_table_function_args(unbound.args.clone())
-                    .await?;
-
                 let name = table_fn.name().to_string();
                 let func = table_fn
-                    .plan_and_initialize(self.binder.runtime, args.clone())
+                    .plan_and_initialize(self.binder.runtime, unbound.args.clone())
                     .await?;
+                let object_idx = bind_data.objects.push_planned_table_function(func);
 
                 // TODO: Marker indicating this needs to be executing remotely.
                 *item = MaybeBound::Bound(
-                    TableFunctionReference { name, func, args },
+                    BoundTableFunctionReference {
+                        name,
+                        func_idx: object_idx,
+                    },
                     LocationRequirement::Remote,
                 )
             }

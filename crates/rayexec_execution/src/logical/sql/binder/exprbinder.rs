@@ -10,7 +10,7 @@ use rayexec_parser::{
     meta::Raw,
 };
 
-use super::{bindref::FunctionReference, BindData, Binder, Bound};
+use super::{bind_data::BoundFunctionReference, BindData, Binder, Bound};
 
 pub struct ExpressionBinder<'a> {
     binder: &'a Binder<'a>,
@@ -320,11 +320,13 @@ impl<'a> ExpressionBinder<'a> {
                     // TODO: Allow unbound scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
-                    let idx = bind_data
-                        .functions
-                        .push_bound(FunctionReference::Scalar(scalar), LocationRequirement::Any);
+                    let object_idx = bind_data.objects.push_scalar_function(scalar);
+                    let bind_idx = bind_data.lists.functions.push_bound(
+                        BoundFunctionReference::Scalar(object_idx),
+                        LocationRequirement::Any,
+                    );
                     return Ok(ast::Expr::Function(ast::Function {
-                        reference: idx,
+                        reference: bind_idx,
                         args,
                         filter,
                     }));
@@ -338,8 +340,9 @@ impl<'a> ExpressionBinder<'a> {
                     .get_aggregate_fn(self.binder.tx, schema, func_name)?
                 {
                     // TODO: Allow unbound aggregates?
-                    let idx = bind_data.functions.push_bound(
-                        FunctionReference::Aggregate(aggregate),
+                    let object_idx = bind_data.objects.push_agg_function(aggregate);
+                    let idx = bind_data.lists.functions.push_bound(
+                        BoundFunctionReference::Aggregate(object_idx),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {

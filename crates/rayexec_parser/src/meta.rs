@@ -29,7 +29,7 @@ pub trait AstMeta: Clone {
     ///
     /// This includes the table function arguments.
     type TableFunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
-    type TableFunctionArg: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+    type TableFunctionArgs: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     type CteReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
@@ -54,7 +54,7 @@ impl AstMeta for Raw {
     type ItemReference = ObjectReference;
     type TableReference = ObjectReference;
     type TableFunctionReference = ObjectReference;
-    type TableFunctionArg = FunctionArg<Raw>;
+    type TableFunctionArgs = Vec<FunctionArg<Raw>>;
     type CteReference = CommonTableExpr<Raw>;
     type FunctionReference = ObjectReference;
     type ColumnReference = Ident;

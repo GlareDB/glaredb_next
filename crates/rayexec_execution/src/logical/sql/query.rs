@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{
     aggregate::AggregatePlanner,
     binder::{
-        bindref::{CteReference, TableOrCteReference},
+        bindref::{BoundTableOrCteReference, CteReference},
         BindData, Bound,
     },
     expr::{ExpandedSelectExpr, ExpressionContext},
@@ -333,7 +333,7 @@ impl<'a> QueryNodePlanner<'a> {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match self.bind_data.tables.try_get_bound(reference)? {
                     (
-                        TableOrCteReference::Table {
+                        BoundTableOrCteReference::Table {
                             catalog,
                             schema,
                             entry,
@@ -362,7 +362,7 @@ impl<'a> QueryNodePlanner<'a> {
                             scope,
                         }
                     }
-                    (TableOrCteReference::Cte(bound), _) => {
+                    (BoundTableOrCteReference::Cte(bound), _) => {
                         self.plan_cte_body(context, *bound, current_schema, current_scope)?
                     }
                 }
