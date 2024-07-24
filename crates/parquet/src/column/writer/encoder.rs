@@ -40,6 +40,7 @@ pub struct DictionaryPage {
 /// The encoded values for a data page, with optional statistics
 pub struct DataPageValues<T> {
     pub buf: Bytes,
+    #[allow(dead_code)]
     pub num_values: usize,
     pub encoding: Encoding,
     pub min_value: Option<T>,

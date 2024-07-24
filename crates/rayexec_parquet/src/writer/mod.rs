@@ -4,6 +4,7 @@ use parquet::{
         page::{CompressedPage, PageWriteSpec, PageWriter},
         writer::{get_column_writer, ColumnCloseResult, ColumnWriter},
     },
+    data_type::ByteArray,
     errors::ParquetError,
     file::{
         metadata::ColumnChunkMetaData,
@@ -154,7 +155,9 @@ impl RowGroupWriter {
                 | DataType::Float32
                 | DataType::Float64
                 | DataType::Decimal64(_)
-                | DataType::Decimal128(_) => {
+                | DataType::Decimal128(_)
+                | DataType::Utf8
+                | DataType::LargeUtf8 => {
                     let page_writer = BufferedPageWriter {
                         buf: ColumnBuffer(Vec::new()), // TODO: Could reuse across row groups.
                     };
@@ -284,6 +287,31 @@ fn write_array<P: PageWriter>(
                 writer
                     .write_batch(arr.values().as_ref(), None, None)
                     .context("failed to write float64s")?;
+                Ok(())
+            }
+            other => Err(array_type_err(other)),
+        },
+        ColumnWriter::ByteArrayColumnWriter(writer) => match array {
+            Array::Utf8(arr) => {
+                // TODO: Try not to copy here. There's a hard requirement on the
+                // physical type being `Bytes`, and so a conversion needs to
+                // happen somewhere.
+                let data = Bytes::copy_from_slice(arr.data().as_ref());
+                let values: Vec<ByteArray> = arr
+                    .offsets()
+                    .as_ref()
+                    .windows(2)
+                    .map(|indices| {
+                        let start = indices[0] as usize;
+                        let end = indices[1] as usize;
+                        data.slice(start..end).into()
+                    })
+                    .collect();
+
+                writer
+                    .write_batch(&values, None, None)
+                    .context("failed to write strings")?;
+
                 Ok(())
             }
             other => Err(array_type_err(other)),
