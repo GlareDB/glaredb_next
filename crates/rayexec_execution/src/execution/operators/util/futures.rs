@@ -30,6 +30,6 @@ use futures::future::BoxFuture;
 ///
 /// - <https://internals.rust-lang.org/t/is-it-ever-legal-to-transmute-a-t-to-a-longer-lifetime/19915/7>
 /// - <https://github.com/crossbeam-rs/crossbeam/blob/2a82b619bef638f328776714ec7ccf022859dda2/crossbeam-utils/src/thread.rs#L464-L467>
-pub unsafe fn make_static<'a, T>(fut: BoxFuture<'a, T>) -> BoxFuture<'static, T> {
+pub unsafe fn make_static<T>(fut: BoxFuture<'_, T>) -> BoxFuture<'static, T> {
     transmute(fut)
 }
