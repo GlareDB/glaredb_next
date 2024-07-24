@@ -19,10 +19,7 @@
 //! inferred types from the previous step. If it differs, assume a header.
 use crate::decoder::{CompletedRecords, CsvDecoder, DecoderResult, DecoderState};
 use bytes::Bytes;
-use futures::{
-    stream::{self, BoxStream, Stream},
-    StreamExt,
-};
+use futures::{stream::BoxStream, StreamExt};
 use rayexec_bullet::{
     array::{
         Array, BooleanArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray,

@@ -2,16 +2,14 @@ use std::{
     collections::VecDeque,
     fmt::{self, Debug},
     sync::Arc,
-    task::{Context, Poll},
 };
 
 use crate::{metadata::Metadata, reader::AsyncBatchReader};
-use futures::{future::BoxFuture, stream::BoxStream, StreamExt};
+use futures::future::BoxFuture;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
-    execution::operators::PollPull,
     runtime::ExecutionRuntime,
 };
 use rayexec_io::{

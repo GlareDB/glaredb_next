@@ -1,6 +1,5 @@
 use crate::{
     database::table::{DataTable, DataTableScan, EmptyTableScan},
-    execution::operators::PollPull,
     runtime::ExecutionRuntime,
 };
 use futures::future::BoxFuture;
@@ -12,7 +11,7 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, task::Context};
+use std::sync::Arc;
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 

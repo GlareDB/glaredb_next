@@ -1,20 +1,12 @@
+use std::fmt::{self, Debug};
 use std::sync::Arc;
-use std::task::Context;
-use std::{
-    fmt::{self, Debug},
-    task::Poll,
-};
 
 use futures::future::BoxFuture;
-use futures::stream::{BoxStream, StreamExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_execution::database::table::EmptyTableScan;
+use rayexec_execution::database::table::{DataTable, DataTableScan};
 use rayexec_execution::runtime::ExecutionRuntime;
-use rayexec_execution::{
-    database::table::{DataTable, DataTableScan},
-    execution::operators::PollPull,
-};
 use rayexec_io::location::{AccessConfig, FileLocation};
 
 use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};

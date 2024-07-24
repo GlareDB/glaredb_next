@@ -2,8 +2,6 @@ pub mod primitive;
 pub mod varlen;
 
 use bytes::{Buf, Bytes};
-use futures::stream::{self, BoxStream};
-use futures::StreamExt;
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;

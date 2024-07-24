@@ -1,9 +1,6 @@
 use std::{collections::VecDeque, sync::Arc};
 
-use futures::{
-    stream::{self, BoxStream},
-    StreamExt, TryStreamExt,
-};
+use futures::{StreamExt, TryStreamExt};
 use rayexec_bullet::{
     batch::Batch,
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
@@ -42,6 +39,15 @@ pub struct Table {
 }
 
 impl Table {
+    pub async fn create(
+        _root: FileLocation,
+        _schema: Schema,
+        _provider: Arc<dyn FileProvider>,
+        _conf: AccessConfig,
+    ) -> Result<Self> {
+        unimplemented!()
+    }
+
     /// Try to load a table at the given location.
     pub async fn load(
         root: FileLocation,
