@@ -1,8 +1,9 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 use serde::{
-    de::DeserializeSeed, ser::SerializeTupleVariant, Deserialize, Deserializer, Serialize,
-    Serializer,
+    de::{self, DeserializeSeed, Visitor},
+    ser::{SerializeMap, SerializeTupleVariant},
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::fmt;
 
@@ -14,6 +15,7 @@ use crate::{
         table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     },
     logical::operator::LocationRequirement,
+    serde::{AggregateFunctionDeserializer, ScalarFunctionDeserializer},
 };
 
 use super::Bound;
@@ -118,6 +120,71 @@ impl BindData {
 pub enum BoundFunctionReference {
     Scalar(Box<dyn ScalarFunction>),
     Aggregate(Box<dyn AggregateFunction>),
+}
+
+impl Serialize for BoundFunctionReference {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_map(Some(1))?;
+        match self {
+            Self::Scalar(scalar) => ser.serialize_entry("scalar", scalar)?,
+            Self::Aggregate(agg) => ser.serialize_entry("aggregate", agg)?,
+        }
+        ser.end()
+    }
+}
+
+struct BoundFunctionReferenceDeserializer<'a> {
+    context: &'a DatabaseContext,
+}
+
+impl<'de, 'a> DeserializeSeed<'de> for BoundFunctionReferenceDeserializer<'a> {
+    type Value = BoundFunctionReference;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct MapVisitor<'a> {
+            context: &'a DatabaseContext,
+        }
+
+        impl<'de, 'a> Visitor<'de> for MapVisitor<'a> {
+            type Value = BoundFunctionReference;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a map")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::MapAccess<'de>,
+            {
+                match map.next_key()? {
+                    Some("scalar") => {
+                        let scalar = map.next_value_seed(ScalarFunctionDeserializer {
+                            context: self.context,
+                        })?;
+                        Ok(BoundFunctionReference::Scalar(scalar))
+                    }
+                    Some("aggregate") => {
+                        let agg = map.next_value_seed(AggregateFunctionDeserializer {
+                            context: self.context,
+                        })?;
+                        Ok(BoundFunctionReference::Aggregate(agg))
+                    }
+                    Some(other) => Err(de::Error::custom(format!("invalid key: {other}"))),
+                    None => Err(de::Error::custom("missing key")),
+                }
+            }
+        }
+
+        deserializer.deserialize_map(MapVisitor {
+            context: self.context,
+        })
+    }
 }
 
 /// A bound table function reference.
@@ -302,4 +369,41 @@ pub struct BoundCte {
     pub body: QueryNode<Bound>,
     /// If this CTE should be materialized.
     pub materialized: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        database::storage::system::SystemCatalog,
+        datasource::DataSourceRegistry,
+        functions::{aggregate::sum::Sum, scalar::string::Repeat},
+    };
+
+    use super::*;
+
+    #[test]
+    fn round_trip_bound_function() {
+        let context = DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()));
+
+        let bound_scalar = BoundFunctionReference::Scalar(Box::new(Repeat));
+        let serialized = serde_json::to_string(&bound_scalar).unwrap();
+        let deserializer = BoundFunctionReferenceDeserializer { context: &context };
+        let got_scalar = deserializer
+            .deserialize(&mut serde_json::Deserializer::from_str(&serialized))
+            .unwrap();
+
+        assert_eq!(bound_scalar, got_scalar);
+
+        let bound_agg = BoundFunctionReference::Aggregate(Box::new(Sum));
+        let serialized = serde_json::to_string(&bound_agg).unwrap();
+        let deserializer = BoundFunctionReferenceDeserializer { context: &context };
+        let got_agg = deserializer
+            .deserialize(&mut serde_json::Deserializer::from_str(&serialized))
+            .unwrap();
+
+        assert_eq!(bound_agg, got_agg);
+
+        assert_ne!(bound_scalar, got_agg);
+        assert_ne!(bound_agg, got_scalar);
+    }
 }
