@@ -164,17 +164,6 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         })
     }
 
-    pub fn into_stream(self) -> BoxStream<'static, Result<Batch>> {
-        let stream = stream::try_unfold(self, |mut reader| async move {
-            match reader.read_next().await {
-                Ok(Some(batch)) => Ok(Some((batch, reader))),
-                Ok(None) => Ok(None),
-                Err(e) => Err(e),
-            }
-        });
-        stream.boxed()
-    }
-
     pub async fn read_next(&mut self) -> Result<Option<Batch>> {
         if self.current_row_group.is_none() {
             match self.row_groups.pop_front() {

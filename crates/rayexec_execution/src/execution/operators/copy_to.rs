@@ -124,7 +124,7 @@ impl PhysicalOperator for PhysicalCopyTo {
                         Poll::Pending => {
                             // We successfully pushed.
 
-                            // RATIONALE: Lifetime of the CopyToSink (on the
+                            // SAFETY: Lifetime of the CopyToSink (on the
                             // partition state) outlives the future.
                             *future = Some(unsafe { make_static(push_future) });
 
@@ -180,7 +180,7 @@ impl PhysicalOperator for PhysicalCopyTo {
                         Poll::Pending => {
                             // Waiting...
 
-                            // RATIONALE: Lifetime of copy to sink outlives this future.
+                            // SAFETY: Lifetime of copy to sink outlives this future.
                             let future = unsafe { make_static(finalize_future) };
 
                             *state = CopyToPartitionState::Finalizing {

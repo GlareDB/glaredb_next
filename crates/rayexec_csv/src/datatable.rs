@@ -5,6 +5,7 @@ use std::{
     task::Poll,
 };
 
+use futures::future::BoxFuture;
 use futures::stream::{BoxStream, StreamExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
@@ -41,9 +42,9 @@ impl DataTable for SingleFileCsvDataTable {
             .file_provider()
             .file_source(self.location.clone(), &self.conf)?;
         let csv_reader = AsyncCsvReader::new(reader, self.csv_schema.clone(), self.options);
-        let stream = csv_reader.into_stream().boxed();
 
-        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(CsvFileScan { stream })];
+        let mut scans: Vec<Box<dyn DataTableScan>> =
+            vec![Box::new(CsvFileScan { reader: csv_reader })];
         // Reset are empty (for now)
         scans.extend((1..num_partitions).map(|_| Box::new(EmptyTableScan) as _));
 
@@ -52,18 +53,12 @@ impl DataTable for SingleFileCsvDataTable {
 }
 
 pub struct CsvFileScan {
-    stream: BoxStream<'static, Result<Batch>>,
+    reader: AsyncCsvReader,
 }
 
-// TODO: We could just implement `DataTableScan` for boxed streams.
 impl DataTableScan for CsvFileScan {
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
-        match self.stream.poll_next_unpin(cx) {
-            Poll::Ready(Some(Ok(batch))) => Ok(PollPull::Batch(batch)),
-            Poll::Ready(Some(Err(e))) => Err(e),
-            Poll::Ready(None) => Ok(PollPull::Exhausted),
-            Poll::Pending => Ok(PollPull::Pending),
-        }
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { self.reader.read_next().await })
     }
 }
 

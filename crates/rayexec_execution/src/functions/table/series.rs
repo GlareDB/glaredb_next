@@ -167,10 +167,7 @@ impl GenerateSeriesScan {
 }
 
 impl DataTableScan for GenerateSeriesScan {
-    fn poll_pull(&mut self, _cx: &mut Context) -> Result<PollPull> {
-        match self.generate_next() {
-            Some(batch) => Ok(PollPull::Batch(batch)),
-            None => Ok(PollPull::Exhausted),
-        }
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { Ok(self.generate_next()) })
     }
 }
