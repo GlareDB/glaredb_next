@@ -49,6 +49,7 @@ impl AstMeta for Bound {
     type ItemReference = ItemReference;
     type TableReference = BindListIdx;
     type TableFunctionReference = BindListIdx;
+    type TableFunctionArg = ();
     type CteReference = CteReference;
     type FunctionReference = BindListIdx;
     type ColumnReference = String;
@@ -811,7 +812,8 @@ impl<'a> Binder<'a> {
                             LocationRequirement::Local,
                         );
 
-                        ast::FromNodeBody::TableFunction(func_idx)
+                        // ast::FromNodeBody::TableFunction(func_idx)
+                        unimplemented!()
                     }
                     None => {
                         return Err(RayexecError::new(format!(
@@ -837,14 +839,16 @@ impl<'a> Binder<'a> {
                             LocationRequirement::Local,
                         );
 
-                        ast::FromNodeBody::TableFunction(func_idx)
+                        // ast::FromNodeBody::TableFunction(func_idx)
+                        unimplemented!()
                     }
                     None => {
                         let func_idx = bind_data
                             .table_functions
                             .push_unbound(ast::FromTableFunction { reference, args });
 
-                        ast::FromNodeBody::TableFunction(func_idx)
+                        // ast::FromNodeBody::TableFunction(func_idx)
+                        unimplemented!()
                     }
                 }
             }

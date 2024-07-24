@@ -16,6 +16,96 @@ use crate::{
     logical::operator::LocationRequirement,
 };
 
+/// Data that's collected during binding, including resolved tables, functions,
+/// and other database objects.
+///
+/// Planning will reference these items directly instead of having to resolve
+/// them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BindData {
+    /// Objects that require special (de)serialization.
+    pub objects: DatabaseObjects,
+}
+
+/// Bound and unbound objects we've come across.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BindLists {
+    pub tables: BindList<TableOrCteReference, ast::ObjectReference>,
+    pub functions: BindList<BoundFunctionReference, ast::ObjectReference>,
+    pub table_functions: TableFunctionBindList,
+
+    pub table_function_args: Vec<TableFunctionArgs>,
+}
+
+/// All database objects in bind data that require special (de)serialization.
+///
+/// This struct mostly exists to centralize the special serilization
+/// requirements needed for object like aggregates and functions.
+///
+/// Bind lists will hold indices that reference these objects.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DatabaseObjects {
+    pub scalar_functions: Vec<Box<dyn ScalarFunction>>,
+    pub agg_functions: Vec<Box<dyn AggregateFunction>>,
+    pub table_functions: Vec<Box<dyn PlannedTableFunction>>,
+}
+
+/// Index into one of the database object vecs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DatabaseObjectIdx(pub usize);
+
+impl DatabaseObjects {
+    pub fn push_scalar_function(&mut self, func: Box<dyn ScalarFunction>) -> DatabaseObjectIdx {
+        let idx = self.scalar_functions.len();
+        self.scalar_functions.push(func);
+        DatabaseObjectIdx(idx)
+    }
+
+    pub fn push_agg_function(&mut self, func: Box<dyn AggregateFunction>) -> DatabaseObjectIdx {
+        let idx = self.agg_functions.len();
+        self.agg_functions.push(func);
+        DatabaseObjectIdx(idx)
+    }
+
+    pub fn push_table_function(
+        &mut self,
+        func: Box<dyn PlannedTableFunction>,
+    ) -> DatabaseObjectIdx {
+        let idx = self.table_functions.len();
+        self.table_functions.push(func);
+        DatabaseObjectIdx(idx)
+    }
+}
+
+/// A bound aggregate or scalar function.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BoundFunctionReference {
+    /// Index into the scalar vec.
+    Scalar(DatabaseObjectIdx),
+    /// Index into the agg vec.
+    Aggregate(DatabaseObjectIdx),
+}
+
+/// A bound table function reference.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BoundTableFunctionReference {
+    /// Name of the original function.
+    ///
+    /// This is used to allow the user to reference the output of the function
+    /// if not provided an alias.
+    pub name: String,
+    /// Index into the table function vec.
+    pub func_idx: DatabaseObjectIdx,
+    /// Arguments to the table function.
+    pub args: TableFunctionArgs,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnboundTableFunctionReference {
+    /// Reference of the funciton.
+    pub reference: ast::ObjectReference,
+}
+
 /// Index into the bind list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BindListIdx(pub usize);
@@ -41,50 +131,9 @@ impl<B, U> MaybeBound<B, U> {
     }
 }
 
-impl<B: Serialize, U: Serialize> Serialize for MaybeBound<B, U> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Self::Bound(bound, loc) => {
-                let mut s = serializer.serialize_tuple_variant("MaybeBound", 0, "Bound", 2)?;
-                s.serialize_field(bound)?;
-                s.serialize_field(loc)?;
-                s.end()
-            }
-            Self::Unbound(unbound) => {
-                let mut s = serializer.serialize_tuple_variant("MaybeBound", 1, "Unbound", 1)?;
-                s.serialize_field(unbound)?;
-                s.end()
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct MaybeBoundDeserializer<'a, B, U> {
-    pub context: &'a DatabaseContext,
-    pub _bound: PhantomData<B>,
-    pub _unbound: PhantomData<U>,
-}
-
-impl<'de, 'a> DeserializeSeed<'de>
-    for MaybeBoundDeserializer<'a, TableOrCteReference, ast::ObjectReference>
-{
-    type Value = MaybeBound<TableOrCteReference, ast::ObjectReference>;
-
-    fn deserialize<D>(self, _deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        unimplemented!()
-    }
-}
-
 /// List for holding bound and unbound variants for a single logical concept
 /// (table, function, etc).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindList<B, U> {
     pub inner: Vec<MaybeBound<B, U>>,
 }

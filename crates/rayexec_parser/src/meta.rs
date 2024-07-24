@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::ast::{
-    CommonTableExpr, CopyToTarget, DataType, FromTableFunction, Ident, ObjectReference,
+    CommonTableExpr, CopyToTarget, DataType, FromTableFunction, FunctionArg, Ident, ObjectReference,
 };
 
 /// Metadata associated with sql statements.
@@ -19,14 +19,17 @@ pub trait AstMeta: Clone {
     /// Name of a data source for ATTACH.
     type DataSourceName: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
+    /// Reference to item that might not have any associated context with it.
     type ItemReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
+    /// Reference to a table.
     type TableReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a table function.
     ///
     /// This includes the table function arguments.
     type TableFunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+    type TableFunctionArg: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     type CteReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
@@ -50,7 +53,8 @@ impl AstMeta for Raw {
     type DataSourceName = Ident;
     type ItemReference = ObjectReference;
     type TableReference = ObjectReference;
-    type TableFunctionReference = FromTableFunction<Raw>;
+    type TableFunctionReference = ObjectReference;
+    type TableFunctionArg = FunctionArg<Raw>;
     type CteReference = CommonTableExpr<Raw>;
     type FunctionReference = ObjectReference;
     type ColumnReference = Ident;
