@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{
     aggregate::AggregatePlanner,
     binder::{
-        bindref::{BoundTableOrCteReference, CteReference},
-        BindData, Bound,
+        bind_data::{BindData, BoundTableOrCteReference, CteReference},
+        Bound,
     },
     expr::{ExpandedSelectExpr, ExpressionContext},
     planner::LogicalQuery,
@@ -331,7 +331,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                match self.bind_data.tables.try_get_bound(reference)? {
+                match self.bind_data.lists.tables.try_get_bound(reference)? {
                     (
                         BoundTableOrCteReference::Table {
                             catalog,

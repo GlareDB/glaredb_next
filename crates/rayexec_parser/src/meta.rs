@@ -26,9 +26,9 @@ pub trait AstMeta: Clone {
     type TableReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a table function.
-    ///
-    /// This includes the table function arguments.
     type TableFunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+
+    /// Arguments to a table function.
     type TableFunctionArgs: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     type CteReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;

@@ -49,6 +49,9 @@ impl AstMeta for Bound {
     type ItemReference = ItemReference;
     type TableReference = BindListIdx;
     type TableFunctionReference = BindListIdx;
+    // TODO: Having this be the actual table function args does require that we
+    // clone them, and the args that go back into the ast don't actually do
+    // anything, they're never referenced again.
     type TableFunctionArgs = TableFunctionArgs;
     type CteReference = CteReference;
     type FunctionReference = BindListIdx;

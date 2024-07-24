@@ -10,7 +10,7 @@ use crate::{
     database::DatabaseContext,
     datasource::DataSourceRegistry,
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
-    logical::sql::binder::{BindData, BoundStatement},
+    logical::sql::binder::{bind_data::BindData, BoundStatement},
     runtime::{ExecutionRuntime, QueryHandle},
 };
 use std::sync::Arc;
