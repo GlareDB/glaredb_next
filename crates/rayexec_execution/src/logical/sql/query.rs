@@ -331,7 +331,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                match self.bind_data.lists.tables.try_get_bound(reference)? {
+                match self.bind_data.tables.try_get_bound(reference)? {
                     (
                         BoundTableOrCteReference::Table {
                             catalog,
@@ -371,28 +371,27 @@ impl<'a> QueryNodePlanner<'a> {
                 let mut nested = self.nested(current_schema, current_scope);
                 nested.plan_query(context, query)?
             }
-            ast::FromNodeBody::TableFunction(reference) => {
-                unimplemented!()
-                // let (table_func, _) = self.bind_data.table_functions.try_get_bound(reference)?;
-                // let scope_reference = TableReference {
-                //     database: None,
-                //     schema: None,
-                //     table: table_func.name.clone(),
-                // };
-                // let scope = Scope::with_columns(
-                //     Some(scope_reference),
-                //     table_func.func.schema().fields.into_iter().map(|f| f.name),
-                // );
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, .. }) => {
+                let (table_func, _) = self.bind_data.table_functions.try_get_bound(reference)?;
+                let scope_reference = TableReference {
+                    database: None,
+                    schema: None,
+                    table: table_func.name.clone(),
+                };
+                let scope = Scope::with_columns(
+                    Some(scope_reference),
+                    table_func.func.schema().fields.into_iter().map(|f| f.name),
+                );
 
-                // // TODO: Loc
-                // let operator = LogicalOperator::TableFunction(LogicalNode::new(TableFunction {
-                //     function: table_func.func.clone(),
-                // }));
+                // TODO: Loc
+                let operator = LogicalOperator::TableFunction(LogicalNode::new(TableFunction {
+                    function: table_func.func.clone(),
+                }));
 
-                // LogicalQuery {
-                //     root: operator,
-                //     scope,
-                // }
+                LogicalQuery {
+                    root: operator,
+                    scope,
+                }
             }
             ast::FromNodeBody::Join(ast::FromJoin {
                 left,

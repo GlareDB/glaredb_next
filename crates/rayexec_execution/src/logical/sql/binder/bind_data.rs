@@ -4,8 +4,7 @@ use serde::{
     de::DeserializeSeed, ser::SerializeTupleVariant, Deserialize, Deserializer, Serialize,
     Serializer,
 };
-use std::sync::Arc;
-use std::{fmt, marker::PhantomData};
+use std::fmt;
 
 use crate::{
     database::{entry::TableEntry, DatabaseContext},
@@ -26,17 +25,19 @@ use super::Bound;
 /// them.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct BindData {
-    /// Objects that require special (de)serialization.
-    pub objects: DatabaseObjects,
+    /// A bound table may reference either an actual table, or a CTE. An unbound
+    /// reference may only reference a table.
+    pub tables: BindList<BoundTableOrCteReference, ast::ObjectReference>,
 
-    /// Bind lists for table objects. Note that these are trivially serializable
-    /// as they reference objects in `objects`.
-    ///
-    /// This does require another hop to get the actual database object. For
-    /// example, if we're trying to get a bound scalar, we first have to look in
-    /// the scalar list which gives us the object idx, which we can then use to
-    /// get the scalar from `objects`.
-    pub lists: BindLists,
+    /// Bound scalar or aggregate functions.
+    pub functions: BindList<BoundFunctionReference, ast::ObjectReference>,
+
+    /// Bound (and planned) table functions. Unbound table functions include the
+    /// table function arguments to allow for quick planning on the remote side.
+    // TODO: This may change to just have `dyn TableFunction` references, and
+    // then have a separate step after binding that initializes all table
+    // functions.
+    pub table_functions: BindList<BoundTableFunctionReference, UnboundTableFunctionReference>,
 
     /// How "deep" in the plan are we.
     ///
@@ -55,9 +56,9 @@ pub struct BindData {
 impl BindData {
     /// Checks if there's any unbound references in this query's bind data.
     pub fn any_unbound(&self) -> bool {
-        self.lists.tables.any_unbound()
-            || self.lists.functions.any_unbound()
-            || self.lists.table_functions.any_unbound()
+        self.tables.any_unbound()
+            || self.functions.any_unbound()
+            || self.table_functions.any_unbound()
     }
 
     /// Try to find a CTE by its normalized name.
@@ -112,73 +113,24 @@ impl BindData {
     }
 }
 
-/// Bound and unbound objects we've come across.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub struct BindLists {
-    pub tables: BindList<BoundTableOrCteReference, ast::ObjectReference>,
-    pub functions: BindList<BoundFunctionReference, ast::ObjectReference>,
-    pub table_functions: BindList<BoundTableFunctionReference, UnboundTableFunctionReference>,
-}
-
-/// All database objects in bind data that require special (de)serialization.
-///
-/// This struct mostly exists to centralize the special serilization
-/// requirements needed for object like aggregates and functions.
-///
-/// Bind lists will hold indices that reference these objects.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct DatabaseObjects {
-    pub scalar_functions: Vec<Box<dyn ScalarFunction>>,
-    pub agg_functions: Vec<Box<dyn AggregateFunction>>,
-    pub table_functions: Vec<Box<dyn PlannedTableFunction>>,
-}
-
-/// Index into one of the database object vecs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DatabaseObjectIdx(pub usize);
-
-impl DatabaseObjects {
-    pub fn push_scalar_function(&mut self, func: Box<dyn ScalarFunction>) -> DatabaseObjectIdx {
-        let idx = self.scalar_functions.len();
-        self.scalar_functions.push(func);
-        DatabaseObjectIdx(idx)
-    }
-
-    pub fn push_agg_function(&mut self, func: Box<dyn AggregateFunction>) -> DatabaseObjectIdx {
-        let idx = self.agg_functions.len();
-        self.agg_functions.push(func);
-        DatabaseObjectIdx(idx)
-    }
-
-    pub fn push_planned_table_function(
-        &mut self,
-        func: Box<dyn PlannedTableFunction>,
-    ) -> DatabaseObjectIdx {
-        let idx = self.table_functions.len();
-        self.table_functions.push(func);
-        DatabaseObjectIdx(idx)
-    }
-}
-
 /// A bound aggregate or scalar function.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
-    /// Index into the scalar vec.
-    Scalar(DatabaseObjectIdx),
-    /// Index into the agg vec.
-    Aggregate(DatabaseObjectIdx),
+    Scalar(Box<dyn ScalarFunction>),
+    Aggregate(Box<dyn AggregateFunction>),
 }
 
 /// A bound table function reference.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundTableFunctionReference {
     /// Name of the original function.
     ///
     /// This is used to allow the user to reference the output of the function
     /// if not provided an alias.
     pub name: String,
-    /// Index into the table function vec.
-    pub func_idx: DatabaseObjectIdx,
+    /// The planned table function.
+    pub func: Box<dyn PlannedTableFunction>,
+    // TODO: Maybe keep args here?
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

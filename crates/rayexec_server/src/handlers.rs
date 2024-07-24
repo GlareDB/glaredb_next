@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::State, Json};
 use rayexec_error::ResultExt;
-use rayexec_execution::{
-    engine::Engine,
-    logical::sql::binder::{BindData, BoundStatement},
-};
+use rayexec_execution::{engine::Engine, logical::sql::binder::BoundStatement};
 use rayexec_server_client::types::{
     PlanAstRpcRequest, PlanAstRpcResponse, PullBatchRpcRequest, PullBatchRpcResponse,
     PushBatchRcpRequest, PushBatchRpcResponse,

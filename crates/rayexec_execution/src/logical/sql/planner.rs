@@ -259,21 +259,20 @@ impl<'a> PlanContext<'a> {
                 planner.plan_query(context, query)?
             }
             ast::CopyToSource::Table(table) => {
-                let (catalog, schema, ent) =
-                    match self.bind_data.lists.tables.try_get_bound(table)? {
-                        (
-                            BoundTableOrCteReference::Table {
-                                catalog,
-                                schema,
-                                entry,
-                            },
-                            _,
-                        ) => (catalog, schema, entry),
-                        (BoundTableOrCteReference::Cte(_), _) => {
-                            // Shouldn't be possible.
-                            return Err(RayexecError::new("Cannot COPY from CTE"));
-                        }
-                    };
+                let (catalog, schema, ent) = match self.bind_data.tables.try_get_bound(table)? {
+                    (
+                        BoundTableOrCteReference::Table {
+                            catalog,
+                            schema,
+                            entry,
+                        },
+                        _,
+                    ) => (catalog, schema, entry),
+                    (BoundTableOrCteReference::Cte(_), _) => {
+                        // Shouldn't be possible.
+                        return Err(RayexecError::new("Cannot COPY from CTE"));
+                    }
+                };
 
                 let scope = Scope::with_columns(None, ent.columns.iter().map(|f| f.name.clone()));
 
@@ -310,7 +309,7 @@ impl<'a> PlanContext<'a> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
         let source = planner.plan_query(context, insert.source)?;
 
-        let entry = match self.bind_data.lists.tables.try_get_bound(insert.table)? {
+        let entry = match self.bind_data.tables.try_get_bound(insert.table)? {
             (BoundTableOrCteReference::Table { entry, .. }, _) => entry,
             (BoundTableOrCteReference::Cte(_), _) => {
                 return Err(RayexecError::new("Cannot insert into CTE"))

@@ -269,7 +269,7 @@ impl<'a> Binder<'a> {
                     }
                 };
 
-                let idx = bind_data.lists.tables.push_maybe_bound(table);
+                let idx = bind_data.tables.push_maybe_bound(table);
                 ast::CopyToSource::Table(idx)
             }
         };
@@ -410,7 +410,7 @@ impl<'a> Binder<'a> {
 
         let source = self.bind_query(insert.source, bind_data).await?;
 
-        let idx = bind_data.lists.tables.push_maybe_bound(table);
+        let idx = bind_data.tables.push_maybe_bound(table);
 
         Ok(ast::Insert {
             table: idx,
@@ -686,7 +686,7 @@ impl<'a> Binder<'a> {
                     }
                 };
 
-                let idx = bind_data.lists.tables.push_maybe_bound(table);
+                let idx = bind_data.tables.push_maybe_bound(table);
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
@@ -708,13 +708,16 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
-                        // let func_idx = bind_data.table_functions.push_bound(
-                        //     TableFunctionReference { name, func, args },
-                        //     LocationRequirement::Local,
-                        // );
+                        let bind_idx = bind_data.table_functions.push_bound(
+                            BoundTableFunctionReference { name, func },
+                            LocationRequirement::Local,
+                        );
 
-                        // ast::FromNodeBody::TableFunction(func_idx)
-                        unimplemented!()
+                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                            reference: bind_idx,
+                            // TODO: Not needed.
+                            args,
+                        })
                     }
                     None => {
                         return Err(RayexecError::new(format!(
@@ -735,12 +738,8 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
-                        let object_idx = bind_data.objects.push_planned_table_function(func);
-                        let bind_idx = bind_data.lists.table_functions.push_bound(
-                            BoundTableFunctionReference {
-                                name,
-                                func_idx: object_idx,
-                            },
+                        let bind_idx = bind_data.table_functions.push_bound(
+                            BoundTableFunctionReference { name, func },
                             LocationRequirement::Local,
                         );
 
@@ -751,12 +750,13 @@ impl<'a> Binder<'a> {
                         })
                     }
                     None => {
-                        let bind_idx = bind_data.lists.table_functions.push_unbound(
-                            UnboundTableFunctionReference {
-                                reference,
-                                args: args.clone(),
-                            },
-                        );
+                        let bind_idx =
+                            bind_data
+                                .table_functions
+                                .push_unbound(UnboundTableFunctionReference {
+                                    reference,
+                                    args: args.clone(),
+                                });
 
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                             reference: bind_idx,
