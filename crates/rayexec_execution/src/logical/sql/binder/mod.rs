@@ -39,7 +39,7 @@ use crate::{
     datasource::FileHandlers,
     functions::{copy::CopyToFunction, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
-    runtime::ExecutionRuntime,
+    runtime::{ExecutionRuntime, Runtime},
 };
 
 pub type BoundStatement = Statement<Bound>;
@@ -159,21 +159,24 @@ impl BindMode {
 
 /// Binds a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
-pub struct Binder<'a> {
+pub struct Binder<'a, R: Runtime> {
     pub bindmode: BindMode,
     pub tx: &'a CatalogTx,
     pub context: &'a DatabaseContext,
     pub file_handlers: &'a FileHandlers,
-    pub runtime: &'a Arc<dyn ExecutionRuntime>,
+    pub runtime: &'a Arc<R>,
 }
 
-impl<'a> Binder<'a> {
+impl<'a, R> Binder<'a, R>
+where
+    R: Runtime,
+{
     pub fn new(
         bindmode: BindMode,
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
+        runtime: &'a Arc<R>,
     ) -> Self {
         Binder {
             bindmode,
@@ -468,8 +471,8 @@ impl<'a> Binder<'a> {
         ///
         /// Pulled out so we can accurately set the bind data depth before and
         /// after this.
-        async fn bind_query_inner(
-            binder: &Binder<'_>,
+        async fn bind_query_inner<R: Runtime>(
+            binder: &Binder<'_, R>,
             query: ast::QueryNode<Raw>,
             bind_data: &mut BindData,
         ) -> Result<ast::QueryNode<Bound>> {

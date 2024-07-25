@@ -54,6 +54,18 @@ impl ExecutionScheduler for NopScheduler {
     }
 }
 
+pub trait Runtime: Debug + Sync + Send {
+    type HttpClient: HttpClient;
+    type FileProvider: FileProvider;
+    type TokioHandle;
+
+    fn file_provider(&self) -> Arc<Self::FileProvider>;
+
+    fn http_client(&self) -> Self::HttpClient;
+
+    fn tokio_handle(&self) -> Self::TokioHandle;
+}
+
 /// An execution runtime handles driving execution for a query.
 ///
 /// Implementations may make use of different strategies when executing a query.

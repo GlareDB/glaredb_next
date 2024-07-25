@@ -19,7 +19,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::{hybrid::HybridClient, ExecutionRuntime, ExecutionScheduler},
+    runtime::{hybrid::HybridClient, ExecutionRuntime, ExecutionScheduler, Runtime},
 };
 
 use super::{
@@ -54,7 +54,7 @@ use super::{
 /// during actual execution (pulling on the stream) as execution is completely
 /// independent of any state inside the session.
 #[derive(Debug)]
-pub struct Session<S: ExecutionScheduler> {
+pub struct Session<S: ExecutionScheduler, R: Runtime> {
     /// Context containg everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
@@ -65,9 +65,7 @@ pub struct Session<S: ExecutionScheduler> {
     /// Reference configured data source implementations.
     registry: Arc<DataSourceRegistry>,
 
-    /// Reference to runtime for executing queries.
-    runtime: Arc<dyn ExecutionRuntime>,
-
+    runtime: Arc<R>,
     scheduler: Arc<S>,
 
     /// Prepared statements.
@@ -80,9 +78,10 @@ pub struct Session<S: ExecutionScheduler> {
     hybrid_client: Option<Arc<dyn HybridClient>>,
 }
 
-impl<S> Session<S>
+impl<S, R> Session<S, R>
 where
     S: ExecutionScheduler,
+    R: Runtime,
 {
     pub fn new(
         context: DatabaseContext,

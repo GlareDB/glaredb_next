@@ -17,7 +17,7 @@ use rayexec_execution::{
     },
     datasource::{check_options_empty, take_option, DataSource},
     functions::table::TableFunction,
-    runtime::ExecutionRuntime,
+    runtime::{ExecutionRuntime, Runtime},
 };
 use read_postgres::ReadPostgres;
 use std::fmt;
@@ -30,9 +30,18 @@ use tokio_postgres::{types::FromSql, NoTls};
 use tracing::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PostgresDataSource;
+pub struct PostgresDataSource<R: Runtime> {
+    runtime: Arc<R>,
+}
 
 impl DataSource for PostgresDataSource {
+    fn intialize<R: Runtime>(runtime: Arc<R>) -> Self
+    where
+        Self: Sized,
+    {
+        PostgresDataSource { runtime }
+    }
+
     fn create_catalog(
         &self,
         runtime: &Arc<dyn ExecutionRuntime>,
