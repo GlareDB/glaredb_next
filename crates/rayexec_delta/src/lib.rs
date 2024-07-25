@@ -10,10 +10,10 @@ use rayexec_execution::{
     database::catalog::Catalog,
     datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
-    runtime::{ExecutionRuntime, Runtime},
+    runtime::Runtime,
 };
 use read_delta::ReadDelta;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 // TODO: How do we want to handle catalogs that provide data sources? Do we want
 // to have "Glue" and "Unity" data sources that are separate from the base

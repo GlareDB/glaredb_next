@@ -6,7 +6,6 @@ mod resolver;
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 
 use bind_data::{
     BindData, BindDataVisitor, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference,
@@ -39,7 +38,6 @@ use crate::{
     datasource::FileHandlers,
     functions::{copy::CopyToFunction, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
-    runtime::{ExecutionRuntime, Runtime},
 };
 
 pub type BoundStatement = Statement<Bound>;

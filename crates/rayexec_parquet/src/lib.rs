@@ -15,10 +15,10 @@ use rayexec_execution::{
     database::catalog::Catalog,
     datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
-    runtime::{ExecutionRuntime, Runtime},
+    runtime::Runtime,
 };
 use regex::{Regex, RegexBuilder};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParquetDataSource<R> {

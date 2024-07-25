@@ -1,7 +1,6 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use rayexec_io::http::HttpClient;
 use std::fmt::Debug;
 use url::Url;
 

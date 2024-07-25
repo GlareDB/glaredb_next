@@ -23,13 +23,6 @@ pub trait HttpClient: Sync + Send + Debug + Clone {
     fn do_request(&self, request: Request) -> Self::RequestFuture;
 }
 
-pub type BoxedHttpClient = Box<
-    dyn HttpClient<
-        Response = BoxedHttpResponse,
-        RequestFuture = BoxFuture<'static, Result<BoxedHttpResponse>>,
-    >,
->;
-
 pub trait HttpResponse {
     type BytesFuture: Future<Output = Result<Bytes>> + Send;
     type BytesStream: Stream<Item = Result<Bytes>> + Send;
@@ -39,14 +32,6 @@ pub trait HttpResponse {
     fn bytes(self) -> Self::BytesFuture;
     fn bytes_stream(self) -> Self::BytesStream;
 }
-
-/// Type alias for http response that boxes response futures.
-pub type BoxedHttpResponse = Box<
-    dyn HttpResponse<
-        BytesFuture = BoxFuture<'static, Result<Bytes>>,
-        BytesStream = BoxStream<'static, Result<Bytes>>,
-    >,
->;
 
 pub async fn read_text(resp: impl HttpResponse) -> Result<String> {
     let full = resp.bytes().await?;

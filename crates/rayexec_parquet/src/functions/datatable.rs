@@ -10,7 +10,7 @@ use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
-    runtime::{ExecutionRuntime, Runtime},
+    runtime::Runtime,
 };
 use rayexec_io::{
     location::{AccessConfig, FileLocation},

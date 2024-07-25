@@ -1,5 +1,5 @@
 use rayexec_execution::datasource::DataSourceBuilder;
-use rayexec_execution::{datasource::DataSourceRegistry, engine::Engine, runtime::NopScheduler};
+use rayexec_execution::{datasource::DataSourceRegistry, engine::Engine};
 use rayexec_postgres::PostgresDataSource;
 use rayexec_slt::RunConfig;
 use std::path::Path;

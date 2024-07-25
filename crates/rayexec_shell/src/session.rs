@@ -1,6 +1,5 @@
 use futures::TryStreamExt;
 use rayexec_bullet::format::pretty::table::PrettyTable;
-use rayexec_server_client::HybridClient;
 use std::sync::Arc;
 use url::{Host, Url};
 
@@ -9,7 +8,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::{session::Session, Engine};
-use rayexec_execution::runtime::{ExecutionRuntime, ExecutionScheduler, Runtime};
+use rayexec_execution::runtime::{ExecutionScheduler, Runtime};
 use tokio::sync::Mutex;
 
 /// A wrapper around a session and an engine for when running the database in a
@@ -71,7 +70,7 @@ where
         // TODO: Should this all be happening here, or move to session?
 
         // TODO: I don't know yet.
-        let url = if Host::parse(&connection_string).is_ok() {
+        let _url = if Host::parse(&connection_string).is_ok() {
             Url::parse(&format!("http://{connection_string}:80"))
         } else {
             Url::parse(&connection_string)

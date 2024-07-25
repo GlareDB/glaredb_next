@@ -4,10 +4,9 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::{ExecutionRuntime, Runtime},
+    runtime::Runtime,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::{PostgresClient, PostgresDataTable};
 

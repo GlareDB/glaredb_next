@@ -1,13 +1,11 @@
 use crate::{
     functions::copy::{CopyToFunction, CopyToSink},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    runtime::ExecutionRuntime,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
-use std::sync::Arc;
 use std::task::{Context, Waker};
 use std::{fmt, task::Poll};
 

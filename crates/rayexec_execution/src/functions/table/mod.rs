@@ -12,11 +12,9 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
-use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::database::table::DataTable;
-use crate::runtime::ExecutionRuntime;
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> =
     Lazy::new(|| vec![Box::new(GenerateSeries)]);

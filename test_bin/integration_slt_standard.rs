@@ -1,4 +1,4 @@
-use rayexec_execution::{engine::Engine, runtime::NopScheduler};
+use rayexec_execution::engine::Engine;
 use rayexec_slt::RunConfig;
 use std::path::Path;
 

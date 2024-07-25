@@ -43,7 +43,6 @@ use crate::{
         grouping_set::GroupingSets,
         operator::{self, LogicalNode, LogicalOperator},
     },
-    runtime::ExecutionRuntime,
 };
 use rayexec_bullet::{
     array::{Array, Utf8Array},

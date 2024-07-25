@@ -2,10 +2,9 @@ use rayexec_delta::DeltaDataSource;
 use rayexec_execution::{
     datasource::{DataSourceBuilder, DataSourceRegistry},
     engine::Engine,
-    runtime::NopScheduler,
 };
 use rayexec_slt::{ReplacementVars, RunConfig, VarValue};
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 pub fn main() {
     let aws_key = VarValue::sensitive_from_env("AWS_KEY");

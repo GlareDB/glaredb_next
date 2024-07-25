@@ -4,13 +4,12 @@ use rayexec_error::{RayexecError, Result};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
-use crate::runtime::{ExecutionRuntime, Runtime};
+use crate::runtime::Runtime;
 
 /// Trait for constructing data sources.
 ///

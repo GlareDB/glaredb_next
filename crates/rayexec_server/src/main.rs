@@ -16,7 +16,7 @@ use rayexec_error::{Result, ResultExt};
 use rayexec_execution::{
     datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource},
     engine::Engine,
-    runtime::{ExecutionRuntime, ExecutionScheduler, Runtime, TokioHandlerProvider},
+    runtime::{ExecutionScheduler, Runtime, TokioHandlerProvider},
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;

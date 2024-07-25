@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     logical::{operator::LocationRequirement, sql::binder::BindMode},
-    runtime::ExecutionRuntime,
 };
 use rayexec_error::Result;
 

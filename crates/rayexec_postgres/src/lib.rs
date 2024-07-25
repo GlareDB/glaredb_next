@@ -17,7 +17,7 @@ use rayexec_execution::{
     },
     datasource::{check_options_empty, take_option, DataSource, DataSourceBuilder},
     functions::table::TableFunction,
-    runtime::{ExecutionRuntime, Runtime, TokioHandlerProvider},
+    runtime::{Runtime, TokioHandlerProvider},
 };
 use read_postgres::ReadPostgres;
 use std::fmt;

@@ -11,11 +11,11 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     engine::{session::Session, Engine},
-    runtime::{ExecutionRuntime, ExecutionScheduler, NopScheduler, Runtime, TokioHandlerProvider},
+    runtime::{ExecutionScheduler, Runtime, TokioHandlerProvider},
 };
-use rayexec_rt_native::runtime::{InnerScheduler, NativeRuntime, ThreadedNativeScheduler};
+use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeScheduler};
 use sqllogictest::DefaultColumnType;
-use std::{collections::HashMap, fs, sync::Arc};
+use std::{collections::HashMap, fs};
 use std::{
     fmt,
     path::{Path, PathBuf},

@@ -9,9 +9,6 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
-
-use crate::runtime::ExecutionRuntime;
 
 /// Arguments provided via a COPY TO statement.
 ///

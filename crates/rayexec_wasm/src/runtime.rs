@@ -7,8 +7,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{
-        dump::QueryDump, ErrorSink, ExecutionRuntime, ExecutionScheduler, OptionalTokioRuntime,
-        QueryHandle, Runtime, TokioHandlerProvider,
+        dump::QueryDump, ErrorSink, ExecutionScheduler, QueryHandle, Runtime, TokioHandlerProvider,
     },
 };
 use rayexec_io::{

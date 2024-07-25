@@ -1,7 +1,6 @@
 use rayexec_execution::{
     datasource::{DataSourceBuilder, DataSourceRegistry},
     engine::Engine,
-    runtime::NopScheduler,
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_slt::RunConfig;

@@ -2,10 +2,9 @@ use rayexec_csv::CsvDataSource;
 use rayexec_execution::{
     datasource::{DataSourceBuilder, DataSourceRegistry},
     engine::Engine,
-    runtime::NopScheduler,
 };
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 pub fn main() {
     let paths = rayexec_slt::find_files(Path::new("../slt/csv")).unwrap();

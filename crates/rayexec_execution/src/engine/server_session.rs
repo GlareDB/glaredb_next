@@ -11,7 +11,7 @@ use crate::{
     datasource::DataSourceRegistry,
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     logical::sql::binder::{bind_data::BindData, BoundStatement},
-    runtime::{ExecutionRuntime, ExecutionScheduler, QueryHandle, Runtime},
+    runtime::{ExecutionScheduler, QueryHandle, Runtime},
 };
 use std::sync::Arc;
 

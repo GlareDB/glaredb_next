@@ -1,12 +1,11 @@
 use std::fmt::{self, Debug};
-use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_execution::database::table::EmptyTableScan;
 use rayexec_execution::database::table::{DataTable, DataTableScan};
-use rayexec_execution::runtime::{ExecutionRuntime, Runtime};
+use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::FileProvider;
 

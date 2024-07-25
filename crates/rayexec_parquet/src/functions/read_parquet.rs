@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::{ExecutionRuntime, Runtime},
+    runtime::Runtime,
 };
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::FileProvider;

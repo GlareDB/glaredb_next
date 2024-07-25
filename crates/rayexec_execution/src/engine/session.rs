@@ -19,7 +19,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::{hybrid::HybridClient, ExecutionRuntime, ExecutionScheduler, Runtime},
+    runtime::{hybrid::HybridClient, ExecutionScheduler, Runtime},
 };
 
 use super::{
@@ -67,6 +67,7 @@ pub struct Session<S: ExecutionScheduler, R: Runtime> {
 
     /// Runtime for accessing external resources like the filesystem or http
     /// clients.
+    #[allow(dead_code)] // TODO: Might just remove this field.
     runtime: R,
 
     /// Scheduler for executing pipelines.

@@ -2,12 +2,10 @@ use crate::{
     database::table::DataTableScan,
     functions::table::PlannedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    runtime::ExecutionRuntime,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
 use std::task::Context;
 use std::{fmt, task::Poll};
 

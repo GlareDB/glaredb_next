@@ -11,7 +11,7 @@ use std::sync::Arc;
 use crate::{
     database::{storage::system::SystemCatalog, DatabaseContext},
     datasource::{DataSourceRegistry, MemoryDataSource},
-    runtime::{ExecutionRuntime, ExecutionScheduler, Runtime},
+    runtime::{ExecutionScheduler, Runtime},
 };
 
 #[derive(Debug)]
