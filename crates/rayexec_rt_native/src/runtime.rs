@@ -54,7 +54,7 @@ impl<S: InnerScheduler + 'static> ExecutionScheduler for NativeScheduler<S> {
 
 pub type ThreadedNativeScheduler = NativeScheduler<ThreadedScheduler>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NativeRuntime {}
 
 impl Runtime for NativeRuntime {
