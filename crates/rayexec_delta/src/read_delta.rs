@@ -26,10 +26,10 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
         &["delta_scan"]
     }
 
-    fn plan_and_initialize<'a>(
-        &'a self,
+    fn plan_and_initialize(
+        &self,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { ReadDeltaImpl::initialize(self.clone(), args).await })
     }
 

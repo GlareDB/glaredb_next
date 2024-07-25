@@ -20,10 +20,10 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
         "read_postgres"
     }
 
-    fn plan_and_initialize<'a>(
-        &'a self,
+    fn plan_and_initialize(
+        &self,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadPostgresImpl::initialize(self.clone(), args))
     }
 

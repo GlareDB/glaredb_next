@@ -92,10 +92,10 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
     /// Intialization may include opening connections a remote database, and
     /// should be used determine the schema of the table we'll be returning. Any
     /// connections should remain open through execution.
-    fn plan_and_initialize<'a>(
-        &'a self,
+    fn plan_and_initialize(
+        &self,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>>;
 
     /// Deserialize existing state into a planned table function.
     ///
