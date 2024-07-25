@@ -12,6 +12,20 @@ use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
 use crate::runtime::{ExecutionRuntime, Runtime};
 
+/// Trait for constructing data sources.
+///
+/// This mostly exists to describe how runtimes get injected into data sources,
+/// and is not explicitly necessary.
+pub trait DataSourceBuilder<R: Runtime>: Sync + Send + Debug + Sized {
+    /// Initialize this data source using the provided runtime.
+    ///
+    /// This should create the data source object which gets inserted into
+    /// registry. The runtime should be cloned and stored in the object if
+    /// anything (table function, catalog) requires something that's provided by
+    /// the runtime, like a tokio handle or http client.
+    fn initialize(runtime: R) -> Box<dyn DataSource>;
+}
+
 /// An implementation of `DataSource` describes a data source type that we can
 /// read from.
 ///
@@ -33,19 +47,6 @@ use crate::runtime::{ExecutionRuntime, Runtime};
 ///   runtime, but them move the actual streaming of data to the
 ///   ComputeScheduler.
 pub trait DataSource: Sync + Send + Debug {
-    /// Initialize this data source using the provided runtime.
-    ///
-    /// This should create the data source object which gets inserted into
-    /// registry. The runtime should be cloned and stored in the object if
-    /// anything (table function, catalog) requires something that's provided by
-    /// the runtime, like a tokio handle or http client.
-    fn intialize<R: Runtime>(runtime: Arc<R>) -> Self
-    where
-        Self: Sized,
-    {
-        unimplemented!()
-    }
-
     /// Create a new catalog using the provided options.
     fn create_catalog(
         &self,

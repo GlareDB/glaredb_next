@@ -9,14 +9,14 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::{session::Session, Engine};
-use rayexec_execution::runtime::{ExecutionRuntime, ExecutionScheduler};
+use rayexec_execution::runtime::{ExecutionRuntime, ExecutionScheduler, Runtime};
 use tokio::sync::Mutex;
 
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
-pub struct SingleUserEngine<S: ExecutionScheduler> {
-    pub engine: Engine<S>,
+pub struct SingleUserEngine<S: ExecutionScheduler, R: Runtime> {
+    pub engine: Engine<S, R>,
 
     /// Session connected to the above engine.
     ///
@@ -25,12 +25,13 @@ pub struct SingleUserEngine<S: ExecutionScheduler> {
     ///
     /// The lock should not be held during actual execution (reading of the
     /// result stream).
-    pub session: Arc<Mutex<Session<S>>>,
+    pub session: Arc<Mutex<Session<S, R>>>,
 }
 
-impl<S> SingleUserEngine<S>
+impl<S, R> SingleUserEngine<S, R>
 where
     S: ExecutionScheduler,
+    R: Runtime,
 {
     /// Create a new single user engine using the provided runtime and registry.
     pub fn new_with_runtime(

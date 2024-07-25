@@ -13,7 +13,7 @@ use rayexec_execution::{
     engine::{session::Session, Engine},
     runtime::{ExecutionRuntime, ExecutionScheduler, NopScheduler},
 };
-use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
+use rayexec_rt_native::runtime::ThreadedNativeScheduler;
 use sqllogictest::DefaultColumnType;
 use std::{collections::HashMap, fs, sync::Arc};
 use std::{
@@ -201,7 +201,7 @@ where
         std::process::abort();
     }));
 
-    let rt = Arc::new(ThreadedExecutionRuntime::try_new()?.with_default_tokio()?);
+    let rt = Arc::new(ThreadedNativeScheduler::try_new()?.with_default_tokio()?);
     let sched = Arc::new(NopScheduler);
 
     let tests = paths

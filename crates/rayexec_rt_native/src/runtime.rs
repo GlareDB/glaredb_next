@@ -8,7 +8,9 @@ use futures::{
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::query_graph::QueryGraph,
-    runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
+    runtime::{
+        ErrorSink, ExecutionRuntime, ExecutionScheduler, OptionalTokioRuntime, QueryHandle, Runtime,
+    },
 };
 use rayexec_io::{
     http::HttpClientReader,
@@ -24,7 +26,7 @@ use crate::{
 /// Inner behavior of the execution runtime.
 // TODO: Single-threaded scheduler to run our SLTs on to ensure no operators
 // block without making progress. Would not be used for anything else.
-pub trait Scheduler: Sync + Send + Debug + Sized {
+pub trait InnerScheduler: Sync + Send + Debug + Sized {
     type Handle: QueryHandle;
 
     fn try_new() -> Result<Self>;
@@ -36,14 +38,49 @@ pub trait Scheduler: Sync + Send + Debug + Sized {
     ) -> Self::Handle;
 }
 
-pub type ThreadedExecutionRuntime = NativeExecutionRuntime<ThreadedScheduler>;
+#[derive(Debug)]
+pub struct NativeScheduler<S: InnerScheduler>(S);
+
+impl<S: InnerScheduler + 'static> ExecutionScheduler for NativeScheduler<S> {
+    fn spawn_query_graph(
+        &self,
+        query_graph: QueryGraph,
+        errors: Arc<dyn ErrorSink>,
+    ) -> Box<dyn QueryHandle> {
+        let handle = self.0.spawn_query_graph(query_graph, errors);
+        Box::new(handle)
+    }
+}
+
+pub type ThreadedNativeScheduler = NativeScheduler<ThreadedScheduler>;
+
+#[derive(Debug)]
+pub struct NativeRuntime {}
+
+impl Runtime for NativeRuntime {
+    type HttpClient = TokioWrappedHttpClient;
+    type FileProvider = NativeFileProvider;
+    type TokioHandle = OptionalTokioRuntime;
+
+    fn file_provider(&self) -> Arc<Self::FileProvider> {
+        unimplemented!()
+    }
+
+    fn http_client(&self) -> Self::HttpClient {
+        unimplemented!()
+    }
+
+    fn tokio_handle(&self) -> Self::TokioHandle {
+        unimplemented!()
+    }
+}
 
 /// Execution runtime that makes use of native threads and thread pools.
 ///
 /// May optionally be configured with a tokio runtime _in addition_ to the
 /// actual execution scheduler.
 #[derive(Debug)]
-pub struct NativeExecutionRuntime<S: Scheduler> {
+pub struct NativeExecutionRuntime<S: InnerScheduler> {
     /// Scheduler for executing queries.
     scheduler: S,
 
@@ -52,7 +89,7 @@ pub struct NativeExecutionRuntime<S: Scheduler> {
     tokio: Option<Arc<tokio::runtime::Runtime>>,
 }
 
-impl<S: Scheduler> NativeExecutionRuntime<S> {
+impl<S: InnerScheduler> NativeExecutionRuntime<S> {
     pub fn try_new() -> Result<Self> {
         Ok(NativeExecutionRuntime {
             scheduler: S::try_new()?,
@@ -81,7 +118,7 @@ impl<S: Scheduler> NativeExecutionRuntime<S> {
     }
 }
 
-impl<S: Scheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
+impl<S: InnerScheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
     fn spawn_query_graph(
         &self,
         query_graph: QueryGraph,

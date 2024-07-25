@@ -19,7 +19,7 @@ use rayexec_execution::{
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
+use rayexec_rt_native::runtime::ThreadedNativeScheduler;
 use rayexec_server_client::ENDPOINTS;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -38,7 +38,7 @@ fn main() {
     logutil::configure_global_logger(tracing::Level::DEBUG);
 
     let runtime = Arc::new(
-        ThreadedExecutionRuntime::try_new()
+        ThreadedNativeScheduler::try_new()
             .unwrap()
             .with_default_tokio()
             .unwrap(),

@@ -8,11 +8,11 @@ use rayexec_execution::{
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
+use rayexec_rt_native::runtime::ThreadedNativeScheduler;
 use std::sync::Arc;
 
 fn main() -> Result<()> {
-    let runtime = Arc::new(ThreadedExecutionRuntime::try_new()?.with_default_tokio()?);
+    let runtime = Arc::new(ThreadedNativeScheduler::try_new()?.with_default_tokio()?);
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
         .with_datasource("postgres", Box::new(PostgresDataSource))?

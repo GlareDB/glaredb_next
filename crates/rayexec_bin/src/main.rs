@@ -10,7 +10,7 @@ use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::runtime::{ExecutionRuntime, NopScheduler};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
+use rayexec_rt_native::runtime::ThreadedNativeScheduler;
 use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::{Shell, ShellSignal};
@@ -31,7 +31,7 @@ fn main() {
     logutil::configure_global_logger(tracing::Level::ERROR);
 
     let runtime = Arc::new(
-        ThreadedExecutionRuntime::try_new()
+        ThreadedNativeScheduler::try_new()
             .unwrap()
             .with_default_tokio()
             .unwrap(),

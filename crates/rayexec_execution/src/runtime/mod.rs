@@ -48,16 +48,41 @@ impl ExecutionScheduler for NopScheduler {
     }
 }
 
-pub trait Runtime: Debug + Sync + Send {
+pub trait Runtime: Debug + Sync + Send + Clone + 'static {
     type HttpClient: HttpClient;
     type FileProvider: FileProvider;
-    type TokioHandle;
+    type TokioHandle: TokioHandlerProvider;
 
     fn file_provider(&self) -> Arc<Self::FileProvider>;
 
     fn http_client(&self) -> Self::HttpClient;
 
     fn tokio_handle(&self) -> Self::TokioHandle;
+}
+
+pub trait TokioHandlerProvider {
+    fn handle(&self) -> Result<tokio::runtime::Handle>;
+}
+
+#[derive(Debug)]
+pub struct OptionalTokioRuntime(Option<tokio::runtime::Runtime>);
+
+impl OptionalTokioRuntime {
+    pub fn new(runtime: Option<tokio::runtime::Runtime>) -> Self {
+        OptionalTokioRuntime(runtime)
+    }
+}
+
+impl TokioHandlerProvider for OptionalTokioRuntime {
+    fn handle(&self) -> Result<tokio::runtime::Handle> {
+        let handle = self
+            .0
+            .as_ref()
+            .ok_or_else(|| RayexecError::new("Tokio runtime not configured"))?
+            .handle()
+            .clone();
+        Ok(handle)
+    }
 }
 
 /// An execution runtime handles driving execution for a query.
