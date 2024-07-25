@@ -9,7 +9,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::{session::Session, Engine};
-use rayexec_execution::runtime::ExecutionRuntime;
+use rayexec_execution::runtime::{ExecutionRuntime, HybridConnectConfig};
 use tokio::sync::Mutex;
 
 /// A wrapper around a session and an engine for when running the database in a
@@ -67,7 +67,9 @@ impl SingleUserEngine {
 
     /// Connect to a remote server for hybrid execution.
     pub async fn connect_hybrid(&self, connection_string: String) -> Result<()> {
-        // I don't know yet.
+        // TODO: Should this all be happening here, or move to session?
+
+        // TODO: I don't know yet.
         let url = if Host::parse(&connection_string).is_ok() {
             Url::parse(&format!("http://{connection_string}:80"))
         } else {
@@ -75,10 +77,12 @@ impl SingleUserEngine {
         }
         .context("failed to parse connection string")?;
 
-        let client = HybridClient::new(url);
+        let conf = HybridConnectConfig { remote: url };
+
+        let client = self.engine.runtime().hybrid_client(conf);
         client.ping().await?;
 
-        self.session.lock().await.attach_hybrid_client(client);
+        self.session.lock().await.set_hybrid_client(client);
 
         Ok(())
     }

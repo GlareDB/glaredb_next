@@ -58,4 +58,8 @@ impl Engine {
             self.registry.clone(),
         ))
     }
+
+    pub fn runtime(&self) -> &dyn ExecutionRuntime {
+        self.runtime.as_ref()
+    }
 }

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
-use rayexec_server_client::HybridClient;
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -20,7 +19,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::ExecutionRuntime,
+    runtime::{ExecutionRuntime, HybridClient},
 };
 
 use super::{
@@ -76,7 +75,7 @@ pub struct Session {
     portals: HashMap<String, Portal>,
 
     /// Client for hybrid execution if enabled.
-    hybrid_client: Option<HybridClient>,
+    hybrid_client: Option<Arc<dyn HybridClient>>,
 }
 
 impl Session {
@@ -256,11 +255,11 @@ impl Session {
         })
     }
 
-    pub fn attach_hybrid_client(&mut self, client: HybridClient) {
+    pub fn set_hybrid_client(&mut self, client: Arc<dyn HybridClient>) {
         self.hybrid_client = Some(client);
     }
 
-    pub fn detach_hybrid_client(&mut self) {
+    pub fn unset_hybrid_client(&mut self) {
         self.hybrid_client = None;
     }
 }

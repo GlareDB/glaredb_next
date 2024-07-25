@@ -1896,6 +1896,7 @@ dependencies = [
  "smallvec",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]

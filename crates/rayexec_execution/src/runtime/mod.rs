@@ -1,7 +1,7 @@
 pub mod dump;
+pub mod hybrid;
 
 use std::fmt::Debug;
-use std::process::Output;
 use std::sync::Arc;
 
 use dump::QueryDump;
@@ -9,12 +9,34 @@ use futures::future::BoxFuture;
 use futures::Future;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::http::HttpClient;
+use rayexec_io::http::{BoxedHttpResponse, HttpClient};
 use rayexec_io::FileProvider;
+use url::Url;
 
 use crate::execution::pipeline::PartitionPipeline;
 use crate::execution::query_graph::QueryGraph;
 use crate::logical::sql::binder::StatementWithBindData;
+
+pub trait ExecutionScheduler: Debug + Sync + Send {
+    type ErrorSink: ErrorSink;
+    type QueryHandle: QueryHandle;
+
+    /// Spawn execution of a query graph.
+    ///
+    /// A query handle will be returned allowing for canceling and dumping a
+    /// query.
+    ///
+    /// When execution encounters an unrecoverable error, the error will be
+    /// written to the provided error sink. Recoverable errors should be handled
+    /// internally.
+    ///
+    /// This must not block.
+    fn spawn_query_graph(
+        &self,
+        query_graph: QueryGraph,
+        errors: Arc<Self::ErrorSink>,
+    ) -> Self::QueryHandle;
+}
 
 /// An execution runtime handles driving execution for a query.
 ///
@@ -62,8 +84,7 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     /// depending a location.
     fn file_provider(&self) -> Arc<dyn FileProvider>;
 
-    // TODO: URL, etc
-    fn hybrid_connect(&self) -> Arc<dyn HybridClient> {
+    fn hybrid_client(&self, conf: HybridConnectConfig) -> Arc<dyn HybridClient> {
         unimplemented!()
     }
 }
@@ -79,19 +100,4 @@ pub trait QueryHandle: Debug + Sync + Send {
 pub trait ErrorSink: Debug + Sync + Send {
     /// Push an error.
     fn push_error(&self, error: RayexecError);
-}
-
-pub trait HybridClient: Debug + Sync + Send {
-    fn ping(&self) -> BoxFuture<'_, Result<()>>;
-
-    fn remote_bind(
-        &self,
-        statement: StatementWithBindData,
-    ) -> BoxFuture<'_, Result<Vec<PartitionPipeline>>>;
-
-    // TODO: batch enum (more?, done?), query id
-    fn pull(&self) -> BoxFuture<'_, Result<Option<Batch>>>;
-
-    // TODO: Query id
-    fn push(&self, batch: Batch) -> BoxFuture<'_, Result<()>>;
 }
