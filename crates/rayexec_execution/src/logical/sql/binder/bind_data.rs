@@ -1,8 +1,8 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 use serde::{
-    de::{self, DeserializeSeed, Visitor},
-    ser::{SerializeMap, SerializeTupleVariant},
+    de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor},
+    ser::{SerializeMap, SerializeSeq},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::fmt;
@@ -12,10 +12,12 @@ use crate::{
     functions::{
         aggregate::AggregateFunction,
         scalar::ScalarFunction,
-        table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
+        table::{PlannedTableFunction, TableFunctionArgs},
     },
     logical::operator::LocationRequirement,
-    serde::{AggregateFunctionDeserializer, ScalarFunctionDeserializer},
+    serde::{
+        AggregateFunctionDeserializer, PlannedTableFunctionDeserializer, ScalarFunctionDeserializer,
+    },
 };
 
 use super::Bound;
@@ -25,8 +27,28 @@ use super::Bound;
 ///
 /// Planning will reference these items directly instead of having to resolve
 /// them.
+///
+/// Note that there's a bit of indirection between "bound" objects and actual
+/// references to the objects. This mostly exists to make implementing statefule
+/// (de)serialization easier since the things that require state are in the
+/// `ObjectList`s at the top level. If we didn't have that indirection, manually
+/// implementing (de)serialization for all the types that would need it would
+/// make this file double in size. I (Sean) am not opposed to that if we find
+/// that gets in the way, but I didn't want to spend time on that right now
+/// especially since this stuff is still evolving.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct BindData {
+    /// Scalar functions referenced from bound function references.
+    pub scalar_function_objects: ObjectList<Box<dyn ScalarFunction>>,
+
+    /// Aggregate functions referenced from bound function references.
+    pub aggregate_function_objects: ObjectList<Box<dyn AggregateFunction>>,
+
+    // TODO: This may change to just have `dyn TableFunction` references, and
+    // then have a separate step after binding that initializes all table
+    // functions.
+    pub table_function_objects: ObjectList<Box<dyn PlannedTableFunction>>,
+
     /// A bound table may reference either an actual table, or a CTE. An unbound
     /// reference may only reference a table.
     pub tables: BindList<BoundTableOrCteReference, ast::ObjectReference>,
@@ -36,9 +58,6 @@ pub struct BindData {
 
     /// Bound (and planned) table functions. Unbound table functions include the
     /// table function arguments to allow for quick planning on the remote side.
-    // TODO: This may change to just have `dyn TableFunction` references, and
-    // then have a separate step after binding that initializes all table
-    // functions.
     pub table_functions: BindList<BoundTableFunctionReference, UnboundTableFunctionReference>,
 
     /// How "deep" in the plan are we.
@@ -115,88 +134,232 @@ impl BindData {
     }
 }
 
-/// A bound aggregate or scalar function.
-#[derive(Debug, Clone, PartialEq)]
-pub enum BoundFunctionReference {
-    Scalar(Box<dyn ScalarFunction>),
-    Aggregate(Box<dyn AggregateFunction>),
-}
-
-impl Serialize for BoundFunctionReference {
+impl Serialize for BindData {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut ser = serializer.serialize_map(Some(1))?;
-        match self {
-            Self::Scalar(scalar) => ser.serialize_entry("scalar", scalar)?,
-            Self::Aggregate(agg) => ser.serialize_entry("aggregate", agg)?,
-        }
-        ser.end()
+        let mut map = serializer.serialize_map(Some(5))?;
+        map.serialize_entry("scalar_function_objects", &self.scalar_function_objects.0)?;
+        map.serialize_entry(
+            "aggregate_function_objects",
+            &self.aggregate_function_objects.0,
+        )?;
+        map.serialize_entry("table_function_objects", &self.table_function_objects.0)?;
+        map.serialize_entry("tables", &self.tables)?;
+        map.serialize_entry("functions", &self.functions)?;
+        map.serialize_entry("table_functions", &self.table_functions)?;
+        map.serialize_entry("current_depth", &self.current_depth)?;
+        map.serialize_entry("ctes", &self.ctes)?;
+        map.end()
     }
 }
 
-struct BoundFunctionReferenceDeserializer<'a> {
-    context: &'a DatabaseContext,
+pub struct BindDataVisitor<'a> {
+    pub context: &'a DatabaseContext,
 }
 
-impl<'de, 'a> DeserializeSeed<'de> for BoundFunctionReferenceDeserializer<'a> {
-    type Value = BoundFunctionReference;
+impl<'de, 'a> Visitor<'de> for BindDataVisitor<'a> {
+    type Value = BindData;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a struct representing BindData")
+    }
+
+    fn visit_map<V>(self, mut map: V) -> Result<BindData, V::Error>
+    where
+        V: MapAccess<'de>,
+    {
+        let mut scalar_function_objects = None;
+        let mut aggregate_function_objects = None;
+        let mut table_function_objects = None;
+        let mut tables = None;
+        let mut functions = None;
+        let mut table_functions = None;
+        let mut current_depth = None;
+        let mut ctes = None;
+
+        while let Some(key) = map.next_key()? {
+            match key {
+                "scalar_function_objects" => {
+                    scalar_function_objects = Some(map.next_value_seed(ObjectListVisitor {
+                        visitor: ScalarFunctionDeserializer {
+                            context: self.context,
+                        },
+                    })?)
+                }
+                "aggregate_function_objects" => {
+                    aggregate_function_objects = Some(map.next_value_seed(ObjectListVisitor {
+                        visitor: AggregateFunctionDeserializer {
+                            context: self.context,
+                        },
+                    })?)
+                }
+                "table_function_objects" => {
+                    table_function_objects = Some(map.next_value_seed(ObjectListVisitor {
+                        visitor: PlannedTableFunctionDeserializer {
+                            context: self.context,
+                        },
+                    })?)
+                }
+                "tables" => {
+                    tables = Some(map.next_value()?);
+                }
+                "functions" => {
+                    functions = Some(map.next_value()?);
+                }
+                "table_functions" => {
+                    table_functions = Some(map.next_value()?);
+                }
+                "current_depth" => {
+                    current_depth = Some(map.next_value()?);
+                }
+                "ctes" => {
+                    ctes = Some(map.next_value()?);
+                }
+                _ => {
+                    let _ = map.next_value::<de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        let scalar_function_objects = scalar_function_objects
+            .ok_or_else(|| de::Error::missing_field("scalar_function_objects"))?;
+        let aggregate_function_objects = aggregate_function_objects
+            .ok_or_else(|| de::Error::missing_field("aggregate_function_objects"))?;
+        let table_function_objects = table_function_objects
+            .ok_or_else(|| de::Error::missing_field("table_function_objects"))?;
+        let tables = tables.ok_or_else(|| de::Error::missing_field("tables"))?;
+        let functions = functions.ok_or_else(|| de::Error::missing_field("functions"))?;
+        let table_functions =
+            table_functions.ok_or_else(|| de::Error::missing_field("table_functions"))?;
+        let current_depth =
+            current_depth.ok_or_else(|| de::Error::missing_field("current_depth"))?;
+        let ctes = ctes.ok_or_else(|| de::Error::missing_field("ctes"))?;
+
+        Ok(BindData {
+            scalar_function_objects,
+            aggregate_function_objects,
+            table_function_objects,
+            tables,
+            functions,
+            table_functions,
+            current_depth,
+            ctes,
+        })
+    }
+}
+
+impl<'de, 'a> DeserializeSeed<'de> for BindDataVisitor<'a> {
+    type Value = BindData;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct MapVisitor<'a> {
-            context: &'a DatabaseContext,
-        }
-
-        impl<'de, 'a> Visitor<'de> for MapVisitor<'a> {
-            type Value = BoundFunctionReference;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                write!(formatter, "a map")
-            }
-
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: de::MapAccess<'de>,
-            {
-                match map.next_key()? {
-                    Some("scalar") => {
-                        let scalar = map.next_value_seed(ScalarFunctionDeserializer {
-                            context: self.context,
-                        })?;
-                        Ok(BoundFunctionReference::Scalar(scalar))
-                    }
-                    Some("aggregate") => {
-                        let agg = map.next_value_seed(AggregateFunctionDeserializer {
-                            context: self.context,
-                        })?;
-                        Ok(BoundFunctionReference::Aggregate(agg))
-                    }
-                    Some(other) => Err(de::Error::custom(format!("invalid key: {other}"))),
-                    None => Err(de::Error::custom("missing key")),
-                }
-            }
-        }
-
-        deserializer.deserialize_map(MapVisitor {
-            context: self.context,
-        })
+        deserializer.deserialize_map(self)
     }
 }
 
-/// A bound table function reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObjectIdx(pub usize);
+
 #[derive(Debug, Clone, PartialEq)]
+pub struct ObjectList<T>(Vec<T>);
+
+impl<T> ObjectList<T> {
+    pub fn push(&mut self, val: T) -> ObjectIdx {
+        let idx = self.0.len();
+        self.0.push(val);
+        ObjectIdx(idx)
+    }
+
+    pub fn get(&self, idx: ObjectIdx) -> Result<&T> {
+        self.0
+            .get(idx.0)
+            .ok_or_else(|| RayexecError::new("Missing object"))
+    }
+}
+
+impl<T> Default for ObjectList<T> {
+    fn default() -> Self {
+        ObjectList(Vec::new())
+    }
+}
+
+impl<T: Serialize> Serialize for ObjectList<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
+        for v in &self.0 {
+            seq.serialize_element(v)?;
+        }
+        seq.end()
+    }
+}
+
+struct ObjectListVisitor<I> {
+    visitor: I,
+}
+
+impl<'de, I, T> Visitor<'de> for ObjectListVisitor<I>
+where
+    I: DeserializeSeed<'de, Value = T> + Copy,
+{
+    type Value = ObjectList<T>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a list of values")
+    }
+
+    fn visit_seq<V>(self, mut seq: V) -> Result<ObjectList<T>, V::Error>
+    where
+        V: SeqAccess<'de>,
+    {
+        let mut inner = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+        while let Some(value) = seq.next_element_seed(self.visitor)? {
+            inner.push(value);
+        }
+
+        Ok(ObjectList(inner))
+    }
+}
+
+impl<'de, I, T> DeserializeSeed<'de> for ObjectListVisitor<I>
+where
+    I: DeserializeSeed<'de, Value = T> + Copy,
+{
+    type Value = ObjectList<T>;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(self)
+    }
+}
+
+/// A bound aggregate or scalar function.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BoundFunctionReference {
+    /// Index into the scalar objects list.
+    Scalar(ObjectIdx),
+    /// Index into the aggregate objects list.
+    Aggregate(ObjectIdx),
+}
+
+/// A bound table function reference.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundTableFunctionReference {
     /// Name of the original function.
     ///
     /// This is used to allow the user to reference the output of the function
     /// if not provided an alias.
     pub name: String,
-    /// The planned table function.
-    pub func: Box<dyn PlannedTableFunction>,
+    /// Index into the table function objects list.
+    pub idx: ObjectIdx,
     // TODO: Maybe keep args here?
 }
 
@@ -369,41 +532,4 @@ pub struct BoundCte {
     pub body: QueryNode<Bound>,
     /// If this CTE should be materialized.
     pub materialized: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        database::storage::system::SystemCatalog,
-        datasource::DataSourceRegistry,
-        functions::{aggregate::sum::Sum, scalar::string::Repeat},
-    };
-
-    use super::*;
-
-    #[test]
-    fn round_trip_bound_function() {
-        let context = DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()));
-
-        let bound_scalar = BoundFunctionReference::Scalar(Box::new(Repeat));
-        let serialized = serde_json::to_string(&bound_scalar).unwrap();
-        let deserializer = BoundFunctionReferenceDeserializer { context: &context };
-        let got_scalar = deserializer
-            .deserialize(&mut serde_json::Deserializer::from_str(&serialized))
-            .unwrap();
-
-        assert_eq!(bound_scalar, got_scalar);
-
-        let bound_agg = BoundFunctionReference::Aggregate(Box::new(Sum));
-        let serialized = serde_json::to_string(&bound_agg).unwrap();
-        let deserializer = BoundFunctionReferenceDeserializer { context: &context };
-        let got_agg = deserializer
-            .deserialize(&mut serde_json::Deserializer::from_str(&serialized))
-            .unwrap();
-
-        assert_eq!(bound_agg, got_agg);
-
-        assert_ne!(bound_scalar, got_agg);
-        assert_ne!(bound_agg, got_scalar);
-    }
 }

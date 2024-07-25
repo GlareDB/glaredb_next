@@ -83,16 +83,6 @@ impl Serialize for StatementWithBindData {
     }
 }
 
-impl Serialize for BindData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut _s = serializer.serialize_struct("BindData", 5)?;
-        unimplemented!()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCopyTo {
     pub location: FileLocation,
@@ -708,8 +698,12 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
+                        let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference { name, func },
+                            BoundTableFunctionReference {
+                                name,
+                                idx: func_idx,
+                            },
                             LocationRequirement::Local,
                         );
 
@@ -738,8 +732,12 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.runtime, args.clone())
                             .await?;
 
+                        let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference { name, func },
+                            BoundTableFunctionReference {
+                                name,
+                                idx: func_idx,
+                            },
                             LocationRequirement::Local,
                         );
 

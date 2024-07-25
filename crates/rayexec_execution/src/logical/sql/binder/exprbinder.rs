@@ -320,8 +320,9 @@ impl<'a> ExpressionBinder<'a> {
                     // TODO: Allow unbound scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
+                    let scalar_idx = bind_data.scalar_function_objects.push(scalar);
                     let bind_idx = bind_data.functions.push_bound(
-                        BoundFunctionReference::Scalar(scalar),
+                        BoundFunctionReference::Scalar(scalar_idx),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {
@@ -339,12 +340,13 @@ impl<'a> ExpressionBinder<'a> {
                     .get_aggregate_fn(self.binder.tx, schema, func_name)?
                 {
                     // TODO: Allow unbound aggregates?
-                    let idx = bind_data.functions.push_bound(
-                        BoundFunctionReference::Aggregate(aggregate),
+                    let agg_idx = bind_data.aggregate_function_objects.push(aggregate);
+                    let bind_idx = bind_data.functions.push_bound(
+                        BoundFunctionReference::Aggregate(agg_idx),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {
-                        reference: idx,
+                        reference: bind_idx,
                         args,
                         filter,
                     }));

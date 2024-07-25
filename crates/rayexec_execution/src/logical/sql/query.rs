@@ -372,20 +372,21 @@ impl<'a> QueryNodePlanner<'a> {
                 nested.plan_query(context, query)?
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, .. }) => {
-                let (table_func, _) = self.bind_data.table_functions.try_get_bound(reference)?;
+                let (reference, _) = self.bind_data.table_functions.try_get_bound(reference)?;
                 let scope_reference = TableReference {
                     database: None,
                     schema: None,
-                    table: table_func.name.clone(),
+                    table: reference.name.clone(),
                 };
+                let func = self.bind_data.table_function_objects.get(reference.idx)?;
                 let scope = Scope::with_columns(
                     Some(scope_reference),
-                    table_func.func.schema().fields.into_iter().map(|f| f.name),
+                    func.schema().fields.into_iter().map(|f| f.name),
                 );
 
                 // TODO: Loc
                 let operator = LogicalOperator::TableFunction(LogicalNode::new(TableFunction {
-                    function: table_func.func.clone(),
+                    function: func.clone(),
                 }));
 
                 LogicalQuery {
