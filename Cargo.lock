@@ -1988,6 +1988,7 @@ dependencies = [
  "clap",
  "logutil",
  "rayexec_csv",
+ "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_parquet",

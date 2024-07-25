@@ -17,7 +17,7 @@ use crate::execution::pipeline::PartitionPipeline;
 use crate::execution::query_graph::QueryGraph;
 use crate::logical::sql::binder::StatementWithBindData;
 
-pub trait ExecutionScheduler: Debug + Sync + Send {
+pub trait ExecutionScheduler: Debug + Sync + Send + Clone {
     /// Spawn execution of a query graph.
     ///
     /// A query handle will be returned allowing for canceling and dumping a

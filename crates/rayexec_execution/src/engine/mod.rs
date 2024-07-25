@@ -16,12 +16,10 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Engine<S: ExecutionScheduler, R: Runtime> {
-    runtime: Arc<dyn ExecutionRuntime>,
     registry: Arc<DataSourceRegistry>,
     system_catalog: SystemCatalog,
-
-    r2: Arc<R>,
-    scheduler: Arc<S>,
+    scheduler: S,
+    runtime: R,
 }
 
 impl<S, R> Engine<S, R>
@@ -29,45 +27,44 @@ where
     S: ExecutionScheduler,
     R: Runtime,
 {
-    pub fn new(runtime: Arc<dyn ExecutionRuntime>) -> Result<Self> {
+    pub fn new(scheduler: S, runtime: R) -> Result<Self> {
         let registry =
             DataSourceRegistry::default().with_datasource("memory", Box::new(MemoryDataSource))?;
-        Self::new_with_registry(runtime, registry)
+        Self::new_with_registry(scheduler, runtime, registry)
     }
 
     pub fn new_with_registry(
-        runtime: Arc<dyn ExecutionRuntime>,
+        scheduler: S,
+        runtime: R,
         registry: DataSourceRegistry,
     ) -> Result<Self> {
         let system_catalog = SystemCatalog::new(&registry);
 
-        unimplemented!()
-        // Ok(Engine {
-        //     runtime,
-        //     registry: Arc::new(registry),
-        //     system_catalog,
-        // })
+        Ok(Engine {
+            registry: Arc::new(registry),
+            system_catalog,
+            scheduler,
+            runtime,
+        })
     }
 
     pub fn new_session(&self) -> Result<Session<S, R>> {
         let context = DatabaseContext::new(self.system_catalog.clone());
         Ok(Session::new(
             context,
+            self.scheduler.clone(),
             self.runtime.clone(),
             self.registry.clone(),
         ))
     }
 
-    pub fn new_server_session(&self) -> Result<ServerSession> {
+    pub fn new_server_session(&self) -> Result<ServerSession<S, R>> {
         let context = DatabaseContext::new(self.system_catalog.clone());
         Ok(ServerSession::new(
             context,
+            self.scheduler.clone(),
             self.runtime.clone(),
             self.registry.clone(),
         ))
-    }
-
-    pub fn runtime(&self) -> &dyn ExecutionRuntime {
-        self.runtime.as_ref()
     }
 }

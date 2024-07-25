@@ -65,8 +65,12 @@ pub struct Session<S: ExecutionScheduler, R: Runtime> {
     /// Reference configured data source implementations.
     registry: Arc<DataSourceRegistry>,
 
-    runtime: Arc<R>,
-    scheduler: Arc<S>,
+    /// Runtime for accessing external resources like the filesystem or http
+    /// clients.
+    runtime: R,
+
+    /// Scheduler for executing pipelines.
+    scheduler: S,
 
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
@@ -85,19 +89,20 @@ where
 {
     pub fn new(
         context: DatabaseContext,
-        runtime: Arc<dyn ExecutionRuntime>,
+        scheduler: S,
+        runtime: R,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
-        unimplemented!()
-        // Session {
-        //     context,
-        //     runtime,
-        //     registry,
-        //     vars: SessionVars::new_local(),
-        //     prepared: HashMap::new(),
-        //     portals: HashMap::new(),
-        //     hybrid_client: None,
-        // }
+        Session {
+            context,
+            runtime,
+            scheduler,
+            registry,
+            vars: SessionVars::new_local(),
+            prepared: HashMap::new(),
+            portals: HashMap::new(),
+            hybrid_client: None,
+        }
     }
 
     /// Get execution results from one or more sql queries.

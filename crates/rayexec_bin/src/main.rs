@@ -6,11 +6,13 @@ use crossterm::event::{self, Event, KeyModifiers};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
-use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::runtime::{ExecutionRuntime, NopScheduler};
+use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::runtime::{
+    ExecutionRuntime, ExecutionScheduler, NopScheduler, Runtime, TokioHandlerProvider,
+};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::ThreadedNativeScheduler;
+use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeScheduler};
 use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::{Shell, ShellSignal};
@@ -30,18 +32,17 @@ fn main() {
     let args = Arguments::parse();
     logutil::configure_global_logger(tracing::Level::ERROR);
 
-    let runtime = Arc::new(
-        ThreadedNativeScheduler::try_new()
-            .unwrap()
-            .with_default_tokio()
-            .unwrap(),
-    );
-    let tokio_handle = runtime.tokio_handle().expect("tokio to be configured");
+    let sched = ThreadedNativeScheduler::try_new().unwrap();
+    let runtime = NativeRuntime::with_default_tokio().unwrap();
+    let tokio_handle = runtime
+        .tokio_handle()
+        .handle()
+        .expect("tokio to be configured");
 
     // Note we do an explicit clone here to avoid dropping the tokio runtime
     // owned by the execution runtime inside the async context.
     let runtime_clone = runtime.clone();
-    let result = tokio_handle.block_on(async move { inner(args, runtime_clone).await });
+    let result = tokio_handle.block_on(async move { inner(args, sched, runtime_clone).await });
 
     if let Err(e) = result {
         println!("ERROR: {e}");
@@ -68,14 +69,18 @@ fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
     }
 }
 
-async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()> {
+async fn inner(
+    args: Arguments,
+    scheduler: impl ExecutionScheduler,
+    runtime: impl Runtime,
+) -> Result<()> {
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
-        .with_datasource("postgres", Box::new(PostgresDataSource))?
-        .with_datasource("delta", Box::new(DeltaDataSource))?
-        .with_datasource("parquet", Box::new(ParquetDataSource))?
-        .with_datasource("csv", Box::new(CsvDataSource))?;
-    let engine = SingleUserEngine::<NopScheduler>::new_with_runtime(runtime, registry)?;
+        .with_datasource("postgres", PostgresDataSource::initialize(runtime.clone()))?
+        .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
+        .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
+        .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
+    let engine = SingleUserEngine::try_new(scheduler, runtime, registry)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());

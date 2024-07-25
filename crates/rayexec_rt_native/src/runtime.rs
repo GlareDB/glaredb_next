@@ -26,7 +26,7 @@ use crate::{
 /// Inner behavior of the execution runtime.
 // TODO: Single-threaded scheduler to run our SLTs on to ensure no operators
 // block without making progress. Would not be used for anything else.
-pub trait InnerScheduler: Sync + Send + Debug + Sized {
+pub trait InnerScheduler: Sync + Send + Debug + Sized + Clone {
     type Handle: QueryHandle;
 
     fn try_new() -> Result<Self>;
@@ -38,8 +38,14 @@ pub trait InnerScheduler: Sync + Send + Debug + Sized {
     ) -> Self::Handle;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NativeScheduler<S: InnerScheduler>(S);
+
+impl<S: InnerScheduler> NativeScheduler<S> {
+    pub fn try_new() -> Result<Self> {
+        Ok(NativeScheduler(S::try_new()?))
+    }
+}
 
 impl<S: InnerScheduler + 'static> ExecutionScheduler for NativeScheduler<S> {
     fn spawn_query_graph(
@@ -55,7 +61,28 @@ impl<S: InnerScheduler + 'static> ExecutionScheduler for NativeScheduler<S> {
 pub type ThreadedNativeScheduler = NativeScheduler<ThreadedScheduler>;
 
 #[derive(Debug, Clone)]
-pub struct NativeRuntime {}
+pub struct NativeRuntime {
+    tokio: Option<Arc<tokio::runtime::Runtime>>,
+}
+
+impl NativeRuntime {
+    pub fn with_default_tokio() -> Result<Self> {
+        // TODO: I had to change this to multi threaded since there was a
+        // deadlock with current_thread and a single worker. I _think_ this is
+        // because in main we're using the tokio runtime + block_on.
+        let tokio = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_io()
+            .enable_time()
+            .thread_name("rayexec_tokio")
+            .build()
+            .context("Failed to build tokio runtime")?;
+
+        Ok(NativeRuntime {
+            tokio: Some(Arc::new(tokio)),
+        })
+    }
+}
 
 impl Runtime for NativeRuntime {
     type HttpClient = TokioWrappedHttpClient;

@@ -6,7 +6,10 @@ use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
-    runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, NopScheduler, QueryHandle},
+    runtime::{
+        dump::QueryDump, ErrorSink, ExecutionRuntime, NopScheduler, OptionalTokioRuntime,
+        QueryHandle, Runtime,
+    },
 };
 use rayexec_io::{
     http::HttpClientReader,
@@ -27,6 +30,33 @@ use crate::http::WasmHttpClient;
 
 // TODO
 pub type WasmScheduler = NopScheduler;
+
+#[derive(Debug, Clone)]
+pub struct WasmRuntime {}
+
+impl WasmRuntime {
+    pub fn try_new() -> Result<Self> {
+        unimplemented!()
+    }
+}
+
+impl Runtime for WasmRuntime {
+    type HttpClient = WasmHttpClient;
+    type FileProvider = WasmFileProvider;
+    type TokioHandle = OptionalTokioRuntime;
+
+    fn file_provider(&self) -> Arc<Self::FileProvider> {
+        unimplemented!()
+    }
+
+    fn http_client(&self) -> Self::HttpClient {
+        unimplemented!()
+    }
+
+    fn tokio_handle(&self) -> Self::TokioHandle {
+        unimplemented!()
+    }
+}
 
 /// Execution runtime for wasm.
 ///

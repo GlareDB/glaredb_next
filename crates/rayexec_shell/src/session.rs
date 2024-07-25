@@ -34,11 +34,8 @@ where
     R: Runtime,
 {
     /// Create a new single user engine using the provided runtime and registry.
-    pub fn new_with_runtime(
-        runtime: Arc<dyn ExecutionRuntime>,
-        registry: DataSourceRegistry,
-    ) -> Result<Self> {
-        let engine = Engine::new_with_registry(runtime, registry)?;
+    pub fn try_new(scheduler: S, runtime: R, registry: DataSourceRegistry) -> Result<Self> {
+        let engine = Engine::new_with_registry(scheduler, runtime, registry)?;
         let session = engine.new_session()?;
 
         Ok(SingleUserEngine {
