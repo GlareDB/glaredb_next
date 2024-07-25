@@ -4,9 +4,10 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::ExecutionRuntime,
+    runtime::{ExecutionRuntime, Runtime},
 };
 use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::FileProvider;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -14,10 +15,12 @@ use crate::{metadata::Metadata, schema::from_parquet_schema};
 
 use super::datatable::RowGroupPartitionedDataTable;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReadParquet;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadParquet<R: Runtime> {
+    pub(crate) runtime: R,
+}
 
-impl TableFunction for ReadParquet {
+impl<R: Runtime> TableFunction for ReadParquet<R> {
     fn name(&self) -> &'static str {
         "read_parquet"
     }
@@ -28,22 +31,25 @@ impl TableFunction for ReadParquet {
 
     fn plan_and_initialize<'a>(
         &'a self,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
         args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(ReadParquetImpl::initialize(runtime.as_ref(), args))
+        Box::pin(ReadParquetImpl::initialize(self.runtime.clone(), args))
     }
 
     fn state_deserialize(
         &self,
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        Ok(Box::new(ReadParquetImpl::deserialize(deserializer)?))
+        let state = ReadParquetState::deserialize(deserializer)?;
+        Ok(Box::new(ReadParquetImpl {
+            runtime: self.runtime.clone(),
+            state,
+        }))
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReadParquetImpl {
+struct ReadParquetState {
     location: FileLocation,
     conf: AccessConfig,
     // TODO: Not sure what we want to do here. We could put
@@ -54,9 +60,15 @@ pub struct ReadParquetImpl {
     schema: Schema,
 }
 
-impl ReadParquetImpl {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadParquetImpl<R: Runtime> {
+    runtime: R,
+    state: ReadParquetState,
+}
+
+impl<R: Runtime> ReadParquetImpl<R> {
     async fn initialize(
-        runtime: &dyn ExecutionRuntime,
+        runtime: R,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
@@ -70,39 +82,42 @@ impl ReadParquetImpl {
         let schema = from_parquet_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(Self {
-            location,
-            conf,
-            metadata: Some(Arc::new(metadata)),
-            schema,
+            runtime,
+            state: ReadParquetState {
+                location,
+                conf,
+                metadata: Some(Arc::new(metadata)),
+                schema,
+            },
         }))
     }
 }
 
-impl PlannedTableFunction for ReadParquetImpl {
+impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
     fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+        &self.state
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        &ReadParquet
+        unimplemented!()
     }
 
     fn schema(&self) -> Schema {
-        self.schema.clone()
+        self.state.schema.clone()
     }
 
-    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
-        let metadata = match self.metadata.as_ref().cloned() {
+    fn datatable(&self) -> Result<Box<dyn DataTable>> {
+        let metadata = match self.state.metadata.as_ref().cloned() {
             Some(metadata) => metadata,
             None => return Err(RayexecError::new("Missing parquet metadata on state")),
         };
 
         Ok(Box::new(RowGroupPartitionedDataTable {
             metadata,
-            schema: self.schema.clone(),
-            location: self.location.clone(),
-            conf: self.conf.clone(),
-            runtime: runtime.clone(),
+            schema: self.state.schema.clone(),
+            location: self.state.location.clone(),
+            conf: self.state.conf.clone(),
+            runtime: self.runtime.clone(),
         }))
     }
 }
