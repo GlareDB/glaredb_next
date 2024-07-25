@@ -1,13 +1,20 @@
 pub mod dump;
 
 use std::fmt::Debug;
+use std::process::Output;
 use std::sync::Arc;
 
 use dump::QueryDump;
-use rayexec_error::RayexecError;
+use futures::future::BoxFuture;
+use futures::Future;
+use rayexec_bullet::batch::Batch;
+use rayexec_error::{RayexecError, Result};
+use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
 
+use crate::execution::pipeline::PartitionPipeline;
 use crate::execution::query_graph::QueryGraph;
+use crate::logical::sql::binder::StatementWithBindData;
 
 /// An execution runtime handles driving execution for a query.
 ///
@@ -54,6 +61,11 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     /// Returns a file provider that's able to construct file sources and sinks
     /// depending a location.
     fn file_provider(&self) -> Arc<dyn FileProvider>;
+
+    // TODO: URL, etc
+    fn hybrid_connect(&self) -> Arc<dyn HybridClient> {
+        unimplemented!()
+    }
 }
 
 pub trait QueryHandle: Debug + Sync + Send {
@@ -67,4 +79,19 @@ pub trait QueryHandle: Debug + Sync + Send {
 pub trait ErrorSink: Debug + Sync + Send {
     /// Push an error.
     fn push_error(&self, error: RayexecError);
+}
+
+pub trait HybridClient: Debug + Sync + Send {
+    fn ping(&self) -> BoxFuture<'_, Result<()>>;
+
+    fn remote_bind(
+        &self,
+        statement: StatementWithBindData,
+    ) -> BoxFuture<'_, Result<Vec<PartitionPipeline>>>;
+
+    // TODO: batch enum (more?, done?), query id
+    fn pull(&self) -> BoxFuture<'_, Result<Option<Batch>>>;
+
+    // TODO: Query id
+    fn push(&self, batch: Batch) -> BoxFuture<'_, Result<()>>;
 }
