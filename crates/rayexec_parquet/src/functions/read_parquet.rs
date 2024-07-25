@@ -33,7 +33,7 @@ impl<R: Runtime> TableFunction for ReadParquet<R> {
         &'a self,
         args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(ReadParquetImpl::initialize(self.runtime.clone(), args))
+        Box::pin(ReadParquetImpl::initialize(self.clone(), args))
     }
 
     fn state_deserialize(
@@ -42,7 +42,7 @@ impl<R: Runtime> TableFunction for ReadParquet<R> {
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let state = ReadParquetState::deserialize(deserializer)?;
         Ok(Box::new(ReadParquetImpl {
-            runtime: self.runtime.clone(),
+            func: self.clone(),
             state,
         }))
     }
@@ -60,19 +60,20 @@ struct ReadParquetState {
     schema: Schema,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ReadParquetImpl<R: Runtime> {
-    runtime: R,
+    func: ReadParquet<R>,
     state: ReadParquetState,
 }
 
 impl<R: Runtime> ReadParquetImpl<R> {
     async fn initialize(
-        runtime: R,
+        func: ReadParquet<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
-        let mut source = runtime
+        let mut source = func
+            .runtime
             .file_provider()
             .file_source(location.clone(), &conf)?;
 
@@ -82,7 +83,7 @@ impl<R: Runtime> ReadParquetImpl<R> {
         let schema = from_parquet_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(Self {
-            runtime,
+            func,
             state: ReadParquetState {
                 location,
                 conf,
@@ -99,7 +100,7 @@ impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        unimplemented!()
+        &self.func
     }
 
     fn schema(&self) -> Schema {
@@ -117,7 +118,7 @@ impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
             schema: self.state.schema.clone(),
             location: self.state.location.clone(),
             conf: self.state.conf.clone(),
-            runtime: self.runtime.clone(),
+            runtime: self.func.runtime.clone(),
         }))
     }
 }

@@ -30,7 +30,7 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
         &'a self,
         args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(async move { ReadDeltaImpl::initialize(self.runtime.clone(), args).await })
+        Box::pin(async move { ReadDeltaImpl::initialize(self.clone(), args).await })
     }
 
     fn state_deserialize(
@@ -39,7 +39,7 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let state = ReadDeltaState::deserialize(deserializer)?;
         Ok(Box::new(ReadDeltaImpl {
-            runtime: self.runtime.clone(),
+            func: self.clone(),
             state,
         }))
     }
@@ -54,26 +54,26 @@ struct ReadDeltaState {
     table: Option<Arc<Table>>, // Populate on re-init if needed.
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ReadDeltaImpl<R: Runtime> {
-    runtime: R,
+    func: ReadDelta<R>,
     state: ReadDeltaState,
 }
 
 impl<R: Runtime> ReadDeltaImpl<R> {
     async fn initialize(
-        runtime: R,
+        func: ReadDelta<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
 
-        let provider = runtime.file_provider();
+        let provider = func.runtime.file_provider();
 
         let table = Table::load(location.clone(), provider, conf.clone()).await?;
         let schema = table.table_schema()?;
 
         Ok(Box::new(ReadDeltaImpl {
-            runtime,
+            func,
             state: ReadDeltaState {
                 location,
                 conf,
@@ -96,7 +96,7 @@ impl<R: Runtime> PlannedTableFunction for ReadDeltaImpl<R> {
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        unimplemented!()
+        &self.func
     }
 
     fn schema(&self) -> Schema {

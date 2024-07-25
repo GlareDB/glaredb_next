@@ -25,7 +25,7 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
         &'a self,
         args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(ReadPostgresImpl::initialize(self.runtime.clone(), args))
+        Box::pin(ReadPostgresImpl::initialize(self.clone(), args))
     }
 
     fn state_deserialize(
@@ -34,7 +34,7 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let state = ReadPostgresState::deserialize(deserializer)?;
         Ok(Box::new(ReadPostgresImpl {
-            runtime: self.runtime.clone(),
+            func: self.clone(),
             state,
         }))
     }
@@ -50,7 +50,7 @@ struct ReadPostgresState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ReadPostgresImpl<R: Runtime> {
-    runtime: R,
+    func: ReadPostgres<R>,
     state: ReadPostgresState,
 }
 
@@ -59,7 +59,7 @@ where
     R: Runtime,
 {
     async fn initialize(
-        runtime: R,
+        func: ReadPostgres<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         if !args.named.is_empty() {
@@ -76,7 +76,7 @@ where
         let schema = args.positional.pop().unwrap().try_into_string()?;
         let conn_str = args.positional.pop().unwrap().try_into_string()?;
 
-        let client = PostgresClient::connect(&conn_str, &runtime).await?;
+        let client = PostgresClient::connect(&conn_str, &func.runtime).await?;
 
         let fields = match client.get_fields_and_types(&schema, &table).await? {
             Some((fields, _)) => fields,
@@ -86,7 +86,7 @@ where
         let table_schema = Schema::new(fields);
 
         Ok(Box::new(ReadPostgresImpl {
-            runtime,
+            func,
             state: ReadPostgresState {
                 conn_str,
                 schema,
@@ -106,7 +106,7 @@ where
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        unimplemented!()
+        &self.func
     }
 
     fn schema(&self) -> Schema {
@@ -115,7 +115,7 @@ where
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(PostgresDataTable {
-            runtime: self.runtime.clone(),
+            runtime: self.func.runtime.clone(),
             conn_str: self.state.conn_str.clone(),
             schema: self.state.schema.clone(),
             table: self.state.table.clone(),

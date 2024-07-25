@@ -4,14 +4,13 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::{ExecutionRuntime, Runtime},
+    runtime::Runtime,
 };
 use rayexec_io::{
     location::{AccessConfig, FileLocation},
     FileProvider, FileSource,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::{
     datatable::SingleFileCsvDataTable,
@@ -37,7 +36,7 @@ impl<R: Runtime> TableFunction for ReadCsv<R> {
         &'a self,
         args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(ReadCsvImpl::initialize(self.runtime.clone(), args))
+        Box::pin(ReadCsvImpl::initialize(self.clone(), args))
     }
 
     fn state_deserialize(
@@ -46,7 +45,7 @@ impl<R: Runtime> TableFunction for ReadCsv<R> {
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let state = ReadCsvState::deserialize(deserializer)?;
         Ok(Box::new(ReadCsvImpl {
-            runtime: self.runtime.clone(),
+            func: self.clone(),
             state,
         }))
     }
@@ -62,18 +61,19 @@ struct ReadCsvState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ReadCsvImpl<R: Runtime> {
-    runtime: R,
+    func: ReadCsv<R>,
     state: ReadCsvState,
 }
 
 impl<R: Runtime> ReadCsvImpl<R> {
     async fn initialize(
-        runtime: R,
+        func: ReadCsv<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
 
-        let mut source = runtime
+        let mut source = func
+            .runtime
             .file_provider()
             .file_source(location.clone(), &conf)?;
 
@@ -101,7 +101,7 @@ impl<R: Runtime> ReadCsvImpl<R> {
         let csv_schema = CsvSchema::infer_from_records(completed)?;
 
         Ok(Box::new(Self {
-            runtime,
+            func,
             state: ReadCsvState {
                 location,
                 conf,
@@ -118,7 +118,7 @@ impl<R: Runtime> PlannedTableFunction for ReadCsvImpl<R> {
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        unimplemented!()
+        &self.func
     }
 
     fn schema(&self) -> Schema {
@@ -133,7 +133,7 @@ impl<R: Runtime> PlannedTableFunction for ReadCsvImpl<R> {
             csv_schema: self.state.csv_schema.clone(),
             location: self.state.location.clone(),
             conf: self.state.conf.clone(),
-            runtime: self.runtime.clone(),
+            runtime: self.func.runtime.clone(),
         }))
     }
 }
