@@ -38,6 +38,22 @@ pub trait ExecutionScheduler: Debug + Sync + Send {
     ) -> Self::QueryHandle;
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct NopScheduler; // TODO: Remove
+
+impl ExecutionScheduler for NopScheduler {
+    type ErrorSink = NopThings;
+    type QueryHandle = NopThings;
+
+    fn spawn_query_graph(
+        &self,
+        query_graph: QueryGraph,
+        errors: Arc<Self::ErrorSink>,
+    ) -> Self::QueryHandle {
+        unimplemented!()
+    }
+}
+
 /// An execution runtime handles driving execution for a query.
 ///
 /// Implementations may make use of different strategies when executing a query.
@@ -83,10 +99,6 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     /// Returns a file provider that's able to construct file sources and sinks
     /// depending a location.
     fn file_provider(&self) -> Arc<dyn FileProvider>;
-
-    fn hybrid_client(&self, conf: HybridConnectConfig) -> Arc<dyn HybridClient> {
-        unimplemented!()
-    }
 }
 
 pub trait QueryHandle: Debug + Sync + Send {
@@ -100,4 +112,23 @@ pub trait QueryHandle: Debug + Sync + Send {
 pub trait ErrorSink: Debug + Sync + Send {
     /// Push an error.
     fn push_error(&self, error: RayexecError);
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct NopThings;
+
+impl QueryHandle for NopThings {
+    fn cancel(&self) {
+        unimplemented!()
+    }
+
+    fn dump(&self) -> QueryDump {
+        unimplemented!()
+    }
+}
+
+impl ErrorSink for NopThings {
+    fn push_error(&self, error: RayexecError) {
+        unimplemented!()
+    }
 }

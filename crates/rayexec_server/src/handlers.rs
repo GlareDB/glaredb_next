@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use axum::{extract::State, Json};
 use rayexec_error::ResultExt;
-use rayexec_execution::{engine::Engine, logical::sql::binder::BoundStatement};
+use rayexec_execution::{
+    engine::Engine, logical::sql::binder::BoundStatement, runtime::NopScheduler,
+};
 use rayexec_server_client::types::{
     PlanAstRpcRequest, PlanAstRpcResponse, PullBatchRpcRequest, PullBatchRpcResponse,
     PushBatchRcpRequest, PushBatchRpcResponse,
@@ -14,7 +16,7 @@ use crate::errors::ServerResult;
 #[derive(Debug)]
 pub struct ServerState {
     /// Engine responsible for planning and executing queries.
-    pub engine: Engine,
+    pub engine: Engine<NopScheduler>,
 }
 
 pub async fn healthz(State(_): State<Arc<ServerState>>) -> &'static str {

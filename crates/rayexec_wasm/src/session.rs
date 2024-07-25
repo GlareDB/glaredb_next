@@ -1,6 +1,9 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
-use crate::{errors::Result, runtime::WasmExecutionRuntime};
+use crate::{
+    errors::Result,
+    runtime::{WasmExecutionRuntime, WasmScheduler},
+};
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
@@ -15,7 +18,7 @@ use wasm_bindgen::prelude::*;
 #[derive(Debug)]
 pub struct WasmSession {
     pub(crate) runtime: Arc<WasmExecutionRuntime>,
-    pub(crate) engine: SingleUserEngine,
+    pub(crate) engine: SingleUserEngine<WasmScheduler>,
 }
 
 #[wasm_bindgen]

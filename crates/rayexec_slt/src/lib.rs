@@ -11,7 +11,7 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     engine::{session::Session, Engine},
-    runtime::ExecutionRuntime,
+    runtime::{ExecutionRuntime, ExecutionScheduler, NopScheduler},
 };
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use sqllogictest::DefaultColumnType;
@@ -175,7 +175,10 @@ pub fn run<F>(
     kind: &str,
 ) -> Result<()>
 where
-    F: Fn(Arc<dyn ExecutionRuntime>) -> Result<Engine> + Clone + Send + 'static,
+    F: Fn(Arc<dyn ExecutionRuntime>, Arc<NopScheduler>) -> Result<Engine<NopScheduler>>
+        + Clone
+        + Send
+        + 'static,
 {
     let args = Arguments::from_args();
     let env_filter = EnvFilter::builder()
@@ -199,6 +202,7 @@ where
     }));
 
     let rt = Arc::new(ThreadedExecutionRuntime::try_new()?.with_default_tokio()?);
+    let sched = Arc::new(NopScheduler);
 
     let tests = paths
         .into_iter()
@@ -206,6 +210,7 @@ where
             let test_name = path.to_string_lossy().to_string();
             let test_name = test_name.trim_start_matches("../");
             let rt = rt.clone();
+            let sched = sched.clone();
             let engine_fn = engine_fn.clone();
             let conf = conf.clone();
             Trial::test(test_name, move || {
@@ -213,7 +218,7 @@ where
                     .clone()
                     .tokio_handle()
                     .expect("tokio to be configured")
-                    .block_on(run_test(path, rt, engine_fn, conf))
+                    .block_on(run_test(path, rt, sched, engine_fn, conf))
                 {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
@@ -252,16 +257,21 @@ pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 /// Run an SLT at path, creating an engine from the provided function.
-async fn run_test(
+async fn run_test<F, S>(
     path: impl AsRef<Path>,
     rt: Arc<dyn ExecutionRuntime>,
-    engine_fn: impl Fn(Arc<dyn ExecutionRuntime>) -> Result<Engine>,
+    scheduler: Arc<S>,
+    engine_fn: F,
     conf: RunConfig,
-) -> Result<()> {
+) -> Result<()>
+where
+    F: Fn(Arc<dyn ExecutionRuntime>, Arc<S>) -> Result<Engine<S>> + Clone + Send + 'static,
+    S: ExecutionScheduler,
+{
     let path = path.as_ref();
 
     let mut runner = sqllogictest::Runner::new(|| async {
-        let engine = engine_fn(rt.clone())?;
+        let engine = engine_fn(rt.clone(), scheduler.clone())?;
         let session = engine.new_session()?;
 
         Ok(TestSession {
@@ -279,13 +289,16 @@ async fn run_test(
 
 #[derive(Debug)]
 #[allow(dead_code)]
-struct TestSession {
+struct TestSession<S: ExecutionScheduler> {
     conf: RunConfig,
-    engine: Engine,
-    session: Session,
+    engine: Engine<S>,
+    session: Session<S>,
 }
 
-impl TestSession {
+impl<S> TestSession<S>
+where
+    S: ExecutionScheduler,
+{
     async fn run_inner(
         &mut self,
         sql: &str,
@@ -332,7 +345,10 @@ impl TestSession {
 }
 
 #[async_trait]
-impl sqllogictest::AsyncDB for TestSession {
+impl<S> sqllogictest::AsyncDB for TestSession<S>
+where
+    S: ExecutionScheduler,
+{
     type Error = RayexecError;
     type ColumnType = DefaultColumnType;
 

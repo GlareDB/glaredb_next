@@ -7,7 +7,7 @@ use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::runtime::ExecutionRuntime;
+use rayexec_execution::runtime::{ExecutionRuntime, NopScheduler};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
@@ -75,7 +75,7 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
         .with_datasource("delta", Box::new(DeltaDataSource))?
         .with_datasource("parquet", Box::new(ParquetDataSource))?
         .with_datasource("csv", Box::new(CsvDataSource))?;
-    let engine = SingleUserEngine::new_with_runtime(runtime, registry)?;
+    let engine = SingleUserEngine::<NopScheduler>::new_with_runtime(runtime, registry)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());

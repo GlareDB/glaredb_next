@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
-    runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
+    runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, NopScheduler, QueryHandle},
 };
 use rayexec_io::{
     http::HttpClientReader,
@@ -24,6 +24,9 @@ use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::http::WasmHttpClient;
+
+// TODO
+pub type WasmScheduler = NopScheduler;
 
 /// Execution runtime for wasm.
 ///

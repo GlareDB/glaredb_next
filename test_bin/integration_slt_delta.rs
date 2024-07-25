@@ -1,7 +1,7 @@
 use rayexec_delta::DeltaDataSource;
-use rayexec_execution::{datasource::DataSourceRegistry, engine::Engine};
+use rayexec_execution::{datasource::DataSourceRegistry, engine::Engine, runtime::NopScheduler};
 use rayexec_slt::{ReplacementVars, RunConfig, VarValue};
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 pub fn main() {
     let aws_key = VarValue::sensitive_from_env("AWS_KEY");
@@ -14,7 +14,7 @@ pub fn main() {
     let paths = rayexec_slt::find_files(Path::new("../slt/delta")).unwrap();
     rayexec_slt::run(
         paths,
-        |rt| {
+        |rt, _| {
             Engine::new_with_registry(
                 rt,
                 DataSourceRegistry::default()

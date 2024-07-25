@@ -9,14 +9,14 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::{session::Session, Engine};
-use rayexec_execution::runtime::{ExecutionRuntime, HybridConnectConfig};
+use rayexec_execution::runtime::{ExecutionRuntime, ExecutionScheduler};
 use tokio::sync::Mutex;
 
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
-pub struct SingleUserEngine {
-    pub engine: Engine,
+pub struct SingleUserEngine<S: ExecutionScheduler> {
+    pub engine: Engine<S>,
 
     /// Session connected to the above engine.
     ///
@@ -25,10 +25,13 @@ pub struct SingleUserEngine {
     ///
     /// The lock should not be held during actual execution (reading of the
     /// result stream).
-    pub session: Arc<Mutex<Session>>,
+    pub session: Arc<Mutex<Session<S>>>,
 }
 
-impl SingleUserEngine {
+impl<S> SingleUserEngine<S>
+where
+    S: ExecutionScheduler,
+{
     /// Create a new single user engine using the provided runtime and registry.
     pub fn new_with_runtime(
         runtime: Arc<dyn ExecutionRuntime>,
@@ -77,14 +80,15 @@ impl SingleUserEngine {
         }
         .context("failed to parse connection string")?;
 
-        let conf = HybridConnectConfig { remote: url };
+        // let conf = HybridConnectConfig { remote: url };
 
-        let client = self.engine.runtime().hybrid_client(conf);
-        client.ping().await?;
+        unimplemented!()
+        // let client = self.engine.runtime().hybrid_client(conf);
+        // client.ping().await?;
 
-        self.session.lock().await.set_hybrid_client(client);
+        // self.session.lock().await.set_hybrid_client(client);
 
-        Ok(())
+        // Ok(())
     }
 }
 

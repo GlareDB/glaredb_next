@@ -1,3 +1,4 @@
+use crate::runtime::WasmScheduler;
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use js_sys::Function;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
@@ -81,7 +82,7 @@ pub struct WasmShell {
     // up. The buf writer is a good thing since we're calling flush where
     // appropriate, but it'd be nice to know what's going wrong when it's not
     // used.
-    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>>>,
+    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmScheduler>>,
 }
 
 #[wasm_bindgen]

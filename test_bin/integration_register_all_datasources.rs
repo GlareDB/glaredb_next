@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     datasource::{DataSourceRegistry, MemoryDataSource},
     engine::Engine,
-    runtime::ExecutionRuntime,
+    runtime::{ExecutionRuntime, NopScheduler},
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
@@ -20,7 +20,7 @@ fn main() -> Result<()> {
         .with_datasource("delta", Box::new(DeltaDataSource))?
         .with_datasource("parquet", Box::new(ParquetDataSource))?;
 
-    let engine = Engine::new_with_registry(runtime.clone(), registry)?;
+    let engine = Engine::<NopScheduler>::new_with_registry(runtime.clone(), registry)?;
     let mut session = engine.new_session()?;
 
     let tokio_handle = runtime.tokio_handle().unwrap();

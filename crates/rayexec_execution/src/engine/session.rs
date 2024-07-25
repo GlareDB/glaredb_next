@@ -19,7 +19,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::{ExecutionRuntime, HybridClient},
+    runtime::{hybrid::HybridClient, ExecutionRuntime, ExecutionScheduler},
 };
 
 use super::{
@@ -54,7 +54,7 @@ use super::{
 /// during actual execution (pulling on the stream) as execution is completely
 /// independent of any state inside the session.
 #[derive(Debug)]
-pub struct Session {
+pub struct Session<S: ExecutionScheduler> {
     /// Context containg everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
@@ -68,6 +68,8 @@ pub struct Session {
     /// Reference to runtime for executing queries.
     runtime: Arc<dyn ExecutionRuntime>,
 
+    scheduler: Arc<S>,
+
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
 
@@ -78,21 +80,25 @@ pub struct Session {
     hybrid_client: Option<Arc<dyn HybridClient>>,
 }
 
-impl Session {
+impl<S> Session<S>
+where
+    S: ExecutionScheduler,
+{
     pub fn new(
         context: DatabaseContext,
         runtime: Arc<dyn ExecutionRuntime>,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
-        Session {
-            context,
-            runtime,
-            registry,
-            vars: SessionVars::new_local(),
-            prepared: HashMap::new(),
-            portals: HashMap::new(),
-            hybrid_client: None,
-        }
+        unimplemented!()
+        // Session {
+        //     context,
+        //     runtime,
+        //     registry,
+        //     vars: SessionVars::new_local(),
+        //     prepared: HashMap::new(),
+        //     portals: HashMap::new(),
+        //     hybrid_client: None,
+        // }
     }
 
     /// Get execution results from one or more sql queries.
