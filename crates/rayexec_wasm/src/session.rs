@@ -1,8 +1,8 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
 use crate::{
     errors::Result,
-    runtime::{WasmExecutionRuntime, WasmRuntime, WasmScheduler},
+    runtime::{WasmRuntime, WasmScheduler},
 };
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
@@ -17,14 +17,13 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct WasmSession {
-    pub(crate) rt_old: Arc<WasmExecutionRuntime>,
+    pub(crate) runtime: WasmRuntime,
     pub(crate) engine: SingleUserEngine<WasmScheduler, WasmRuntime>,
 }
 
 #[wasm_bindgen]
 impl WasmSession {
     pub fn try_new() -> Result<WasmSession> {
-        let rt_old = Arc::new(WasmExecutionRuntime::try_new()?);
         let runtime = WasmRuntime::try_new()?;
         let registry = DataSourceRegistry::default()
             .with_datasource("memory", Box::new(MemoryDataSource))?
@@ -32,10 +31,9 @@ impl WasmSession {
             .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
             .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?;
 
-        // let engine = SingleUserEngine::new_with_runtime(runtime.clone(), registry)?;
+        let engine = SingleUserEngine::try_new(WasmScheduler, runtime.clone(), registry)?;
 
-        // Ok(WasmSession { rt_old, engine })
-        unimplemented!()
+        Ok(WasmSession { runtime, engine })
     }
 
     pub async fn sql(&self, sql: &str) -> Result<WasmResultTables> {
@@ -53,7 +51,7 @@ impl WasmSession {
     // that.
     pub fn register_file(&self, name: String, content: Box<[u8]>) -> Result<()> {
         trace!(%name, "registering local file with runtime");
-        self.rt_old
+        self.runtime
             .fs
             .register_file(&PathBuf::from(name), content.into())?;
         Ok(())
@@ -63,7 +61,7 @@ impl WasmSession {
     ///
     /// Names will be sorted alphabetically.
     pub fn list_local_files(&self) -> Vec<String> {
-        let mut names = self.rt_old.fs.list_files();
+        let mut names = self.runtime.fs.list_files();
         names.sort();
         names
     }

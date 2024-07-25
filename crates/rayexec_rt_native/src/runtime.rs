@@ -9,7 +9,8 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{
-        ErrorSink, ExecutionRuntime, ExecutionScheduler, OptionalTokioRuntime, QueryHandle, Runtime,
+        ErrorSink, ExecutionScheduler, OptionalTokioRuntime, QueryHandle, Runtime,
+        TokioHandlerProvider,
     },
 };
 use rayexec_io::{
@@ -62,7 +63,7 @@ pub type ThreadedNativeScheduler = NativeScheduler<ThreadedScheduler>;
 
 #[derive(Debug, Clone)]
 pub struct NativeRuntime {
-    tokio: Option<Arc<tokio::runtime::Runtime>>,
+    tokio: Arc<OptionalTokioRuntime>,
 }
 
 impl NativeRuntime {
@@ -79,7 +80,7 @@ impl NativeRuntime {
             .context("Failed to build tokio runtime")?;
 
         Ok(NativeRuntime {
-            tokio: Some(Arc::new(tokio)),
+            tokio: Arc::new(OptionalTokioRuntime::new(Some(tokio))),
         })
     }
 }
@@ -90,79 +91,19 @@ impl Runtime for NativeRuntime {
     type TokioHandle = OptionalTokioRuntime;
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
-        unimplemented!()
+        Arc::new(NativeFileProvider {
+            handle: self.tokio.handle_opt(),
+        })
     }
 
     fn http_client(&self) -> Self::HttpClient {
-        unimplemented!()
+        // TODO: Currently not possible to construct a native runtime without
+        // tokio, but it is optional...
+        TokioWrappedHttpClient::new(reqwest::Client::default(), self.tokio.handle().unwrap())
     }
 
-    fn tokio_handle(&self) -> Self::TokioHandle {
-        unimplemented!()
-    }
-}
-
-/// Execution runtime that makes use of native threads and thread pools.
-///
-/// May optionally be configured with a tokio runtime _in addition_ to the
-/// actual execution scheduler.
-#[derive(Debug)]
-pub struct NativeExecutionRuntime<S: InnerScheduler> {
-    /// Scheduler for executing queries.
-    scheduler: S,
-
-    /// Optional tokio runtime that this execution runtime can be configured
-    /// with.
-    tokio: Option<Arc<tokio::runtime::Runtime>>,
-}
-
-impl<S: InnerScheduler> NativeExecutionRuntime<S> {
-    pub fn try_new() -> Result<Self> {
-        Ok(NativeExecutionRuntime {
-            scheduler: S::try_new()?,
-            tokio: None,
-        })
-    }
-
-    pub fn with_tokio(mut self, tokio: Arc<tokio::runtime::Runtime>) -> Self {
-        self.tokio = Some(tokio);
-        self
-    }
-
-    pub fn with_default_tokio(mut self) -> Result<Self> {
-        // TODO: I had to change this to multi threaded since there was a
-        // deadlock with current_thread and a single worker. I _think_ this is
-        // because in main we're using the tokio runtime + block_on.
-        let tokio = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_io()
-            .enable_time()
-            .thread_name("rayexec_tokio")
-            .build()
-            .context("Failed to build tokio runtime")?;
-        self.tokio = Some(Arc::new(tokio));
-        Ok(self)
-    }
-}
-
-impl<S: InnerScheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
-    fn spawn_query_graph(
-        &self,
-        query_graph: QueryGraph,
-        errors: Arc<dyn ErrorSink>,
-    ) -> Box<dyn QueryHandle> {
-        let handle = self.scheduler.spawn_query_graph(query_graph, errors);
-        Box::new(handle) as _
-    }
-
-    fn tokio_handle(&self) -> Option<tokio::runtime::Handle> {
-        self.tokio.as_ref().map(|rt| rt.handle().clone())
-    }
-
-    fn file_provider(&self) -> Arc<dyn FileProvider> {
-        Arc::new(NativeFileProvider {
-            handle: self.tokio_handle(),
-        })
+    fn tokio_handle(&self) -> &Self::TokioHandle {
+        self.tokio.as_ref()
     }
 }
 

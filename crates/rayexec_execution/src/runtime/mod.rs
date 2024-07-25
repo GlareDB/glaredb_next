@@ -57,11 +57,16 @@ pub trait Runtime: Debug + Sync + Send + Clone + 'static {
 
     fn http_client(&self) -> Self::HttpClient;
 
-    fn tokio_handle(&self) -> Self::TokioHandle;
+    fn tokio_handle(&self) -> &Self::TokioHandle;
 }
 
 pub trait TokioHandlerProvider {
-    fn handle(&self) -> Result<tokio::runtime::Handle>;
+    fn handle_opt(&self) -> Option<tokio::runtime::Handle>;
+
+    fn handle(&self) -> Result<tokio::runtime::Handle> {
+        self.handle_opt()
+            .ok_or_else(|| RayexecError::new("Tokio runtime not configured"))
+    }
 }
 
 #[derive(Debug)]
@@ -74,14 +79,8 @@ impl OptionalTokioRuntime {
 }
 
 impl TokioHandlerProvider for OptionalTokioRuntime {
-    fn handle(&self) -> Result<tokio::runtime::Handle> {
-        let handle = self
-            .0
-            .as_ref()
-            .ok_or_else(|| RayexecError::new("Tokio runtime not configured"))?
-            .handle()
-            .clone();
-        Ok(handle)
+    fn handle_opt(&self) -> Option<tokio::runtime::Handle> {
+        self.0.as_ref().map(|t| t.handle().clone())
     }
 }
 

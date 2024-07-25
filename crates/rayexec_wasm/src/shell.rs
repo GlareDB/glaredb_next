@@ -1,5 +1,5 @@
 use crate::runtime::{WasmRuntime, WasmScheduler};
-use crate::{errors::Result, runtime::WasmExecutionRuntime};
+use crate::{errors::Result};
 use js_sys::Function;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::runtime::NopScheduler;
@@ -95,7 +95,7 @@ impl WasmShell {
             .with_datasource("memory", Box::new(MemoryDataSource))?
             .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?;
 
-        let engine = SingleUserEngine::try_new(NopScheduler, runtime, registry)?;
+        let engine = SingleUserEngine::try_new(WasmScheduler, runtime, registry)?;
 
         let terminal = TerminalWrapper::new(terminal);
         let shell = Rc::new(Shell::new(BufWriter::new(terminal)));
