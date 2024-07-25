@@ -167,7 +167,6 @@ where
             &tx,
             &self.context,
             self.registry.get_file_handlers(),
-            &self.runtime,
         )
         .bind_statement(stmt)
         .await?;
@@ -186,7 +185,6 @@ where
         let mut adapter_stream = ResultAdapterStream::new();
         let planner = QueryGraphPlanner::new(
             &self.context,
-            &self.runtime,
             VarAccessor::new(&self.vars).partitions(),
             QueryGraphDebugConfig::new(&self.vars),
         );
@@ -205,9 +203,7 @@ where
                 // TODO: No clue if we want to do this here. What happens during
                 // hybrid exec?
                 let datasource = self.registry.get_datasource(&attach.datasource)?;
-                let catalog = datasource
-                    .create_catalog(&self.runtime, attach.options)
-                    .await?;
+                let catalog = datasource.create_catalog(attach.options).await?;
                 self.context.attach_catalog(&attach.name, catalog)?;
                 empty
             }
@@ -250,7 +246,7 @@ where
         };
 
         let handle = self
-            .runtime
+            .scheduler
             .spawn_query_graph(query_graph, Arc::new(adapter_stream.error_sink()));
 
         Ok(ExecutionResult {

@@ -61,7 +61,6 @@ impl PhysicalCopyTo {
     // partition number to file location, but exact behavior is still tbd.
     pub fn try_create_states(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         schema: Schema,
         num_partitions: usize,
     ) -> Result<Vec<CopyToPartitionState>> {
@@ -73,7 +72,7 @@ impl PhysicalCopyTo {
 
         let states = self
             .copy_to
-            .create_sinks(runtime, schema, self.location.clone(), num_partitions)?
+            .create_sinks(schema, self.location.clone(), num_partitions)?
             .into_iter()
             .map(|sink| CopyToPartitionState::Writing {
                 inner: Some(CopyToInnerPartitionState {

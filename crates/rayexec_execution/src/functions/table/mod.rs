@@ -96,7 +96,6 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
     /// connections should remain open through execution.
     fn plan_and_initialize<'a>(
         &'a self,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
         args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
 
@@ -139,7 +138,7 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// machines.
     ///
     /// The default implementation does nothing.
-    fn reinitialize(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> BoxFuture<Result<()>> {
+    fn reinitialize(&self) -> BoxFuture<Result<()>> {
         async move { Ok(()) }.boxed()
     }
 
@@ -164,7 +163,7 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     ///
     /// An engine runtime is provided for table funcs that return truly async
     /// data tables.
-    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>>;
+    fn datatable(&self) -> Result<Box<dyn DataTable>>;
 }
 
 impl PartialEq<dyn PlannedTableFunction> for Box<dyn PlannedTableFunction + '_> {

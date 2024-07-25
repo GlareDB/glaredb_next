@@ -159,31 +159,25 @@ impl BindMode {
 
 /// Binds a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
-pub struct Binder<'a, R: Runtime> {
+pub struct Binder<'a> {
     pub bindmode: BindMode,
     pub tx: &'a CatalogTx,
     pub context: &'a DatabaseContext,
     pub file_handlers: &'a FileHandlers,
-    pub runtime: &'a Arc<R>,
 }
 
-impl<'a, R> Binder<'a, R>
-where
-    R: Runtime,
-{
+impl<'a> Binder<'a> {
     pub fn new(
         bindmode: BindMode,
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
-        runtime: &'a Arc<R>,
     ) -> Self {
         Binder {
             bindmode,
             tx,
             context,
             file_handlers,
-            runtime,
         }
     }
 
@@ -471,8 +465,8 @@ where
         ///
         /// Pulled out so we can accurately set the bind data depth before and
         /// after this.
-        async fn bind_query_inner<R: Runtime>(
-            binder: &Binder<'_, R>,
+        async fn bind_query_inner(
+            binder: &Binder<'_>,
             query: ast::QueryNode<Raw>,
             bind_data: &mut BindData,
         ) -> Result<ast::QueryNode<Bound>> {
@@ -746,10 +740,7 @@ where
                         };
 
                         let name = handler.table_func.name().to_string();
-                        let func = handler
-                            .table_func
-                            .plan_and_initialize(self.runtime, args.clone())
-                            .await?;
+                        let func = handler.table_func.plan_and_initialize(args.clone()).await?;
 
                         let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(
@@ -781,9 +772,7 @@ where
                 match Resolver::new(self.tx, self.context).resolve_table_function(&reference)? {
                     Some(table_fn) => {
                         let name = table_fn.name().to_string();
-                        let func = table_fn
-                            .plan_and_initialize(self.runtime, args.clone())
-                            .await?;
+                        let func = table_fn.plan_and_initialize(args.clone()).await?;
 
                         let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(

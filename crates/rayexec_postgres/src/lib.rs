@@ -73,12 +73,17 @@ impl PostgresDataSource {
             .await
             .context("Failed to send test query")?;
 
-        Ok(Box::new(PostgresCatalog { runtime, conn_str }))
+        Ok(Box::new(PostgresCatalog {
+            r2: self.runtime.clone(),
+            runtime,
+            conn_str,
+        }))
     }
 }
 
 #[derive(Debug)]
-pub struct PostgresCatalog {
+pub struct PostgresCatalog<R: Runtime> {
+    r2: Arc<R>,
     runtime: Arc<dyn ExecutionRuntime>,
     // TODO: Connection pooling.
     conn_str: String,

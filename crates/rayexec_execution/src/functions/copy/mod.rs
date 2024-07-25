@@ -63,7 +63,6 @@ pub trait CopyToFunction: Debug + Sync + Send + DynClone {
     // TODO: Additional COPY TO args once we have them.
     fn create_sinks(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         schema: Schema,
         location: FileLocation,
         num_partitions: usize,

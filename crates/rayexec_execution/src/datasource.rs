@@ -49,7 +49,6 @@ pub trait DataSource: Sync + Send + Debug {
     /// Create a new catalog using the provided options.
     fn create_catalog(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>>;
 
@@ -194,7 +193,6 @@ pub struct MemoryDataSource;
 impl DataSource for MemoryDataSource {
     fn create_catalog(
         &self,
-        _runtime: &Arc<dyn ExecutionRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(async move {

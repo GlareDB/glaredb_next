@@ -11,20 +11,23 @@ use std::sync::Arc;
 use crate::{
     database::{storage::system::SystemCatalog, DatabaseContext},
     datasource::{DataSourceRegistry, MemoryDataSource},
-    runtime::{ExecutionRuntime, ExecutionScheduler},
+    runtime::{ExecutionRuntime, ExecutionScheduler, Runtime},
 };
 
 #[derive(Debug)]
-pub struct Engine<S: ExecutionScheduler> {
+pub struct Engine<S: ExecutionScheduler, R: Runtime> {
     runtime: Arc<dyn ExecutionRuntime>,
     registry: Arc<DataSourceRegistry>,
     system_catalog: SystemCatalog,
+
+    r2: Arc<R>,
     scheduler: Arc<S>,
 }
 
-impl<S> Engine<S>
+impl<S, R> Engine<S, R>
 where
     S: ExecutionScheduler,
+    R: Runtime,
 {
     pub fn new(runtime: Arc<dyn ExecutionRuntime>) -> Result<Self> {
         let registry =
@@ -46,7 +49,7 @@ where
         // })
     }
 
-    pub fn new_session(&self) -> Result<Session<S>> {
+    pub fn new_session(&self) -> Result<Session<S, R>> {
         let context = DatabaseContext::new(self.system_catalog.clone());
         Ok(Session::new(
             context,

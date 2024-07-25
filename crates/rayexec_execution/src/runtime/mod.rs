@@ -18,9 +18,6 @@ use crate::execution::query_graph::QueryGraph;
 use crate::logical::sql::binder::StatementWithBindData;
 
 pub trait ExecutionScheduler: Debug + Sync + Send {
-    type ErrorSink: ErrorSink;
-    type QueryHandle: QueryHandle;
-
     /// Spawn execution of a query graph.
     ///
     /// A query handle will be returned allowing for canceling and dumping a
@@ -34,22 +31,19 @@ pub trait ExecutionScheduler: Debug + Sync + Send {
     fn spawn_query_graph(
         &self,
         query_graph: QueryGraph,
-        errors: Arc<Self::ErrorSink>,
-    ) -> Self::QueryHandle;
+        errors: Arc<dyn ErrorSink>,
+    ) -> Box<dyn QueryHandle>;
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct NopScheduler; // TODO: Remove
 
 impl ExecutionScheduler for NopScheduler {
-    type ErrorSink = NopThings;
-    type QueryHandle = NopThings;
-
     fn spawn_query_graph(
         &self,
         query_graph: QueryGraph,
-        errors: Arc<Self::ErrorSink>,
-    ) -> Self::QueryHandle {
+        errors: Arc<dyn ErrorSink>,
+    ) -> Box<dyn QueryHandle> {
         unimplemented!()
     }
 }

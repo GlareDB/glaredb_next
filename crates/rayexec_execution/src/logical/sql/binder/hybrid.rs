@@ -46,11 +46,7 @@ pub struct HybridResolver<'a> {
 }
 
 impl<'a> HybridResolver<'a> {
-    pub fn new(
-        tx: &'a CatalogTx,
-        context: &'a DatabaseContext,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
-    ) -> Self {
+    pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
         // Currently just use an empty file handler, all files should have been
         // resolved appropriately on the "local" side.
         //
@@ -67,13 +63,7 @@ impl<'a> HybridResolver<'a> {
         // Note we're using bindmode normal here since everything we attempt to
         // bind in this resolver should succeed.
         HybridResolver {
-            binder: Binder::new(
-                BindMode::Normal,
-                tx,
-                context,
-                EMPTY_FILE_HANDLER_REF,
-                runtime,
-            ),
+            binder: Binder::new(BindMode::Normal, tx, context, EMPTY_FILE_HANDLER_REF),
         }
     }
 
@@ -114,9 +104,7 @@ impl<'a> HybridResolver<'a> {
                     .require_resolve_table_function(&unbound.reference)?;
 
                 let name = table_fn.name().to_string();
-                let func = table_fn
-                    .plan_and_initialize(self.binder.runtime, unbound.args.clone())
-                    .await?;
+                let func = table_fn.plan_and_initialize(unbound.args.clone()).await?;
 
                 let func_idx = bind_data.table_function_objects.push(func);
 

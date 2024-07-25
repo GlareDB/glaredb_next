@@ -41,10 +41,9 @@ impl PhysicalTableFunction {
 
     pub fn try_create_states(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         num_partitions: usize,
     ) -> Result<Vec<TableFunctionPartitionState>> {
-        let data_table = self.function.datatable(runtime)?;
+        let data_table = self.function.datatable()?;
 
         // TODO: Pushdown projections, filters
         let scans = data_table.scan(num_partitions)?;
