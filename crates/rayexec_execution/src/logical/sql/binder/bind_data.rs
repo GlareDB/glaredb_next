@@ -163,7 +163,7 @@ impl<'de, 'a> Visitor<'de> for BindDataVisitor<'a> {
     type Value = BindData;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a struct representing BindData")
+        formatter.write_str("bind data")
     }
 
     fn visit_map<V>(self, mut map: V) -> Result<BindData, V::Error>

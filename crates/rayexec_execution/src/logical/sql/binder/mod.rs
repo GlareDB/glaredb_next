@@ -5,11 +5,12 @@ mod exprbinder;
 mod resolver;
 
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 use bind_data::{
-    BindData, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference, ItemReference,
-    MaybeBound, UnboundTableFunctionReference,
+    BindData, BindDataVisitor, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference,
+    ItemReference, MaybeBound, UnboundTableFunctionReference,
 };
 use exprbinder::ExpressionBinder;
 use rayexec_bullet::{
@@ -22,12 +23,16 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::{
-    ast::{self, ColumnDef, ObjectReference, QueryNode},
+    ast::{self, ColumnDef, ObjectReference},
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
 use resolver::Resolver;
-use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
+use serde::{
+    de::{self, MapAccess, Visitor},
+    ser::SerializeMap,
+    Deserialize, Serialize, Serializer,
+};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -77,9 +82,54 @@ impl Serialize for StatementWithBindData {
     where
         S: Serializer,
     {
-        let mut s = serializer.serialize_struct("StatementWithBindData", 2)?;
-        s.serialize_field("statement", &self.statement)?;
-        unimplemented!()
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("statement", &self.statement)?;
+        map.serialize_entry("bind_data", &self.bind_data)?;
+        map.end()
+    }
+}
+
+pub struct StatementWithBindDataVisitor<'a> {
+    pub context: &'a DatabaseContext,
+}
+
+impl<'de, 'a> Visitor<'de> for StatementWithBindDataVisitor<'a> {
+    type Value = StatementWithBindData;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("bound statement with bind data")
+    }
+
+    fn visit_map<V>(self, mut map: V) -> Result<StatementWithBindData, V::Error>
+    where
+        V: MapAccess<'de>,
+    {
+        let mut statement = None;
+        let mut bind_data = None;
+
+        while let Some(key) = map.next_key()? {
+            match key {
+                "statement" => {
+                    statement = Some(map.next_value()?);
+                }
+                "bind_data" => {
+                    bind_data = Some(map.next_value_seed(BindDataVisitor {
+                        context: self.context,
+                    })?);
+                }
+                _ => {
+                    let _ = map.next_value::<de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        let statement = statement.ok_or_else(|| de::Error::missing_field("statement"))?;
+        let bind_data = bind_data.ok_or_else(|| de::Error::missing_field("bind_data"))?;
+
+        Ok(StatementWithBindData {
+            statement,
+            bind_data,
+        })
     }
 }
 
