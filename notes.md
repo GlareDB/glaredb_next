@@ -149,9 +149,11 @@ Response for <https://github.com/GlareDB/rayexec/pull/146#pullrequestreview-2200
   - Stuff needed for interacting with the outside world, like file system access
     and http clients.
   - One per process
-- **ExecutionScheduler**
+- **PipelineExecutor**
   - Execute queries/pipelines (currently requires a complete query graph, but
     an additional method will be added to execute arbitrary pipelines).
+  - The "physical" part of executor, e.g. what cores will this pipeline be
+    running on.
   - One per process
 - **QueryGraph**
   - Collection of pipelines make up a complete query for execution.

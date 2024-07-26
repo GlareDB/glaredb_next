@@ -29,7 +29,7 @@ fn main() {
     let args = Arguments::parse();
     logutil::configure_global_logger(tracing::Level::ERROR);
 
-    let sched = ThreadedNativeExecutor::try_new().unwrap();
+    let executor = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();
     let tokio_handle = runtime
         .tokio_handle()
@@ -39,7 +39,7 @@ fn main() {
     // Note we do an explicit clone here to avoid dropping the tokio runtime
     // owned by the execution runtime inside the async context.
     let runtime_clone = runtime.clone();
-    let result = tokio_handle.block_on(async move { inner(args, sched, runtime_clone).await });
+    let result = tokio_handle.block_on(async move { inner(args, executor, runtime_clone).await });
 
     if let Err(e) = result {
         println!("ERROR: {e}");
@@ -68,7 +68,7 @@ fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
 
 async fn inner(
     args: Arguments,
-    scheduler: impl PipelineExecutor,
+    executor: impl PipelineExecutor,
     runtime: impl Runtime,
 ) -> Result<()> {
     let registry = DataSourceRegistry::default()
@@ -77,7 +77,7 @@ async fn inner(
         .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
         .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
-    let engine = SingleUserEngine::try_new(scheduler, runtime, registry)?;
+    let engine = SingleUserEngine::try_new(executor, runtime, registry)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());
