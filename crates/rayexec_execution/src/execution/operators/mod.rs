@@ -166,6 +166,10 @@ pub enum PollFinalize {
 }
 
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
+    fn create_states(&self) -> Result<()> {
+        unimplemented!()
+    }
+
     /// Try to push a batch for this partition.
     fn poll_push(
         &self,
