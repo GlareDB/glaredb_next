@@ -5,7 +5,7 @@ use futures::{
 use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
-    execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
+    execution::{pipeline::ExecutablePartitionPipeline, query_graph::QueryGraph},
     runtime::{
         dump::QueryDump, ErrorSink, PipelineExecutor, QueryHandle, Runtime, TokioHandlerProvider,
     },
@@ -184,7 +184,7 @@ impl FileProvider for WasmFileProvider {
 #[derive(Debug, Clone)]
 struct WasmTaskState {
     errors: Arc<dyn ErrorSink>,
-    pipeline: Arc<Mutex<PartitionPipeline>>,
+    pipeline: Arc<Mutex<ExecutablePartitionPipeline>>,
 }
 
 impl WasmTaskState {

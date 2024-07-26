@@ -35,7 +35,7 @@ use crate::{
             values::PhysicalValues,
             OperatorState, PartitionState,
         },
-        pipeline::{Pipeline, PipelineId},
+        pipeline::{ExecutablePipeline, PipelineId},
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
     logical::{
@@ -164,7 +164,7 @@ struct Materializations {
     /// Key corresponds to the index of the materialized plan in the
     /// QueryContext. Since multiple pipelines can read from the same
     /// materialization, each key has a vec of pipelines that we take from.
-    materialize_sources: HashMap<usize, Vec<Pipeline>>,
+    materialize_sources: HashMap<usize, Vec<ExecutablePipeline>>,
 }
 
 impl Materializations {
@@ -213,10 +213,10 @@ impl PipelineIdGen {
 #[derive(Debug)]
 struct BuildState {
     /// In-progress pipeline we're building.
-    in_progress: Option<Pipeline>,
+    in_progress: Option<ExecutablePipeline>,
 
     /// Completed pipelines.
-    completed: Vec<Pipeline>,
+    completed: Vec<ExecutablePipeline>,
 }
 
 impl BuildState {
@@ -281,7 +281,7 @@ impl BuildState {
             // from the materialization.
             let mut partial_pipelines = Vec::with_capacity(materialized.num_scans);
             for states in pull_pipeline_states {
-                let mut pipeline = Pipeline::new(id_gen.next(), states.len());
+                let mut pipeline = ExecutablePipeline::new(id_gen.next(), states.len());
                 let states = states
                     .into_iter()
                     .map(PartitionState::MaterializePull)
@@ -380,14 +380,14 @@ impl BuildState {
     /// Get the current in-progress pipeline.
     ///
     /// Errors if there's no pipeline in-progress.
-    fn in_progress_pipeline_mut(&mut self) -> Result<&mut Pipeline> {
+    fn in_progress_pipeline_mut(&mut self) -> Result<&mut ExecutablePipeline> {
         match &mut self.in_progress {
             Some(pipeline) => Ok(pipeline),
             None => Err(RayexecError::new("No pipeline in-progress")),
         }
     }
 
-    fn take_in_progress_pipeline(&mut self) -> Result<Pipeline> {
+    fn take_in_progress_pipeline(&mut self) -> Result<ExecutablePipeline> {
         self.in_progress
             .take()
             .ok_or_else(|| RayexecError::new("No in-progress pipeline to take"))
@@ -568,7 +568,7 @@ impl BuildState {
             physical.try_create_state(conf.db_context)?,
         )];
 
-        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -622,7 +622,7 @@ impl BuildState {
             .map(PartitionState::TableFunction)
             .collect();
 
-        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -679,7 +679,7 @@ impl BuildState {
             .map(PartitionState::Scan)
             .collect();
 
-        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -714,7 +714,7 @@ impl BuildState {
             physical.try_create_state(conf.db_context)?,
         )];
 
-        let mut pipeline = Pipeline::new(id_gen.next(), partition_states.len());
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -743,7 +743,7 @@ impl BuildState {
             }
             None => {
                 // No input, just have an empty operator as the source.
-                let mut pipeline = Pipeline::new(id_gen.next(), 1);
+                let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
                 pipeline.push_operator(
                     Arc::new(PhysicalEmpty),
                     Arc::new(OperatorState::None),
@@ -813,7 +813,7 @@ impl BuildState {
             .map(PartitionState::Values)
             .collect();
 
-        let mut pipeline = Pipeline::new(id_gen.next(), 1);
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
@@ -865,7 +865,7 @@ impl BuildState {
             .map(PartitionState::Values)
             .collect();
 
-        let mut pipeline = Pipeline::new(id_gen.next(), 1);
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
@@ -894,7 +894,7 @@ impl BuildState {
             .map(PartitionState::Values)
             .collect();
 
-        let mut pipeline = Pipeline::new(id_gen.next(), 1);
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
@@ -960,7 +960,7 @@ impl BuildState {
 
         // Pull side creates a new pipeline, number of pull states determines
         // number of partitions in this pipeline.
-        let mut pipeline = Pipeline::new(id_gen.next(), pull_states.len());
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), pull_states.len());
         pipeline.push_operator(
             operator,
             operator_state,
@@ -1103,7 +1103,7 @@ impl BuildState {
 
         // We have a new pipeline with its inputs being the output of the
         // repartition.
-        let mut pipeline = Pipeline::new(id_gen.next(), target_partitions);
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), target_partitions);
         pipeline.push_operator(physical, operator_state, pull_states)?;
 
         self.in_progress = Some(pipeline);
@@ -1398,7 +1398,7 @@ impl BuildState {
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = vec![PartitionState::Empty(EmptyPartitionState::default())];
 
-        let mut pipeline = Pipeline::new(id_gen.next(), 1);
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);
@@ -1410,7 +1410,7 @@ impl BuildState {
         pipeline_id: PipelineId,
         conf: &BuildConfig,
         values: LogicalNode<operator::ExpressionList>,
-    ) -> Result<Pipeline> {
+    ) -> Result<ExecutablePipeline> {
         // TODO: This could probably be simplified.
 
         let values = values.into_inner();
@@ -1467,7 +1467,7 @@ impl BuildState {
         // 2. Add in a partitioning operator above this operator such that
         //    partition happens during execution.
 
-        let mut pipeline = Pipeline::new(pipeline_id, conf.target_partitions);
+        let mut pipeline = ExecutablePipeline::new(pipeline_id, conf.target_partitions);
 
         let physical = Arc::new(PhysicalValues::new(vec![batch]));
         let operator_state = Arc::new(OperatorState::None);
