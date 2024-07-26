@@ -7,7 +7,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{
-        dump::QueryDump, ErrorSink, ExecutionScheduler, QueryHandle, Runtime, TokioHandlerProvider,
+        dump::QueryDump, ErrorSink, PipelineExecutor, QueryHandle, Runtime, TokioHandlerProvider,
     },
 };
 use rayexec_io::{
@@ -76,9 +76,9 @@ impl TokioHandlerProvider for MissingTokioHandle {
 /// This implementation works on a single thread which each pipeline task being
 /// spawned local to the thread (using js promises under the hood).
 #[derive(Debug, Clone)]
-pub struct WasmScheduler;
+pub struct WasmExecutor;
 
-impl ExecutionScheduler for WasmScheduler {
+impl PipelineExecutor for WasmExecutor {
     fn spawn_query_graph(
         &self,
         query_graph: QueryGraph,

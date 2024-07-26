@@ -8,14 +8,14 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::{session::Session, Engine};
-use rayexec_execution::runtime::{ExecutionScheduler, Runtime};
+use rayexec_execution::runtime::{PipelineExecutor, Runtime};
 use tokio::sync::Mutex;
 
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
-pub struct SingleUserEngine<S: ExecutionScheduler, R: Runtime> {
-    pub engine: Engine<S, R>,
+pub struct SingleUserEngine<P: PipelineExecutor, R: Runtime> {
+    pub engine: Engine<P, R>,
 
     /// Session connected to the above engine.
     ///
@@ -24,17 +24,17 @@ pub struct SingleUserEngine<S: ExecutionScheduler, R: Runtime> {
     ///
     /// The lock should not be held during actual execution (reading of the
     /// result stream).
-    pub session: Arc<Mutex<Session<S, R>>>,
+    pub session: Arc<Mutex<Session<P, R>>>,
 }
 
-impl<S, R> SingleUserEngine<S, R>
+impl<P, R> SingleUserEngine<P, R>
 where
-    S: ExecutionScheduler,
+    P: PipelineExecutor,
     R: Runtime,
 {
     /// Create a new single user engine using the provided runtime and registry.
-    pub fn try_new(scheduler: S, runtime: R, registry: DataSourceRegistry) -> Result<Self> {
-        let engine = Engine::new_with_registry(scheduler, runtime, registry)?;
+    pub fn try_new(executor: P, runtime: R, registry: DataSourceRegistry) -> Result<Self> {
+        let engine = Engine::new_with_registry(executor, runtime, registry)?;
         let session = engine.new_session()?;
 
         Ok(SingleUserEngine {

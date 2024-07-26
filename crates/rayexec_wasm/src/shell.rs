@@ -1,5 +1,5 @@
 use crate::errors::Result;
-use crate::runtime::{WasmRuntime, WasmScheduler};
+use crate::runtime::{WasmExecutor, WasmRuntime};
 use js_sys::Function;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
@@ -81,7 +81,7 @@ pub struct WasmShell {
     // up. The buf writer is a good thing since we're calling flush where
     // appropriate, but it'd be nice to know what's going wrong when it's not
     // used.
-    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmScheduler, WasmRuntime>>,
+    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmExecutor, WasmRuntime>>,
 }
 
 #[wasm_bindgen]
@@ -93,7 +93,7 @@ impl WasmShell {
             .with_datasource("memory", Box::new(MemoryDataSource))?
             .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?;
 
-        let engine = SingleUserEngine::try_new(WasmScheduler, runtime, registry)?;
+        let engine = SingleUserEngine::try_new(WasmExecutor, runtime, registry)?;
 
         let terminal = TerminalWrapper::new(terminal);
         let shell = Rc::new(Shell::new(BufWriter::new(terminal)));

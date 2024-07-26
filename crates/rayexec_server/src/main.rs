@@ -16,11 +16,11 @@ use rayexec_error::{Result, ResultExt};
 use rayexec_execution::{
     datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource},
     engine::Engine,
-    runtime::{ExecutionScheduler, Runtime, TokioHandlerProvider},
+    runtime::{PipelineExecutor, Runtime, TokioHandlerProvider},
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeScheduler};
+use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_server_client::ENDPOINTS;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -38,7 +38,7 @@ fn main() {
     let args = Arguments::parse();
     logutil::configure_global_logger(tracing::Level::DEBUG);
 
-    let sched = ThreadedNativeScheduler::try_new().unwrap();
+    let sched = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();
     let tokio_handle = runtime
         .tokio_handle()
@@ -56,7 +56,7 @@ fn main() {
 
 async fn inner(
     args: Arguments,
-    sched: ThreadedNativeScheduler,
+    sched: ThreadedNativeExecutor,
     runtime: NativeRuntime,
 ) -> Result<()> {
     let registry = DataSourceRegistry::default()

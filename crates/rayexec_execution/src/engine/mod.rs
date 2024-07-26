@@ -11,30 +11,30 @@ use std::sync::Arc;
 use crate::{
     database::{storage::system::SystemCatalog, DatabaseContext},
     datasource::{DataSourceRegistry, MemoryDataSource},
-    runtime::{ExecutionScheduler, Runtime},
+    runtime::{PipelineExecutor, Runtime},
 };
 
 #[derive(Debug)]
-pub struct Engine<S: ExecutionScheduler, R: Runtime> {
+pub struct Engine<P: PipelineExecutor, R: Runtime> {
     registry: Arc<DataSourceRegistry>,
     system_catalog: SystemCatalog,
-    scheduler: S,
+    executor: P,
     runtime: R,
 }
 
-impl<S, R> Engine<S, R>
+impl<P, R> Engine<P, R>
 where
-    S: ExecutionScheduler,
+    P: PipelineExecutor,
     R: Runtime,
 {
-    pub fn new(scheduler: S, runtime: R) -> Result<Self> {
+    pub fn new(executor: P, runtime: R) -> Result<Self> {
         let registry =
             DataSourceRegistry::default().with_datasource("memory", Box::new(MemoryDataSource))?;
-        Self::new_with_registry(scheduler, runtime, registry)
+        Self::new_with_registry(executor, runtime, registry)
     }
 
     pub fn new_with_registry(
-        scheduler: S,
+        executor: P,
         runtime: R,
         registry: DataSourceRegistry,
     ) -> Result<Self> {
@@ -43,26 +43,26 @@ where
         Ok(Engine {
             registry: Arc::new(registry),
             system_catalog,
-            scheduler,
+            executor,
             runtime,
         })
     }
 
-    pub fn new_session(&self) -> Result<Session<S, R>> {
+    pub fn new_session(&self) -> Result<Session<P, R>> {
         let context = DatabaseContext::new(self.system_catalog.clone());
         Ok(Session::new(
             context,
-            self.scheduler.clone(),
+            self.executor.clone(),
             self.runtime.clone(),
             self.registry.clone(),
         ))
     }
 
-    pub fn new_server_session(&self) -> Result<ServerSession<S, R>> {
+    pub fn new_server_session(&self) -> Result<ServerSession<P, R>> {
         let context = DatabaseContext::new(self.system_catalog.clone());
         Ok(ServerSession::new(
             context,
-            self.scheduler.clone(),
+            self.executor.clone(),
             self.runtime.clone(),
             self.registry.clone(),
         ))

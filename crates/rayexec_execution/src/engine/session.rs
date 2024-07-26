@@ -19,7 +19,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::{hybrid::HybridClient, ExecutionScheduler, Runtime},
+    runtime::{hybrid::HybridClient, PipelineExecutor, Runtime},
 };
 
 use super::{
@@ -54,7 +54,7 @@ use super::{
 /// during actual execution (pulling on the stream) as execution is completely
 /// independent of any state inside the session.
 #[derive(Debug)]
-pub struct Session<S: ExecutionScheduler, R: Runtime> {
+pub struct Session<P: PipelineExecutor, R: Runtime> {
     /// Context containg everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
@@ -70,8 +70,8 @@ pub struct Session<S: ExecutionScheduler, R: Runtime> {
     #[allow(dead_code)] // TODO: Might just remove this field.
     runtime: R,
 
-    /// Scheduler for executing pipelines.
-    scheduler: S,
+    /// Pipeline executor.
+    executor: P,
 
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
@@ -83,21 +83,21 @@ pub struct Session<S: ExecutionScheduler, R: Runtime> {
     hybrid_client: Option<Arc<dyn HybridClient>>,
 }
 
-impl<S, R> Session<S, R>
+impl<P, R> Session<P, R>
 where
-    S: ExecutionScheduler,
+    P: PipelineExecutor,
     R: Runtime,
 {
     pub fn new(
         context: DatabaseContext,
-        scheduler: S,
+        executor: P,
         runtime: R,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
         Session {
             context,
             runtime,
-            scheduler,
+            executor,
             registry,
             vars: SessionVars::new_local(),
             prepared: HashMap::new(),
@@ -252,7 +252,7 @@ where
         };
 
         let handle = self
-            .scheduler
+            .executor
             .spawn_query_graph(query_graph, Arc::new(adapter_stream.error_sink()));
 
         Ok(ExecutionResult {

@@ -2,7 +2,7 @@ use std::{path::PathBuf, rc::Rc};
 
 use crate::{
     errors::Result,
-    runtime::{WasmRuntime, WasmScheduler},
+    runtime::{WasmExecutor, WasmRuntime},
 };
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
@@ -18,7 +18,7 @@ use wasm_bindgen::prelude::*;
 #[derive(Debug)]
 pub struct WasmSession {
     pub(crate) runtime: WasmRuntime,
-    pub(crate) engine: SingleUserEngine<WasmScheduler, WasmRuntime>,
+    pub(crate) engine: SingleUserEngine<WasmExecutor, WasmRuntime>,
 }
 
 #[wasm_bindgen]
@@ -31,7 +31,7 @@ impl WasmSession {
             .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
             .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?;
 
-        let engine = SingleUserEngine::try_new(WasmScheduler, runtime.clone(), registry)?;
+        let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone(), registry)?;
 
         Ok(WasmSession { runtime, engine })
     }

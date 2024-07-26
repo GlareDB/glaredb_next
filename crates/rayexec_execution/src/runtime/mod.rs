@@ -10,10 +10,15 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
 
-/// An execution scheduler handles driving execution for a query.
+/// How pipelines get executed on a single node.
 ///
-/// Implementations may make use of different strategies when executing a query.
-pub trait ExecutionScheduler: Debug + Sync + Send + Clone {
+/// This is trait only concerns itself with the low-level execution of
+/// pipelines. Higher level concepts like hybrid and distributed execution build
+/// on top of these traits.
+///
+/// This will likely only ever have two implementations; one for when we're
+/// executing "natively" (running pipelines on a thread pool), and one for wasm.
+pub trait PipelineExecutor: Debug + Sync + Send + Clone {
     /// Spawn execution of a query graph.
     ///
     /// A query handle will be returned allowing for canceling and dumping a

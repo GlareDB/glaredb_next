@@ -11,9 +11,9 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     engine::{session::Session, Engine},
-    runtime::{ExecutionScheduler, Runtime, TokioHandlerProvider},
+    runtime::{PipelineExecutor, Runtime, TokioHandlerProvider},
 };
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeScheduler};
+use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use sqllogictest::DefaultColumnType;
 use std::{collections::HashMap, fs};
 use std::{
@@ -176,9 +176,9 @@ pub fn run<F>(
 ) -> Result<()>
 where
     F: Fn(
-            ThreadedNativeScheduler,
+            ThreadedNativeExecutor,
             NativeRuntime,
-        ) -> Result<Engine<ThreadedNativeScheduler, NativeRuntime>>
+        ) -> Result<Engine<ThreadedNativeExecutor, NativeRuntime>>
         + Clone
         + Send
         + 'static,
@@ -204,7 +204,7 @@ where
         std::process::abort();
     }));
 
-    let sched = ThreadedNativeScheduler::try_new()?;
+    let executor = ThreadedNativeExecutor::try_new()?;
     let runtime = NativeRuntime::with_default_tokio()?;
 
     let tests = paths
@@ -213,7 +213,7 @@ where
             let test_name = path.to_string_lossy().to_string();
             let test_name = test_name.trim_start_matches("../");
             let runtime = runtime.clone();
-            let sched = sched.clone();
+            let executor = executor.clone();
             let engine_fn = engine_fn.clone();
             let conf = conf.clone();
             Trial::test(test_name, move || {
@@ -221,7 +221,7 @@ where
                     .tokio_handle()
                     .handle()
                     .expect("tokio to be configured")
-                    .block_on(run_test(path, runtime, sched, engine_fn, conf))
+                    .block_on(run_test(path, runtime, executor, engine_fn, conf))
                 {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
@@ -269,7 +269,7 @@ async fn run_test<F, S, R>(
 ) -> Result<()>
 where
     F: Fn(S, R) -> Result<Engine<S, R>> + Clone + Send + 'static,
-    S: ExecutionScheduler,
+    S: PipelineExecutor,
     R: Runtime,
 {
     let path = path.as_ref();
@@ -293,15 +293,15 @@ where
 
 #[derive(Debug)]
 #[allow(dead_code)]
-struct TestSession<S: ExecutionScheduler, R: Runtime> {
+struct TestSession<P: PipelineExecutor, R: Runtime> {
     conf: RunConfig,
-    engine: Engine<S, R>,
-    session: Session<S, R>,
+    engine: Engine<P, R>,
+    session: Session<P, R>,
 }
 
-impl<S, R> TestSession<S, R>
+impl<P, R> TestSession<P, R>
 where
-    S: ExecutionScheduler,
+    P: PipelineExecutor,
     R: Runtime,
 {
     async fn run_inner(
@@ -352,7 +352,7 @@ where
 #[async_trait]
 impl<S, R> sqllogictest::AsyncDB for TestSession<S, R>
 where
-    S: ExecutionScheduler,
+    S: PipelineExecutor,
     R: Runtime,
 {
     type Error = RayexecError;

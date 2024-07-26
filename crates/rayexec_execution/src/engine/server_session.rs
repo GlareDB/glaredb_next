@@ -11,7 +11,7 @@ use crate::{
     datasource::DataSourceRegistry,
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     logical::sql::binder::{bind_data::BindData, BoundStatement},
-    runtime::{ExecutionScheduler, QueryHandle, Runtime},
+    runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;
 
@@ -20,32 +20,32 @@ use std::sync::Arc;
 /// Keeps no state and very cheap to create. Essentially just encapsulates logic
 /// for what should happen on the remote side for hybrid/distributed execution.
 #[derive(Debug)]
-pub struct ServerSession<S: ExecutionScheduler, R: Runtime> {
+pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
     /// Context this session has access to.
     context: DatabaseContext,
 
     /// Registered data source implementations.
     registry: Arc<DataSourceRegistry>,
 
-    scheduler: S,
+    executor: P,
     runtime: R,
 }
 
-impl<S, R> ServerSession<S, R>
+impl<P, R> ServerSession<P, R>
 where
-    S: ExecutionScheduler,
+    P: PipelineExecutor,
     R: Runtime,
 {
     pub fn new(
         context: DatabaseContext,
-        scheduler: S,
+        executor: P,
         runtime: R,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
         ServerSession {
             context,
             registry,
-            scheduler,
+            executor,
             runtime,
         }
     }

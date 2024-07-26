@@ -12,7 +12,7 @@ use std::sync::Arc;
 use task::{PartitionPipelineTask, PipelineState, TaskState};
 use tracing::debug;
 
-use crate::runtime::InnerScheduler;
+use crate::runtime::Scheduler;
 
 /// Work-stealing scheduler for executing queries on a thread pool.
 #[derive(Clone)]
@@ -28,7 +28,7 @@ impl fmt::Debug for ThreadedScheduler {
     }
 }
 
-impl InnerScheduler for ThreadedScheduler {
+impl Scheduler for ThreadedScheduler {
     type Handle = ThreadedQueryHandle;
 
     fn try_new() -> Result<Self> {

@@ -9,7 +9,7 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{
-        ErrorSink, ExecutionScheduler, OptionalTokioRuntime, QueryHandle, Runtime,
+        ErrorSink, OptionalTokioRuntime, PipelineExecutor, QueryHandle, Runtime,
         TokioHandlerProvider,
     },
 };
@@ -27,7 +27,7 @@ use crate::{
 /// Inner behavior of the execution runtime.
 // TODO: Single-threaded scheduler to run our SLTs on to ensure no operators
 // block without making progress. Would not be used for anything else.
-pub trait InnerScheduler: Sync + Send + Debug + Sized + Clone {
+pub trait Scheduler: Sync + Send + Debug + Sized + Clone {
     type Handle: QueryHandle;
 
     fn try_new() -> Result<Self>;
@@ -40,15 +40,15 @@ pub trait InnerScheduler: Sync + Send + Debug + Sized + Clone {
 }
 
 #[derive(Debug, Clone)]
-pub struct NativeScheduler<S: InnerScheduler>(S);
+pub struct NativeExecutor<S: Scheduler>(S);
 
-impl<S: InnerScheduler> NativeScheduler<S> {
+impl<S: Scheduler> NativeExecutor<S> {
     pub fn try_new() -> Result<Self> {
-        Ok(NativeScheduler(S::try_new()?))
+        Ok(NativeExecutor(S::try_new()?))
     }
 }
 
-impl<S: InnerScheduler + 'static> ExecutionScheduler for NativeScheduler<S> {
+impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
     fn spawn_query_graph(
         &self,
         query_graph: QueryGraph,
@@ -59,7 +59,7 @@ impl<S: InnerScheduler + 'static> ExecutionScheduler for NativeScheduler<S> {
     }
 }
 
-pub type ThreadedNativeScheduler = NativeScheduler<ThreadedScheduler>;
+pub type ThreadedNativeExecutor = NativeExecutor<ThreadedScheduler>;
 
 #[derive(Debug, Clone)]
 pub struct NativeRuntime {

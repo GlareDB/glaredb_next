@@ -8,10 +8,10 @@ use rayexec_execution::{
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeScheduler};
+use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 fn main() -> Result<()> {
-    let sched = ThreadedNativeScheduler::try_new().unwrap();
+    let sched = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();
     let tokio_handle = runtime
         .tokio_handle()

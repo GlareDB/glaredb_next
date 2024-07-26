@@ -6,10 +6,10 @@ use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::runtime::{ExecutionScheduler, Runtime, TokioHandlerProvider};
+use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeScheduler};
+use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::{Shell, ShellSignal};
@@ -29,7 +29,7 @@ fn main() {
     let args = Arguments::parse();
     logutil::configure_global_logger(tracing::Level::ERROR);
 
-    let sched = ThreadedNativeScheduler::try_new().unwrap();
+    let sched = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();
     let tokio_handle = runtime
         .tokio_handle()
@@ -68,7 +68,7 @@ fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
 
 async fn inner(
     args: Arguments,
-    scheduler: impl ExecutionScheduler,
+    scheduler: impl PipelineExecutor,
     runtime: impl Runtime,
 ) -> Result<()> {
     let registry = DataSourceRegistry::default()
