@@ -6,10 +6,15 @@ use super::{
     IpcConfig,
 };
 use crate::{
-    datatype::DataType,
+    datatype::{self, DataType},
     field::{Field, Schema},
+    ipc::gen::schema::{
+        BoolBuilder, FieldBuilder, IntBuilder, LargeUtf8Builder, NullBuilder, SchemaBuilder,
+        Utf8Builder,
+    },
 };
-use rayexec_error::{RayexecError, Result};
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 pub fn ipc_to_schema(schema: IpcSchema, conf: &IpcConfig) -> Result<Schema> {
     let ipc_fields = schema.fields().unwrap();
@@ -91,4 +96,99 @@ pub fn ipc_to_field(field: IpcField, conf: &IpcConfig) -> Result<Field> {
         datatype,
         nullable: field.nullable(),
     })
+}
+
+pub fn schema_to_ipc<'a>(
+    schema: &Schema,
+    builder: &mut FlatBufferBuilder<'a>,
+) -> Result<WIPOffset<IpcSchema<'a>>> {
+    let fields = schema
+        .fields
+        .iter()
+        .map(|f| field_to_ipc(f, builder))
+        .collect::<Result<Vec<_>>>()?;
+
+    let fields = builder.create_vector(&fields);
+
+    let mut schema_builder = SchemaBuilder::new(builder);
+    schema_builder.add_fields(fields);
+
+    Ok(schema_builder.finish())
+}
+
+pub fn field_to_ipc<'a>(
+    field: &Field,
+    builder: &mut FlatBufferBuilder<'a>,
+) -> Result<WIPOffset<IpcField<'a>>> {
+    let name = builder.create_string(&field.name);
+
+    let empty_children: Vec<WIPOffset<IpcField>> = Vec::new();
+
+    let (datatype, type_, children) = match &field.datatype {
+        DataType::Null => (
+            IpcType::Null,
+            NullBuilder::new(builder).finish().as_union_value(),
+            empty_children.clone(),
+        ),
+        DataType::Boolean => (
+            IpcType::Bool,
+            BoolBuilder::new(builder).finish().as_union_value(),
+            empty_children.clone(),
+        ),
+        DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
+            let mut int_builder = IntBuilder::new(builder);
+            int_builder.add_is_signed(true);
+            match &field.datatype {
+                DataType::Int8 => int_builder.add_bitWidth(8),
+                DataType::Int16 => int_builder.add_bitWidth(16),
+                DataType::Int32 => int_builder.add_bitWidth(32),
+                DataType::Int64 => int_builder.add_bitWidth(64),
+                _ => unreachable!(),
+            }
+            (
+                IpcType::Int,
+                int_builder.finish().as_union_value(),
+                empty_children.clone(),
+            )
+        }
+        DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
+            let mut int_builder = IntBuilder::new(builder);
+            int_builder.add_is_signed(false);
+            match &field.datatype {
+                DataType::UInt8 => int_builder.add_bitWidth(8),
+                DataType::UInt16 => int_builder.add_bitWidth(16),
+                DataType::UInt32 => int_builder.add_bitWidth(32),
+                DataType::UInt64 => int_builder.add_bitWidth(64),
+                _ => unreachable!(),
+            }
+            (
+                IpcType::Int,
+                int_builder.finish().as_union_value(),
+                empty_children.clone(),
+            )
+        }
+        DataType::Utf8 => (
+            IpcType::Utf8,
+            Utf8Builder::new(builder).finish().as_union_value(),
+            empty_children.clone(),
+        ),
+        DataType::LargeUtf8 => (
+            IpcType::LargeUtf8,
+            LargeUtf8Builder::new(builder).finish().as_union_value(),
+            empty_children.clone(),
+        ),
+
+        other => not_implemented!("write ipc datatype {other}"),
+    };
+
+    let children = builder.create_vector(&children);
+
+    let mut field_builder = FieldBuilder::new(builder);
+    field_builder.add_name(name);
+    field_builder.add_type_type(datatype);
+    field_builder.add_type_(type_);
+    field_builder.add_children(children);
+    field_builder.add_nullable(field.nullable);
+
+    Ok(field_builder.finish())
 }

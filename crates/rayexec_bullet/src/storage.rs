@@ -63,7 +63,8 @@ impl<T> PrimitiveStorage<T> {
     /// Copies a bytes slice into a newly allocated primitive storage for the
     /// primitive type.
     ///
-    /// Assumes that the bytes provided is a valid representation of T.
+    /// Assumes that the bytes provided represents a valid contiguous slice of
+    /// `T`.
     pub fn copy_from_bytes(bytes: &[u8]) -> Result<Self>
     where
         T: Default + Copy,
@@ -80,11 +81,22 @@ impl<T> PrimitiveStorage<T> {
         let len = manual.len();
         let cap = manual.capacity();
 
-        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr as *mut u8, bytes.len()) };
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr.cast(), bytes.len()) };
 
         let vec = unsafe { Vec::from_raw_parts(ptr, len, cap) };
 
         Ok(PrimitiveStorage::Vec(vec))
+    }
+
+    /// Returns self as a slice of bytes.
+    ///
+    /// Represents a contiguous slice of `T` as bytes (native endian).
+    pub fn as_bytes(&self) -> &[u8] {
+        let s = self.as_ref();
+        let ptr = s.as_ptr();
+        let num_bytes = s.len() * std::mem::size_of::<T>();
+
+        unsafe { std::slice::from_raw_parts(ptr.cast(), num_bytes) }
     }
 }
 
@@ -117,6 +129,8 @@ impl<T> AsRef<[T]> for PrimitiveStorage<T> {
 mod tests {
     use super::*;
 
+    // Assumes little endian.
+
     #[test]
     fn from_bytes() {
         let bs = [1, 0, 0, 0, 2, 0, 0, 0];
@@ -129,5 +143,19 @@ mod tests {
     fn from_bytes_invalid_len() {
         let bs = [1, 0, 0, 0, 2, 0, 0, 0, 3];
         let _ = PrimitiveStorage::<u32>::copy_from_bytes(&bs).unwrap_err();
+    }
+
+    #[test]
+    fn as_bytes() {
+        let s = PrimitiveStorage::<u32>::from(vec![1, 2]);
+        assert_eq!(&[1, 0, 0, 0, 2, 0, 0, 0], s.as_bytes())
+    }
+
+    #[test]
+    fn bytes_roundtrip() {
+        let s1 = PrimitiveStorage::<u32>::from(vec![8, 9, 10]);
+        let s2 = PrimitiveStorage::<u32>::copy_from_bytes(s1.as_bytes()).unwrap();
+
+        assert_eq!(s1, s2);
     }
 }

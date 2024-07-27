@@ -2,6 +2,7 @@
 //!
 //! Spec: <https://arrow.apache.org/docs/format/Columnar.html#serialization-and-interprocess-communication-ipc>
 pub mod reader;
+pub mod writer;
 
 mod batch;
 mod compression;
