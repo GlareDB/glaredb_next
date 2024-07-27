@@ -21,6 +21,10 @@ impl Bitmap {
         }
     }
 
+    pub(crate) fn data(&self) -> &[u8] {
+        &self.data
+    }
+
     /// Create a new bitmap of a given length with all values initialized to the
     /// given value.
     pub fn new_with_val(val: bool, len: usize) -> Self {
