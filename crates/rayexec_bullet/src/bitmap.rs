@@ -9,6 +9,11 @@ pub struct Bitmap {
 }
 
 impl Bitmap {
+    pub fn try_new(data: Vec<u8>, len: usize) -> Result<Self> {
+        // TODO: Validite
+        Ok(Bitmap { len, data })
+    }
+
     pub fn with_capacity(cap: usize) -> Self {
         Bitmap {
             len: 0,

@@ -6,8 +6,28 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::all)]
 
-pub mod File;
-pub mod Message;
-pub mod Schema;
-pub mod SparseTensor;
-pub mod Tensor;
+mod File;
+mod Message;
+mod Schema;
+mod SparseTensor;
+mod Tensor;
+
+pub mod file {
+    pub use super::File::*;
+}
+
+pub mod message {
+    pub use super::Message::*;
+}
+
+pub mod schema {
+    pub use super::Schema::*;
+}
+
+pub mod sparse_tensor {
+    pub use super::SparseTensor::*;
+}
+
+pub mod tensor {
+    pub use super::Tensor::*;
+}

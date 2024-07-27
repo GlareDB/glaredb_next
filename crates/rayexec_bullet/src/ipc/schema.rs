@@ -1,9 +1,28 @@
-use super::gen::Schema::{Field as IpcField, Precision as IpcPrecision, Type as IpcType};
-use crate::{datatype::DataType, field::Field};
+//! Conversion to/from ipc schema.
+use super::{
+    gen::schema::{
+        Field as IpcField, Precision as IpcPrecision, Schema as IpcSchema, Type as IpcType,
+    },
+    IpcConfig,
+};
+use crate::{
+    datatype::DataType,
+    field::{Field, Schema},
+};
 use rayexec_error::{RayexecError, Result};
 
+pub fn ipc_to_schema(schema: IpcSchema, conf: &IpcConfig) -> Result<Schema> {
+    let ipc_fields = schema.fields().unwrap();
+    let fields = ipc_fields
+        .into_iter()
+        .map(|f| ipc_to_field(f, conf))
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(Schema::new(fields))
+}
+
 /// Convert an arrow ipc field to a rayexec field..
-pub fn ipc_to_field(field: IpcField) -> Result<Field> {
+pub fn ipc_to_field(field: IpcField, conf: &IpcConfig) -> Result<Field> {
     if field.custom_metadata().is_some() {
         // I don't think we'll ever want to support custom metadata, but maybe
         // we should just ignore it.
