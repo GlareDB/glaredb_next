@@ -1,7 +1,4 @@
 //! Generated code for the Arrow IPC format.
-//!
-//! This lives in its own crate to avoid polluting any other crate with some
-//! ugly code.
 
 #![allow(non_snake_case)]
 #![allow(dead_code)]

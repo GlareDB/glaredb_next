@@ -1,5 +1,5 @@
+use super::gen::Schema::{Field as IpcField, Precision as IpcPrecision, Type as IpcType};
 use crate::{datatype::DataType, field::Field};
-use rayexec_arrow_ipc::Schema::{Field as IpcField, Precision as IpcPrecision, Type as IpcType};
 use rayexec_error::{RayexecError, Result};
 
 /// Convert an arrow ipc field to a rayexec field..

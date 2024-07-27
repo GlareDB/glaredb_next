@@ -1,5 +1,5 @@
+use crate::logical::explainable::{ExplainConfig, ExplainEntry};
 use rayexec_bullet::batch::Batch;
-use crate::logical::explainable::{ ExplainConfig,  ExplainEntry};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Waker};
