@@ -145,7 +145,7 @@ impl ExplainNode {
                     Vec::new()
                 }
             }
-            LogicalOperator::Empty
+            LogicalOperator::Empty(_)
             | LogicalOperator::ExpressionList(_)
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)

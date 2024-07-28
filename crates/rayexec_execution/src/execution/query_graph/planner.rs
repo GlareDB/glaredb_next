@@ -330,7 +330,7 @@ impl BuildState {
             LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
                 "Dependent joins cannot be made into a physical pipeline",
             )),
-            LogicalOperator::Empty => self.push_empty(conf, id_gen),
+            LogicalOperator::Empty(_) => self.push_empty(conf, id_gen),
             LogicalOperator::Aggregate(agg) => {
                 self.push_aggregate(conf, id_gen, materializations, agg)
             }

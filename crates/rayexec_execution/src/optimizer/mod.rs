@@ -1,4 +1,5 @@
 pub mod join_order;
+pub mod location;
 
 use crate::{logical::operator::LogicalOperator, optimizer::join_order::JoinOrderRule};
 use rayexec_error::Result;

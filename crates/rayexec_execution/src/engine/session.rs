@@ -201,7 +201,7 @@ where
                 let attach = attach.into_inner();
                 // Here to avoid lifetime issues.
                 let empty = planner.create_graph(
-                    LogicalOperator::Empty,
+                    LogicalOperator::EMPTY,
                     QueryContext::new(),
                     query_sink,
                 )?;
@@ -215,7 +215,7 @@ where
             }
             LogicalOperator::DetachDatabase(detach) => {
                 let empty = planner.create_graph(
-                    LogicalOperator::Empty,
+                    LogicalOperator::EMPTY,
                     QueryContext::new(),
                     query_sink,
                 )?; // Here to avoid lifetime issues.
@@ -238,7 +238,7 @@ where
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
-                planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
+                planner.create_graph(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
             }
             LogicalOperator::ResetVar(reset) => {
                 // Same TODO as above.
@@ -246,7 +246,7 @@ where
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
-                planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
+                planner.create_graph(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
             }
             root => planner.create_graph(root, context, query_sink)?,
         };
