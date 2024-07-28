@@ -25,7 +25,7 @@ pub struct IntermediatePipelineId(pub usize);
 pub enum PipelineSink {
     /// Sink is in the same group of operators as itself.
     InGroup {
-        pipeline: IntermediatePipelineId,
+        pipeline_id: IntermediatePipelineId,
         operator_idx: usize,
         input_idx: usize,
     },
