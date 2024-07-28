@@ -178,6 +178,39 @@ impl LogicalOperator {
         }
     }
 
+    pub fn location(&self) -> &LocationRequirement {
+        match self {
+            Self::Projection(n) => &n.location,
+            Self::Filter(n) => &n.location,
+            Self::Aggregate(n) => &n.location,
+            Self::Order(n) => &n.location,
+            Self::AnyJoin(n) => &n.location,
+            Self::EqualityJoin(n) => &n.location,
+            Self::CrossJoin(n) => &n.location,
+            Self::DependentJoin(n) => &n.location,
+            Self::Limit(n) => &n.location,
+            Self::SetOperation(n) => &n.location,
+            Self::MaterializedScan(n) => &n.location,
+            Self::Scan(n) => &n.location,
+            Self::TableFunction(n) => &n.location,
+            Self::ExpressionList(n) => &n.location,
+            Self::Empty(n) => &n.location,
+            Self::SetVar(n) => &n.location,
+            Self::ShowVar(n) => &n.location,
+            Self::ResetVar(n) => &n.location,
+            Self::CreateSchema(n) => &n.location,
+            Self::CreateTable(n) => &n.location,
+            Self::CreateTableAs(n) => &n.location,
+            Self::AttachDatabase(n) => &n.location,
+            Self::DetachDatabase(n) => &n.location,
+            Self::Drop(n) => &n.location,
+            Self::Insert(n) => &n.location,
+            Self::CopyTo(n) => &n.location,
+            Self::Explain(n) => &n.location,
+            Self::Describe(n) => &n.location,
+        }
+    }
+
     pub fn location_mut(&mut self) -> &mut LocationRequirement {
         match self {
             Self::Projection(n) => &mut n.location,
@@ -216,8 +249,56 @@ impl LogicalOperator {
     }
 
     pub fn take_boxed(self: &mut Box<Self>) -> Box<Self> {
-        const EMPTY: LogicalOperator = LogicalOperator::Empty(LogicalNode::new(()));
         std::mem::replace(self, Box::new(Self::EMPTY))
+    }
+
+    pub fn for_each_child_mut<F>(&mut self, f: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalOperator) -> Result<()>,
+    {
+        match self {
+            Self::Projection(n) => f(&mut n.as_mut().input)?,
+            Self::Filter(n) => f(&mut n.as_mut().input)?,
+            Self::Aggregate(n) => f(&mut n.as_mut().input)?,
+            Self::Order(n) => f(&mut n.as_mut().input)?,
+            Self::AnyJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::EqualityJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::CrossJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::DependentJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::Limit(n) => f(&mut n.as_mut().input)?,
+            Self::SetOperation(_) => (),
+            Self::MaterializedScan(_) => (),
+            Self::Scan(_) => (),
+            Self::TableFunction(_) => (),
+            Self::ExpressionList(_) => (),
+            Self::Empty(_) => (),
+            Self::SetVar(_) => (),
+            Self::ShowVar(_) => (),
+            Self::ResetVar(_) => (),
+            Self::CreateSchema(_) => (),
+            Self::CreateTable(_) => (),
+            Self::CreateTableAs(n) => f(&mut n.as_mut().input)?,
+            Self::AttachDatabase(_) => (),
+            Self::DetachDatabase(_) => (),
+            Self::Drop(_) => (),
+            Self::Insert(n) => f(&mut n.as_mut().input)?,
+            Self::CopyTo(n) => f(&mut n.as_mut().source)?,
+            Self::Explain(n) => f(&mut n.as_mut().input)?,
+            Self::Describe(_) => (),
+        }
+        Ok(())
     }
 
     pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>

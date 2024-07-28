@@ -17,29 +17,44 @@ impl OptimizeRule for LocationRule {
     fn optimize(&self, mut plan: LogicalOperator) -> Result<LogicalOperator> {
         plan.walk_mut(
             &mut |op| {
-                match op {
-                    LogicalOperator::Projection(node) => {
-                        // override_any_location(node, node.as_mut().input.as_mut())
-                    }
-                    _ => unimplemented!(),
+                if op.location() == &LocationRequirement::Any {
+                    return Ok(());
                 }
-                //
-                unimplemented!()
+
+                // Push this operator's location down.
+                let loc = *op.location();
+                op.for_each_child_mut(&mut |child| {
+                    if child.location() == &LocationRequirement::Any {
+                        *child.location_mut() = loc;
+                    }
+                    Ok(())
+                })
             },
             &mut |op| {
+                if op.location() != &LocationRequirement::Any {
+                    return Ok(());
+                }
+
+                // Set this operator's location from one of the children.
                 //
-                unimplemented!()
+                // For operators where children have different locations, the
+                // chosen location is arbitrary.
+                let mut loc = None;
+                op.for_each_child_mut(&mut |child| {
+                    if child.location() != &LocationRequirement::Any {
+                        loc = Some(*child.location())
+                    }
+                    Ok(())
+                })?;
+
+                if let Some(loc) = loc {
+                    *op.location_mut() = loc;
+                }
+
+                Ok(())
             },
         )?;
 
         Ok(plan)
-    }
-}
-
-/// Set the location of some operator from a different operator if the location
-/// reqirement is Any.
-fn override_any_location<N1, N2>(from: LogicalNode<N1>, op: &mut LogicalNode<N2>) {
-    if matches!(op.location, LocationRequirement::Any) {
-        op.location = from.location
     }
 }
