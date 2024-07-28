@@ -70,7 +70,10 @@ impl<T> PrimitiveStorage<T> {
         T: Default + Copy,
     {
         if bytes.len() % std::mem::size_of::<T>() != 0 {
-            return Err(RayexecError::new("Byte slice is not valid for type"));
+            return Err(RayexecError::new(format!(
+                "Byte slice is not valid for type, bytes len: {}",
+                bytes.len(),
+            )));
         }
 
         let cap = bytes.len() / std::mem::size_of::<T>();

@@ -192,3 +192,29 @@ pub fn field_to_ipc<'a>(
 
     Ok(field_builder.finish())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::ipc::gen::schema::root_as_schema;
+
+    use super::*;
+
+    #[test]
+    fn simple_schema_roundtrip() {
+        let mut builder = FlatBufferBuilder::new();
+
+        let schema = Schema::new([
+            Field::new("f1", DataType::Int32, true),
+            Field::new("f2", DataType::Utf8, true),
+        ]);
+
+        let ipc = schema_to_ipc(&schema, &mut builder).unwrap();
+        builder.finish(ipc, None);
+        let buf = builder.finished_data();
+
+        let ipc = root_as_schema(buf).unwrap();
+        let got = ipc_to_schema(ipc, &IpcConfig::default()).unwrap();
+
+        assert_eq!(schema, got);
+    }
+}

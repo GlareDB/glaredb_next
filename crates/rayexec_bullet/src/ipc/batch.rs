@@ -72,7 +72,9 @@ impl<'a> BufferReader<'a> {
                 not_implemented!("ipc decompression")
             }
             None => {
-                let slice = &self.data[buf.offset() as usize..buf.length() as usize];
+                let end = buf.offset() + buf.length();
+                let slice = &self.data[buf.offset() as usize..end as usize];
+
                 Ok(slice)
             }
         }
@@ -243,14 +245,46 @@ fn encode_primitive<T>(
             data.extend(std::iter::repeat(255).take(byte_ceil(array.len())));
         }
     }
-    let len = data.len() - offset;
-    let validity_buffer = IpcBuffer::new(offset as i64, len as i64);
+
+    let validity_buffer = IpcBuffer::new(offset as i64, (&data[offset..]).len() as i64);
     buffers.push(validity_buffer);
 
     let offset = data.len();
     data.extend_from_slice(array.values().as_bytes());
-    let len = data.len() - offset;
 
-    let values_buffer = IpcBuffer::new(offset as i64, len as i64);
+    let values_buffer = IpcBuffer::new(offset as i64, (&data[offset..]).len() as i64);
     buffers.push(values_buffer);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::field::Field;
+
+    use super::*;
+
+    #[test]
+    fn simple_batch_roundtrip() {
+        let mut builder = FlatBufferBuilder::new();
+        let mut data_buf = Vec::new();
+
+        let batch = Batch::try_new([
+            Array::Int32(vec![3, 2, 1].into()),
+            Array::UInt64(vec![9, 8, 7].into()),
+        ])
+        .unwrap();
+        let ipc = batch_to_ipc(&batch, &mut data_buf, &mut builder).unwrap();
+        builder.finish(ipc, None);
+        // Note that this doesn't include the 'data_buf'.
+        let buf = builder.finished_data();
+
+        let schema = Schema::new([
+            Field::new("f1", DataType::Int32, true),
+            Field::new("f2", DataType::UInt64, true),
+        ]);
+
+        let ipc = flatbuffers::root::<IpcRecordBatch>(buf).unwrap();
+        let got = ipc_to_batch(ipc, &data_buf, &schema, &IpcConfig::default()).unwrap();
+
+        assert_eq!(batch, got);
+    }
 }
