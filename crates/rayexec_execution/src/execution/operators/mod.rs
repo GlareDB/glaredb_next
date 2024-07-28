@@ -8,6 +8,7 @@ pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod insert;
+pub mod ipc;
 pub mod join;
 pub mod limit;
 pub mod materialize;
@@ -39,11 +40,13 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use scan::ScanPartitionState;
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::task::Context;
 use table_function::TableFunctionPartitionState;
 use ungrouped_aggregate::{UngroupedAggregateOperatorState, UngroupedAggregatePartitionState};
 use union::{UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
 
+use crate::database::DatabaseContext;
 use crate::logical::explainable::Explainable;
 
 use self::empty::EmptyPartitionState;
@@ -165,8 +168,30 @@ pub enum PollFinalize {
     Pending,
 }
 
+/// States generates from an operator to use during execution.
+#[derive(Debug)]
+pub struct ExecutionStates {
+    /// Global operator state.
+    pub operator_state: Arc<OperatorState>,
+    /// Per-input, per-partition operators states.
+    ///
+    /// For operators that expect a single input, the outer vec will have a
+    /// length of one. Joins will have a vec with a length of two.
+    pub partition_states: Vec<Vec<PartitionState>>,
+}
+
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
-    fn create_states(&self) -> Result<()> {
+    /// Create execution states for this operator.
+    ///
+    /// `input_partitions` is the partitioning for each input that will be
+    /// pushing batches through this operator.
+    ///
+    /// Joins are assumed to have two inputs.
+    fn create_states(
+        &self,
+        context: &DatabaseContext,
+        input_partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
         unimplemented!()
     }
 

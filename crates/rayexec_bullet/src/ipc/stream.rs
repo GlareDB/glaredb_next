@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn round_trip_simple() {
+    fn roundtrip_simple() {
         let (reader, writer) = test_reader_writer();
 
         let schema = Schema::new([
@@ -315,6 +315,29 @@ mod tests {
         let got = s_reader.try_next_batch().unwrap().unwrap();
 
         assert_eq!(batch, got);
+    }
+
+    #[test]
+    fn roundtrip_multiple() {
+        let (reader, writer) = test_reader_writer();
+
+        let schema = Schema::new([Field::new("c1", DataType::UInt32, true)]);
+
+        let mut s_writer = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
+        let mut s_reader = StreamReader::try_new(reader, IpcConfig::default()).unwrap();
+
+        let batch1 = Batch::try_new([Array::UInt32(vec![1, 2, 3].into())]).unwrap();
+        s_writer.write_batch(&batch1).unwrap();
+
+        let got1 = s_reader.try_next_batch().unwrap().unwrap();
+
+        let batch2 = Batch::try_new([Array::UInt32(vec![4, 5].into())]).unwrap();
+        s_writer.write_batch(&batch2).unwrap();
+
+        let got2 = s_reader.try_next_batch().unwrap().unwrap();
+
+        assert_eq!(batch1, got1);
+        assert_eq!(batch2, got2);
     }
 
     #[test]

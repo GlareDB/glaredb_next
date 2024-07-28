@@ -33,8 +33,8 @@ pub trait SchemaNode {
 /// Requirement for where a node in the plan needs to be executed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LocationRequirement {
-    /// Required to be executed locally.
-    Local,
+    /// Required to be executed locally on the client.
+    ClientLocal,
     /// Required to be executed remotely.
     Remote,
     /// Can be executed either locally or remote.
@@ -45,6 +45,26 @@ pub enum LocationRequirement {
     /// An optimization pass will walk the plan an flip this to either local or
     /// remote depending on where the node sits in the plan.
     Any,
+}
+
+/// Location of this instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstanceLocation {
+    /// Instance is runnning locally on the client.
+    ClientLocal,
+    /// Instance is considered to be remote relative the client.
+    Remote,
+}
+
+impl InstanceLocation {
+    pub const fn can_handle_requirement(&self, req: LocationRequirement) -> bool {
+        match (self, req) {
+            (Self::ClientLocal, LocationRequirement::ClientLocal) => true,
+            (Self::Remote, LocationRequirement::Remote) => true,
+            (_, LocationRequirement::Any) => true,
+            _ => false,
+        }
+    }
 }
 
 /// Wrapper around nodes in the logical plan to holds additional metadata for
