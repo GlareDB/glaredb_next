@@ -116,7 +116,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
                 pipeline
             }
-            PipelineSource::Remote { partitions } => {
+            PipelineSource::OtherGroup { partitions } => {
                 // Need to insert a remote ipc source.
                 let operator = Arc::new(PhysicalIpcSource {});
                 let mut states = operator.create_states(self.context, vec![partitions])?;
@@ -172,7 +172,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     partition_states,
                 )?;
             }
-            PipelineSink::Remote { partitions } => {
+            PipelineSink::OtherGroup { partitions } => {
                 // Sink is a remote pipeline, push ipc sink.
 
                 if partitions != pipeline.num_partitions() {

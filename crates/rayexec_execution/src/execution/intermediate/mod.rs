@@ -30,7 +30,7 @@ pub enum PipelineSink {
         input_idx: usize,
     },
     /// Sink is a pipeline executing remotely.
-    Remote { partitions: usize },
+    OtherGroup { partitions: usize },
 }
 
 /// Location of the source of a pipeline.
@@ -45,7 +45,7 @@ pub enum PipelineSource {
     /// Source is already in the pipeline, don't do anything.
     InPipeline,
     /// Source is remote, build an ipc source.
-    Remote { partitions: usize },
+    OtherGroup { partitions: usize },
 }
 
 #[derive(Debug)]

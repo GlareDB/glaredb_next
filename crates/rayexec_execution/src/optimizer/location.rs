@@ -1,4 +1,4 @@
-use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator};
+use crate::logical::operator::{LocationRequirement, LogicalOperator};
 use rayexec_error::Result;
 
 use super::OptimizeRule;
@@ -15,6 +15,7 @@ pub struct LocationRule {}
 
 impl OptimizeRule for LocationRule {
     fn optimize(&self, mut plan: LogicalOperator) -> Result<LogicalOperator> {
+        // TODO: Pull up first.
         plan.walk_mut(
             &mut |op| {
                 if op.location() == &LocationRequirement::Any {
@@ -56,5 +57,57 @@ impl OptimizeRule for LocationRule {
         )?;
 
         Ok(plan)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        database::entry::TableEntry,
+        logical::operator::{LogicalNode, Projection, Scan},
+    };
+
+    use super::*;
+
+    #[test]
+    fn simple_all_local() {
+        let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
+            exprs: Vec::new(),
+            input: Box::new(LogicalOperator::Scan(LogicalNode::with_location(
+                Scan {
+                    catalog: "catalog".to_string(),
+                    schema: "schema".to_string(),
+                    source: TableEntry {
+                        name: "table".to_string(),
+                        columns: Vec::new(),
+                    },
+                },
+                LocationRequirement::ClientLocal,
+            ))),
+        }));
+
+        let plan = LocationRule {}.optimize(plan).unwrap();
+        assert_eq!(&LocationRequirement::ClientLocal, plan.location());
+    }
+
+    #[test]
+    fn simple_all_remote() {
+        let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
+            exprs: Vec::new(),
+            input: Box::new(LogicalOperator::Scan(LogicalNode::with_location(
+                Scan {
+                    catalog: "catalog".to_string(),
+                    schema: "schema".to_string(),
+                    source: TableEntry {
+                        name: "table".to_string(),
+                        columns: Vec::new(),
+                    },
+                },
+                LocationRequirement::Remote,
+            ))),
+        }));
+
+        let plan = LocationRule {}.optimize(plan).unwrap();
+        assert_eq!(&LocationRequirement::Remote, plan.location());
     }
 }
