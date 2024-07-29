@@ -155,6 +155,11 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
         // Wire up sink.
         match pending.sink {
+            PipelineSink::QueryOutput => {
+                // The pipeline's final operator is the query sink. A requisite
+                // states have already been created from above, so nothing for
+                // us to do.
+            }
             PipelineSink::InGroup {
                 pipeline_id,
                 operator_idx,

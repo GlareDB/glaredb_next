@@ -2,16 +2,22 @@ use crate::{
     execution::{
         intermediate::PipelineSink,
         operators::{
-            empty::PhysicalEmpty, filter::FilterOperation, simple::SimpleOperator,
+            copy_to::PhysicalCopyTo, empty::PhysicalEmpty, filter::FilterOperation,
+            hash_aggregate::PhysicalHashAggregate, project::ProjectOperation,
+            query_sink::PhysicalQuerySink, simple::SimpleOperator, union::PhysicalUnion,
             values::PhysicalValues,
         },
         pipeline::PipelineId,
+        query_graph::sink::QuerySink,
     },
     expr::PhysicalScalarExpression,
-    logical::operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
+    logical::{
+        grouping_set::GroupingSets,
+        operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
+    },
 };
 use rayexec_bullet::{array::Array, batch::Batch, compute::concat::concat, field::TypeSchema};
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
 
 use super::{
@@ -93,6 +99,14 @@ struct IntermediatePipelineBuildState {
 }
 
 impl IntermediatePipelineBuildState {
+    fn new() -> Self {
+        IntermediatePipelineBuildState {
+            in_progress: None,
+            local_group: IntermediatePipelineGroup::default(),
+            remote_group: IntermediatePipelineGroup::default(),
+        }
+    }
+
     fn walk(
         &mut self,
         conf: &BuildConfig,
@@ -117,6 +131,10 @@ impl IntermediatePipelineBuildState {
         self.in_progress
             .take()
             .ok_or_else(|| RayexecError::new("No in-progress pipeline to take"))
+    }
+
+    fn push_as_child_pipeline(&mut self, child: InProgressPipeline) -> Result<()> {
+        unimplemented!()
     }
 
     /// Pushes an intermedate operator onto the in-progress pipeline, erroring
@@ -175,6 +193,152 @@ impl IntermediatePipelineBuildState {
             let in_progress = self.in_progress_pipeline_mut()?;
             in_progress.operators.push(operator);
         }
+
+        Ok(())
+    }
+
+    /// Push a query sink onto the current pipeline. This marks the current
+    /// pipeline as completed.
+    ///
+    /// This is the last step when building up pipelines for a query graph.
+    fn push_query_sink(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        sink: QuerySink,
+    ) -> Result<()> {
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalQuerySink),
+            partitioning_requirement: Some(sink.num_partitions()),
+        };
+
+        // Query sink is always local so that the client can get the results.
+        self.push_intermediate_operator(operator, LocationRequirement::ClientLocal, id_gen)?;
+
+        let in_progress = self.take_in_progress_pipeline()?;
+        let pipeline = IntermediatePipeline {
+            id: in_progress.id,
+            sink: PipelineSink::QueryOutput,
+            source: in_progress.source,
+            operators: in_progress.operators,
+        };
+
+        self.local_group.pipelines.insert(pipeline.id, pipeline);
+
+        Ok(())
+    }
+
+    fn push_copy_to(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        copy_to: LogicalNode<operator::CopyTo>,
+    ) -> Result<()> {
+        let location = copy_to.location;
+        let copy_to = copy_to.into_inner();
+
+        self.walk(conf, materializations, id_gen, *copy_to.source)?;
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalCopyTo::new(copy_to.copy_to, copy_to.location)),
+            // This should be temporary until there's a better understanding of
+            // how we want to handle parallel writes.
+            partitioning_requirement: Some(1),
+        };
+
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        Ok(())
+    }
+
+    fn push_set_operation(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        setop: LogicalNode<operator::SetOperation>,
+    ) -> Result<()> {
+        let location = setop.location;
+        let setop = setop.into_inner();
+
+        // Schema from the top. Used as the input to a GROUP BY if ALL is
+        // omitted.
+        let top_schema = setop.top.output_schema(&[])?;
+
+        // Continue building top.
+        self.walk(conf, materializations, id_gen, *setop.top)?;
+
+        // Create new pipelines for bottom.
+        let mut bottom_builder = IntermediatePipelineBuildState::new();
+        bottom_builder.walk(conf, materializations, id_gen, *setop.bottom)?;
+        self.local_group
+            .merge_from_other(&mut bottom_builder.local_group);
+        self.remote_group
+            .merge_from_other(&mut bottom_builder.remote_group);
+
+        let bottom_in_progress = bottom_builder.take_in_progress_pipeline()?;
+
+        match setop.kind {
+            operator::SetOpKind::Union => {
+                let operator = IntermediateOperator {
+                    operator: Arc::new(PhysicalUnion),
+                    partitioning_requirement: None,
+                };
+
+                self.push_intermediate_operator(operator, location, id_gen)?;
+
+                // The union operator is the "sink" for the bottom pipeline.
+                self.push_as_child_pipeline(bottom_in_progress)?;
+            }
+            other => not_implemented!("set op {other}"),
+        }
+
+        // Make output distinct by grouping on all columns. No output
+        // aggregates, so the output schema remains the same.
+        if !setop.all {
+            let grouping_sets =
+                GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
+            let group_types = top_schema.types;
+
+            let operator = IntermediateOperator {
+                operator: Arc::new(PhysicalHashAggregate::new(
+                    group_types,
+                    grouping_sets,
+                    Vec::new(),
+                )),
+                partitioning_requirement: None,
+            };
+
+            self.push_intermediate_operator(operator, location, id_gen)?;
+        }
+
+        Ok(())
+    }
+
+    fn push_project(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        project: LogicalNode<operator::Projection>,
+    ) -> Result<()> {
+        let input_schema = project.as_ref().input.output_schema(&[])?;
+        let location = project.location;
+        let project = project.into_inner();
+        self.walk(conf, materializations, id_gen, *project.input)?;
+
+        let projections = project
+            .exprs
+            .into_iter()
+            .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &input_schema))
+            .collect::<Result<Vec<_>>>()?;
+        let operator = IntermediateOperator {
+            operator: Arc::new(SimpleOperator::new(ProjectOperation::new(projections))),
+            partitioning_requirement: None,
+        };
+
+        self.push_intermediate_operator(operator, location, id_gen)?;
 
         Ok(())
     }

@@ -101,6 +101,25 @@ pub struct PhysicalHashAggregate {
 }
 
 impl PhysicalHashAggregate {
+    pub fn new(
+        group_types: Vec<DataType>,
+        grouping_sets: GroupingSets,
+        exprs: Vec<PhysicalAggregateExpression>,
+    ) -> Self {
+        // Collect all unique column indices that are part of computing the
+        // aggregate.
+        let mut agg_input_cols = BTreeSet::new();
+        for expr in &exprs {
+            agg_input_cols.extend(expr.column_indices.iter().copied());
+        }
+
+        PhysicalHashAggregate {
+            group_types,
+            grouping_sets,
+            aggregate_columns: agg_input_cols.into_iter().collect(),
+        }
+    }
+
     pub fn try_new(
         num_partitions: usize,
         group_types: Vec<DataType>,

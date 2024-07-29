@@ -23,6 +23,8 @@ pub struct IntermediatePipelineId(pub usize);
 /// appropriately.
 #[derive(Debug, Clone)]
 pub enum PipelineSink {
+    /// The pipeline's sink is the output of the query.
+    QueryOutput,
     /// Sink is in the same group of operators as itself.
     InGroup {
         pipeline_id: IntermediatePipelineId,
@@ -48,9 +50,15 @@ pub enum PipelineSource {
     OtherGroup { partitions: usize },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct IntermediatePipelineGroup {
     pub(crate) pipelines: HashMap<IntermediatePipelineId, IntermediatePipeline>,
+}
+
+impl IntermediatePipelineGroup {
+    pub fn merge_from_other(&mut self, other: &mut Self) {
+        self.pipelines.extend(other.pipelines.drain())
+    }
 }
 
 #[derive(Debug)]
