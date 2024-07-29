@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -38,13 +39,7 @@ impl QuerySink {
 }
 
 /// How results for a partition should be written.
-///
-/// Note that the references are mutable meaning we _don't_ need to worry about
-/// synchronization in the sink.
 pub trait PartitionSink: Sync + Send + Debug {
-    /// Poll push a result to the partition sink.
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
-
-    /// Finalize the push.
-    fn poll_finalize_push(&mut self, cx: &mut Context) -> Result<PollFinalize>;
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>>;
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>>;
 }

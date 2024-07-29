@@ -1,10 +1,14 @@
+use crate::database::DatabaseContext;
 use crate::execution::query_graph::sink::PartitionSink;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    PollPush,
+};
 
 #[derive(Debug)]
 pub struct QuerySinkPartitionState {
@@ -22,6 +26,14 @@ impl QuerySinkPartitionState {
 pub struct PhysicalQuerySink;
 
 impl PhysicalOperator for PhysicalQuerySink {
+    fn create_states(
+        &self,
+        context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        unimplemented!()
+    }
+
     fn poll_push(
         &self,
         cx: &mut Context,

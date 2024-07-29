@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use futures::Stream;
+use futures::{future::BoxFuture, Stream};
 use parking_lot::Mutex;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
@@ -132,31 +132,39 @@ pub struct ResultAdapterSink {
 }
 
 impl PartitionSink for ResultAdapterSink {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
-        let mut state = self.state.lock();
-
-        if state.batch.is_some() {
-            state.push_waker = Some(cx.waker().clone());
-            return Ok(PollPush::Pending(batch));
-        }
-
-        state.batch = Some(batch);
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
-
-        Ok(PollPush::Pushed)
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+        unimplemented!()
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
-        let mut state = self.state.lock();
-        state.finished = true;
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
-
-        Ok(PollFinalize::Finalized)
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+        unimplemented!()
     }
+
+    // fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
+    //     let mut state = self.state.lock();
+
+    //     if state.batch.is_some() {
+    //         state.push_waker = Some(cx.waker().clone());
+    //         return Ok(PollPush::Pending(batch));
+    //     }
+
+    //     state.batch = Some(batch);
+    //     if let Some(waker) = state.pull_waker.take() {
+    //         waker.wake();
+    //     }
+
+    //     Ok(PollPush::Pushed)
+    // }
+
+    // fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    //     let mut state = self.state.lock();
+    //     state.finished = true;
+    //     if let Some(waker) = state.pull_waker.take() {
+    //         waker.wake();
+    //     }
+
+    //     Ok(PollFinalize::Finalized)
+    // }
 }
 
 #[derive(Debug, Clone)]

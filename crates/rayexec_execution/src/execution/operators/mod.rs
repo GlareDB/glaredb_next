@@ -190,7 +190,7 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     fn create_states(
         &self,
         context: &DatabaseContext,
-        input_partitions: Vec<usize>,
+        partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         unimplemented!()
     }
