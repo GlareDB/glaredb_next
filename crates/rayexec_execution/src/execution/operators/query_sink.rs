@@ -11,13 +11,13 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct QuerySinkPartitionState {
+pub struct QuerySinkPartitionStateBak {
     sink: Box<dyn PartitionSink>,
 }
 
-impl QuerySinkPartitionState {
+impl QuerySinkPartitionStateBak {
     pub fn new(sink: Box<dyn PartitionSink>) -> Self {
-        QuerySinkPartitionState { sink }
+        QuerySinkPartitionStateBak { sink }
     }
 }
 
@@ -42,7 +42,7 @@ impl PhysicalOperator for PhysicalQuerySink {
         batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
-            PartitionState::QuerySink(state) => state,
+            PartitionState::QuerySinkBak(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -56,7 +56,7 @@ impl PhysicalOperator for PhysicalQuerySink {
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         let state = match partition_state {
-            PartitionState::QuerySink(state) => state,
+            PartitionState::QuerySinkBak(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 

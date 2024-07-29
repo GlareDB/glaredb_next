@@ -17,6 +17,7 @@ pub mod query_sink;
 pub mod round_robin;
 pub mod scan;
 pub mod simple;
+pub mod sink;
 pub mod sort;
 pub mod table_function;
 pub mod ungrouped_aggregate;
@@ -39,6 +40,7 @@ use materialize::{
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use scan::ScanPartitionState;
+use sink::QuerySinkPartitionState;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::Context;
@@ -59,7 +61,7 @@ use self::join::nl_join::{
     NestedLoopJoinProbePartitionState,
 };
 use self::limit::LimitPartitionState;
-use self::query_sink::QuerySinkPartitionState;
+use self::query_sink::QuerySinkPartitionStateBak;
 use self::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
@@ -81,6 +83,7 @@ pub enum PartitionState {
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
+    QuerySinkBak(QuerySinkPartitionStateBak),
     QuerySink(QuerySinkPartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),

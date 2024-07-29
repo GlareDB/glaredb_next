@@ -24,7 +24,7 @@ use crate::{
             limit::PhysicalLimit,
             materialize::PhysicalMaterialize,
             project::ProjectOperation,
-            query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
+            query_sink::{PhysicalQuerySink, QuerySinkPartitionStateBak},
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             scan::PhysicalScan,
             simple::{SimpleOperator, SimplePartitionState},
@@ -421,7 +421,7 @@ impl BuildState {
         let partition_states = sink
             .partition_sinks
             .into_iter()
-            .map(|sink| PartitionState::QuerySink(QuerySinkPartitionState::new(sink)))
+            .map(|sink| PartitionState::QuerySinkBak(QuerySinkPartitionStateBak::new(sink)))
             .collect();
 
         current.push_operator(physical, operator_state, partition_states)?;
