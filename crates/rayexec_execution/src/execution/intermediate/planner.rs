@@ -1,10 +1,14 @@
 use crate::{
+    database::create::{CreateSchemaInfo, CreateTableInfo},
+    engine::vars::SessionVars,
     execution::{
         intermediate::PipelineSink,
         operators::{
-            copy_to::PhysicalCopyTo, empty::PhysicalEmpty, filter::FilterOperation,
-            hash_aggregate::PhysicalHashAggregate, project::ProjectOperation,
-            query_sink::PhysicalQuerySink, simple::SimpleOperator, union::PhysicalUnion,
+            copy_to::PhysicalCopyTo, create_schema::PhysicalCreateSchema,
+            create_table::PhysicalCreateTable, drop::PhysicalDrop, empty::PhysicalEmpty,
+            filter::FilterOperation, hash_aggregate::PhysicalHashAggregate, insert::PhysicalInsert,
+            project::ProjectOperation, query_sink::PhysicalQuerySink, scan::PhysicalScan,
+            simple::SimpleOperator, table_function::PhysicalTableFunction, union::PhysicalUnion,
             values::PhysicalValues,
         },
         pipeline::PipelineId,
@@ -12,11 +16,17 @@ use crate::{
     },
     expr::PhysicalScalarExpression,
     logical::{
+        context::QueryContext,
         grouping_set::GroupingSets,
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
     },
 };
-use rayexec_bullet::{array::Array, batch::Batch, compute::concat::concat, field::TypeSchema};
+use rayexec_bullet::{
+    array::{Array, Utf8Array},
+    batch::Batch,
+    compute::concat::concat,
+    field::TypeSchema,
+};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
 
@@ -25,13 +35,72 @@ use super::{
     PipelineSource,
 };
 
-#[derive(Debug)]
-pub struct IntermediatePipelinePlanner {}
+/// Configuration used during intermediate pipeline planning.
+#[derive(Debug, Clone)]
+pub struct IntermediateConfig {
+    /// Trigger an error if we attempt to plan a nested loop join.
+    pub error_on_nested_loop_join: bool,
+}
 
-impl IntermediatePipelinePlanner {}
+impl IntermediateConfig {
+    pub fn from_sessio_vars(vars: &SessionVars) -> Self {
+        IntermediateConfig {
+            error_on_nested_loop_join: vars
+                .get_var_expect("debug_error_on_nested_loop_join")
+                .value
+                .try_as_bool()
+                .unwrap(),
+        }
+    }
+}
 
+/// Planned pipelines grouped into locations for where they should be executed.
 #[derive(Debug)]
-struct BuildConfig {}
+pub struct PlannedPipelineGroups {
+    pub local: IntermediatePipelineGroup,
+    pub remote: IntermediatePipelineGroup,
+}
+
+/// Planner for building intermedate pipelines.
+///
+/// Intermediate pipelines still retain some structure with which pipeline feeds
+/// into another, but are not yet executable.
+#[derive(Debug)]
+pub struct IntermediatePipelinePlanner {
+    config: IntermediateConfig,
+}
+
+impl IntermediatePipelinePlanner {
+    pub fn new(config: IntermediateConfig) -> Self {
+        IntermediatePipelinePlanner { config }
+    }
+
+    /// Plan the intermediate pipelines.
+    pub fn plan_pipelines(
+        &self,
+        root: operator::LogicalOperator,
+        context: QueryContext,
+        sink: QuerySink,
+    ) -> Result<PlannedPipelineGroups> {
+        let mut state = IntermediatePipelineBuildState::new();
+        // TODO: Actually do materializations.
+        let mut materializations = Materializations::default();
+        let mut id_gen = PipelineIdGen {
+            gen: IntermediatePipelineId(0),
+        };
+        state.walk(&self.config, &mut materializations, &mut id_gen, root)?;
+
+        // Finish with query sink.
+        state.push_query_sink(&self.config, &mut id_gen, sink)?;
+
+        debug_assert!(state.in_progress.is_none());
+
+        Ok(PlannedPipelineGroups {
+            local: state.local_group,
+            remote: state.remote_group,
+        })
+    }
+}
 
 /// Used for ensuring every pipeline in a query has a unique id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,12 +178,87 @@ impl IntermediatePipelineBuildState {
 
     fn walk(
         &mut self,
-        conf: &BuildConfig,
+        conf: &IntermediateConfig,
         materializations: &mut Materializations,
         id_gen: &mut PipelineIdGen,
         plan: LogicalOperator,
     ) -> Result<()> {
-        unimplemented!()
+        println!("{:?}", plan);
+
+        match plan {
+            LogicalOperator::Projection(proj) => {
+                self.push_project(conf, id_gen, materializations, proj)
+            }
+            LogicalOperator::Filter(filter) => {
+                self.push_filter(conf, id_gen, materializations, filter)
+            }
+            LogicalOperator::ExpressionList(values) => self.push_values(conf, id_gen, values),
+            LogicalOperator::CrossJoin(join) => {
+                // self.push_cross_join(conf, id_gen, materializations, join)
+                unimplemented!()
+            }
+            LogicalOperator::AnyJoin(join) => {
+                // self.push_any_join(conf, id_gen, materializations, join)
+                unimplemented!()
+            }
+            LogicalOperator::EqualityJoin(join) => {
+                // self.push_equality_join(conf, id_gen, materializations, join)
+                unimplemented!()
+            }
+            LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
+                "Dependent joins cannot be made into a physical pipeline",
+            )),
+            LogicalOperator::Empty(empty) => self.push_empty(conf, id_gen, empty),
+            LogicalOperator::Aggregate(agg) => {
+                // self.push_aggregate(conf, id_gen, materializations, agg)
+                unimplemented!()
+            }
+            LogicalOperator::Limit(limit) => {
+                // self.push_limit(conf, id_gen, materializations, limit)
+                unimplemented!()
+            }
+            LogicalOperator::Order(order) => {
+                // self.push_global_sort(conf, id_gen, materializations, order)
+                unimplemented!()
+            }
+            LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, id_gen, show_var),
+            LogicalOperator::Explain(explain) => {
+                self.push_explain(conf, id_gen, materializations, explain)
+            }
+            LogicalOperator::Describe(describe) => self.push_describe(conf, id_gen, describe),
+            LogicalOperator::CreateTable(create) => {
+                self.push_create_table(conf, id_gen, materializations, create)
+            }
+            LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, id_gen, create),
+            LogicalOperator::Drop(drop) => self.push_drop(conf, id_gen, drop),
+            LogicalOperator::Insert(insert) => {
+                self.push_insert(conf, id_gen, materializations, insert)
+            }
+            LogicalOperator::CopyTo(copy_to) => {
+                self.push_copy_to(conf, id_gen, materializations, copy_to)
+            }
+            LogicalOperator::MaterializedScan(scan) => {
+                // self.push_materialized_scan(conf, materializations, scan)
+                unimplemented!()
+            }
+            LogicalOperator::Scan(scan) => self.push_scan(conf, id_gen, scan),
+            LogicalOperator::TableFunction(table_func) => {
+                self.push_table_function(conf, id_gen, table_func)
+            }
+            LogicalOperator::SetOperation(setop) => {
+                self.push_set_operation(conf, id_gen, materializations, setop)
+            }
+            LogicalOperator::SetVar(_) => {
+                Err(RayexecError::new("SET should be handled in the session"))
+            }
+            LogicalOperator::ResetVar(_) => {
+                Err(RayexecError::new("RESET should be handled in the session"))
+            }
+            LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
+                RayexecError::new("ATTACH/DETACH should be handled in the session"),
+            ),
+            other => not_implemented!("logical plan to pipeline: {other:?}"),
+        }
     }
 
     /// Get the current in-progress pipeline.
@@ -183,7 +327,11 @@ impl IntermediatePipelineBuildState {
                     self.remote_group.pipelines.insert(finalized.id, finalized);
                 }
                 LocationRequirement::Any => {
-                    return Err(RayexecError::new("Unexpected any location"))
+                    // TODO: Determine if we want to allow Any to get this far.
+                    // This means that either the optimizer didn't run, or the
+                    // plan has no location requirements (no dependencies on
+                    // tables or files).
+                    self.local_group.pipelines.insert(finalized.id, finalized);
                 }
             }
 
@@ -203,7 +351,7 @@ impl IntermediatePipelineBuildState {
     /// This is the last step when building up pipelines for a query graph.
     fn push_query_sink(
         &mut self,
-        conf: &BuildConfig,
+        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         sink: QuerySink,
     ) -> Result<()> {
@@ -230,7 +378,7 @@ impl IntermediatePipelineBuildState {
 
     fn push_copy_to(
         &mut self,
-        conf: &BuildConfig,
+        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         copy_to: LogicalNode<operator::CopyTo>,
@@ -254,7 +402,7 @@ impl IntermediatePipelineBuildState {
 
     fn push_set_operation(
         &mut self,
-        conf: &BuildConfig,
+        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         setop: LogicalNode<operator::SetOperation>,
@@ -316,9 +464,281 @@ impl IntermediatePipelineBuildState {
         Ok(())
     }
 
+    fn push_drop(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        drop: LogicalNode<operator::DropEntry>,
+    ) -> Result<()> {
+        let location = drop.location;
+        let drop = drop.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalDrop::new(drop.info)),
+            partitioning_requirement: None,
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: vec![operator],
+            location,
+            source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
+    fn push_insert(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        insert: LogicalNode<operator::Insert>,
+    ) -> Result<()> {
+        let location = insert.location;
+        let insert = insert.into_inner();
+
+        self.walk(conf, materializations, id_gen, *insert.input)?;
+
+        // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalInsert::new("temp", "temp", insert.table)),
+            partitioning_requirement: None,
+        };
+
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        Ok(())
+    }
+
+    fn push_table_function(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        table_func: LogicalNode<operator::TableFunction>,
+    ) -> Result<()> {
+        let location = table_func.location;
+        let table_func = table_func.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalTableFunction::new(table_func.function)),
+            partitioning_requirement: None,
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: vec![operator],
+            location,
+            source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
+    fn push_scan(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        scan: LogicalNode<operator::Scan>,
+    ) -> Result<()> {
+        let location = scan.location;
+        let scan = scan.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalScan::new(scan.catalog, scan.schema, scan.source)),
+            partitioning_requirement: None,
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: vec![operator],
+            location,
+            source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
+    fn push_create_schema(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        create: LogicalNode<operator::CreateSchema>,
+    ) -> Result<()> {
+        let location = create.location;
+        let create = create.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalCreateSchema::new(
+                create.catalog,
+                CreateSchemaInfo {
+                    name: create.name,
+                    on_conflict: create.on_conflict,
+                },
+            )),
+            partitioning_requirement: None,
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: vec![operator],
+            location,
+            source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
+    fn push_create_table(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        create: LogicalNode<operator::CreateTable>,
+    ) -> Result<()> {
+        let location = create.location;
+        let create = create.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let is_ctas = create.input.is_some();
+        match create.input {
+            Some(input) => {
+                // CTAS, plan the input. It'll be the source of this pipeline.
+                self.walk(conf, materializations, id_gen, *input)?;
+            }
+            None => {
+                // No input, just have an empty operator as the source.
+                let operator = IntermediateOperator {
+                    operator: Arc::new(PhysicalEmpty),
+                    partitioning_requirement: Some(1),
+                };
+
+                self.in_progress = Some(InProgressPipeline {
+                    id: id_gen.next(),
+                    operators: vec![operator],
+                    location,
+                    source: PipelineSource::InPipeline,
+                });
+            }
+        };
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalCreateTable::new(
+                create.catalog,
+                create.schema,
+                CreateTableInfo {
+                    name: create.name,
+                    columns: create.columns,
+                    on_conflict: create.on_conflict,
+                },
+                is_ctas,
+            )),
+            partitioning_requirement: None,
+        };
+
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        Ok(())
+    }
+
+    fn push_describe(
+        &mut self,
+        _conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        describe: LogicalNode<operator::Describe>,
+    ) -> Result<()> {
+        let location = describe.location;
+        let describe = describe.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let names = Array::Utf8(Utf8Array::from_iter(
+            describe.schema.iter().map(|f| f.name.as_str()),
+        ));
+        let datatypes = Array::Utf8(Utf8Array::from_iter(
+            describe.schema.iter().map(|f| f.datatype.to_string()),
+        ));
+        let batch = Batch::try_new(vec![names, datatypes])?;
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalValues::new(vec![batch])),
+            partitioning_requirement: Some(1),
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: vec![operator],
+            location,
+            source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
+    fn push_explain(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        explain: LogicalNode<operator::Explain>,
+    ) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn push_show_var(
+        &mut self,
+        _conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        show: LogicalNode<operator::ShowVar>,
+    ) -> Result<()> {
+        let location = show.location;
+        let show = show.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
+                Array::Utf8(Utf8Array::from_iter([show.var.value.to_string().as_str()])),
+            ])?])),
+            partitioning_requirement: Some(1),
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: vec![operator],
+            location,
+            source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
     fn push_project(
         &mut self,
-        conf: &BuildConfig,
+        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         project: LogicalNode<operator::Projection>,
@@ -345,7 +765,7 @@ impl IntermediatePipelineBuildState {
 
     fn push_filter(
         &mut self,
-        conf: &BuildConfig,
+        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         filter: LogicalNode<operator::Filter>,
@@ -369,7 +789,7 @@ impl IntermediatePipelineBuildState {
 
     fn push_empty(
         &mut self,
-        _conf: &BuildConfig,
+        _conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         empty: LogicalNode<()>,
     ) -> Result<()> {
@@ -405,7 +825,7 @@ impl IntermediatePipelineBuildState {
 
     fn push_values(
         &mut self,
-        _conf: &BuildConfig,
+        _conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         values: LogicalNode<operator::ExpressionList>,
     ) -> Result<()> {

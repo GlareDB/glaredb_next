@@ -56,6 +56,10 @@ pub struct IntermediatePipelineGroup {
 }
 
 impl IntermediatePipelineGroup {
+    pub fn is_empty(&self) -> bool {
+        self.pipelines.is_empty()
+    }
+
     pub fn merge_from_other(&mut self, other: &mut Self) {
         self.pipelines.extend(other.pipelines.drain())
     }

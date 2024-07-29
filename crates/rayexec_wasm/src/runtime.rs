@@ -5,7 +5,10 @@ use futures::{
 use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
-    execution::{pipeline::ExecutablePartitionPipeline, query_graph::QueryGraph},
+    execution::{
+        pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
+        query_graph::QueryGraph,
+    },
     runtime::{
         dump::QueryDump, ErrorSink, PipelineExecutor, QueryHandle, Runtime, TokioHandlerProvider,
     },
@@ -79,15 +82,16 @@ impl TokioHandlerProvider for MissingTokioHandle {
 pub struct WasmExecutor;
 
 impl PipelineExecutor for WasmExecutor {
-    fn spawn_query_graph(
+    fn spawn_pipelines(
         &self,
-        query_graph: QueryGraph,
+        pipelines: Vec<ExecutablePipeline>,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle> {
         debug!("spawning query graph on wasm runtime");
 
-        let states: Vec<_> = query_graph
-            .into_partition_pipeline_iter()
+        let states: Vec<_> = pipelines
+            .into_iter()
+            .flat_map(|pipeline| pipeline.into_partition_pipeline_iter())
             .map(|pipeline| WasmTaskState {
                 errors: errors.clone(),
                 pipeline: Arc::new(Mutex::new(pipeline)),

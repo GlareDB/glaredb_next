@@ -50,9 +50,13 @@ struct PendingPipeline {
 
 #[derive(Debug, Clone)]
 pub struct ExecutionConfig {
+    /// Target number of partitions in executable pipelines.
+    ///
+    /// Partitionining determines parallelism for a single pipeline.
     pub target_partitions: usize,
 }
 
+#[derive(Debug)]
 pub struct ExecutablePipelinePlanner<'a> {
     context: &'a DatabaseContext,
     config: ExecutionConfig,
@@ -60,6 +64,14 @@ pub struct ExecutablePipelinePlanner<'a> {
 }
 
 impl<'a> ExecutablePipelinePlanner<'a> {
+    pub fn new(context: &'a DatabaseContext, config: ExecutionConfig) -> Self {
+        ExecutablePipelinePlanner {
+            context,
+            config,
+            id_gen: PipelineIdGen { gen: PipelineId(0) },
+        }
+    }
+
     pub fn plan_from_intermediate(
         &mut self,
         group: IntermediatePipelineGroup,

@@ -6,9 +6,13 @@ use rayexec_parser::{parser, statement::RawStatement};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
-    execution::query_graph::{
-        planner::{QueryGraphDebugConfig, QueryGraphPlanner},
-        sink::QuerySink,
+    execution::{
+        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
+        intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
+        query_graph::{
+            planner::{QueryGraphDebugConfig, QueryGraphPlanner},
+            sink::QuerySink,
+        },
     },
     logical::{
         context::QueryContext,
@@ -189,18 +193,15 @@ where
         let schema = logical.schema()?;
 
         let mut adapter_stream = ResultAdapterStream::new();
-        let planner = QueryGraphPlanner::new(
-            &self.context,
-            VarAccessor::new(&self.vars).partitions(),
-            QueryGraphDebugConfig::new(&self.vars),
-        );
+        let planner =
+            IntermediatePipelinePlanner::new(IntermediateConfig::from_sessio_vars(&self.vars));
         let query_sink = QuerySink::new([Box::new(adapter_stream.partition_sink()) as _]);
 
-        let query_graph = match logical.root {
+        let pipelines = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
                 let attach = attach.into_inner();
                 // Here to avoid lifetime issues.
-                let empty = planner.create_graph(
+                let empty = planner.plan_pipelines(
                     LogicalOperator::EMPTY,
                     QueryContext::new(),
                     query_sink,
@@ -214,7 +215,7 @@ where
                 empty
             }
             LogicalOperator::DetachDatabase(detach) => {
-                let empty = planner.create_graph(
+                let empty = planner.plan_pipelines(
                     LogicalOperator::EMPTY,
                     QueryContext::new(),
                     query_sink,
@@ -238,7 +239,7 @@ where
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
-                planner.create_graph(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
+                planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
             }
             LogicalOperator::ResetVar(reset) => {
                 // Same TODO as above.
@@ -246,14 +247,29 @@ where
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
-                planner.create_graph(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
+                planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
             }
-            root => planner.create_graph(root, context, query_sink)?,
+            root => planner.plan_pipelines(root, context, query_sink)?,
         };
+
+        if !pipelines.remote.is_empty() {
+            return Err(RayexecError::new(
+                "Remote pipelines should not have been planned",
+            ));
+        }
+
+        let mut planner = ExecutablePipelinePlanner::new(
+            &self.context,
+            ExecutionConfig {
+                target_partitions: VarAccessor::new(&self.vars).partitions(),
+            },
+        );
+
+        let pipelines = planner.plan_from_intermediate(pipelines.local)?;
 
         let handle = self
             .executor
-            .spawn_query_graph(query_graph, Arc::new(adapter_stream.error_sink()));
+            .spawn_pipelines(pipelines, Arc::new(adapter_stream.error_sink()));
 
         Ok(ExecutionResult {
             output_schema: schema,
