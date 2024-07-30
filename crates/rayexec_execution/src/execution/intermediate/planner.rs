@@ -19,12 +19,13 @@ use crate::{
             sink::{PhysicalQuerySink, QuerySink},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             table_function::PhysicalTableFunction,
+            ungrouped_aggregate::PhysicalUngroupedAggregate,
             union::PhysicalUnion,
             values::PhysicalValues,
         },
         pipeline::PipelineId,
     },
-    expr::{PhysicalScalarExpression, PhysicalSortExpression},
+    expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
     logical::{
         context::QueryContext,
         grouping_set::GroupingSets,
@@ -220,8 +221,7 @@ impl IntermediatePipelineBuildState {
             )),
             LogicalOperator::Empty(empty) => self.push_empty(conf, id_gen, empty),
             LogicalOperator::Aggregate(agg) => {
-                // self.push_aggregate(conf, id_gen, materializations, agg)
-                unimplemented!()
+                self.push_aggregate(conf, id_gen, materializations, agg)
             }
             LogicalOperator::Limit(limit) => self.push_limit(conf, id_gen, materializations, limit),
             LogicalOperator::Order(order) => {
@@ -894,6 +894,60 @@ impl IntermediatePipelineBuildState {
         };
 
         self.push_intermediate_operator(operator, location, id_gen)?;
+
+        Ok(())
+    }
+
+    fn push_aggregate(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        agg: LogicalNode<operator::Aggregate>,
+    ) -> Result<()> {
+        let location = agg.location;
+        let agg = agg.into_inner();
+
+        let input_schema = agg.input.output_schema(&[])?;
+        self.walk(conf, materializations, id_gen, *agg.input)?;
+
+        let mut agg_exprs = Vec::with_capacity(agg.aggregates.len());
+        for expr in agg.aggregates.into_iter() {
+            let agg_expr =
+                PhysicalAggregateExpression::try_from_logical_expression(expr, &input_schema)?;
+            agg_exprs.push(agg_expr);
+        }
+
+        match agg.grouping_sets {
+            Some(grouping_sets) => {
+                // If we're working with groups, push a hash aggregate operator.
+
+                let group_types: Vec<_> = grouping_sets
+                    .columns()
+                    .iter()
+                    .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
+                    .collect();
+
+                let operator = IntermediateOperator {
+                    operator: Arc::new(PhysicalHashAggregate::new(
+                        group_types,
+                        grouping_sets,
+                        agg_exprs,
+                    )),
+                    partitioning_requirement: None,
+                };
+                self.push_intermediate_operator(operator, location, id_gen)?;
+            }
+            None => {
+                // Otherwise push an ungrouped aggregate operator.
+
+                let operator = IntermediateOperator {
+                    operator: Arc::new(PhysicalUngroupedAggregate::new(agg_exprs)),
+                    partitioning_requirement: None,
+                };
+                self.push_intermediate_operator(operator, location, id_gen)?;
+            }
+        };
 
         Ok(())
     }
