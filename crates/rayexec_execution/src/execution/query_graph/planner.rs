@@ -587,19 +587,20 @@ impl BuildState {
 
         self.walk(conf, materializations, id_gen, *insert.input)?;
 
-        // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
-        let physical = Arc::new(PhysicalInsert::new("temp", "temp", insert.table));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states: Vec<_> = physical
-            .try_create_states(conf.db_context, conf.target_partitions)?
-            .into_iter()
-            .map(PartitionState::Insert)
-            .collect();
+        unimplemented!()
+        // // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
+        // let physical = Arc::new(PhysicalInsert::new("temp", "temp", insert.table));
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states: Vec<_> = physical
+        //     .try_create_states(conf.db_context, conf.target_partitions)?
+        //     .into_iter()
+        //     .map(PartitionState::Insert)
+        //     .collect();
 
-        let pipeline = self.in_progress_pipeline_mut()?;
-        pipeline.push_operator(physical, operator_state, partition_states)?;
+        // let pipeline = self.in_progress_pipeline_mut()?;
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_table_function(
@@ -938,47 +939,48 @@ impl BuildState {
             .take()
             .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
 
-        let operator = Arc::new(PhysicalLocalSort::new(exprs.clone()));
-        let partition_states: Vec<_> = operator
-            .create_states(current.num_partitions())
-            .into_iter()
-            .map(PartitionState::LocalSort)
-            .collect();
-        let operator_state = Arc::new(OperatorState::None);
-        current.push_operator(operator, operator_state, partition_states)?;
+        unimplemented!()
+        // let operator = Arc::new(PhysicalLocalSort::new(exprs.clone()));
+        // let partition_states: Vec<_> = operator
+        //     .create_states(current.num_partitions())
+        //     .into_iter()
+        //     .map(PartitionState::LocalSort)
+        //     .collect();
+        // let operator_state = Arc::new(OperatorState::None);
+        // current.push_operator(operator, operator_state, partition_states)?;
 
-        // Global sorting.
-        let operator = Arc::new(PhysicalMergeSortedInputs::new(exprs));
-        let (operator_state, push_states, pull_states) =
-            operator.create_states(current.num_partitions());
-        let operator_state = Arc::new(OperatorState::MergeSorted(operator_state));
+        // // Global sorting.
+        // let operator = Arc::new(PhysicalMergeSortedInputs::new(exprs));
+        // let (operator_state, push_states, pull_states) =
+        //     operator.create_states(current.num_partitions());
+        // let operator_state = Arc::new(OperatorState::MergeSorted(operator_state));
 
-        // Push side finishes up the current pipeline.
-        current.push_operator(
-            operator.clone(),
-            operator_state.clone(),
-            push_states
-                .into_iter()
-                .map(PartitionState::MergeSortedPush)
-                .collect(),
-        )?;
-        self.completed.push(current);
+        // // Push side finishes up the current pipeline.
+        // current.push_operator(
+        //     operator.clone(),
+        //     operator_state.clone(),
+        //     push_states
+        //         .into_iter()
+        //         .map(PartitionState::MergeSortedPush)
+        //         .collect(),
+        // )?;
+        // self.completed.push(current);
 
-        // Pull side creates a new pipeline, number of pull states determines
-        // number of partitions in this pipeline.
-        let mut pipeline = ExecutablePipeline::new(id_gen.next(), pull_states.len());
-        pipeline.push_operator(
-            operator,
-            operator_state,
-            pull_states
-                .into_iter()
-                .map(PartitionState::MergeSortedPull)
-                .collect(),
-        )?;
+        // // Pull side creates a new pipeline, number of pull states determines
+        // // number of partitions in this pipeline.
+        // let mut pipeline = ExecutablePipeline::new(id_gen.next(), pull_states.len());
+        // pipeline.push_operator(
+        //     operator,
+        //     operator_state,
+        //     pull_states
+        //         .into_iter()
+        //         .map(PartitionState::MergeSortedPull)
+        //         .collect(),
+        // )?;
 
-        self.in_progress = Some(pipeline);
+        // self.in_progress = Some(pipeline);
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_limit(

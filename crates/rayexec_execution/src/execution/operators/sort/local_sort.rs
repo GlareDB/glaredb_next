@@ -1,4 +1,5 @@
-use crate::execution::operators::PollFinalize;
+use crate::database::DatabaseContext;
+use crate::execution::operators::{ExecutionStates, PollFinalize};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
@@ -6,6 +7,7 @@ use crate::{
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
+use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use super::util::{
@@ -48,20 +50,33 @@ impl PhysicalLocalSort {
     pub fn new(exprs: Vec<PhysicalSortExpression>) -> Self {
         PhysicalLocalSort { exprs }
     }
-
-    pub fn create_states(&self, partitions: usize) -> Vec<LocalSortPartitionState> {
-        let extractor = SortKeysExtractor::new(&self.exprs);
-        (0..partitions)
-            .map(|_| LocalSortPartitionState::Consuming {
-                extractor: extractor.clone(),
-                batches: Vec::new(),
-                pull_waker: None,
-            })
-            .collect()
-    }
 }
 
 impl PhysicalOperator for PhysicalLocalSort {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let partitions = partitions[0];
+
+        let extractor = SortKeysExtractor::new(&self.exprs);
+        let states = (0..partitions)
+            .map(|_| {
+                PartitionState::LocalSort(LocalSortPartitionState::Consuming {
+                    extractor: extractor.clone(),
+                    batches: Vec::new(),
+                    pull_waker: None,
+                })
+            })
+            .collect();
+
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: vec![states],
+        })
+    }
+
     fn poll_push(
         &self,
         _cx: &mut Context,
@@ -195,19 +210,19 @@ impl PhysicalOperator for PhysicalLocalSort {
 
 #[cfg(test)]
 mod tests {
-    use crate::execution::operators::test_util::{
-        make_i32_batch, unwrap_poll_pull_batch, TestContext,
+    use crate::{
+        database::storage::system::SystemCatalog,
+        datasource::DataSourceRegistry,
+        execution::operators::test_util::{make_i32_batch, unwrap_poll_pull_batch, TestContext},
     };
     use std::sync::Arc;
 
     use super::*;
 
     fn create_states(operator: &PhysicalLocalSort, partitions: usize) -> Vec<PartitionState> {
-        operator
-            .create_states(partitions)
-            .into_iter()
-            .map(PartitionState::LocalSort)
-            .collect()
+        let context = DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()));
+        let mut states = operator.create_states(&context, vec![partitions]).unwrap();
+        states.partition_states.pop().unwrap()
     }
 
     #[test]
