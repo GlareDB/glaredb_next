@@ -496,57 +496,58 @@ impl BuildState {
 
         let mut bottom_pipeline = bottom_builder.take_in_progress_pipeline()?;
 
-        match setop.kind {
-            operator::SetOpKind::Union => {
-                let operator = Arc::new(PhysicalUnion);
-                let (operator_state, top_states, bottom_states) =
-                    operator.create_states(top_pipeline.num_partitions());
-                let operator_state = Arc::new(OperatorState::Union(operator_state));
-                let top_states = top_states
-                    .into_iter()
-                    .map(PartitionState::UnionTop)
-                    .collect();
-                let bottom_states = bottom_states
-                    .into_iter()
-                    .map(PartitionState::UnionBottom)
-                    .collect();
+        unimplemented!()
+        // match setop.kind {
+        //     operator::SetOpKind::Union => {
+        //         let operator = Arc::new(PhysicalUnion);
+        //         let (operator_state, top_states, bottom_states) =
+        //             operator.create_states(top_pipeline.num_partitions());
+        //         let operator_state = Arc::new(OperatorState::Union(operator_state));
+        //         let top_states = top_states
+        //             .into_iter()
+        //             .map(PartitionState::UnionTop)
+        //             .collect();
+        //         let bottom_states = bottom_states
+        //             .into_iter()
+        //             .map(PartitionState::UnionBottom)
+        //             .collect();
 
-                top_pipeline.push_operator(operator.clone(), operator_state.clone(), top_states)?;
+        //         top_pipeline.push_operator(operator.clone(), operator_state.clone(), top_states)?;
 
-                // Union is the "sink" for the bottom pipeline. Push it and put into completed.
-                bottom_pipeline.push_operator(operator, operator_state, bottom_states)?;
-                self.completed.push(bottom_pipeline);
-            }
-            other => not_implemented!("set op {other}"),
-        }
+        //         // Union is the "sink" for the bottom pipeline. Push it and put into completed.
+        //         bottom_pipeline.push_operator(operator, operator_state, bottom_states)?;
+        //         self.completed.push(bottom_pipeline);
+        //     }
+        //     other => not_implemented!("set op {other}"),
+        // }
 
-        // Make output distinct by grouping on all columns. No output
-        // aggregates, so the output schema remains the same.
-        if !setop.all {
-            let top_pipeline = self.in_progress_pipeline_mut()?;
+        // // Make output distinct by grouping on all columns. No output
+        // // aggregates, so the output schema remains the same.
+        // if !setop.all {
+        //     let top_pipeline = self.in_progress_pipeline_mut()?;
 
-            let grouping_sets =
-                GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
-            let group_types = top_schema.types;
+        //     let grouping_sets =
+        //         GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
+        //     let group_types = top_schema.types;
 
-            let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
-                top_pipeline.num_partitions(),
-                group_types,
-                grouping_sets,
-                Vec::new(),
-            )?;
+        //     let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
+        //         top_pipeline.num_partitions(),
+        //         group_types,
+        //         grouping_sets,
+        //         Vec::new(),
+        //     )?;
 
-            let operator = Arc::new(operator);
-            let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
-            let partition_states = partition_states
-                .into_iter()
-                .map(PartitionState::HashAggregate)
-                .collect();
+        //     let operator = Arc::new(operator);
+        //     let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
+        //     let partition_states = partition_states
+        //         .into_iter()
+        //         .map(PartitionState::HashAggregate)
+        //         .collect();
 
-            top_pipeline.push_operator(operator, operator_state, partition_states)?;
-        }
+        //     top_pipeline.push_operator(operator, operator_state, partition_states)?;
+        // }
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_drop(
@@ -768,20 +769,21 @@ impl BuildState {
             is_ctas,
         ));
 
-        // And creating the states would happen in "planner 2". This relies on
-        // the database context, and so should happen on the node that will be
-        // executing the pipeline.
-        let (operator_state, partition_states) =
-            physical.try_create_states(conf.db_context, pipeline.num_partitions())?;
-        let operator_state = Arc::new(OperatorState::CreateTable(operator_state));
-        let partition_states: Vec<_> = partition_states
-            .into_iter()
-            .map(PartitionState::CreateTable)
-            .collect();
+        unimplemented!()
+        // // And creating the states would happen in "planner 2". This relies on
+        // // the database context, and so should happen on the node that will be
+        // // executing the pipeline.
+        // let (operator_state, partition_states) =
+        //     physical.try_create_states(conf.db_context, pipeline.num_partitions())?;
+        // let operator_state = Arc::new(OperatorState::CreateTable(operator_state));
+        // let partition_states: Vec<_> = partition_states
+        //     .into_iter()
+        //     .map(PartitionState::CreateTable)
+        //     .collect();
 
-        pipeline.push_operator(physical, operator_state, partition_states)?;
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_describe(

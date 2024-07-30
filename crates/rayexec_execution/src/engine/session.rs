@@ -191,7 +191,7 @@ where
 
         let (stream, sink, errors) = new_results_sinks();
         let planner =
-            IntermediatePipelinePlanner::new(IntermediateConfig::from_sessio_vars(&self.vars));
+            IntermediatePipelinePlanner::new(IntermediateConfig::from_session_vars(&self.vars));
 
         let pipelines = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {

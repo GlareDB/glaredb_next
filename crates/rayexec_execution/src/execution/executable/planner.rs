@@ -37,6 +37,7 @@ struct PendingOperatorWithState {
     operator: Arc<dyn PhysicalOperator>,
     operator_state: Arc<OperatorState>,
     input_states: Vec<Option<Vec<PartitionState>>>,
+    trunk_idx: usize,
 }
 
 #[derive(Debug)]
@@ -147,10 +148,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
         // Wire up the rest.
         for operator_idx in operator_indices {
             let operator = &mut operators[*operator_idx];
-
-            // TODO
-            debug_assert_eq!(1, operator.input_states.len());
-            let partition_states = operator.input_states[0].take().unwrap();
+            let partition_states = operator.input_states[operator.trunk_idx].take().unwrap();
 
             // If partition doesn't match, push a round robin and start new
             // pipeline.
@@ -291,6 +289,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                 operator: operator.operator,
                 operator_state: states.operator_state,
                 input_states,
+                trunk_idx: operator.trunk_idx,
             });
 
             pipeline.operators.push(idx);

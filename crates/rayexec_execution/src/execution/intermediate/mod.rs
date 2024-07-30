@@ -77,6 +77,13 @@ pub struct IntermediatePipeline {
 pub struct IntermediateOperator {
     /// The physical operator that will be used in the executable pipline.
     pub(crate) operator: Arc<dyn PhysicalOperator>,
+    /// Which index is considered the "trunk" as data flows through this
+    /// operator.
+    ///
+    /// For single input operators, this is always 0. For joins, the build side
+    /// is typically index 0, and the probe side is index 1. We consider the the
+    /// probe side to be the trunk, so this would be set to 1.
+    pub(crate) trunk_idx: usize,
     /// If this operator has a partitioning requirement.
     ///
     /// If set, the input and output partitions for this operator will be the
