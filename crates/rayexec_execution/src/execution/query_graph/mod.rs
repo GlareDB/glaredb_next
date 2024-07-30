@@ -1,6 +1,5 @@
 pub mod explain;
 pub mod planner;
-pub mod sink;
 
 use super::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline};
 

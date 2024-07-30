@@ -1,5 +1,4 @@
 use crate::database::DatabaseContext;
-use crate::execution::query_graph::sink::PartitionSink;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
@@ -11,15 +10,9 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct QuerySinkPartitionStateBak {
-    sink: Box<dyn PartitionSink>,
-}
+pub struct QuerySinkPartitionStateBak {}
 
-impl QuerySinkPartitionStateBak {
-    pub fn new(sink: Box<dyn PartitionSink>) -> Self {
-        QuerySinkPartitionStateBak { sink }
-    }
-}
+impl QuerySinkPartitionStateBak {}
 
 /// Wrapper around a query sink to implement the physical operator trait.
 #[derive(Debug)]
@@ -41,12 +34,13 @@ impl PhysicalOperator for PhysicalQuerySink {
         _operator_state: &OperatorState,
         batch: Batch,
     ) -> Result<PollPush> {
-        let state = match partition_state {
-            PartitionState::QuerySinkBak(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
+        unimplemented!()
+        // let state = match partition_state {
+        //     PartitionState::QuerySinkBak(state) => state,
+        //     other => panic!("invalid partition state: {other:?}"),
+        // };
 
-        state.sink.poll_push(cx, batch)
+        // state.sink.poll_push(cx, batch)
     }
 
     fn poll_finalize_push(
@@ -55,12 +49,13 @@ impl PhysicalOperator for PhysicalQuerySink {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        let state = match partition_state {
-            PartitionState::QuerySinkBak(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
+        unimplemented!()
+        // let state = match partition_state {
+        //     PartitionState::QuerySinkBak(state) => state,
+        //     other => panic!("invalid partition state: {other:?}"),
+        // };
 
-        state.sink.poll_finalize_push(cx)
+        // state.sink.poll_finalize_push(cx)
     }
 
     fn poll_pull(

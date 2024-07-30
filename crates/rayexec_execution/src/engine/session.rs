@@ -9,10 +9,7 @@ use crate::{
     execution::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
-        query_graph::{
-            planner::{QueryGraphDebugConfig, QueryGraphPlanner},
-            sink::QuerySink,
-        },
+        query_graph::planner::{QueryGraphDebugConfig, QueryGraphPlanner},
     },
     logical::{
         context::QueryContext,
@@ -27,7 +24,7 @@ use crate::{
 };
 
 use super::{
-    result::{ExecutionResult, ResultAdapterStream},
+    result::{new_results_sinks, ExecutionResult},
     vars::{SessionVars, VarAccessor},
     DataSourceRegistry,
 };
@@ -192,10 +189,9 @@ where
         logical.root = optimizer.optimize(logical.root)?;
         let schema = logical.schema()?;
 
-        let mut adapter_stream = ResultAdapterStream::new();
+        let (stream, sink, errors) = new_results_sinks();
         let planner =
             IntermediatePipelinePlanner::new(IntermediateConfig::from_sessio_vars(&self.vars));
-        let query_sink = QuerySink::new([Box::new(adapter_stream.partition_sink()) as _]);
 
         let pipelines = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
@@ -204,7 +200,7 @@ where
                 let empty = planner.plan_pipelines(
                     LogicalOperator::EMPTY,
                     QueryContext::new(),
-                    query_sink,
+                    Box::new(sink),
                 )?;
 
                 // TODO: No clue if we want to do this here. What happens during
@@ -218,7 +214,7 @@ where
                 let empty = planner.plan_pipelines(
                     LogicalOperator::EMPTY,
                     QueryContext::new(),
-                    query_sink,
+                    Box::new(sink),
                 )?; // Here to avoid lifetime issues.
                 self.context.detach_catalog(&detach.as_ref().name)?;
                 empty
@@ -239,7 +235,11 @@ where
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
-                planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
+                planner.plan_pipelines(
+                    LogicalOperator::EMPTY,
+                    QueryContext::new(),
+                    Box::new(sink),
+                )?
             }
             LogicalOperator::ResetVar(reset) => {
                 // Same TODO as above.
@@ -247,9 +247,13 @@ where
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
-                planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new(), query_sink)?
+                planner.plan_pipelines(
+                    LogicalOperator::EMPTY,
+                    QueryContext::new(),
+                    Box::new(sink),
+                )?
             }
-            root => planner.plan_pipelines(root, context, query_sink)?,
+            root => planner.plan_pipelines(root, context, Box::new(sink))?,
         };
 
         if !pipelines.remote.is_empty() {
@@ -267,13 +271,11 @@ where
 
         let pipelines = planner.plan_from_intermediate(pipelines.local)?;
 
-        let handle = self
-            .executor
-            .spawn_pipelines(pipelines, Arc::new(adapter_stream.error_sink()));
+        let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
 
         Ok(ExecutionResult {
             output_schema: schema,
-            stream: adapter_stream,
+            stream,
             handle,
         })
     }

@@ -55,7 +55,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use super::{
     explain::{format_logical_plan_for_explain, format_pipelines_for_explain},
-    sink::QuerySink,
     QueryGraph,
 };
 
@@ -114,47 +113,47 @@ impl<'a> QueryGraphPlanner<'a> {
         }
     }
 
-    /// Create a query graph from a logical plan.
-    ///
-    /// The provided query sink will be where all the results of a query get
-    /// pushed to (e.g. the client).
-    pub fn create_graph(
-        &self,
-        plan: operator::LogicalOperator,
-        context: QueryContext,
-        sink: QuerySink,
-    ) -> Result<QueryGraph> {
-        // For debug checking. If we're an actual plan, assert that we've
-        // consumed all pipelines after building the graph.
-        //
-        // Skipping describe because it doens't actually walk the plan, it just
-        // gets the top-level schema.
-        let expect_consume_all = !matches!(plan, operator::LogicalOperator::Describe(_));
+    // /// Create a query graph from a logical plan.
+    // ///
+    // /// The provided query sink will be where all the results of a query get
+    // /// pushed to (e.g. the client).
+    // pub fn create_graph(
+    //     &self,
+    //     plan: operator::LogicalOperator,
+    //     context: QueryContext,
+    //     sink: QuerySink,
+    // ) -> Result<QueryGraph> {
+    //     // For debug checking. If we're an actual plan, assert that we've
+    //     // consumed all pipelines after building the graph.
+    //     //
+    //     // Skipping describe because it doens't actually walk the plan, it just
+    //     // gets the top-level schema.
+    //     let expect_consume_all = !matches!(plan, operator::LogicalOperator::Describe(_));
 
-        let mut id_gen = PipelineIdGen { gen: PipelineId(0) };
-        let mut build_state = BuildState::new();
+    //     let mut id_gen = PipelineIdGen { gen: PipelineId(0) };
+    //     let mut build_state = BuildState::new();
 
-        // Build materialized plans first.
-        let mut materializations =
-            build_state.plan_materializations(&self.conf, context, &mut id_gen)?;
-        // Plan the rest.
-        build_state.walk(&self.conf, &mut materializations, &mut id_gen, plan)?;
-        // Finish everything off with the final results sink.
-        build_state.push_query_sink(&self.conf, &mut id_gen, sink)?;
+    //     // Build materialized plans first.
+    //     let mut materializations =
+    //         build_state.plan_materializations(&self.conf, context, &mut id_gen)?;
+    //     // Plan the rest.
+    //     build_state.walk(&self.conf, &mut materializations, &mut id_gen, plan)?;
+    //     // Finish everything off with the final results sink.
+    //     build_state.push_query_sink(&self.conf, &mut id_gen, sink)?;
 
-        assert!(build_state.in_progress.is_none());
+    //     assert!(build_state.in_progress.is_none());
 
-        if expect_consume_all {
-            assert!(
-                !materializations.has_remaining_pipelines(),
-                "remaining pipelines in materializations: {materializations:?}"
-            );
-        }
+    //     if expect_consume_all {
+    //         assert!(
+    //             !materializations.has_remaining_pipelines(),
+    //             "remaining pipelines in materializations: {materializations:?}"
+    //         );
+    //     }
 
-        let pipelines = build_state.completed;
+    //     let pipelines = build_state.completed;
 
-        Ok(QueryGraph { pipelines })
-    }
+    //     Ok(QueryGraph { pipelines })
+    // }
 }
 
 #[derive(Debug, Default)]
@@ -393,42 +392,42 @@ impl BuildState {
             .ok_or_else(|| RayexecError::new("No in-progress pipeline to take"))
     }
 
-    /// Push a query sink onto the current pipeline. This marks the current
-    /// pipeline as completed.
-    ///
-    /// This is the last step when building up pipelines for a query graph.
-    fn push_query_sink(
-        &mut self,
-        conf: &BuildConfig,
-        id_gen: &mut PipelineIdGen,
-        sink: QuerySink,
-    ) -> Result<()> {
-        let current_partitions = self.in_progress_pipeline_mut()?.num_partitions();
+    // /// Push a query sink onto the current pipeline. This marks the current
+    // /// pipeline as completed.
+    // ///
+    // /// This is the last step when building up pipelines for a query graph.
+    // fn push_query_sink(
+    //     &mut self,
+    //     conf: &BuildConfig,
+    //     id_gen: &mut PipelineIdGen,
+    //     sink: QuerySink,
+    // ) -> Result<()> {
+    //     let current_partitions = self.in_progress_pipeline_mut()?.num_partitions();
 
-        // Push a repartition if the current pipeline has a different number of
-        // partitions than the sink we'll be sending results to.
-        if sink.num_partitions() != current_partitions {
-            self.push_round_robin(conf, id_gen, sink.num_partitions())?;
-        }
+    //     // Push a repartition if the current pipeline has a different number of
+    //     // partitions than the sink we'll be sending results to.
+    //     if sink.num_partitions() != current_partitions {
+    //         self.push_round_robin(conf, id_gen, sink.num_partitions())?;
+    //     }
 
-        let mut current = self
-            .in_progress
-            .take()
-            .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
+    //     let mut current = self
+    //         .in_progress
+    //         .take()
+    //         .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
 
-        let physical = Arc::new(PhysicalQuerySink);
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states = sink
-            .partition_sinks
-            .into_iter()
-            .map(|sink| PartitionState::QuerySinkBak(QuerySinkPartitionStateBak::new(sink)))
-            .collect();
+    //     let physical = Arc::new(PhysicalQuerySink);
+    //     let operator_state = Arc::new(OperatorState::None);
+    //     let partition_states = sink
+    //         .partition_sinks
+    //         .into_iter()
+    //         .map(|sink| PartitionState::QuerySinkBak(QuerySinkPartitionStateBak::new(sink)))
+    //         .collect();
 
-        current.push_operator(physical, operator_state, partition_states)?;
-        self.completed.push(current);
+    //     current.push_operator(physical, operator_state, partition_states)?;
+    //     self.completed.push(current);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn push_copy_to(
         &mut self,

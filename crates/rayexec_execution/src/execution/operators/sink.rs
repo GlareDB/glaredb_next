@@ -22,6 +22,8 @@ pub trait QuerySink: Debug + Send + Sync + Explainable {
     ///
     /// This is guaranteed to only be called once during pipeline execution.
     fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>>;
+
+    fn partition_requirement(&self) -> Option<usize>;
 }
 
 pub trait PartitionSink: Debug + Send {
@@ -72,6 +74,12 @@ pub struct PhysicalQuerySink {
     sink: Box<dyn QuerySink>,
 }
 
+impl PhysicalQuerySink {
+    pub fn new(sink: Box<dyn QuerySink>) -> Self {
+        PhysicalQuerySink { sink }
+    }
+}
+
 impl PhysicalOperator for PhysicalQuerySink {
     fn create_states(
         &self,
@@ -111,9 +119,12 @@ impl PhysicalOperator for PhysicalQuerySink {
         match partition_state {
             PartitionState::QuerySink(state) => match state {
                 QuerySinkPartitionState::Writing { inner, future } => {
-                    if let Some(future) = future {
-                        match future.poll_unpin(cx) {
-                            Poll::Ready(Ok(_)) => (), // Continue on.
+                    if let Some(curr_future) = future {
+                        match curr_future.poll_unpin(cx) {
+                            Poll::Ready(Ok(_)) => {
+                                // Future complete, unset and continue on.
+                                *future = None;
+                            }
                             Poll::Ready(Err(e)) => return Err(e),
                             Poll::Pending => return Ok(PollPush::Pending(batch)),
                         }
@@ -167,10 +178,13 @@ impl PhysicalOperator for PhysicalQuerySink {
         match partition_state {
             PartitionState::QuerySink(state) => match state {
                 QuerySinkPartitionState::Writing { inner, future } => {
-                    if let Some(future) = future {
+                    if let Some(curr_future) = future {
                         // Still a writing future that needs to complete.
-                        match future.poll_unpin(cx) {
-                            Poll::Ready(Ok(_)) => (), // Continue on to flipping the state.
+                        match curr_future.poll_unpin(cx) {
+                            Poll::Ready(Ok(_)) => {
+                                // Continue on to flipping the state.
+                                *future = None;
+                            }
                             Poll::Ready(Err(e)) => return Err(e),
                             Poll::Pending => return Ok(PollFinalize::Pending),
                         }

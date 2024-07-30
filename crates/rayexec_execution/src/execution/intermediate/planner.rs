@@ -4,15 +4,23 @@ use crate::{
     execution::{
         intermediate::PipelineSink,
         operators::{
-            copy_to::PhysicalCopyTo, create_schema::PhysicalCreateSchema,
-            create_table::PhysicalCreateTable, drop::PhysicalDrop, empty::PhysicalEmpty,
-            filter::FilterOperation, hash_aggregate::PhysicalHashAggregate, insert::PhysicalInsert,
-            project::ProjectOperation, query_sink::PhysicalQuerySink, scan::PhysicalScan,
-            simple::SimpleOperator, table_function::PhysicalTableFunction, union::PhysicalUnion,
+            copy_to::PhysicalCopyTo,
+            create_schema::PhysicalCreateSchema,
+            create_table::PhysicalCreateTable,
+            drop::PhysicalDrop,
+            empty::PhysicalEmpty,
+            filter::FilterOperation,
+            hash_aggregate::PhysicalHashAggregate,
+            insert::PhysicalInsert,
+            project::ProjectOperation,
+            scan::PhysicalScan,
+            simple::SimpleOperator,
+            sink::{PhysicalQuerySink, QuerySink},
+            table_function::PhysicalTableFunction,
+            union::PhysicalUnion,
             values::PhysicalValues,
         },
         pipeline::PipelineId,
-        query_graph::sink::QuerySink,
     },
     expr::PhysicalScalarExpression,
     logical::{
@@ -80,7 +88,7 @@ impl IntermediatePipelinePlanner {
         &self,
         root: operator::LogicalOperator,
         context: QueryContext,
-        sink: QuerySink,
+        sink: Box<dyn QuerySink>,
     ) -> Result<PlannedPipelineGroups> {
         let mut state = IntermediatePipelineBuildState::new();
         // TODO: Actually do materializations.
@@ -293,13 +301,26 @@ impl IntermediatePipelineBuildState {
         location: LocationRequirement,
         id_gen: &mut PipelineIdGen,
     ) -> Result<()> {
-        if self
+        let current_location = &mut self
             .in_progress
-            .as_ref()
+            .as_mut()
             .required("in-progress pipeline")?
-            .location
-            != location
-        {
+            .location;
+
+        println!("CURRENT: {current_location:?}, LOC: {location:?}");
+
+        // TODO: Determine if we want to allow Any to get this far. This means
+        // that either the optimizer didn't run, or the plan has no location
+        // requirements (no dependencies on tables or files).
+        if *current_location == LocationRequirement::Any {
+            *current_location = location;
+        }
+
+        if *current_location == location {
+            // Same location, just push
+            let in_progress = self.in_progress_pipeline_mut()?;
+            in_progress.operators.push(operator);
+        } else {
             // Different locations, finalize in-progress and start a new one.
             let in_progress = self.take_in_progress_pipeline()?;
 
@@ -327,19 +348,11 @@ impl IntermediatePipelineBuildState {
                     self.remote_group.pipelines.insert(finalized.id, finalized);
                 }
                 LocationRequirement::Any => {
-                    // TODO: Determine if we want to allow Any to get this far.
-                    // This means that either the optimizer didn't run, or the
-                    // plan has no location requirements (no dependencies on
-                    // tables or files).
                     self.local_group.pipelines.insert(finalized.id, finalized);
                 }
             }
 
             self.in_progress = Some(new_in_progress)
-        } else {
-            // Same location, just push
-            let in_progress = self.in_progress_pipeline_mut()?;
-            in_progress.operators.push(operator);
         }
 
         Ok(())
@@ -353,11 +366,11 @@ impl IntermediatePipelineBuildState {
         &mut self,
         conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
-        sink: QuerySink,
+        sink: Box<dyn QuerySink>,
     ) -> Result<()> {
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalQuerySink),
-            partitioning_requirement: Some(sink.num_partitions()),
+            partitioning_requirement: sink.partition_requirement(),
+            operator: Arc::new(PhysicalQuerySink::new(sink)),
         };
 
         // Query sink is always local so that the client can get the results.
@@ -808,9 +821,12 @@ impl IntermediatePipelineBuildState {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
+        // This has a partitioning requirement of 1 since it's only used to
+        // drive output of a query that contains no FROM (typically just a
+        // simple projection).
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalEmpty),
-            partitioning_requirement: None,
+            partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {

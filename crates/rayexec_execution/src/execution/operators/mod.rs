@@ -195,7 +195,7 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
         context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
-        unimplemented!()
+        unimplemented!("{self:?}")
     }
 
     /// Try to push a batch for this partition.

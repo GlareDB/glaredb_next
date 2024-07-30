@@ -1,186 +1,136 @@
 use std::{
     pin::Pin,
-    sync::Arc,
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
 };
 
-use futures::{future::BoxFuture, Stream};
+use futures::{channel::mpsc, future::BoxFuture, FutureExt, SinkExt, Stream, StreamExt};
 use parking_lot::Mutex;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
+use tracing::warn;
 
 use crate::{
-    execution::{
-        operators::{PollFinalize, PollPush},
-        query_graph::sink::PartitionSink,
+    execution::operators::{
+        sink::{PartitionSink, QuerySink},
+        PollFinalize, PollPush,
     },
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::{ErrorSink, QueryHandle},
 };
+
+/// Create sinks and streams for sending query output to a client.
+pub fn new_results_sinks() -> (ResultStream, ResultSink, ResultErrorSink) {
+    let (batch_tx, batch_rx) = mpsc::channel(1);
+    let (err_tx, err_rx) = mpsc::channel(1);
+
+    (
+        ResultStream { batch_rx, err_rx },
+        ResultSink { batch_tx },
+        ResultErrorSink {
+            err_tx: Mutex::new(err_tx),
+        },
+    )
+}
 
 #[derive(Debug)]
 pub struct ExecutionResult {
     pub output_schema: Schema,
-    pub stream: ResultAdapterStream,
+    pub stream: ResultStream,
     pub handle: Box<dyn QueryHandle>,
 }
 
 #[derive(Debug)]
-pub struct ResultAdapterStream {
-    state: Arc<Mutex<AdapterState>>,
-    batch_sink_count: usize,
+pub struct ResultStream {
+    batch_rx: mpsc::Receiver<Batch>,
+    err_rx: mpsc::Receiver<RayexecError>,
 }
 
-#[derive(Debug)]
-struct AdapterState {
-    /// If we've ever errored, the stream is done.
-    did_error: bool,
-
-    /// If push side is finished.
-    finished: bool,
-
-    /// Buffered error.
-    ///
-    /// Currently this just stores the first error encountered.
-    error: Option<RayexecError>,
-
-    /// Buffered batch.
-    batch: Option<Batch>,
-
-    /// Push side waker.
-    push_waker: Option<Waker>,
-
-    /// Pull side waker.
-    pull_waker: Option<Waker>,
-}
-
-impl ResultAdapterStream {
-    pub fn new() -> Self {
-        ResultAdapterStream {
-            state: Arc::new(Mutex::new(AdapterState {
-                did_error: false,
-                finished: false,
-                error: None,
-                batch: None,
-                push_waker: None,
-                pull_waker: None,
-            })),
-            batch_sink_count: 0,
-        }
-    }
-
-    pub fn error_sink(&self) -> AdapterErrorSink {
-        AdapterErrorSink {
-            state: self.state.clone(),
-        }
-    }
-
-    pub fn partition_sink(&mut self) -> ResultAdapterSink {
-        assert_eq!(
-            0, self.batch_sink_count,
-            "only one query sink should exist for adapter stream"
-        );
-        self.batch_sink_count += 1;
-        ResultAdapterSink {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl Default for ResultAdapterStream {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Stream for ResultAdapterStream {
+impl Stream for ResultStream {
     type Item = Result<Batch>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut state = self.state.lock();
-
-        if let Some(error) = state.error.take() {
-            return Poll::Ready(Some(Err(error)));
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Ok(Some(err)) = self.err_rx.try_next() {
+            return Poll::Ready(Some(Err(err)));
         }
 
-        if state.did_error {
-            return Poll::Ready(None);
+        match self.batch_rx.poll_next_unpin(cx) {
+            Poll::Ready(Some(batch)) => Poll::Ready(Some(Ok(batch))),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
         }
-
-        let poll = match state.batch.take() {
-            Some(batch) => Poll::Ready(Some(Ok(batch))),
-            None => {
-                if state.finished {
-                    return Poll::Ready(None);
-                }
-
-                state.pull_waker = Some(cx.waker().clone());
-                Poll::Pending
-            }
-        };
-
-        if let Some(waker) = state.push_waker.take() {
-            waker.wake();
-        }
-
-        poll
     }
 }
 
 #[derive(Debug)]
-pub struct ResultAdapterSink {
-    state: Arc<Mutex<AdapterState>>,
+pub struct ResultSink {
+    batch_tx: mpsc::Sender<Batch>,
 }
 
-impl PartitionSink for ResultAdapterSink {
+impl QuerySink for ResultSink {
+    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>> {
+        (0..num_sinks)
+            .map(|_| {
+                Box::new(ResultPartitionSink {
+                    batch_tx: self.batch_tx.clone(),
+                }) as _
+            })
+            .collect()
+    }
+
+    fn partition_requirement(&self) -> Option<usize> {
+        Some(1)
+    }
+}
+
+impl Explainable for ResultSink {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("ResultSink")
+    }
+}
+
+#[derive(Debug)]
+pub struct ResultPartitionSink {
+    batch_tx: mpsc::Sender<Batch>,
+}
+
+impl PartitionSink for ResultPartitionSink {
     fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        unimplemented!()
+        Box::pin(async move {
+            let _ = self.batch_tx.send(batch).await;
+            Ok(())
+        })
     }
 
     fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        unimplemented!()
+        Box::pin(async {
+            self.batch_tx.close_channel();
+            Ok(())
+        })
     }
-
-    // fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
-    //     let mut state = self.state.lock();
-
-    //     if state.batch.is_some() {
-    //         state.push_waker = Some(cx.waker().clone());
-    //         return Ok(PollPush::Pending(batch));
-    //     }
-
-    //     state.batch = Some(batch);
-    //     if let Some(waker) = state.pull_waker.take() {
-    //         waker.wake();
-    //     }
-
-    //     Ok(PollPush::Pushed)
-    // }
-
-    // fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
-    //     let mut state = self.state.lock();
-    //     state.finished = true;
-    //     if let Some(waker) = state.pull_waker.take() {
-    //         waker.wake();
-    //     }
-
-    //     Ok(PollFinalize::Finalized)
-    // }
 }
 
-#[derive(Debug, Clone)]
-pub struct AdapterErrorSink {
-    state: Arc<Mutex<AdapterState>>,
+#[derive(Debug)]
+pub struct ResultErrorSink {
+    err_tx: Mutex<mpsc::Sender<RayexecError>>,
 }
 
-impl ErrorSink for AdapterErrorSink {
+impl ErrorSink for ResultErrorSink {
     fn push_error(&self, error: RayexecError) {
-        let mut state = self.state.lock();
-        state.did_error = true;
-        if state.error.is_none() {
-            state.error = Some(error);
-        }
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
+        warn!(%error, "query error");
+
+        let mut err_tx = match self.err_tx.try_lock() {
+            Some(tx) => tx,
+            None => {
+                // Someone else already sending an error.
+                return;
+            }
+        };
+        // Errors only in the case of receiver disconnected, or channel doesn't
+        // have sufficient capacity.
+        //
+        // If receiver disconnect, then who cares.
+        //
+        // If channel lacks capicity, it means we've already sent an error, so
+        // the client is already getting notified about something.
+        let _ = err_tx.try_send(error);
     }
 }
