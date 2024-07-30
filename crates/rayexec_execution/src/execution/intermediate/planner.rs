@@ -12,17 +12,19 @@ use crate::{
             filter::FilterOperation,
             hash_aggregate::PhysicalHashAggregate,
             insert::PhysicalInsert,
+            limit::PhysicalLimit,
             project::ProjectOperation,
             scan::PhysicalScan,
             simple::SimpleOperator,
             sink::{PhysicalQuerySink, QuerySink},
+            sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             table_function::PhysicalTableFunction,
             union::PhysicalUnion,
             values::PhysicalValues,
         },
         pipeline::PipelineId,
     },
-    expr::PhysicalScalarExpression,
+    expr::{PhysicalScalarExpression, PhysicalSortExpression},
     logical::{
         context::QueryContext,
         grouping_set::GroupingSets,
@@ -221,13 +223,9 @@ impl IntermediatePipelineBuildState {
                 // self.push_aggregate(conf, id_gen, materializations, agg)
                 unimplemented!()
             }
-            LogicalOperator::Limit(limit) => {
-                // self.push_limit(conf, id_gen, materializations, limit)
-                unimplemented!()
-            }
+            LogicalOperator::Limit(limit) => self.push_limit(conf, id_gen, materializations, limit),
             LogicalOperator::Order(order) => {
-                // self.push_global_sort(conf, id_gen, materializations, order)
-                unimplemented!()
+                self.push_global_sort(conf, id_gen, materializations, order)
             }
             LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, id_gen, show_var),
             LogicalOperator::Explain(explain) => {
@@ -792,6 +790,106 @@ impl IntermediatePipelineBuildState {
             PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate, &input_schema)?;
         let operator = IntermediateOperator {
             operator: Arc::new(SimpleOperator::new(FilterOperation::new(predicate))),
+            partitioning_requirement: None,
+        };
+
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        Ok(())
+    }
+
+    fn push_global_sort(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        order: LogicalNode<operator::Order>,
+    ) -> Result<()> {
+        let location = order.location;
+        let order = order.into_inner();
+
+        let input_schema = order.input.output_schema(&[])?;
+        self.walk(conf, materializations, id_gen, *order.input)?;
+
+        let exprs = order
+            .exprs
+            .into_iter()
+            .map(|order_expr| {
+                PhysicalSortExpression::try_from_uncorrelated_expr(
+                    order_expr.expr,
+                    &input_schema,
+                    order_expr.desc,
+                    order_expr.nulls_first,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Partition-local sorting.
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalLocalSort::new(exprs.clone())),
+            partitioning_requirement: None,
+        };
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        // Global sorting.
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalMergeSortedInputs::new(exprs)),
+            partitioning_requirement: None,
+        };
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        // Global sorting accepts n-partitions, but produces only a single
+        // partition. We finish the current pipeline
+
+        // TODO: Actually enforce that.
+
+        let in_progress = self.take_in_progress_pipeline()?;
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: Vec::new(),
+            location,
+            // TODO:
+            source: PipelineSource::OtherGroup { partitions: 1 },
+        });
+
+        let pipeline = IntermediatePipeline {
+            id: in_progress.id,
+            sink: PipelineSink::QueryOutput,
+            source: in_progress.source,
+            operators: in_progress.operators,
+        };
+        match location {
+            LocationRequirement::ClientLocal => {
+                self.local_group.pipelines.insert(pipeline.id, pipeline);
+            }
+            LocationRequirement::Remote => {
+                self.remote_group.pipelines.insert(pipeline.id, pipeline);
+            }
+            LocationRequirement::Any => {
+                // TODO
+                self.local_group.pipelines.insert(pipeline.id, pipeline);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn push_limit(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        limit: LogicalNode<operator::Limit>,
+    ) -> Result<()> {
+        let location = limit.location;
+        let limit = limit.into_inner();
+
+        self.walk(conf, materializations, id_gen, *limit.input)?;
+
+        // TODO: Who sets partitioning? How was that working before?
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalLimit::new(limit.limit, limit.offset)),
             partitioning_requirement: None,
         };
 

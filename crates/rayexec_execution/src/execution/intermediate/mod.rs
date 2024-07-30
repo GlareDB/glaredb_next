@@ -75,6 +75,12 @@ pub struct IntermediatePipeline {
 
 #[derive(Debug)]
 pub struct IntermediateOperator {
+    /// The physical operator that will be used in the executable pipline.
     pub(crate) operator: Arc<dyn PhysicalOperator>,
+    /// If this operator has a partitioning requirement.
+    ///
+    /// If set, the input and output partitions for this operator will be the
+    /// value provided. If unset, it'll default to a value determeded by the
+    /// executable pipeline planner.
     pub(crate) partitioning_requirement: Option<usize>,
 }
