@@ -1,5 +1,6 @@
 use crate::{
     database::DatabaseContext,
+    execution::operators::InputOutputStates,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use rayexec_bullet::batch::Batch;
@@ -35,9 +36,11 @@ impl PhysicalOperator for PhysicalEmpty {
     ) -> Result<ExecutionStates> {
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: vec![(0..partitions[0])
-                .map(|_| PartitionState::Empty(EmptyPartitionState { finished: false }))
-                .collect()],
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: (0..partitions[0])
+                    .map(|_| PartitionState::Empty(EmptyPartitionState { finished: false }))
+                    .collect(),
+            },
         })
     }
 

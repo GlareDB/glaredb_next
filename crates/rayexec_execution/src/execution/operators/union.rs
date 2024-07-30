@@ -11,8 +11,8 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
-    PollPush,
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
 };
 
 #[derive(Debug)]
@@ -56,6 +56,13 @@ struct SharedPartitionState {
 #[derive(Debug)]
 pub struct PhysicalUnion;
 
+impl PhysicalUnion {
+    /// Index of the input corresponding to the top of the union.
+    pub const UNION_TOP_INPUT_INDEX: usize = 0;
+    /// Index of the input corresponding to the bottom of the union.
+    pub const UNION_BOTTOM_INPUT_INDEX: usize = 1;
+}
+
 impl PhysicalOperator for PhysicalUnion {
     fn create_states(
         &self,
@@ -97,7 +104,10 @@ impl PhysicalOperator for PhysicalUnion {
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::Union(operator_state)),
-            partition_states: vec![top_states, bottom_states],
+            partition_states: InputOutputStates::NaryInputSingleOutput {
+                partition_states: vec![top_states, bottom_states],
+                pull_states: Self::UNION_TOP_INPUT_INDEX,
+            },
         })
     }
 

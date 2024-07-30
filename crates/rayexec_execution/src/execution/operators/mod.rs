@@ -171,16 +171,70 @@ pub enum PollFinalize {
     Pending,
 }
 
+/// Describes the relationships of partition states for operators.
+#[derive(Debug)]
+pub enum InputOutputStates {
+    /// Input and output partition states have a one-to-one mapping.
+    ///
+    /// The states used for pushing to an operator are the same states used to
+    /// pull from the operator.
+    ///
+    /// This variant should also be used for pure source and pure sink operators
+    /// where states are only ever used for pushing or pulling.
+    OneToOne {
+        /// Per-partition operators states.
+        ///
+        /// Length of vec determines the partitioning (parallelism) of the
+        /// operator.
+        partition_states: Vec<PartitionState>,
+    },
+
+    /// Operators accepts multiple inputs, and a single output.
+    ///
+    /// A single set of input states are used during pull.
+    NaryInputSingleOutput {
+        /// Per-input, per-partition operators states.
+        ///
+        /// The outer vec matches the number of inputs to an operator (e.g. a
+        /// join should have two).
+        partition_states: Vec<Vec<PartitionState>>,
+
+        /// Index into the above vec to determine which set of states are used
+        /// for pulling.
+        ///
+        /// For joins, the partition states for probes are the ones used for
+        /// pulling.
+        ///
+        /// The chosen set of states indicates the output partitioning for the
+        /// operator.
+        pull_states: usize,
+    },
+
+    /// Partition states between the push side and pull side are separate.
+    ///
+    /// This provides a way for operators to output a different number of
+    /// partitions than it receives.
+    ///
+    /// Operators that need this will introduce a pipeline split where the push
+    /// states are used for pipeline's sink, while the pull states are used for
+    /// the source of a separate pipeline.
+    SeparateInputOutput {
+        /// States used during push.
+        push_states: Vec<PartitionState>,
+
+        /// States used during pull.
+        pull_states: Vec<PartitionState>,
+    },
+}
+
 /// States generates from an operator to use during execution.
 #[derive(Debug)]
 pub struct ExecutionStates {
     /// Global operator state.
     pub operator_state: Arc<OperatorState>,
-    /// Per-input, per-partition operators states.
-    ///
-    /// For operators that expect a single input, the outer vec will have a
-    /// length of one. Joins will have a vec with a length of two.
-    pub partition_states: Vec<Vec<PartitionState>>,
+
+    /// Partition states for the operator.
+    pub partition_states: InputOutputStates,
 }
 
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {

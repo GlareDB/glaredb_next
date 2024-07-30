@@ -13,8 +13,8 @@ use std::{
 };
 
 use super::{
-    util::futures::make_static, ExecutionStates, OperatorState, PartitionState, PhysicalOperator,
-    PollFinalize, PollPull, PollPush,
+    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
+    PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 
 pub trait QuerySink: Debug + Send + Sync + Explainable {
@@ -105,7 +105,9 @@ impl PhysicalOperator for PhysicalQuerySink {
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: vec![states],
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states,
+            },
         })
     }
 

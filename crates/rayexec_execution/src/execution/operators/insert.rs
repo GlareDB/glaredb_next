@@ -10,8 +10,8 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
-    PollPush,
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
 };
 
 #[derive(Debug)]
@@ -75,7 +75,9 @@ impl PhysicalOperator for PhysicalInsert {
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: vec![states],
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states,
+            },
         })
     }
 

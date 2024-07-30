@@ -18,8 +18,8 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
-    PollPush,
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
 };
 
 pub enum CreateTablePartitionState {
@@ -137,10 +137,12 @@ impl PhysicalOperator for PhysicalCreateTable {
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::CreateTable(operator_state)),
-            partition_states: vec![states
-                .into_iter()
-                .map(PartitionState::CreateTable)
-                .collect()],
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states
+                    .into_iter()
+                    .map(PartitionState::CreateTable)
+                    .collect(),
+            },
         })
     }
 

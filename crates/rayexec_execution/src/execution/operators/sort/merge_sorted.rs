@@ -1,4 +1,5 @@
-use crate::execution::operators::PollFinalize;
+use crate::database::DatabaseContext;
+use crate::execution::operators::{ExecutionStates, PollFinalize};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
@@ -17,6 +18,14 @@ use super::util::{
     sort_keys::SortKeysExtractor,
     sorted_batch::{PhysicallySortedBatch, SortedKeysIter},
 };
+
+pub enum MergeSortedPartitionState {
+    Pushing {
+        partition_idx: usize,
+        extractor: SortKeysExtractor,
+    },
+    Pulling {},
+}
 
 /// Partition state on the push side.
 #[derive(Debug)]
@@ -177,6 +186,45 @@ impl PhysicalMergeSortedInputs {
 }
 
 impl PhysicalOperator for PhysicalMergeSortedInputs {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let input_partitions = partitions[0];
+
+        let operator_state = OperatorState::MergeSorted(MergeSortedOperatorState {
+            shared: Mutex::new(SharedGlobalState::new(input_partitions)),
+        });
+
+        let extractor = SortKeysExtractor::new(&self.exprs);
+
+        let push_states: Vec<_> = (0..input_partitions)
+            .map(|idx| MergeSortedPushPartitionState {
+                partition_idx: idx,
+                extractor: extractor.clone(),
+            })
+            .collect();
+
+        // TODO: Umm
+
+        // Note vec with a single element representing a single output
+        // partition.
+        //
+        // I'm not sure if we care to support multiple output partitions, but
+        // extending this a little could provide an interesting repartitioning
+        // scheme where we repartition based on the sort key.
+        let pull_states = vec![MergeSortedPullPartitionState {
+            input_buffers: InputBuffers {
+                buffered: (0..input_partitions).map(|_| None).collect(),
+                finished: (0..input_partitions).map(|_| false).collect(),
+            },
+            merge_state: PullMergeState::Initializing,
+        }];
+
+        unimplemented!()
+    }
+
     fn poll_push(
         &self,
         cx: &mut Context,

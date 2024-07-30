@@ -1,5 +1,5 @@
 use crate::database::DatabaseContext;
-use crate::execution::operators::{ExecutionStates, PollFinalize};
+use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
@@ -73,7 +73,9 @@ impl PhysicalOperator for PhysicalLocalSort {
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: vec![states],
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states,
+            },
         })
     }
 
@@ -221,8 +223,12 @@ mod tests {
 
     fn create_states(operator: &PhysicalLocalSort, partitions: usize) -> Vec<PartitionState> {
         let context = DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()));
-        let mut states = operator.create_states(&context, vec![partitions]).unwrap();
-        states.partition_states.pop().unwrap()
+        let states = operator.create_states(&context, vec![partitions]).unwrap();
+
+        match states.partition_states {
+            InputOutputStates::OneToOne { partition_states } => partition_states,
+            other => panic!("unexpected states: {other:?}"),
+        }
     }
 
     #[test]

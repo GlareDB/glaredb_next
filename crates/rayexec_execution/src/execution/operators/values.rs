@@ -7,8 +7,8 @@ use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
-    PollPush,
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
 };
 
 #[derive(Debug)]
@@ -47,7 +47,9 @@ impl PhysicalOperator for PhysicalValues {
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: vec![states.into_iter().map(PartitionState::Values).collect()],
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states.into_iter().map(PartitionState::Values).collect(),
+            },
         })
     }
 

@@ -9,8 +9,8 @@ use std::task::{Context, Waker};
 use crate::logical::explainable::Explainable;
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
-    PollPush,
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
 };
 
 #[derive(Debug)]
@@ -79,9 +79,11 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
     ) -> Result<ExecutionStates> {
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: vec![(0..partitions[0])
-                .map(|_| PartitionState::Simple(SimplePartitionState::new()))
-                .collect()],
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: (0..partitions[0])
+                    .map(|_| PartitionState::Simple(SimplePartitionState::new()))
+                    .collect(),
+            },
         })
     }
 
