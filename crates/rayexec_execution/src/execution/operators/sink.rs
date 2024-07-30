@@ -123,6 +123,10 @@ impl PhysicalOperator for PhysicalQuerySink {
                         match curr_future.poll_unpin(cx) {
                             Poll::Ready(Ok(_)) => {
                                 // Future complete, unset and continue on.
+                                //
+                                // Unsetting is required here to avoid polling a
+                                // completed future in the case of returning
+                                // early due to a batch with 0 rows.
                                 *future = None;
                             }
                             Poll::Ready(Err(e)) => return Err(e),

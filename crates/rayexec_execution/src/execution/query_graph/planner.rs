@@ -804,19 +804,20 @@ impl BuildState {
         ));
         let batch = Batch::try_new(vec![names, datatypes])?;
 
-        let physical = Arc::new(PhysicalValues::new(vec![batch]));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states = physical
-            .create_states(1)
-            .into_iter()
-            .map(PartitionState::Values)
-            .collect();
+        unimplemented!()
+        // let physical = Arc::new(PhysicalValues::new(vec![batch]));
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states = physical
+        //     .create_states(1)
+        //     .into_iter()
+        //     .map(PartitionState::Values)
+        //     .collect();
 
-        let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
-        pipeline.push_operator(physical, operator_state, partition_states)?;
-        self.in_progress = Some(pipeline);
+        // let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
+        // self.in_progress = Some(pipeline);
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_explain(
@@ -857,18 +858,20 @@ impl BuildState {
                 formatted_pipelines.as_str(),
             ])),
         ])?]));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states = physical
-            .create_states(1)
-            .into_iter()
-            .map(PartitionState::Values)
-            .collect();
 
-        let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
-        pipeline.push_operator(physical, operator_state, partition_states)?;
-        self.in_progress = Some(pipeline);
+        unimplemented!()
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states = physical
+        //     .create_states(1)
+        //     .into_iter()
+        //     .map(PartitionState::Values)
+        //     .collect();
 
-        Ok(())
+        // let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
+        // self.in_progress = Some(pipeline);
+
+        // Ok(())
     }
 
     fn push_show_var(
@@ -886,18 +889,20 @@ impl BuildState {
         let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
             Array::Utf8(Utf8Array::from_iter([show.var.value.to_string().as_str()])),
         ])?]));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states = physical
-            .create_states(1)
-            .into_iter()
-            .map(PartitionState::Values)
-            .collect();
 
-        let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
-        pipeline.push_operator(physical, operator_state, partition_states)?;
-        self.in_progress = Some(pipeline);
+        unimplemented!()
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states = physical
+        //     .create_states(1)
+        //     .into_iter()
+        //     .map(PartitionState::Values)
+        //     .collect();
 
-        Ok(())
+        // let mut pipeline = ExecutablePipeline::new(id_gen.next(), 1);
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
+        // self.in_progress = Some(pipeline);
+
+        // Ok(())
     }
 
     fn push_global_sort(
@@ -1468,16 +1473,17 @@ impl BuildState {
 
         let mut pipeline = ExecutablePipeline::new(pipeline_id, conf.target_partitions);
 
-        let physical = Arc::new(PhysicalValues::new(vec![batch]));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states = physical
-            .create_states(conf.target_partitions)
-            .into_iter()
-            .map(PartitionState::Values)
-            .collect();
+        unimplemented!()
+        // let physical = Arc::new(PhysicalValues::new(vec![batch]));
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states = physical
+        //     .create_states(conf.target_partitions)
+        //     .into_iter()
+        //     .map(PartitionState::Values)
+        //     .collect();
 
-        pipeline.push_operator(physical, operator_state, partition_states)?;
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
 
-        Ok(pipeline)
+        // Ok(pipeline)
     }
 }
