@@ -12,6 +12,7 @@ use crate::{
             filter::FilterOperation,
             hash_aggregate::PhysicalHashAggregate,
             insert::PhysicalInsert,
+            join::{hash_join::PhysicalHashJoin, nl_join::PhysicalNestedLoopJoin},
             limit::PhysicalLimit,
             project::ProjectOperation,
             scan::PhysicalScan,
@@ -23,7 +24,6 @@ use crate::{
             union::PhysicalUnion,
             values::PhysicalValues,
         },
-        pipeline::PipelineId,
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
     logical::{
@@ -194,8 +194,6 @@ impl IntermediatePipelineBuildState {
         id_gen: &mut PipelineIdGen,
         plan: LogicalOperator,
     ) -> Result<()> {
-        println!("{:?}", plan);
-
         match plan {
             LogicalOperator::Projection(proj) => {
                 self.push_project(conf, id_gen, materializations, proj)
@@ -205,19 +203,16 @@ impl IntermediatePipelineBuildState {
             }
             LogicalOperator::ExpressionList(values) => self.push_values(conf, id_gen, values),
             LogicalOperator::CrossJoin(join) => {
-                // self.push_cross_join(conf, id_gen, materializations, join)
-                unimplemented!()
+                self.push_cross_join(conf, id_gen, materializations, join)
             }
             LogicalOperator::AnyJoin(join) => {
-                // self.push_any_join(conf, id_gen, materializations, join)
-                unimplemented!()
+                self.push_any_join(conf, id_gen, materializations, join)
             }
             LogicalOperator::EqualityJoin(join) => {
-                // self.push_equality_join(conf, id_gen, materializations, join)
-                unimplemented!()
+                self.push_equality_join(conf, id_gen, materializations, join)
             }
             LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
-                "Dependent joins cannot be made into a physical pipeline",
+                "Dependent joins cannot be made into a pipeline",
             )),
             LogicalOperator::Empty(empty) => self.push_empty(conf, id_gen, empty),
             LogicalOperator::Aggregate(agg) => {
@@ -987,6 +982,164 @@ impl IntermediatePipelineBuildState {
             location: empty.location,
             source: PipelineSource::InPipeline,
         });
+
+        Ok(())
+    }
+
+    /// Push an equality (hash) join.
+    fn push_equality_join(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        join: LogicalNode<operator::EqualityJoin>,
+    ) -> Result<()> {
+        let location = join.location;
+        let join = join.into_inner();
+
+        // Build up all inputs on the right (probe) side. This is going to
+        // continue with the the current pipeline.
+        self.walk(conf, materializations, id_gen, *join.right)?;
+
+        // Build up the left (build) side in a separate pipeline. This will feed
+        // into the currently pipeline at the join operator.
+        let mut left_state = IntermediatePipelineBuildState::new();
+        left_state.walk(conf, materializations, id_gen, *join.left)?;
+
+        // Take any completed pipelines from the left side and put them in our
+        // list.
+        self.local_group
+            .merge_from_other(&mut left_state.local_group);
+        self.remote_group
+            .merge_from_other(&mut left_state.remote_group);
+
+        // Get the left pipeline.
+        let mut left_pipeline = left_state.in_progress.take().ok_or_else(|| {
+            RayexecError::new("expected in-progress pipeline from left side of join")
+        })?;
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalHashJoin::new(
+                join.join_type,
+                join.left_on,
+                join.right_on,
+            )),
+            partitioning_requirement: None,
+        };
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        // Left pipeline will be child this this pipeline at the current
+        // operator.
+        self.push_as_child_pipeline(left_pipeline)?;
+
+        Ok(())
+    }
+
+    fn push_any_join(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        join: LogicalNode<operator::AnyJoin>,
+    ) -> Result<()> {
+        let location = join.location;
+        let join = join.into_inner();
+
+        let left_schema = join.left.output_schema(&[])?;
+        let right_schema = join.right.output_schema(&[])?;
+        let input_schema = left_schema.merge(right_schema);
+        let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on, &input_schema)?;
+
+        // Modify the filter as to match the join type.
+        let filter = match join.join_type {
+            operator::JoinType::Inner => filter,
+            other => {
+                // TODO: Other join types.
+                return Err(RayexecError::new(format!(
+                    "Unhandled join type for any join: {other:?}"
+                )));
+            }
+        };
+
+        self.push_nl_join(
+            conf,
+            id_gen,
+            materializations,
+            location,
+            *join.left,
+            *join.right,
+            Some(filter),
+        )
+    }
+
+    fn push_cross_join(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        join: LogicalNode<operator::CrossJoin>,
+    ) -> Result<()> {
+        let location = join.location;
+        let join = join.into_inner();
+        self.push_nl_join(
+            conf,
+            id_gen,
+            materializations,
+            location,
+            *join.left,
+            *join.right,
+            None,
+        )
+    }
+
+    /// Push a nest loop join.
+    ///
+    /// This will create a complete pipeline for the left side of the join
+    /// (build), right right side (probe) will be pushed onto the current
+    /// pipeline.
+    fn push_nl_join(
+        &mut self,
+        conf: &IntermediateConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        location: LocationRequirement,
+        left: operator::LogicalOperator,
+        right: operator::LogicalOperator,
+        filter: Option<PhysicalScalarExpression>,
+    ) -> Result<()> {
+        if conf.error_on_nested_loop_join {
+            return Err(RayexecError::new("Debug trigger: nested loop join"));
+        }
+
+        // Continue to build up all the inputs into the right side.
+        self.walk(conf, materializations, id_gen, right)?;
+
+        // Create a completely independent pipeline (or pipelines) for left
+        // side.
+        let mut left_state = IntermediatePipelineBuildState::new();
+        left_state.walk(conf, materializations, id_gen, left)?;
+
+        // Take completed pipelines from the left and merge them into this
+        // state's completed set of pipelines.
+        self.local_group
+            .merge_from_other(&mut left_state.local_group);
+        self.remote_group
+            .merge_from_other(&mut left_state.remote_group);
+
+        // Get the left in-progress pipeline. This will be one of the inputs
+        // into the current in-progress pipeline.
+        let mut left_pipeline = left_state.in_progress.take().ok_or_else(|| {
+            RayexecError::new("expected in-progress pipeline from left side of join")
+        })?;
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalNestedLoopJoin::new(filter)),
+            partitioning_requirement: None,
+        };
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        // Left pipeline will be input to this pipeline.
+        self.push_as_child_pipeline(left_pipeline)?;
 
         Ok(())
     }
