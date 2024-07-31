@@ -7,7 +7,7 @@ use futures::{
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
-    execution::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
+    execution::executable::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
     runtime::{
         ErrorSink, OptionalTokioRuntime, PipelineExecutor, QueryHandle, Runtime,
         TokioHandlerProvider,

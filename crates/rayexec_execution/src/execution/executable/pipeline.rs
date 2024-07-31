@@ -3,7 +3,9 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
-use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use crate::execution::operators::{
+    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::{
@@ -13,8 +15,6 @@ use std::{
     time::Instant,
 };
 use tracing::trace;
-
-// TODO: Move to 'executable' module.
 
 // TODO: Include intermedate pipeline to track lineage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

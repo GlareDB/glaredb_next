@@ -9,7 +9,6 @@ use serde::{de::DeserializeSeed, Deserializer, Serialize};
 use crate::{
     database::DatabaseContext,
     datasource::DataSourceRegistry,
-    execution::pipeline::ExecutablePartitionPipeline,
     logical::sql::binder::{bind_data::BindData, BoundStatement},
     runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
@@ -77,7 +76,7 @@ where
         unimplemented!()
     }
 
-    pub fn execute_pipelines(&self, pipelines: Vec<ExecutablePartitionPipeline>) {
+    pub fn execute_pipelines(&self, pipelines: Vec<()>) {
         // TODO: Accept "stateless" pipelines. Inflate with states. Execute.
         //
         // Return something to allow remote cancelation (uuid).

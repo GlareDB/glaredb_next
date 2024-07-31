@@ -5,7 +5,7 @@ use futures::{
 use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
-    execution::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
+    execution::executable::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
     runtime::{
         dump::QueryDump, ErrorSink, PipelineExecutor, QueryHandle, Runtime, TokioHandlerProvider,
     },

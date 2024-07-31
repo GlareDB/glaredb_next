@@ -1,6 +1,8 @@
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
-use rayexec_execution::{execution::pipeline::ExecutablePartitionPipeline, runtime::ErrorSink};
+use rayexec_execution::{
+    execution::executable::pipeline::ExecutablePartitionPipeline, runtime::ErrorSink,
+};
 use rayon::ThreadPool;
 use std::{
     sync::Arc,

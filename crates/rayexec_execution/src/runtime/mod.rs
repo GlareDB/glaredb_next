@@ -4,7 +4,7 @@ pub mod hybrid;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::execution::pipeline::ExecutablePipeline;
+use crate::execution::executable::pipeline::ExecutablePipeline;
 use dump::QueryDump;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;

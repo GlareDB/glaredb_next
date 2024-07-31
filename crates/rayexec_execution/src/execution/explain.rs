@@ -1,5 +1,5 @@
 use crate::{
-    execution::pipeline::ExecutablePipeline,
+    execution::executable::pipeline::ExecutablePipeline,
     logical::{
         context::QueryContext,
         explainable::{ExplainConfig, ExplainEntry, Explainable},

@@ -5,7 +5,8 @@ use std::fmt::Debug;
 use url::Url;
 
 use crate::{
-    execution::pipeline::ExecutablePartitionPipeline, logical::sql::binder::StatementWithBindData,
+    execution::executable::pipeline::ExecutablePartitionPipeline,
+    logical::sql::binder::StatementWithBindData,
 };
 
 pub const API_VERSION: usize = 0;

@@ -4,7 +4,7 @@ mod task;
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::execution::pipeline::ExecutablePartitionPipeline;
+use rayexec_execution::execution::executable::pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::runtime::ErrorSink;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::fmt;

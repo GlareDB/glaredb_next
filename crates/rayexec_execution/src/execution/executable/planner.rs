@@ -13,9 +13,10 @@ use crate::{
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
-        pipeline::{ExecutablePipeline, PipelineId},
     },
 };
+
+use super::pipeline::{ExecutablePipeline, PipelineId};
 
 /// Used for ensuring every pipeline in a query has a unique id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
