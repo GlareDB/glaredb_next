@@ -263,37 +263,38 @@ impl BuildState {
                 .map(|_| conf.target_partitions)
                 .collect();
 
-            let operator = Arc::new(PhysicalMaterialize);
-            let (operator_state, push_states, pull_pipeline_states) =
-                operator.create_states(pipeline.num_partitions(), partitions_per_pipeline);
-            let operator_state = Arc::new(OperatorState::Materialize(operator_state));
+            unimplemented!()
+            // let operator = Arc::new(PhysicalMaterialize);
+            // let (operator_state, push_states, pull_pipeline_states) =
+            //     operator.create_states(pipeline.num_partitions(), partitions_per_pipeline);
+            // let operator_state = Arc::new(OperatorState::Materialize(operator_state));
 
-            let push_states = push_states
-                .into_iter()
-                .map(PartitionState::MaterializePush)
-                .collect();
+            // let push_states = push_states
+            //     .into_iter()
+            //     .map(PartitionState::MaterializePush)
+            //     .collect();
 
-            pipeline.push_operator(operator.clone(), operator_state.clone(), push_states)?;
-            self.completed.push(pipeline);
+            // pipeline.push_operator(operator.clone(), operator_state.clone(), push_states)?;
+            // self.completed.push(pipeline);
 
-            // Generate the partial pipelines for all scans that will be pulling
-            // from the materialization.
-            let mut partial_pipelines = Vec::with_capacity(materialized.num_scans);
-            for states in pull_pipeline_states {
-                let mut pipeline = ExecutablePipeline::new(id_gen.next(), states.len());
-                let states = states
-                    .into_iter()
-                    .map(PartitionState::MaterializePull)
-                    .collect();
-                pipeline.push_operator(operator.clone(), operator_state.clone(), states)?;
+            // // Generate the partial pipelines for all scans that will be pulling
+            // // from the materialization.
+            // let mut partial_pipelines = Vec::with_capacity(materialized.num_scans);
+            // for states in pull_pipeline_states {
+            //     let mut pipeline = ExecutablePipeline::new(id_gen.next(), states.len());
+            //     let states = states
+            //         .into_iter()
+            //         .map(PartitionState::MaterializePull)
+            //         .collect();
+            //     pipeline.push_operator(operator.clone(), operator_state.clone(), states)?;
 
-                partial_pipelines.push(pipeline);
-            }
+            //     partial_pipelines.push(pipeline);
+            // }
 
-            let existing = materializations
-                .materialize_sources
-                .insert(materialized.idx, partial_pipelines);
-            assert!(existing.is_none());
+            // let existing = materializations
+            //     .materialize_sources
+            //     .insert(materialized.idx, partial_pipelines);
+            // assert!(existing.is_none());
         }
 
         Ok(materializations)

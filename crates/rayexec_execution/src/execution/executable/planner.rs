@@ -37,7 +37,7 @@ struct PendingOperatorWithState {
     operator: Arc<dyn PhysicalOperator>,
     operator_state: Arc<OperatorState>,
     input_states: Vec<Option<Vec<PartitionState>>>,
-    pull_states: Option<Vec<PartitionState>>,
+    pull_states: Vec<Option<Vec<PartitionState>>>,
     trunk_idx: usize,
 }
 
@@ -139,7 +139,9 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     .required("at least one operator")?;
                 let source = &mut operators[*operator_idx];
 
-                let pull_states = source.pull_states.take().required("separate pull states")?;
+                let pull_states = source.pull_states[0]
+                    .take()
+                    .required("separate pull states")?;
 
                 let mut pipeline = ExecutablePipeline::new(self.id_gen.next(), pull_states.len());
                 pipeline.push_operator(
@@ -187,7 +189,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
         // Wire up sink.
         match pending.sink {
-            PipelineSink::QueryOutput => {
+            PipelineSink::InPipeline => {
                 // The pipeline's final operator is the query sink. A requisite
                 // states have already been created from above, so nothing for
                 // us to do.
@@ -306,7 +308,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     operator: operator.operator,
                     operator_state: states.operator_state,
                     input_states: vec![Some(partition_states)],
-                    pull_states: None,
+                    pull_states: Vec::new(),
                     trunk_idx: 0,
                 },
                 InputOutputStates::NaryInputSingleOutput {
@@ -318,8 +320,21 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                         operator: operator.operator,
                         operator_state: states.operator_state,
                         input_states,
-                        pull_states: None,
+                        pull_states: Vec::new(),
                         trunk_idx: pull_states,
+                    }
+                }
+                InputOutputStates::SingleInputNaryOutput {
+                    push_states,
+                    pull_states,
+                } => {
+                    let pull_states: Vec<_> = pull_states.into_iter().map(Some).collect();
+                    PendingOperatorWithState {
+                        operator: operator.operator,
+                        operator_state: states.operator_state,
+                        input_states: vec![Some(push_states)],
+                        pull_states,
+                        trunk_idx: 0,
                     }
                 }
                 InputOutputStates::SeparateInputOutput {
@@ -329,7 +344,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     operator: operator.operator,
                     operator_state: states.operator_state,
                     input_states: vec![Some(push_states)],
-                    pull_states: Some(pull_states),
+                    pull_states: vec![Some(pull_states)],
                     trunk_idx: 0,
                 },
             };

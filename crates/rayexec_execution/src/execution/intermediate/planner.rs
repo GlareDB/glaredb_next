@@ -14,6 +14,7 @@ use crate::{
             insert::PhysicalInsert,
             join::{hash_join::PhysicalHashJoin, nl_join::PhysicalNestedLoopJoin},
             limit::PhysicalLimit,
+            materialize::PhysicalMaterialize,
             project::ProjectOperation,
             scan::PhysicalScan,
             simple::SimpleOperator,
@@ -95,11 +96,12 @@ impl IntermediatePipelinePlanner {
         sink: Box<dyn QuerySink>,
     ) -> Result<PlannedPipelineGroups> {
         let mut state = IntermediatePipelineBuildState::new();
-        // TODO: Actually do materializations.
-        let mut materializations = Materializations::default();
         let mut id_gen = PipelineIdGen {
             gen: IntermediatePipelineId(0),
         };
+
+        let mut materializations =
+            state.plan_materializations(&self.config, context, &mut id_gen)?;
         state.walk(&self.config, &mut materializations, &mut id_gen, root)?;
 
         // Finish with query sink.
@@ -128,14 +130,21 @@ impl PipelineIdGen {
     }
 }
 
+/// Key for a pipeline that's being materialized.
+#[derive(Debug, Clone, Copy)]
+enum MaterializationSource {
+    Local(IntermediatePipelineId),
+    Remote(IntermediatePipelineId),
+}
+
 #[derive(Debug, Default)]
 struct Materializations {
-    /// Source pipelines for `MaterializeScan` operators.
+    /// Source keys for `MaterializeScan` operators.
     ///
     /// Key corresponds to the index of the materialized plan in the
     /// QueryContext. Since multiple pipelines can read from the same
     /// materialization, each key has a vec of pipelines that we take from.
-    materialize_sources: HashMap<usize, Vec<IntermediatePipeline>>,
+    materialize_sources: HashMap<usize, Vec<MaterializationSource>>,
 }
 
 impl Materializations {
@@ -186,6 +195,77 @@ impl IntermediatePipelineBuildState {
             local_group: IntermediatePipelineGroup::default(),
             remote_group: IntermediatePipelineGroup::default(),
         }
+    }
+
+    /// Plans all materialized logical plans in the query context.
+    ///
+    /// For each materialized plan, this will do two things:
+    ///
+    /// 1. Build the complete pipeline representing a plan whose sink will be a
+    ///    PhysicalMaterialize. This pipeline will be placed in one of the pipeline
+    ///    in one of the pipeline groups.
+    ///
+    /// 2. Create materialization keys the correspond to the materialized
+    ///    pipeline. When an operator encounters a materialization scan, it'll
+    ///    look at the key to determine the pipeline source.
+    ///
+    /// A materialized plan may depend on earlier materialized plans. What gets
+    /// returned is the set of materializations that should be used in the rest
+    /// of the plan.
+    fn plan_materializations(
+        &mut self,
+        conf: &IntermediateConfig,
+        context: QueryContext,
+        id_gen: &mut PipelineIdGen,
+    ) -> Result<Materializations> {
+        let mut materializations = Materializations::default();
+
+        for materialized in context.materialized {
+            // Generate the pipeline(s) for this plan.
+            self.walk(conf, &mut materializations, id_gen, materialized.root)?;
+
+            // Finish off the pipeline with a PhysicalMaterialize as the sink.
+            let operator = IntermediateOperator {
+                operator: Arc::new(PhysicalMaterialize::new(materialized.num_scans)),
+                partitioning_requirement: None,
+            };
+
+            let location = LocationRequirement::Any;
+            self.push_intermediate_operator(operator, location, id_gen)?;
+
+            let pipeline = self.take_in_progress_pipeline()?;
+            let location = pipeline.location;
+
+            let pipeline = IntermediatePipeline {
+                id: pipeline.id,
+                sink: PipelineSink::InPipeline,
+                source: pipeline.source,
+                operators: pipeline.operators,
+            };
+
+            let id = pipeline.id;
+            let source = match location {
+                LocationRequirement::ClientLocal => {
+                    self.local_group.pipelines.insert(id, pipeline);
+                    MaterializationSource::Local(id)
+                }
+                LocationRequirement::Remote => {
+                    self.remote_group.pipelines.insert(id, pipeline);
+                    MaterializationSource::Remote(id)
+                }
+                LocationRequirement::Any => {
+                    self.local_group.pipelines.insert(id, pipeline);
+                    MaterializationSource::Local(id)
+                }
+            };
+
+            let sources: Vec<_> = (0..materialized.num_scans).map(|_| source).collect();
+            materializations
+                .materialize_sources
+                .insert(materialized.idx, sources);
+        }
+
+        Ok(materializations)
     }
 
     fn walk(
@@ -240,8 +320,7 @@ impl IntermediatePipelineBuildState {
                 self.push_copy_to(conf, id_gen, materializations, copy_to)
             }
             LogicalOperator::MaterializedScan(scan) => {
-                // self.push_materialized_scan(conf, materializations, scan)
-                unimplemented!()
+                self.push_materialized_scan(conf, materializations, id_gen, scan)
             }
             LogicalOperator::Scan(scan) => self.push_scan(conf, id_gen, scan),
             LogicalOperator::TableFunction(table_func) => {
@@ -333,7 +412,7 @@ impl IntermediatePipelineBuildState {
     fn push_intermediate_operator(
         &mut self,
         operator: IntermediateOperator,
-        location: LocationRequirement,
+        mut location: LocationRequirement,
         id_gen: &mut PipelineIdGen,
     ) -> Result<()> {
         let current_location = &mut self
@@ -347,6 +426,12 @@ impl IntermediatePipelineBuildState {
         // requirements (no dependencies on tables or files).
         if *current_location == LocationRequirement::Any {
             *current_location = location;
+        }
+
+        // If we're pushing an operator for any location, just inherit the
+        // location for the current pipeline.
+        if location == LocationRequirement::Any {
+            location = *current_location
         }
 
         if *current_location == location {
@@ -414,7 +499,7 @@ impl IntermediatePipelineBuildState {
         let in_progress = self.take_in_progress_pipeline()?;
         let pipeline = IntermediatePipeline {
             id: in_progress.id,
-            sink: PipelineSink::QueryOutput,
+            sink: PipelineSink::InPipeline,
             source: in_progress.source,
             operators: in_progress.operators,
         };
@@ -586,6 +671,51 @@ impl IntermediatePipelineBuildState {
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
+    fn push_materialized_scan(
+        &mut self,
+        _conf: &IntermediateConfig,
+        materializations: &mut Materializations,
+        id_gen: &mut PipelineIdGen,
+        scan: LogicalNode<operator::MaterializedScan>,
+    ) -> Result<()> {
+        // TODO: Do we care? Currently just defaulting to the materialization
+        // location.
+        let _location = scan.location;
+
+        let scan = scan.into_inner();
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let (source_id, location) = match materializations.materialize_sources.get_mut(&scan.idx) {
+            Some(sources) => {
+                let source = sources.pop().required("materialization source key")?;
+                match source {
+                    MaterializationSource::Local(id) => (id, LocationRequirement::ClientLocal),
+                    MaterializationSource::Remote(id) => (id, LocationRequirement::Remote),
+                }
+            }
+            None => {
+                return Err(RayexecError::new(format!(
+                    "Missing pipelines for materialized plan at index {}",
+                    scan.idx
+                )))
+            }
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: Vec::new(),
+            location,
+            source: PipelineSource::OtherPipeline {
+                pipeline: source_id,
+            },
         });
 
         Ok(())
@@ -917,7 +1047,7 @@ impl IntermediatePipelineBuildState {
 
         let pipeline = IntermediatePipeline {
             id: in_progress.id,
-            sink: PipelineSink::QueryOutput,
+            sink: PipelineSink::InPipeline,
             source: in_progress.source,
             operators: in_progress.operators,
         };
