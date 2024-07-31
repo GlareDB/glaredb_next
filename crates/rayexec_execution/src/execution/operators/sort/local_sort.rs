@@ -212,17 +212,15 @@ impl PhysicalOperator for PhysicalLocalSort {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        database::storage::system::SystemCatalog,
-        datasource::DataSourceRegistry,
-        execution::operators::test_util::{make_i32_batch, unwrap_poll_pull_batch, TestContext},
+    use crate::execution::operators::test_util::{
+        make_i32_batch, test_database_context, unwrap_poll_pull_batch, TestWakerContext,
     };
     use std::sync::Arc;
 
     use super::*;
 
     fn create_states(operator: &PhysicalLocalSort, partitions: usize) -> Vec<PartitionState> {
-        let context = DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()));
+        let context = test_database_context();
         let states = operator.create_states(&context, vec![partitions]).unwrap();
 
         match states.partition_states {
@@ -248,7 +246,7 @@ mod tests {
         let mut partition_states = create_states(&operator, 1);
 
         // Push all the inputs.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         for input in inputs {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
@@ -264,7 +262,7 @@ mod tests {
             .unwrap();
 
         // Now pull.
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
@@ -290,7 +288,7 @@ mod tests {
         let mut partition_states = create_states(&operator, 1);
 
         // Push all the inputs.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         for input in inputs {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
@@ -306,7 +304,7 @@ mod tests {
             .unwrap();
 
         // Now pull.
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
@@ -332,7 +330,7 @@ mod tests {
         let mut partition_states = create_states(&operator, 1);
 
         // Push all the inputs.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         for input in inputs {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
@@ -350,7 +348,7 @@ mod tests {
         // Now pull.
         // TODO: Currently batch size is hard coded to 1024, we make assumptions
         // about the output size.
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
 
         let mut outputs = Vec::new();
         for _ in 0..3 {

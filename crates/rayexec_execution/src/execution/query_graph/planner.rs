@@ -997,18 +997,19 @@ impl BuildState {
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
-        let operator = Arc::new(PhysicalLimit::new(limit.limit, limit.offset));
-        let partition_states: Vec<_> = operator
-            .create_states(pipeline.num_partitions())
-            .into_iter()
-            .map(PartitionState::Limit)
-            .collect();
+        unimplemented!()
+        // let operator = Arc::new(PhysicalLimit::new(limit.limit, limit.offset));
+        // let partition_states: Vec<_> = operator
+        //     .create_states(pipeline.num_partitions())
+        //     .into_iter()
+        //     .map(PartitionState::Limit)
+        //     .collect();
 
-        // No global state in limit.
-        let operator_state = Arc::new(OperatorState::None);
-        pipeline.push_operator(operator, operator_state, partition_states)?;
+        // // No global state in limit.
+        // let operator_state = Arc::new(OperatorState::None);
+        // pipeline.push_operator(operator, operator_state, partition_states)?;
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_aggregate(

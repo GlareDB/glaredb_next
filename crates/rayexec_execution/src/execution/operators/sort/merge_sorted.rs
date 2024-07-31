@@ -593,7 +593,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::execution::operators::test_util::{
-        make_i32_batch, unwrap_poll_pull_batch, TestContext,
+        make_i32_batch, unwrap_poll_pull_batch, TestWakerContext,
     };
 
     use super::*;
@@ -625,14 +625,14 @@ mod tests {
             .collect();
 
         // Try to pull first. Nothing available yet.
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Pending, poll_pull);
 
         // Push our first batch.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         let poll_push = push_cx
             .poll_push(
                 &operator,
@@ -719,14 +719,14 @@ mod tests {
             .collect();
 
         // Pull first, get pending
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Pending, poll_pull);
 
         // Push batch for partition 0.
-        let p0_push_cx = TestContext::new();
+        let p0_push_cx = TestWakerContext::new();
         let poll_push = p0_push_cx
             .poll_push(
                 &operator,
@@ -740,14 +740,14 @@ mod tests {
         // Triggers pull wake up.
         assert_eq!(1, pull_cx.wake_count());
 
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Pending, poll_pull);
 
         // Push batch for partition 1.
-        let p1_push_cx = TestContext::new();
+        let p1_push_cx = TestWakerContext::new();
         let poll_push = p1_push_cx
             .poll_push(
                 &operator,
@@ -761,7 +761,7 @@ mod tests {
         // Also triggers wake up.
         assert_eq!(1, pull_cx.wake_count());
 
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
