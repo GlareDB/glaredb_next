@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 use rayexec_error::{OptionExt, RayexecError, Result};
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
     database::DatabaseContext,
@@ -37,7 +37,7 @@ struct PendingOperatorWithState {
     operator: Arc<dyn PhysicalOperator>,
     operator_state: Arc<OperatorState>,
     input_states: Vec<Option<Vec<PartitionState>>>,
-    pull_states: Vec<Option<Vec<PartitionState>>>,
+    pull_states: VecDeque<Vec<PartitionState>>,
     trunk_idx: usize,
 }
 
@@ -139,8 +139,10 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     .required("at least one operator")?;
                 let source = &mut operators[*operator_idx];
 
-                let pull_states = source.pull_states[0]
-                    .take()
+                // TODO: Definitely needs comments.
+                let pull_states = source
+                    .pull_states
+                    .pop_front()
                     .required("separate pull states")?;
 
                 let mut pipeline = ExecutablePipeline::new(self.id_gen.next(), pull_states.len());
@@ -204,6 +206,11 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                 let pending = pipelines.get(&pipeline_id).unwrap();
                 let operator = &mut operators[pending.operators[operator_idx]];
                 let partition_states = operator.input_states[input_idx].take().unwrap();
+
+                if partition_states.len() != pipeline.num_partitions() {
+                    pipeline =
+                        self.push_repartition(pipeline, partition_states.len(), executables)?;
+                }
 
                 pipeline.push_operator(
                     operator.operator.clone(),
@@ -308,7 +315,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     operator: operator.operator,
                     operator_state: states.operator_state,
                     input_states: vec![Some(partition_states)],
-                    pull_states: Vec::new(),
+                    pull_states: VecDeque::new(),
                     trunk_idx: 0,
                 },
                 InputOutputStates::NaryInputSingleOutput {
@@ -320,23 +327,20 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                         operator: operator.operator,
                         operator_state: states.operator_state,
                         input_states,
-                        pull_states: Vec::new(),
+                        pull_states: VecDeque::new(),
                         trunk_idx: pull_states,
                     }
                 }
                 InputOutputStates::SingleInputNaryOutput {
                     push_states,
                     pull_states,
-                } => {
-                    let pull_states: Vec<_> = pull_states.into_iter().map(Some).collect();
-                    PendingOperatorWithState {
-                        operator: operator.operator,
-                        operator_state: states.operator_state,
-                        input_states: vec![Some(push_states)],
-                        pull_states,
-                        trunk_idx: 0,
-                    }
-                }
+                } => PendingOperatorWithState {
+                    operator: operator.operator,
+                    operator_state: states.operator_state,
+                    input_states: vec![Some(push_states)],
+                    pull_states: pull_states.into_iter().collect(),
+                    trunk_idx: 0,
+                },
                 InputOutputStates::SeparateInputOutput {
                     push_states,
                     pull_states,
@@ -344,7 +348,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     operator: operator.operator,
                     operator_state: states.operator_state,
                     input_states: vec![Some(push_states)],
-                    pull_states: vec![Some(pull_states)],
+                    pull_states: [pull_states].into_iter().collect(),
                     trunk_idx: 0,
                 },
             };

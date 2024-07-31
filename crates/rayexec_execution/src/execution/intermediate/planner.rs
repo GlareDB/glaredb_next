@@ -612,7 +612,7 @@ impl IntermediatePipelineBuildState {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalDrop::new(drop.info)),
-            partitioning_requirement: None,
+            partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {
@@ -770,7 +770,7 @@ impl IntermediatePipelineBuildState {
                     on_conflict: create.on_conflict,
                 },
             )),
-            partitioning_requirement: None,
+            partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {
@@ -903,7 +903,12 @@ impl IntermediatePipelineBuildState {
             partitioning_requirement: None,
         };
 
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next(),
+            operators: vec![operator],
+            location: LocationRequirement::Any,
+            source: PipelineSource::InPipeline,
+        });
 
         Ok(())
     }
