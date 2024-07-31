@@ -1032,48 +1032,49 @@ impl BuildState {
             agg_exprs.push(agg_expr);
         }
 
-        match agg.grouping_sets {
-            Some(grouping_sets) => {
-                // If we're working with groups, push a hash aggregate operator.
+        unimplemented!()
+        // match agg.grouping_sets {
+        //     Some(grouping_sets) => {
+        //         // If we're working with groups, push a hash aggregate operator.
 
-                let group_types: Vec<_> = grouping_sets
-                    .columns()
-                    .iter()
-                    .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
-                    .collect();
+        //         let group_types: Vec<_> = grouping_sets
+        //             .columns()
+        //             .iter()
+        //             .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
+        //             .collect();
 
-                let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
-                    pipeline.num_partitions(),
-                    group_types,
-                    grouping_sets,
-                    agg_exprs,
-                )?;
+        //         let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
+        //             pipeline.num_partitions(),
+        //             group_types,
+        //             grouping_sets,
+        //             agg_exprs,
+        //         )?;
 
-                let operator = Arc::new(operator);
-                let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
-                let partition_states = partition_states
-                    .into_iter()
-                    .map(PartitionState::HashAggregate)
-                    .collect();
+        //         let operator = Arc::new(operator);
+        //         let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
+        //         let partition_states = partition_states
+        //             .into_iter()
+        //             .map(PartitionState::HashAggregate)
+        //             .collect();
 
-                pipeline.push_operator(operator, operator_state, partition_states)?;
-            }
-            None => {
-                // Otherwise push an ungrouped aggregate operator.
-                let operator = PhysicalUngroupedAggregate::new(agg_exprs);
-                let (operator_state, partition_states) =
-                    operator.create_states(pipeline.num_partitions());
-                let operator_state = Arc::new(OperatorState::UngroupedAggregate(operator_state));
-                let partition_states: Vec<_> = partition_states
-                    .into_iter()
-                    .map(PartitionState::UngroupedAggregate)
-                    .collect();
+        //         pipeline.push_operator(operator, operator_state, partition_states)?;
+        //     }
+        //     None => {
+        //         // Otherwise push an ungrouped aggregate operator.
+        //         let operator = PhysicalUngroupedAggregate::new(agg_exprs);
+        //         let (operator_state, partition_states) =
+        //             operator.create_states(pipeline.num_partitions());
+        //         let operator_state = Arc::new(OperatorState::UngroupedAggregate(operator_state));
+        //         let partition_states: Vec<_> = partition_states
+        //             .into_iter()
+        //             .map(PartitionState::UngroupedAggregate)
+        //             .collect();
 
-                pipeline.push_operator(Arc::new(operator), operator_state, partition_states)?;
-            }
-        };
+        //         pipeline.push_operator(Arc::new(operator), operator_state, partition_states)?;
+        //     }
+        // };
 
-        Ok(())
+        // Ok(())
     }
 
     /// Pushes a round robin repartition onto the pipeline.
