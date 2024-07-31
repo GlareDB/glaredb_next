@@ -172,6 +172,9 @@ pub struct PhysicalNestedLoopJoin {
 }
 
 impl PhysicalNestedLoopJoin {
+    pub const BUILD_SIDE_INPUT_INDEX: usize = 0;
+    pub const PROBE_SIDE_INPUT_INDEX: usize = 1;
+
     pub fn new(filter: Option<PhysicalScalarExpression>) -> Self {
         PhysicalNestedLoopJoin { filter }
     }

@@ -12,7 +12,7 @@ use crate::{
         operators::{
             ipc::{PhysicalIpcSink, PhysicalIpcSource},
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
-            OperatorState, PartitionState, PhysicalOperator,
+            InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
         pipeline::{ExecutablePipeline, PipelineId},
     },
@@ -37,6 +37,7 @@ struct PendingOperatorWithState {
     operator: Arc<dyn PhysicalOperator>,
     operator_state: Arc<OperatorState>,
     input_states: Vec<Option<Vec<PartitionState>>>,
+    pull_states: Option<Vec<PartitionState>>,
     trunk_idx: usize,
 }
 
@@ -129,19 +130,23 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
                 pipeline
             }
+            PipelineSource::OtherPipeline { pipeline } => {
+                unimplemented!()
+            }
             PipelineSource::OtherGroup { partitions } => {
                 // Need to insert a remote ipc source.
-                let operator = Arc::new(PhysicalIpcSource {});
-                let mut states = operator.create_states(self.context, vec![partitions])?;
-                debug_assert_eq!(1, states.partition_states.len());
+                unimplemented!()
+                // let operator = Arc::new(PhysicalIpcSource {});
+                // let mut states = operator.create_states(self.context, vec![partitions])?;
+                // debug_assert_eq!(1, states.partition_states.len());
 
-                let partition_states = states.partition_states.pop().unwrap();
+                // let partition_states = states.partition_states.pop().unwrap();
 
-                let mut pipeline =
-                    ExecutablePipeline::new(self.id_gen.next(), partition_states.len());
-                pipeline.push_operator(operator, states.operator_state, partition_states)?;
+                // let mut pipeline =
+                //     ExecutablePipeline::new(self.id_gen.next(), partition_states.len());
+                // pipeline.push_operator(operator, states.operator_state, partition_states)?;
 
-                pipeline
+                // pipeline
             }
         };
 
@@ -197,11 +202,12 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                 let operator = Arc::new(PhysicalIpcSink {});
                 let mut states = operator.create_states(&self.context, vec![partitions])?;
 
-                pipeline.push_operator(
-                    operator,
-                    states.operator_state,
-                    states.partition_states.pop().unwrap(),
-                )?;
+                unimplemented!()
+                // pipeline.push_operator(
+                //     operator,
+                //     states.operator_state,
+                //     states.partition_states.pop().unwrap(),
+                // )?;
             }
         }
 
@@ -278,20 +284,41 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                 .operator
                 .create_states(self.context, vec![partitions])?;
 
-            let input_states = states
-                .partition_states
-                .into_iter()
-                .map(|states| Some(states))
-                .collect();
+            let pending = match states.partition_states {
+                InputOutputStates::OneToOne { partition_states } => PendingOperatorWithState {
+                    operator: operator.operator,
+                    operator_state: states.operator_state,
+                    input_states: vec![Some(partition_states)],
+                    pull_states: None,
+                    trunk_idx: 0,
+                },
+                InputOutputStates::NaryInputSingleOutput {
+                    partition_states,
+                    pull_states,
+                } => {
+                    let input_states: Vec<_> = partition_states.into_iter().map(Some).collect();
+                    PendingOperatorWithState {
+                        operator: operator.operator,
+                        operator_state: states.operator_state,
+                        input_states,
+                        pull_states: None,
+                        trunk_idx: pull_states,
+                    }
+                }
+                InputOutputStates::SeparateInputOutput {
+                    push_states,
+                    pull_states,
+                } => PendingOperatorWithState {
+                    operator: operator.operator,
+                    operator_state: states.operator_state,
+                    input_states: vec![Some(push_states)],
+                    pull_states: Some(pull_states),
+                    trunk_idx: 0,
+                },
+            };
 
             let idx = operators.len();
-            operators.push(PendingOperatorWithState {
-                operator: operator.operator,
-                operator_state: states.operator_state,
-                input_states,
-                trunk_idx: operator.trunk_idx,
-            });
-
+            operators.push(pending);
             pipeline.operators.push(idx);
         }
 

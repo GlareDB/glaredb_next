@@ -129,6 +129,9 @@ pub struct PhysicalHashJoin {
 }
 
 impl PhysicalHashJoin {
+    pub const BUILD_SIDE_INPUT_INDEX: usize = 0;
+    pub const PROBE_SIDE_INPUT_INDEX: usize = 1;
+
     pub fn new(join_type: JoinType, left_on: Vec<usize>, right_on: Vec<usize>) -> Self {
         PhysicalHashJoin {
             join_type,
