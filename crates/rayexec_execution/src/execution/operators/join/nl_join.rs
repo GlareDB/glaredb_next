@@ -8,8 +8,10 @@ use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
+use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush,
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
 };
 use crate::expr::PhysicalScalarExpression;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -181,6 +183,39 @@ impl PhysicalNestedLoopJoin {
 }
 
 impl PhysicalOperator for PhysicalNestedLoopJoin {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        // TODO: Allow different number of partitions on left & right?
+        let num_partitions = partitions[0];
+
+        let left_states = (0..num_partitions)
+            .map(|_| {
+                PartitionState::NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState::default())
+            })
+            .collect();
+
+        let right_states = (0..num_partitions)
+            .map(|partition| {
+                PartitionState::NestedLoopJoinProbe(
+                    NestedLoopJoinProbePartitionState::new_for_partition(partition),
+                )
+            })
+            .collect();
+
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::NestedLoopJoin(
+                NestedLoopJoinOperatorState::new(num_partitions, num_partitions),
+            )),
+            partition_states: InputOutputStates::NaryInputSingleOutput {
+                partition_states: vec![left_states, right_states],
+                pull_states: 1,
+            },
+        })
+    }
+
     fn poll_push(
         &self,
         cx: &mut Context,
