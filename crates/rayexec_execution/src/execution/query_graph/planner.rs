@@ -564,16 +564,17 @@ impl BuildState {
 
         let physical = Arc::new(PhysicalDrop::new(drop.info));
         let operator_state = Arc::new(OperatorState::None);
-        let partition_states = vec![PartitionState::Drop(
-            physical.try_create_state(conf.db_context)?,
-        )];
+        unimplemented!()
+        // let partition_states = vec![PartitionState::Drop(
+        //     physical.try_create_state(conf.db_context)?,
+        // )];
 
-        let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
-        pipeline.push_operator(physical, operator_state, partition_states)?;
+        // let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
 
-        self.in_progress = Some(pipeline);
+        // self.in_progress = Some(pipeline);
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_insert(
@@ -711,17 +712,18 @@ impl BuildState {
                 on_conflict: create.on_conflict,
             },
         ));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states = vec![PartitionState::CreateSchema(
-            physical.try_create_state(conf.db_context)?,
-        )];
+        unimplemented!()
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states = vec![PartitionState::CreateSchema(
+        //     physical.try_create_state(conf.db_context)?,
+        // )];
 
-        let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
-        pipeline.push_operator(physical, operator_state, partition_states)?;
+        // let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
 
-        self.in_progress = Some(pipeline);
+        // self.in_progress = Some(pipeline);
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_create_table(
@@ -1215,34 +1217,35 @@ impl BuildState {
             join.left_on,
             join.right_on,
         ));
-        let (operator_state, build_states, probe_states) =
-            operator.create_states(num_build_partitions, num_probe_partitions);
+        unimplemented!()
+        // let (operator_state, build_states, probe_states) =
+        //     operator.create_states(num_build_partitions, num_probe_partitions);
 
-        let operator_state = Arc::new(OperatorState::HashJoin(operator_state));
-        let build_states: Vec<_> = build_states
-            .into_iter()
-            .map(PartitionState::HashJoinBuild)
-            .collect();
-        let probe_states: Vec<_> = probe_states
-            .into_iter()
-            .map(PartitionState::HashJoinProbe)
-            .collect();
+        // let operator_state = Arc::new(OperatorState::HashJoin(operator_state));
+        // let build_states: Vec<_> = build_states
+        //     .into_iter()
+        //     .map(PartitionState::HashJoinBuild)
+        //     .collect();
+        // let probe_states: Vec<_> = probe_states
+        //     .into_iter()
+        //     .map(PartitionState::HashJoinProbe)
+        //     .collect();
 
-        // Push build states to left pipeline.
-        left_pipeline.push_operator(operator.clone(), operator_state.clone(), build_states)?;
+        // // Push build states to left pipeline.
+        // left_pipeline.push_operator(operator.clone(), operator_state.clone(), build_states)?;
 
-        // Left pipeline is now completed.
-        self.completed.push(left_pipeline);
+        // // Left pipeline is now completed.
+        // self.completed.push(left_pipeline);
 
-        // Push probe states to current pipeline along the shared operator
-        // state.
-        //
-        // This pipeline is not completed, we'll continue to push more operators
-        // on it.
-        self.in_progress_pipeline_mut()?
-            .push_operator(operator, operator_state, probe_states)?;
+        // // Push probe states to current pipeline along the shared operator
+        // // state.
+        // //
+        // // This pipeline is not completed, we'll continue to push more operators
+        // // on it.
+        // self.in_progress_pipeline_mut()?
+        //     .push_operator(operator, operator_state, probe_states)?;
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_any_join(

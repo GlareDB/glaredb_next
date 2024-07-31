@@ -24,6 +24,7 @@ use crate::{
             union::PhysicalUnion,
             values::PhysicalValues,
         },
+        query_graph::explain::format_logical_plan_for_explain,
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
     logical::{
@@ -750,7 +751,31 @@ impl IntermediatePipelineBuildState {
         materializations: &mut Materializations,
         explain: LogicalNode<operator::Explain>,
     ) -> Result<()> {
-        unimplemented!()
+        let location = explain.location;
+        let explain = explain.into_inner();
+
+        if explain.analyze {
+            not_implemented!("explain analyze")
+        }
+
+        let formatted_logical =
+            format_logical_plan_for_explain(None, &explain.input, explain.format, explain.verbose)?;
+
+        // TODO: Executable, intermediate (w/ location)
+
+        let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
+            Array::Utf8(Utf8Array::from_iter(["logical"])),
+            Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
+        ])?]));
+
+        let operator = IntermediateOperator {
+            operator: physical,
+            partitioning_requirement: None,
+        };
+
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        Ok(())
     }
 
     fn push_show_var(

@@ -1,14 +1,18 @@
 use crate::{
     database::{catalog::CatalogTx, drop::DropInfo, DatabaseContext},
+    execution::pipeline::OperatorWithState,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::fmt;
 use std::task::{Context, Poll};
+use std::{fmt, sync::Arc};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 pub struct DropPartitionState {
     drop: BoxFuture<'static, Result<()>>,
@@ -29,8 +33,18 @@ impl PhysicalDrop {
     pub fn new(info: DropInfo) -> Self {
         PhysicalDrop { info }
     }
+}
 
-    pub fn try_create_state(&self, context: &DatabaseContext) -> Result<DropPartitionState> {
+impl PhysicalOperator for PhysicalDrop {
+    fn create_states(
+        &self,
+        context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        if partitions[0] != 1 {
+            return Err(RayexecError::new("Drop can only handle one partition"));
+        }
+
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
@@ -39,11 +53,14 @@ impl PhysicalDrop {
             .catalog_modifier(&tx)?;
         let drop = catalog.drop_entry(self.info.clone());
 
-        Ok(DropPartitionState { drop })
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: vec![PartitionState::Drop(DropPartitionState { drop })],
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalDrop {
     fn poll_push(
         &self,
         _cx: &mut Context,
