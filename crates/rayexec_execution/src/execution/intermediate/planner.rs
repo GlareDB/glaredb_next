@@ -353,6 +353,8 @@ impl IntermediatePipelineBuildState {
             let in_progress = self.in_progress_pipeline_mut()?;
             in_progress.operators.push(operator);
         } else {
+            println!("DIFFERENT, CURRENT: {current_location:?}, LOC: {location:?}");
+
             // Different locations, finalize in-progress and start a new one.
             let in_progress = self.take_in_progress_pipeline()?;
 
@@ -883,7 +885,9 @@ impl IntermediatePipelineBuildState {
             operators: Vec::new(),
             location,
             // TODO:
-            source: PipelineSource::OtherGroup { partitions: 1 },
+            source: PipelineSource::OtherPipeline {
+                pipeline: in_progress.id,
+            },
         });
 
         let pipeline = IntermediatePipeline {
