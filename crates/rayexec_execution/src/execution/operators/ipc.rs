@@ -11,18 +11,18 @@ pub struct PhysicalIpcSink {}
 impl PhysicalOperator for PhysicalIpcSink {
     fn poll_push(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        _batch: Batch,
     ) -> Result<PollPush> {
         unimplemented!()
     }
 
     fn poll_finalize_push(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         unimplemented!()
@@ -50,18 +50,18 @@ pub struct PhysicalIpcSource {}
 impl PhysicalOperator for PhysicalIpcSource {
     fn poll_push(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        _batch: Batch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("ipc source cannot be pushed to"))
     }
 
     fn poll_finalize_push(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         Err(RayexecError::new("ipc source cannot be pushed to"))

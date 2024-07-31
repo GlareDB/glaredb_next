@@ -9,7 +9,7 @@ use serde::{de::DeserializeSeed, Deserializer, Serialize};
 use crate::{
     database::DatabaseContext,
     datasource::DataSourceRegistry,
-    execution::{pipeline::ExecutablePartitionPipeline, query_graph::QueryGraph},
+    execution::pipeline::ExecutablePartitionPipeline,
     logical::sql::binder::{bind_data::BindData, BoundStatement},
     runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
@@ -66,11 +66,7 @@ where
     }
 
     /// Plans a hyrbid query graph from a completely bound statement.
-    pub fn plan_hybrid_graph(
-        &self,
-        stmt: BoundStatement,
-        bind_data: BindData,
-    ) -> Result<QueryGraph> {
+    pub fn plan_hybrid_graph(&self, stmt: BoundStatement, bind_data: BindData) -> Result<()> {
         // TODO: Statement -> logical with typical planning.
         //
         // Logical -> "stateless" pipeline. Will not be returning a query graph,

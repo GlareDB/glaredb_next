@@ -97,7 +97,10 @@ impl<T> PrimitiveStorage<T> {
     pub fn as_bytes(&self) -> &[u8] {
         let s = self.as_ref();
         let ptr = s.as_ptr();
-        let num_bytes = s.len() * std::mem::size_of::<T>();
+        // Suggested by clippy instead of manually computing the size.
+        //
+        // See: <https://rust-lang.github.io/rust-clippy/master/index.html#/manual_slice_size_calculation>
+        let num_bytes = std::mem::size_of_val(s);
 
         unsafe { std::slice::from_raw_parts(ptr.cast(), num_bytes) }
     }

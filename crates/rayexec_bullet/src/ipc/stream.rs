@@ -20,6 +20,7 @@ pub(crate) const CONTINUATION_MARKER: u32 = 0xFFFFFFFF;
 const WRITE_PAD: &[u8; 8] = &[0; 8];
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct StreamReader<R: Read> {
     reader: R,
     buf: Vec<u8>,
@@ -138,6 +139,7 @@ fn read_encapsulated_header(reader: &mut impl Read, buf: &mut Vec<u8>) -> Result
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct StreamWriter<W: Write> {
     writer: W,
     data_buf: Vec<u8>,
@@ -147,7 +149,7 @@ pub struct StreamWriter<W: Write> {
 impl<W: Write> StreamWriter<W> {
     pub fn try_new(mut writer: W, schema: &Schema, conf: IpcConfig) -> Result<Self> {
         let mut builder = FlatBufferBuilder::new();
-        let schema_ipc = schema_to_ipc(&schema, &mut builder)?.as_union_value();
+        let schema_ipc = schema_to_ipc(schema, &mut builder)?.as_union_value();
 
         let mut message = MessageBuilder::new(&mut builder);
         message.add_version(MetadataVersion::V5);
@@ -206,7 +208,7 @@ impl<W: Write> StreamWriter<W> {
 }
 
 fn write_encapsulated_header(writer: &mut impl Write, buf: &[u8]) -> Result<()> {
-    writer.write(&CONTINUATION_MARKER.to_be_bytes())?;
+    writer.write_all(&CONTINUATION_MARKER.to_be_bytes())?;
 
     let mut metadata_size = buf.len();
     if buf.len() % 8 != 0 {

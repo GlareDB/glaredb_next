@@ -13,7 +13,6 @@ pub mod join;
 pub mod limit;
 pub mod materialize;
 pub mod project;
-pub mod query_sink;
 pub mod round_robin;
 pub mod scan;
 pub mod simple;
@@ -61,7 +60,6 @@ use self::join::nl_join::{
     NestedLoopJoinProbePartitionState,
 };
 use self::limit::LimitPartitionState;
-use self::query_sink::QuerySinkPartitionStateBak;
 use self::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
@@ -83,7 +81,6 @@ pub enum PartitionState {
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
-    QuerySinkBak(QuerySinkPartitionStateBak),
     QuerySink(QuerySinkPartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
@@ -256,8 +253,8 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     /// Joins are assumed to have two inputs.
     fn create_states(
         &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
+        _context: &DatabaseContext,
+        _partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         unimplemented!("{self:?}")
     }

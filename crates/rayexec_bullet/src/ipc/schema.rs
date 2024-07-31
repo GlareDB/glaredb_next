@@ -6,14 +6,14 @@ use super::{
     IpcConfig,
 };
 use crate::{
-    datatype::{self, DataType},
+    datatype::DataType,
     field::{Field, Schema},
     ipc::gen::schema::{
         BoolBuilder, FieldBuilder, IntBuilder, LargeUtf8Builder, NullBuilder, SchemaBuilder,
         Utf8Builder,
     },
 };
-use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
+use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 pub fn ipc_to_schema(schema: IpcSchema, conf: &IpcConfig) -> Result<Schema> {
@@ -27,7 +27,7 @@ pub fn ipc_to_schema(schema: IpcSchema, conf: &IpcConfig) -> Result<Schema> {
 }
 
 /// Convert an arrow ipc field to a rayexec field..
-pub fn ipc_to_field(field: IpcField, conf: &IpcConfig) -> Result<Field> {
+pub fn ipc_to_field(field: IpcField, _conf: &IpcConfig) -> Result<Field> {
     if field.custom_metadata().is_some() {
         // I don't think we'll ever want to support custom metadata, but maybe
         // we should just ignore it.

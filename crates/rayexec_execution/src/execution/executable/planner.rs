@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{OptionExt, Result};
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
@@ -10,7 +10,6 @@ use crate::{
             PipelineSource,
         },
         operators::{
-            ipc::{PhysicalIpcSink, PhysicalIpcSource},
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
@@ -105,7 +104,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
     fn plan_pending_pipeline(
         &mut self,
         pending: &PendingPipeline,
-        operators: &mut Vec<PendingOperatorWithState>,
+        operators: &mut [PendingOperatorWithState],
         pipelines: &HashMap<IntermediatePipelineId, PendingPipeline>,
         executables: &mut Vec<ExecutablePipeline>,
     ) -> Result<()> {
@@ -154,20 +153,9 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
                 pipeline
             }
-            PipelineSource::OtherGroup { partitions } => {
+            PipelineSource::OtherGroup { .. } => {
                 // Need to insert a remote ipc source.
                 unimplemented!()
-                // let operator = Arc::new(PhysicalIpcSource {});
-                // let mut states = operator.create_states(self.context, vec![partitions])?;
-                // debug_assert_eq!(1, states.partition_states.len());
-
-                // let partition_states = states.partition_states.pop().unwrap();
-
-                // let mut pipeline =
-                //     ExecutablePipeline::new(self.id_gen.next(), partition_states.len());
-                // pipeline.push_operator(operator, states.operator_state, partition_states)?;
-
-                // pipeline
             }
         };
 
@@ -218,22 +206,9 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     partition_states,
                 )?;
             }
-            PipelineSink::OtherGroup { partitions } => {
+            PipelineSink::OtherGroup { .. } => {
                 // Sink is a remote pipeline, push ipc sink.
-
-                if partitions != pipeline.num_partitions() {
-                    pipeline = self.push_repartition(pipeline, partitions, executables)?;
-                }
-
-                let operator = Arc::new(PhysicalIpcSink {});
-                let mut states = operator.create_states(&self.context, vec![partitions])?;
-
                 unimplemented!()
-                // pipeline.push_operator(
-                //     operator,
-                //     states.operator_state,
-                //     states.partition_states.pop().unwrap(),
-                // )?;
             }
         }
 

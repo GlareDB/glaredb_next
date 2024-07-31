@@ -1,12 +1,7 @@
 pub mod planner;
 
-use crate::logical::operator::LocationRequirement;
-
 use super::operators::PhysicalOperator;
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 /// ID of a single intermediate pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use futures::{channel::mpsc, future::BoxFuture, Future, FutureExt, SinkExt, Stream, StreamExt};
+use futures::{future::BoxFuture, Future, Stream};
 use parking_lot::Mutex;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};

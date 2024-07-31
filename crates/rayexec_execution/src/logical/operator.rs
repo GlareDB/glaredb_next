@@ -6,7 +6,7 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::engine::vars::SessionVar;
-use crate::execution::query_graph::explain::format_logical_plan_for_explain;
+use crate::execution::explain::format_logical_plan_for_explain;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::PlannedTableFunction;
 use rayexec_bullet::datatype::DataType;
@@ -45,26 +45,6 @@ pub enum LocationRequirement {
     /// An optimization pass will walk the plan an flip this to either local or
     /// remote depending on where the node sits in the plan.
     Any,
-}
-
-/// Location of this instance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InstanceLocation {
-    /// Instance is runnning locally on the client.
-    ClientLocal,
-    /// Instance is considered to be remote relative the client.
-    Remote,
-}
-
-impl InstanceLocation {
-    pub const fn can_handle_requirement(&self, req: LocationRequirement) -> bool {
-        match (self, req) {
-            (Self::ClientLocal, LocationRequirement::ClientLocal) => true,
-            (Self::Remote, LocationRequirement::Remote) => true,
-            (_, LocationRequirement::Any) => true,
-            _ => false,
-        }
-    }
 }
 
 /// Wrapper around nodes in the logical plan to holds additional metadata for

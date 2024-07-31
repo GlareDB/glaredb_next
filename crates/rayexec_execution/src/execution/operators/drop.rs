@@ -1,6 +1,5 @@
 use crate::{
     database::{catalog::CatalogTx, drop::DropInfo, DatabaseContext},
-    execution::pipeline::OperatorWithState,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use futures::{future::BoxFuture, FutureExt};

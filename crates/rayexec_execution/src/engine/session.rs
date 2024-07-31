@@ -9,7 +9,6 @@ use crate::{
     execution::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
-        query_graph::planner::{QueryGraphDebugConfig, QueryGraphPlanner},
     },
     logical::{
         context::QueryContext,

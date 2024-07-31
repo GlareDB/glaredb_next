@@ -2,6 +2,7 @@ use crate::{
     database::create::{CreateSchemaInfo, CreateTableInfo},
     engine::vars::SessionVars,
     execution::{
+        explain::format_logical_plan_for_explain,
         intermediate::PipelineSink,
         operators::{
             copy_to::PhysicalCopyTo,
@@ -25,7 +26,6 @@ use crate::{
             union::PhysicalUnion,
             values::PhysicalValues,
         },
-        query_graph::explain::format_logical_plan_for_explain,
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
     logical::{
@@ -95,17 +95,16 @@ impl IntermediatePipelinePlanner {
         context: QueryContext,
         sink: Box<dyn QuerySink>,
     ) -> Result<PlannedPipelineGroups> {
-        let mut state = IntermediatePipelineBuildState::new();
+        let mut state = IntermediatePipelineBuildState::new(&self.config);
         let mut id_gen = PipelineIdGen {
             gen: IntermediatePipelineId(0),
         };
 
-        let mut materializations =
-            state.plan_materializations(&self.config, context, &mut id_gen)?;
-        state.walk(&self.config, &mut materializations, &mut id_gen, root)?;
+        let mut materializations = state.plan_materializations(context, &mut id_gen)?;
+        state.walk(&mut materializations, &mut id_gen, root)?;
 
         // Finish with query sink.
-        state.push_query_sink(&self.config, &mut id_gen, sink)?;
+        state.push_query_sink(&mut id_gen, sink)?;
 
         debug_assert!(state.in_progress.is_none());
 
@@ -154,6 +153,7 @@ impl Materializations {
     /// pending pipelines should have been consumed. If there's still pipelines,
     /// that means we're not accuratately tracking the number of materialized
     /// scans.
+    #[allow(dead_code)]
     fn has_remaining_pipelines(&self) -> bool {
         for pipelines in self.materialize_sources.values() {
             if !pipelines.is_empty() {
@@ -179,18 +179,21 @@ struct InProgressPipeline {
 }
 
 #[derive(Debug)]
-struct IntermediatePipelineBuildState {
+struct IntermediatePipelineBuildState<'a> {
+    config: &'a IntermediateConfig,
     /// Pipeline we're working on, as well as the location for where it should
     /// be executed.
     in_progress: Option<InProgressPipeline>,
-
+    /// Pipelines in the local group.
     local_group: IntermediatePipelineGroup,
+    /// Pipelines in the remote group.
     remote_group: IntermediatePipelineGroup,
 }
 
-impl IntermediatePipelineBuildState {
-    fn new() -> Self {
+impl<'a> IntermediatePipelineBuildState<'a> {
+    fn new(config: &'a IntermediateConfig) -> Self {
         IntermediatePipelineBuildState {
+            config,
             in_progress: None,
             local_group: IntermediatePipelineGroup::default(),
             remote_group: IntermediatePipelineGroup::default(),
@@ -214,7 +217,6 @@ impl IntermediatePipelineBuildState {
     /// of the plan.
     fn plan_materializations(
         &mut self,
-        conf: &IntermediateConfig,
         context: QueryContext,
         id_gen: &mut PipelineIdGen,
     ) -> Result<Materializations> {
@@ -222,7 +224,7 @@ impl IntermediatePipelineBuildState {
 
         for materialized in context.materialized {
             // Generate the pipeline(s) for this plan.
-            self.walk(conf, &mut materializations, id_gen, materialized.root)?;
+            self.walk(&mut materializations, id_gen, materialized.root)?;
 
             // Finish off the pipeline with a PhysicalMaterialize as the sink.
             let operator = IntermediateOperator {
@@ -270,64 +272,51 @@ impl IntermediatePipelineBuildState {
 
     fn walk(
         &mut self,
-        conf: &IntermediateConfig,
         materializations: &mut Materializations,
         id_gen: &mut PipelineIdGen,
         plan: LogicalOperator,
     ) -> Result<()> {
         match plan {
-            LogicalOperator::Projection(proj) => {
-                self.push_project(conf, id_gen, materializations, proj)
-            }
-            LogicalOperator::Filter(filter) => {
-                self.push_filter(conf, id_gen, materializations, filter)
-            }
-            LogicalOperator::ExpressionList(values) => self.push_values(conf, id_gen, values),
+            LogicalOperator::Projection(proj) => self.push_project(id_gen, materializations, proj),
+            LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
+            LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
             LogicalOperator::CrossJoin(join) => {
-                self.push_cross_join(conf, id_gen, materializations, join)
+                self.push_cross_join(id_gen, materializations, join)
             }
-            LogicalOperator::AnyJoin(join) => {
-                self.push_any_join(conf, id_gen, materializations, join)
-            }
+            LogicalOperator::AnyJoin(join) => self.push_any_join(id_gen, materializations, join),
             LogicalOperator::EqualityJoin(join) => {
-                self.push_equality_join(conf, id_gen, materializations, join)
+                self.push_equality_join(id_gen, materializations, join)
             }
             LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
                 "Dependent joins cannot be made into a pipeline",
             )),
-            LogicalOperator::Empty(empty) => self.push_empty(conf, id_gen, empty),
-            LogicalOperator::Aggregate(agg) => {
-                self.push_aggregate(conf, id_gen, materializations, agg)
-            }
-            LogicalOperator::Limit(limit) => self.push_limit(conf, id_gen, materializations, limit),
-            LogicalOperator::Order(order) => {
-                self.push_global_sort(conf, id_gen, materializations, order)
-            }
-            LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, id_gen, show_var),
+            LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
+            LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
+            LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
+            LogicalOperator::Order(order) => self.push_global_sort(id_gen, materializations, order),
+            LogicalOperator::ShowVar(show_var) => self.push_show_var(id_gen, show_var),
             LogicalOperator::Explain(explain) => {
-                self.push_explain(conf, id_gen, materializations, explain)
+                self.push_explain(id_gen, materializations, explain)
             }
-            LogicalOperator::Describe(describe) => self.push_describe(conf, id_gen, describe),
+            LogicalOperator::Describe(describe) => self.push_describe(id_gen, describe),
             LogicalOperator::CreateTable(create) => {
-                self.push_create_table(conf, id_gen, materializations, create)
+                self.push_create_table(id_gen, materializations, create)
             }
-            LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, id_gen, create),
-            LogicalOperator::Drop(drop) => self.push_drop(conf, id_gen, drop),
-            LogicalOperator::Insert(insert) => {
-                self.push_insert(conf, id_gen, materializations, insert)
-            }
+            LogicalOperator::CreateSchema(create) => self.push_create_schema(id_gen, create),
+            LogicalOperator::Drop(drop) => self.push_drop(id_gen, drop),
+            LogicalOperator::Insert(insert) => self.push_insert(id_gen, materializations, insert),
             LogicalOperator::CopyTo(copy_to) => {
-                self.push_copy_to(conf, id_gen, materializations, copy_to)
+                self.push_copy_to(id_gen, materializations, copy_to)
             }
             LogicalOperator::MaterializedScan(scan) => {
-                self.push_materialized_scan(conf, materializations, id_gen, scan)
+                self.push_materialized_scan(materializations, id_gen, scan)
             }
-            LogicalOperator::Scan(scan) => self.push_scan(conf, id_gen, scan),
+            LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
             LogicalOperator::TableFunction(table_func) => {
-                self.push_table_function(conf, id_gen, table_func)
+                self.push_table_function(id_gen, table_func)
             }
             LogicalOperator::SetOperation(setop) => {
-                self.push_set_operation(conf, id_gen, materializations, setop)
+                self.push_set_operation(id_gen, materializations, setop)
             }
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
@@ -484,7 +473,6 @@ impl IntermediatePipelineBuildState {
     /// This is the last step when building up pipelines for a query graph.
     fn push_query_sink(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         sink: Box<dyn QuerySink>,
     ) -> Result<()> {
@@ -511,7 +499,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_copy_to(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         copy_to: LogicalNode<operator::CopyTo>,
@@ -519,7 +506,7 @@ impl IntermediatePipelineBuildState {
         let location = copy_to.location;
         let copy_to = copy_to.into_inner();
 
-        self.walk(conf, materializations, id_gen, *copy_to.source)?;
+        self.walk(materializations, id_gen, *copy_to.source)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalCopyTo::new(
@@ -539,7 +526,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_set_operation(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         setop: LogicalNode<operator::SetOperation>,
@@ -552,11 +538,11 @@ impl IntermediatePipelineBuildState {
         let top_schema = setop.top.output_schema(&[])?;
 
         // Continue building top.
-        self.walk(conf, materializations, id_gen, *setop.top)?;
+        self.walk(materializations, id_gen, *setop.top)?;
 
         // Create new pipelines for bottom.
-        let mut bottom_builder = IntermediatePipelineBuildState::new();
-        bottom_builder.walk(conf, materializations, id_gen, *setop.bottom)?;
+        let mut bottom_builder = IntermediatePipelineBuildState::new(self.config);
+        bottom_builder.walk(materializations, id_gen, *setop.bottom)?;
         self.local_group
             .merge_from_other(&mut bottom_builder.local_group);
         self.remote_group
@@ -603,7 +589,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_drop(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         drop: LogicalNode<operator::DropEntry>,
     ) -> Result<()> {
@@ -631,7 +616,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_insert(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         insert: LogicalNode<operator::Insert>,
@@ -639,7 +623,7 @@ impl IntermediatePipelineBuildState {
         let location = insert.location;
         let insert = insert.into_inner();
 
-        self.walk(conf, materializations, id_gen, *insert.input)?;
+        self.walk(materializations, id_gen, *insert.input)?;
 
         // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
         let operator = IntermediateOperator {
@@ -654,7 +638,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_table_function(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         table_func: LogicalNode<operator::TableFunction>,
     ) -> Result<()> {
@@ -682,7 +665,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_materialized_scan(
         &mut self,
-        _conf: &IntermediateConfig,
         materializations: &mut Materializations,
         id_gen: &mut PipelineIdGen,
         scan: LogicalNode<operator::MaterializedScan>,
@@ -727,7 +709,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_scan(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         scan: LogicalNode<operator::Scan>,
     ) -> Result<()> {
@@ -755,7 +736,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_create_schema(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         create: LogicalNode<operator::CreateSchema>,
     ) -> Result<()> {
@@ -789,7 +769,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_create_table(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         create: LogicalNode<operator::CreateTable>,
@@ -805,7 +784,7 @@ impl IntermediatePipelineBuildState {
         match create.input {
             Some(input) => {
                 // CTAS, plan the input. It'll be the source of this pipeline.
-                self.walk(conf, materializations, id_gen, *input)?;
+                self.walk(materializations, id_gen, *input)?;
             }
             None => {
                 // No input, just have an empty operator as the source.
@@ -844,7 +823,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_describe(
         &mut self,
-        _conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         describe: LogicalNode<operator::Describe>,
     ) -> Result<()> {
@@ -880,9 +858,8 @@ impl IntermediatePipelineBuildState {
 
     fn push_explain(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
-        materializations: &mut Materializations,
+        _materializations: &mut Materializations,
         explain: LogicalNode<operator::Explain>,
     ) -> Result<()> {
         let location = explain.location;
@@ -919,7 +896,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_show_var(
         &mut self,
-        _conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         show: LogicalNode<operator::ShowVar>,
     ) -> Result<()> {
@@ -949,7 +925,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_project(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         project: LogicalNode<operator::Projection>,
@@ -957,7 +932,7 @@ impl IntermediatePipelineBuildState {
         let input_schema = project.as_ref().input.output_schema(&[])?;
         let location = project.location;
         let project = project.into_inner();
-        self.walk(conf, materializations, id_gen, *project.input)?;
+        self.walk(materializations, id_gen, *project.input)?;
 
         let projections = project
             .exprs
@@ -976,7 +951,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_filter(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         filter: LogicalNode<operator::Filter>,
@@ -984,7 +958,7 @@ impl IntermediatePipelineBuildState {
         let input_schema = filter.as_ref().input.output_schema(&[])?;
         let location = filter.location;
         let filter = filter.into_inner();
-        self.walk(conf, materializations, id_gen, *filter.input)?;
+        self.walk(materializations, id_gen, *filter.input)?;
 
         let predicate =
             PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate, &input_schema)?;
@@ -1000,7 +974,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_global_sort(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         order: LogicalNode<operator::Order>,
@@ -1009,7 +982,7 @@ impl IntermediatePipelineBuildState {
         let order = order.into_inner();
 
         let input_schema = order.input.output_schema(&[])?;
-        self.walk(conf, materializations, id_gen, *order.input)?;
+        self.walk(materializations, id_gen, *order.input)?;
 
         let exprs = order
             .exprs
@@ -1078,7 +1051,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_limit(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         limit: LogicalNode<operator::Limit>,
@@ -1086,7 +1058,7 @@ impl IntermediatePipelineBuildState {
         let location = limit.location;
         let limit = limit.into_inner();
 
-        self.walk(conf, materializations, id_gen, *limit.input)?;
+        self.walk(materializations, id_gen, *limit.input)?;
 
         // TODO: Who sets partitioning? How was that working before?
 
@@ -1102,7 +1074,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_aggregate(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         agg: LogicalNode<operator::Aggregate>,
@@ -1111,7 +1082,7 @@ impl IntermediatePipelineBuildState {
         let agg = agg.into_inner();
 
         let input_schema = agg.input.output_schema(&[])?;
-        self.walk(conf, materializations, id_gen, *agg.input)?;
+        self.walk(materializations, id_gen, *agg.input)?;
 
         let mut agg_exprs = Vec::with_capacity(agg.aggregates.len());
         for expr in agg.aggregates.into_iter() {
@@ -1154,12 +1125,7 @@ impl IntermediatePipelineBuildState {
         Ok(())
     }
 
-    fn push_empty(
-        &mut self,
-        _conf: &IntermediateConfig,
-        id_gen: &mut PipelineIdGen,
-        empty: LogicalNode<()>,
-    ) -> Result<()> {
+    fn push_empty(&mut self, id_gen: &mut PipelineIdGen, empty: LogicalNode<()>) -> Result<()> {
         // "Empty" is a source of data by virtue of emitting a batch consisting
         // of no columns and 1 row.
         //
@@ -1196,7 +1162,6 @@ impl IntermediatePipelineBuildState {
     /// Push an equality (hash) join.
     fn push_equality_join(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         join: LogicalNode<operator::EqualityJoin>,
@@ -1206,12 +1171,12 @@ impl IntermediatePipelineBuildState {
 
         // Build up all inputs on the right (probe) side. This is going to
         // continue with the the current pipeline.
-        self.walk(conf, materializations, id_gen, *join.right)?;
+        self.walk(materializations, id_gen, *join.right)?;
 
         // Build up the left (build) side in a separate pipeline. This will feed
         // into the currently pipeline at the join operator.
-        let mut left_state = IntermediatePipelineBuildState::new();
-        left_state.walk(conf, materializations, id_gen, *join.left)?;
+        let mut left_state = IntermediatePipelineBuildState::new(self.config);
+        left_state.walk(materializations, id_gen, *join.left)?;
 
         // Take any completed pipelines from the left side and put them in our
         // list.
@@ -1244,7 +1209,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_any_join(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         join: LogicalNode<operator::AnyJoin>,
@@ -1269,7 +1233,6 @@ impl IntermediatePipelineBuildState {
         };
 
         self.push_nl_join(
-            conf,
             id_gen,
             materializations,
             location,
@@ -1281,7 +1244,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_cross_join(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         join: LogicalNode<operator::CrossJoin>,
@@ -1289,7 +1251,6 @@ impl IntermediatePipelineBuildState {
         let location = join.location;
         let join = join.into_inner();
         self.push_nl_join(
-            conf,
             id_gen,
             materializations,
             location,
@@ -1306,7 +1267,6 @@ impl IntermediatePipelineBuildState {
     /// pipeline.
     fn push_nl_join(
         &mut self,
-        conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         location: LocationRequirement,
@@ -1314,17 +1274,17 @@ impl IntermediatePipelineBuildState {
         right: operator::LogicalOperator,
         filter: Option<PhysicalScalarExpression>,
     ) -> Result<()> {
-        if conf.error_on_nested_loop_join {
+        if self.config.error_on_nested_loop_join {
             return Err(RayexecError::new("Debug trigger: nested loop join"));
         }
 
         // Continue to build up all the inputs into the right side.
-        self.walk(conf, materializations, id_gen, right)?;
+        self.walk(materializations, id_gen, right)?;
 
         // Create a completely independent pipeline (or pipelines) for left
         // side.
-        let mut left_state = IntermediatePipelineBuildState::new();
-        left_state.walk(conf, materializations, id_gen, left)?;
+        let mut left_state = IntermediatePipelineBuildState::new(self.config);
+        left_state.walk(materializations, id_gen, left)?;
 
         // Take completed pipelines from the left and merge them into this
         // state's completed set of pipelines.
@@ -1356,7 +1316,6 @@ impl IntermediatePipelineBuildState {
 
     fn push_values(
         &mut self,
-        _conf: &IntermediateConfig,
         id_gen: &mut PipelineIdGen,
         values: LogicalNode<operator::ExpressionList>,
     ) -> Result<()> {

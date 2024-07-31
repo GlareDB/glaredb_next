@@ -1,5 +1,5 @@
 //! Conversion to/from ipc for batches.
-use std::{collections::VecDeque, io::BufReader};
+use std::collections::VecDeque;
 
 use crate::{
     array::{Array, PrimitiveArray},
@@ -8,7 +8,7 @@ use crate::{
     bitutil::byte_ceil,
     datatype::DataType,
     field::Schema,
-    ipc::gen::message::{BodyCompressionBuilder, BodyCompressionMethod, RecordBatchBuilder},
+    ipc::gen::message::RecordBatchBuilder,
     storage::PrimitiveStorage,
 };
 
@@ -21,17 +21,17 @@ use super::{
     IpcConfig,
 };
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, Result};
 
 pub fn ipc_to_batch(
     batch: IpcRecordBatch,
     data: &[u8],
     schema: &Schema,
-    conf: &IpcConfig,
+    _conf: &IpcConfig,
 ) -> Result<Batch> {
     let mut buffers = BufferReader {
         data,
-        decompress_buffer: Vec::new(),
+        _decompress_buffer: Vec::new(),
         compression: None,
         buffers: batch.buffers().unwrap().iter().collect(),
         nodes: batch.nodes().unwrap().iter().collect(),
@@ -51,7 +51,7 @@ struct BufferReader<'a> {
     data: &'a [u8],
 
     /// Buffer for holding decompressed data.
-    decompress_buffer: Vec<u8>,
+    _decompress_buffer: Vec<u8>,
 
     compression: Option<CompressionType>,
 
@@ -246,13 +246,13 @@ fn encode_primitive<T>(
         }
     }
 
-    let validity_buffer = IpcBuffer::new(offset as i64, (&data[offset..]).len() as i64);
+    let validity_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
     buffers.push(validity_buffer);
 
     let offset = data.len();
     data.extend_from_slice(array.values().as_bytes());
 
-    let values_buffer = IpcBuffer::new(offset as i64, (&data[offset..]).len() as i64);
+    let values_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
     buffers.push(values_buffer);
 }
 
