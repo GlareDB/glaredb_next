@@ -1,4 +1,5 @@
 use crate::{
+    database::DatabaseContext,
     functions::copy::{CopyToFunction, CopyToSink},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
@@ -6,12 +7,15 @@ use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
-use std::task::{Context, Waker};
 use std::{fmt, task::Poll};
+use std::{
+    sync::Arc,
+    task::{Context, Waker},
+};
 
 use super::{
-    util::futures::make_static, OperatorState, PartitionState, PhysicalOperator, PollFinalize,
-    PollPull, PollPush,
+    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
+    PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 
 pub enum CopyToPartitionState {
@@ -43,26 +47,31 @@ pub struct CopyToInnerPartitionState {
     pull_waker: Option<Waker>,
 }
 
+// TODO: Having this use PhysicalSink since they're the same thing.
 #[derive(Debug)]
 pub struct PhysicalCopyTo {
     copy_to: Box<dyn CopyToFunction>,
     location: FileLocation,
+    schema: Schema,
 }
 
 impl PhysicalCopyTo {
-    pub fn new(copy_to: Box<dyn CopyToFunction>, location: FileLocation) -> Self {
-        PhysicalCopyTo { copy_to, location }
+    pub fn new(copy_to: Box<dyn CopyToFunction>, schema: Schema, location: FileLocation) -> Self {
+        PhysicalCopyTo {
+            copy_to,
+            location,
+            schema,
+        }
     }
+}
 
-    // TODO: Only allows a single input partition for now. Multiple partitions
-    // would required writing to separate files. We'd want to append the
-    // partition number to file location, but exact behavior is still tbd.
-    pub fn try_create_states(
+impl PhysicalOperator for PhysicalCopyTo {
+    fn create_states(
         &self,
-        schema: Schema,
-        num_partitions: usize,
-    ) -> Result<Vec<CopyToPartitionState>> {
-        if num_partitions != 1 {
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        if partitions[0] != 1 {
             return Err(RayexecError::new(
                 "CopyTo operator only supports a single partition for now",
             ));
@@ -70,22 +79,27 @@ impl PhysicalCopyTo {
 
         let states = self
             .copy_to
-            .create_sinks(schema, self.location.clone(), num_partitions)?
+            .create_sinks(self.schema.clone(), self.location.clone(), partitions[0])?
             .into_iter()
-            .map(|sink| CopyToPartitionState::Writing {
-                inner: Some(CopyToInnerPartitionState {
-                    sink,
-                    pull_waker: None,
-                }),
-                future: None,
+            .map(|sink| {
+                PartitionState::CopyTo(CopyToPartitionState::Writing {
+                    inner: Some(CopyToInnerPartitionState {
+                        sink,
+                        pull_waker: None,
+                    }),
+                    future: None,
+                })
             })
             .collect::<Vec<_>>();
 
-        Ok(states)
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states,
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalCopyTo {
     fn poll_push(
         &self,
         cx: &mut Context,

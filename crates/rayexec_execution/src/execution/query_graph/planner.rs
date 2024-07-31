@@ -449,21 +449,22 @@ impl BuildState {
             self.push_round_robin(conf, id_gen, 1)?;
         }
 
-        let physical = Arc::new(PhysicalCopyTo::new(copy_to.copy_to, copy_to.location));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states: Vec<_> = physical
-            .try_create_states(copy_to.source_schema, 1)?
-            .into_iter()
-            .map(PartitionState::CopyTo)
-            .collect();
+        unimplemented!()
+        // let physical = Arc::new(PhysicalCopyTo::new(copy_to.copy_to, copy_to.location));
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states: Vec<_> = physical
+        //     .try_create_states(copy_to.source_schema, 1)?
+        //     .into_iter()
+        //     .map(PartitionState::CopyTo)
+        //     .collect();
 
-        self.in_progress_pipeline_mut()?.push_operator(
-            physical,
-            operator_state,
-            partition_states,
-        )?;
+        // self.in_progress_pipeline_mut()?.push_operator(
+        //     physical,
+        //     operator_state,
+        //     partition_states,
+        // )?;
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_set_operation(

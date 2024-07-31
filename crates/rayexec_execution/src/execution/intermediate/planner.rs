@@ -522,7 +522,11 @@ impl IntermediatePipelineBuildState {
         self.walk(conf, materializations, id_gen, *copy_to.source)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalCopyTo::new(copy_to.copy_to, copy_to.location)),
+            operator: Arc::new(PhysicalCopyTo::new(
+                copy_to.copy_to,
+                copy_to.source_schema,
+                copy_to.location,
+            )),
             // This should be temporary until there's a better understanding of
             // how we want to handle parallel writes.
             partitioning_requirement: Some(1),
@@ -906,7 +910,7 @@ impl IntermediatePipelineBuildState {
         self.in_progress = Some(InProgressPipeline {
             id: id_gen.next(),
             operators: vec![operator],
-            location: LocationRequirement::Any,
+            location,
             source: PipelineSource::InPipeline,
         });
 
