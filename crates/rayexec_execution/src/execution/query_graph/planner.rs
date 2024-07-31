@@ -672,23 +672,24 @@ impl BuildState {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let physical = Arc::new(PhysicalScan::new(scan.catalog, scan.schema, scan.source));
-        let operator_state = Arc::new(OperatorState::None);
-        let partition_states: Vec<_> = physical
-            .try_create_states(conf.db_context, conf.target_partitions)?
-            .into_iter()
-            .map(PartitionState::Scan)
-            .collect();
+        unimplemented!()
+        // let physical = Arc::new(PhysicalScan::new(scan.catalog, scan.schema, scan.source));
+        // let operator_state = Arc::new(OperatorState::None);
+        // let partition_states: Vec<_> = physical
+        //     .try_create_states(conf.db_context, conf.target_partitions)?
+        //     .into_iter()
+        //     .map(PartitionState::Scan)
+        //     .collect();
 
-        let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
-        pipeline.push_operator(physical, operator_state, partition_states)?;
+        // let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
+        // pipeline.push_operator(physical, operator_state, partition_states)?;
 
-        self.in_progress = Some(pipeline);
+        // self.in_progress = Some(pipeline);
 
-        // TODO: If we don't get the desired number of partitions, we should
-        // push a repartition here.
+        // // TODO: If we don't get the desired number of partitions, we should
+        // // push a repartition here.
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_create_schema(

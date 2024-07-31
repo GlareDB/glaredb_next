@@ -46,13 +46,10 @@ pub enum PipelineSink {
 pub enum PipelineSource {
     /// Source is already in the pipeline, don't do anything.
     InPipeline,
-    OtherPipeline {
-        pipeline: IntermediatePipelineId,
-    },
+    /// Source is some other pipeline in the same group as this pipeline.
+    OtherPipeline { pipeline: IntermediatePipelineId },
     /// Source is remote, build an ipc source.
-    OtherGroup {
-        partitions: usize,
-    },
+    OtherGroup { partitions: usize },
 }
 
 #[derive(Debug, Default)]
