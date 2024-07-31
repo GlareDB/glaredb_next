@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use std::sync::Arc;
 
 use crate::{
@@ -131,7 +131,24 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                 pipeline
             }
             PipelineSource::OtherPipeline { pipeline } => {
-                unimplemented!()
+                let operator_idx = pipelines
+                    .get(&pipeline)
+                    .required("pipeline")?
+                    .operators
+                    .last()
+                    .required("at least one operator")?;
+                let source = &mut operators[*operator_idx];
+
+                let pull_states = source.pull_states.take().required("separate pull states")?;
+
+                let mut pipeline = ExecutablePipeline::new(self.id_gen.next(), pull_states.len());
+                pipeline.push_operator(
+                    source.operator.clone(),
+                    source.operator_state.clone(),
+                    pull_states,
+                )?;
+
+                pipeline
             }
             PipelineSource::OtherGroup { partitions } => {
                 // Need to insert a remote ipc source.

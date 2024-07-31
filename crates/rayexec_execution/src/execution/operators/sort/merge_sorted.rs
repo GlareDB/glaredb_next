@@ -1,5 +1,5 @@
 use crate::database::DatabaseContext;
-use crate::execution::operators::{ExecutionStates, PollFinalize};
+use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
@@ -11,6 +11,7 @@ use crate::{
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
+use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use super::util::{
@@ -200,13 +201,13 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
         let extractor = SortKeysExtractor::new(&self.exprs);
 
         let push_states: Vec<_> = (0..input_partitions)
-            .map(|idx| MergeSortedPushPartitionState {
-                partition_idx: idx,
-                extractor: extractor.clone(),
+            .map(|idx| {
+                PartitionState::MergeSortedPush(MergeSortedPushPartitionState {
+                    partition_idx: idx,
+                    extractor: extractor.clone(),
+                })
             })
             .collect();
-
-        // TODO: Umm
 
         // Note vec with a single element representing a single output
         // partition.
@@ -214,15 +215,23 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
         // I'm not sure if we care to support multiple output partitions, but
         // extending this a little could provide an interesting repartitioning
         // scheme where we repartition based on the sort key.
-        let pull_states = vec![MergeSortedPullPartitionState {
-            input_buffers: InputBuffers {
-                buffered: (0..input_partitions).map(|_| None).collect(),
-                finished: (0..input_partitions).map(|_| false).collect(),
+        let pull_states = vec![PartitionState::MergeSortedPull(
+            MergeSortedPullPartitionState {
+                input_buffers: InputBuffers {
+                    buffered: (0..input_partitions).map(|_| None).collect(),
+                    finished: (0..input_partitions).map(|_| false).collect(),
+                },
+                merge_state: PullMergeState::Initializing,
             },
-            merge_state: PullMergeState::Initializing,
-        }];
+        )];
 
-        unimplemented!()
+        Ok(ExecutionStates {
+            operator_state: Arc::new(operator_state),
+            partition_states: InputOutputStates::SeparateInputOutput {
+                push_states,
+                pull_states,
+            },
+        })
     }
 
     fn poll_push(
