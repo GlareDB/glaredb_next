@@ -187,6 +187,10 @@ impl PhysicalMergeSortedInputs {
 }
 
 impl PhysicalOperator for PhysicalMergeSortedInputs {
+    fn operator_name(&self) -> &'static str {
+        "merge_sorted"
+    }
+
     fn create_states(
         &self,
         _context: &DatabaseContext,

@@ -43,6 +43,10 @@ impl PhysicalScan {
 }
 
 impl PhysicalOperator for PhysicalScan {
+    fn operator_name(&self) -> &'static str {
+        "scan"
+    }
+
     fn create_states(
         &self,
         context: &DatabaseContext,

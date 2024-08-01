@@ -39,6 +39,10 @@ impl PhysicalCreateSchema {
 }
 
 impl PhysicalOperator for PhysicalCreateSchema {
+    fn operator_name(&self) -> &'static str {
+        "create_schema"
+    }
+
     fn create_states(
         &self,
         context: &DatabaseContext,

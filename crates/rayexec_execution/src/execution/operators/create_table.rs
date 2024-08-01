@@ -96,6 +96,10 @@ impl PhysicalCreateTable {
 }
 
 impl PhysicalOperator for PhysicalCreateTable {
+    fn operator_name(&self) -> &'static str {
+        "create_table"
+    }
+
     fn create_states(
         &self,
         context: &DatabaseContext,

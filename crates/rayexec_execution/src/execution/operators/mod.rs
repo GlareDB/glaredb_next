@@ -245,6 +245,12 @@ pub struct ExecutionStates {
 }
 
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
+    /// Name of the operator.
+    ///
+    /// This is used during (de)serialization and is not user facing. The only
+    /// requirement is that it's unique per type.
+    fn operator_name(&self) -> &'static str;
+
     /// Create execution states for this operator.
     ///
     /// `input_partitions` is the partitioning for each input that will be
@@ -255,9 +261,7 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        unimplemented!("{self:?}")
-    }
+    ) -> Result<ExecutionStates>;
 
     /// Try to push a batch for this partition.
     fn poll_push(

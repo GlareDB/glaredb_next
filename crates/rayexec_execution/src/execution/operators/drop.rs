@@ -35,6 +35,10 @@ impl PhysicalDrop {
 }
 
 impl PhysicalOperator for PhysicalDrop {
+    fn operator_name(&self) -> &'static str {
+        "drop"
+    }
+
     fn create_states(
         &self,
         context: &DatabaseContext,

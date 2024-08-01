@@ -59,6 +59,10 @@ impl PhysicalLimit {
 }
 
 impl PhysicalOperator for PhysicalLimit {
+    fn operator_name(&self) -> &'static str {
+        "limit"
+    }
+
     fn create_states(
         &self,
         _context: &DatabaseContext,

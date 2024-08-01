@@ -127,6 +127,10 @@ impl PhysicalHashAggregate {
 }
 
 impl PhysicalOperator for PhysicalHashAggregate {
+    fn operator_name(&self) -> &'static str {
+        "hash_aggregate"
+    }
+
     fn create_states(
         &self,
         _context: &DatabaseContext,

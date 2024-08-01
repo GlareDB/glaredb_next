@@ -88,6 +88,10 @@ impl PhysicalUngroupedAggregate {
 }
 
 impl PhysicalOperator for PhysicalUngroupedAggregate {
+    fn operator_name(&self) -> &'static str {
+        "ungrouped_aggregate"
+    }
+
     fn create_states(
         &self,
         _context: &DatabaseContext,

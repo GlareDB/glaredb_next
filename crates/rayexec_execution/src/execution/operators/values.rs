@@ -28,6 +28,10 @@ impl PhysicalValues {
 }
 
 impl PhysicalOperator for PhysicalValues {
+    fn operator_name(&self) -> &'static str {
+        "values"
+    }
+
     fn create_states(
         &self,
         _context: &DatabaseContext,

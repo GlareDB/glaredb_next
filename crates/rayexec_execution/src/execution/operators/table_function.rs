@@ -56,6 +56,10 @@ impl PhysicalTableFunction {
 }
 
 impl PhysicalOperator for PhysicalTableFunction {
+    fn operator_name(&self) -> &'static str {
+        "table_function"
+    }
+
     fn create_states(
         &self,
         _context: &DatabaseContext,
