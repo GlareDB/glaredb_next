@@ -244,12 +244,26 @@ pub struct ExecutionStates {
     pub partition_states: InputOutputStates,
 }
 
+pub struct SerializableOperator<'a> {
+    pub tag: &'static str,
+    pub state: &'a dyn erased_serde::Serialize,
+}
+
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
+    fn hello() -> &'static str
+    where
+        Self: Sized,
+    {
+        "hi"
+    }
+
     /// Name of the operator.
     ///
     /// This is used during (de)serialization and is not user facing. The only
     /// requirement is that it's unique per type.
-    fn operator_name(&self) -> &'static str;
+    fn operator_name(&self) -> &'static str
+    where
+        Self: Sized;
 
     /// Create execution states for this operator.
     ///

@@ -12,12 +12,14 @@ use crate::{
     functions::{
         aggregate::AggregateFunction,
         scalar::ScalarFunction,
+        serde::{
+            AggregateFunctionDeserializer, PlannedTableFunctionDeserializer,
+            ScalarFunctionDeserializer,
+        },
         table::{PlannedTableFunction, TableFunctionArgs},
     },
     logical::operator::LocationRequirement,
-    serde::{
-        AggregateFunctionDeserializer, PlannedTableFunctionDeserializer, ScalarFunctionDeserializer,
-    },
+    serde::{ContextMapDeserialize, SerdeMissingField},
 };
 
 use super::Bound;
@@ -155,21 +157,11 @@ impl Serialize for BindData {
     }
 }
 
-pub struct BindDataVisitor<'a> {
-    pub context: &'a DatabaseContext,
-}
-
-impl<'de, 'a> Visitor<'de> for BindDataVisitor<'a> {
-    type Value = BindData;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("bind data")
-    }
-
-    fn visit_map<V>(self, mut map: V) -> Result<BindData, V::Error>
-    where
-        V: MapAccess<'de>,
-    {
+impl<'de> ContextMapDeserialize<'de> for BindData {
+    fn deserialize_map<V: MapAccess<'de>>(
+        mut map: V,
+        context: &DatabaseContext,
+    ) -> Result<Self, V::Error> {
         let mut scalar_function_objects = None;
         let mut aggregate_function_objects = None;
         let mut table_function_objects = None;
@@ -183,23 +175,17 @@ impl<'de, 'a> Visitor<'de> for BindDataVisitor<'a> {
             match key {
                 "scalar_function_objects" => {
                     scalar_function_objects = Some(map.next_value_seed(ObjectListVisitor {
-                        visitor: ScalarFunctionDeserializer {
-                            context: self.context,
-                        },
+                        visitor: ScalarFunctionDeserializer { context },
                     })?)
                 }
                 "aggregate_function_objects" => {
                     aggregate_function_objects = Some(map.next_value_seed(ObjectListVisitor {
-                        visitor: AggregateFunctionDeserializer {
-                            context: self.context,
-                        },
+                        visitor: AggregateFunctionDeserializer { context },
                     })?)
                 }
                 "table_function_objects" => {
                     table_function_objects = Some(map.next_value_seed(ObjectListVisitor {
-                        visitor: PlannedTableFunctionDeserializer {
-                            context: self.context,
-                        },
+                        visitor: PlannedTableFunctionDeserializer { context },
                     })?)
                 }
                 "tables" => {
@@ -223,19 +209,17 @@ impl<'de, 'a> Visitor<'de> for BindDataVisitor<'a> {
             }
         }
 
-        let scalar_function_objects = scalar_function_objects
-            .ok_or_else(|| de::Error::missing_field("scalar_function_objects"))?;
-        let aggregate_function_objects = aggregate_function_objects
-            .ok_or_else(|| de::Error::missing_field("aggregate_function_objects"))?;
-        let table_function_objects = table_function_objects
-            .ok_or_else(|| de::Error::missing_field("table_function_objects"))?;
-        let tables = tables.ok_or_else(|| de::Error::missing_field("tables"))?;
-        let functions = functions.ok_or_else(|| de::Error::missing_field("functions"))?;
-        let table_functions =
-            table_functions.ok_or_else(|| de::Error::missing_field("table_functions"))?;
-        let current_depth =
-            current_depth.ok_or_else(|| de::Error::missing_field("current_depth"))?;
-        let ctes = ctes.ok_or_else(|| de::Error::missing_field("ctes"))?;
+        let scalar_function_objects =
+            scalar_function_objects.missing_field("scalar_function_objects")?;
+        let aggregate_function_objects =
+            aggregate_function_objects.missing_field("aggregate_function_objects")?;
+        let table_function_objects =
+            table_function_objects.missing_field("table_function_objects")?;
+        let tables = tables.missing_field("tables")?;
+        let functions = functions.missing_field("functions")?;
+        let table_functions = table_functions.missing_field("table_functions")?;
+        let current_depth = current_depth.missing_field("current_depth")?;
+        let ctes = ctes.missing_field("ctes")?;
 
         Ok(BindData {
             scalar_function_objects,
@@ -247,17 +231,6 @@ impl<'de, 'a> Visitor<'de> for BindDataVisitor<'a> {
             current_depth,
             ctes,
         })
-    }
-}
-
-impl<'de, 'a> DeserializeSeed<'de> for BindDataVisitor<'a> {
-    type Value = BindData;
-
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_map(self)
     }
 }
 
