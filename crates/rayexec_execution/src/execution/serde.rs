@@ -14,6 +14,7 @@ impl<'a> Serialize for OperatorSerializer<'a> {
     where
         S: Serializer,
     {
+        let seq = serializer.serialize_seq(Some(2))?;
         match self.0 {
             _ => unimplemented!(),
         }

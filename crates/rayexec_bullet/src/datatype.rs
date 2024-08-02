@@ -1,6 +1,7 @@
 use std::fmt;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE};
@@ -41,6 +42,75 @@ pub enum DataTypeId {
     LargeBinary,
     Struct,
     List,
+}
+
+impl ProtoConv for DataTypeId {
+    type ProtoType = rayexec_proto::generated::schema::DataTypeId;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(match self {
+            Self::Any => Self::ProtoType::Any,
+            Self::Null => Self::ProtoType::Null,
+            Self::Boolean => Self::ProtoType::Boolean,
+            Self::Int8 => Self::ProtoType::Int8,
+            Self::Int16 => Self::ProtoType::Int16,
+            Self::Int32 => Self::ProtoType::Int32,
+            Self::Int64 => Self::ProtoType::Int64,
+            Self::Int128 => Self::ProtoType::Int128,
+            Self::UInt8 => Self::ProtoType::Uint8,
+            Self::UInt16 => Self::ProtoType::Uint16,
+            Self::UInt32 => Self::ProtoType::Uint32,
+            Self::UInt64 => Self::ProtoType::Uint64,
+            Self::UInt128 => Self::ProtoType::Uint128,
+            Self::Float32 => Self::ProtoType::Float32,
+            Self::Float64 => Self::ProtoType::Float64,
+            Self::Decimal64 => Self::ProtoType::Decimal64,
+            Self::Decimal128 => Self::ProtoType::Decimal128,
+            Self::Timestamp => Self::ProtoType::Timestamp,
+            Self::Date32 => Self::ProtoType::Date32,
+            Self::Date64 => Self::ProtoType::Date64,
+            Self::Interval => Self::ProtoType::Interval,
+            Self::Utf8 => Self::ProtoType::Utf8,
+            Self::LargeUtf8 => Self::ProtoType::LargeUtf8,
+            Self::Binary => Self::ProtoType::Binary,
+            Self::LargeBinary => Self::ProtoType::LargeBinary,
+            Self::Struct => Self::ProtoType::Struct,
+            Self::List => Self::ProtoType::List,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(match proto {
+            Self::ProtoType::InvalidDatatypeId => return Err(RayexecError::new("invalid")),
+            Self::ProtoType::Any => Self::Any,
+            Self::ProtoType::Null => Self::Null,
+            Self::ProtoType::Boolean => Self::Boolean,
+            Self::ProtoType::Int8 => Self::Int8,
+            Self::ProtoType::Int16 => Self::Int16,
+            Self::ProtoType::Int32 => Self::Int32,
+            Self::ProtoType::Int64 => Self::Int64,
+            Self::ProtoType::Int128 => Self::Int128,
+            Self::ProtoType::Uint8 => Self::UInt8,
+            Self::ProtoType::Uint16 => Self::UInt16,
+            Self::ProtoType::Uint32 => Self::UInt32,
+            Self::ProtoType::Uint64 => Self::UInt64,
+            Self::ProtoType::Uint128 => Self::UInt128,
+            Self::ProtoType::Float32 => Self::Float32,
+            Self::ProtoType::Float64 => Self::Float64,
+            Self::ProtoType::Decimal64 => Self::Decimal64,
+            Self::ProtoType::Decimal128 => Self::Decimal128,
+            Self::ProtoType::Timestamp => Self::Timestamp,
+            Self::ProtoType::Date32 => Self::Date32,
+            Self::ProtoType::Date64 => Self::Date64,
+            Self::ProtoType::Interval => Self::Interval,
+            Self::ProtoType::Utf8 => Self::Utf8,
+            Self::ProtoType::LargeUtf8 => Self::LargeUtf8,
+            Self::ProtoType::Binary => Self::Binary,
+            Self::ProtoType::LargeBinary => Self::LargeBinary,
+            Self::ProtoType::Struct => Self::Struct,
+            Self::ProtoType::List => Self::List,
+        })
+    }
 }
 
 impl fmt::Display for DataTypeId {
@@ -90,6 +160,24 @@ impl DecimalTypeMeta {
     }
 }
 
+impl ProtoConv for DecimalTypeMeta {
+    type ProtoType = rayexec_proto::generated::schema::DecimalTypeMeta;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            precision: self.precision as i32,
+            scale: self.scale as i32,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(DecimalTypeMeta {
+            precision: proto.precision.try_into().context("invalid i8")?,
+            scale: proto.scale.try_into().context("invalid i8")?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TimestampTypeMeta {
     pub unit: TimeUnit,
@@ -102,12 +190,51 @@ impl TimestampTypeMeta {
     }
 }
 
+impl ProtoConv for TimestampTypeMeta {
+    type ProtoType = rayexec_proto::generated::schema::TimestampTypeMeta;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            unit: self.unit.to_proto()? as i32,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            unit: TimeUnit::from_proto(proto.unit())?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TimeUnit {
     Second,
     Millisecond,
     Microsecond,
     Nanosecond,
+}
+
+impl ProtoConv for TimeUnit {
+    type ProtoType = rayexec_proto::generated::schema::TimeUnit;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(match self {
+            Self::Second => Self::ProtoType::Second,
+            Self::Millisecond => Self::ProtoType::Millisecond,
+            Self::Microsecond => Self::ProtoType::Microsecond,
+            Self::Nanosecond => Self::ProtoType::Nanosecond,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(match proto {
+            Self::ProtoType::InvalidTimeUnit => return Err(RayexecError::new("invalid")),
+            Self::ProtoType::Second => Self::Second,
+            Self::ProtoType::Millisecond => Self::Millisecond,
+            Self::ProtoType::Microsecond => Self::Microsecond,
+            Self::ProtoType::Nanosecond => Self::Nanosecond,
+        })
+    }
 }
 
 impl fmt::Display for TimeUnit {
