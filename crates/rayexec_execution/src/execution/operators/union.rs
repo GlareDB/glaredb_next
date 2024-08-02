@@ -11,7 +11,7 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -63,7 +63,7 @@ impl PhysicalUnion {
     pub const UNION_BOTTOM_INPUT_INDEX: usize = 1;
 }
 
-impl PhysicalOperator for PhysicalUnion {
+impl ExecutableOperator for PhysicalUnion {
     fn operator_name(&self) -> &'static str {
         "union"
     }

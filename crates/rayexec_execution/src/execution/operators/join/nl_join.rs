@@ -10,7 +10,7 @@ use std::{sync::Arc, task::Waker};
 
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 use crate::expr::PhysicalScalarExpression;
@@ -182,7 +182,7 @@ impl PhysicalNestedLoopJoin {
     }
 }
 
-impl PhysicalOperator for PhysicalNestedLoopJoin {
+impl ExecutableOperator for PhysicalNestedLoopJoin {
     fn operator_name(&self) -> &'static str {
         "nl_join"
     }

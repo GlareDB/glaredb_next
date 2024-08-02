@@ -1,16 +1,18 @@
 use crate::{
     database::{catalog::CatalogTx, create::CreateSchemaInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    serde::{ContextMapDeserialize, SerdeMissingField},
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{RayexecError, Result, ResultExt};
+use serde::de;
 use std::task::{Context, Poll};
 use std::{fmt, sync::Arc};
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
-    PollFinalize, PollPull, PollPush,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
+    PollFinalize, PollPull, PollPush, SerializableOperator,
 };
 
 pub struct CreateSchemaPartitionState {
@@ -25,11 +27,13 @@ impl fmt::Debug for CreateSchemaPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalCreateSchema {
-    catalog: String,
-    info: CreateSchemaInfo,
+    pub(crate) catalog: String,
+    pub(crate) info: CreateSchemaInfo,
 }
 
 impl PhysicalCreateSchema {
+    pub const OPERATOR_NAME: &'static str = "create_schema";
+
     pub fn new(catalog: impl Into<String>, info: CreateSchemaInfo) -> Self {
         PhysicalCreateSchema {
             catalog: catalog.into(),
@@ -38,9 +42,9 @@ impl PhysicalCreateSchema {
     }
 }
 
-impl PhysicalOperator for PhysicalCreateSchema {
+impl ExecutableOperator for PhysicalCreateSchema {
     fn operator_name(&self) -> &'static str {
-        "create_schema"
+        Self::OPERATOR_NAME
     }
 
     fn create_states(

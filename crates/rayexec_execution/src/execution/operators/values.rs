@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -27,7 +27,7 @@ impl PhysicalValues {
     }
 }
 
-impl PhysicalOperator for PhysicalValues {
+impl ExecutableOperator for PhysicalValues {
     fn operator_name(&self) -> &'static str {
         "values"
     }

@@ -9,7 +9,7 @@ use std::task::{Context, Waker};
 use crate::logical::explainable::Explainable;
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -72,7 +72,7 @@ impl<S: StatelessOperation> SimpleOperator<S> {
     }
 }
 
-impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
+impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
     fn operator_name(&self) -> &'static str {
         self.operation.operation_name()
     }

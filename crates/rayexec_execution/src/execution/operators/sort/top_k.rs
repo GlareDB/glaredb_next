@@ -4,7 +4,7 @@ use std::task::Context;
 
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
     PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -18,7 +18,7 @@ pub struct TopKOperatorState {}
 #[derive(Debug)]
 pub struct PhysicalTopK {}
 
-impl PhysicalOperator for PhysicalTopK {
+impl ExecutableOperator for PhysicalTopK {
     fn operator_name(&self) -> &'static str {
         "top_k"
     }

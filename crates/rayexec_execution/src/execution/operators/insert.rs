@@ -10,7 +10,7 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -43,7 +43,7 @@ impl PhysicalInsert {
     }
 }
 
-impl PhysicalOperator for PhysicalInsert {
+impl ExecutableOperator for PhysicalInsert {
     fn operator_name(&self) -> &'static str {
         "insert"
     }

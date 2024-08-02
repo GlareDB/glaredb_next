@@ -8,7 +8,7 @@ use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
     PollPush,
 };
 
@@ -28,7 +28,7 @@ impl PhysicalEmpty {
     }
 }
 
-impl PhysicalOperator for PhysicalEmpty {
+impl ExecutableOperator for PhysicalEmpty {
     fn operator_name(&self) -> &'static str {
         "empty"
     }

@@ -14,7 +14,7 @@ use std::task::{Context, Waker};
 use crate::logical::explainable::Explainable;
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
     PollPush,
 };
 
@@ -87,7 +87,7 @@ impl PhysicalUngroupedAggregate {
     }
 }
 
-impl PhysicalOperator for PhysicalUngroupedAggregate {
+impl ExecutableOperator for PhysicalUngroupedAggregate {
     fn operator_name(&self) -> &'static str {
         "ungrouped_aggregate"
     }

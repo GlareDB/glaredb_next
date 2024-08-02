@@ -1,6 +1,6 @@
 pub mod planner;
 
-use super::operators::PhysicalOperator;
+use super::operators::ExecutableOperator;
 use std::{collections::HashMap, sync::Arc};
 
 /// ID of a single intermediate pipeline.
@@ -73,7 +73,7 @@ pub struct IntermediatePipeline {
 #[derive(Debug)]
 pub struct IntermediateOperator {
     /// The physical operator that will be used in the executable pipline.
-    pub(crate) operator: Arc<dyn PhysicalOperator>,
+    pub(crate) operator: Arc<dyn ExecutableOperator>,
 
     /// If this operator has a partitioning requirement.
     ///

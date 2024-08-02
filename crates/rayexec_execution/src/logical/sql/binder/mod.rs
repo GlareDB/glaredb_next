@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use bind_data::{
-    BindData, BindDataVisitor, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference,
-    ItemReference, MaybeBound, UnboundTableFunctionReference,
+    BindData, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference, ItemReference,
+    MaybeBound, UnboundTableFunctionReference,
 };
 use exprbinder::ExpressionBinder;
 use rayexec_bullet::{
@@ -87,49 +87,50 @@ impl Serialize for StatementWithBindData {
     }
 }
 
-pub struct StatementWithBindDataVisitor<'a> {
-    pub context: &'a DatabaseContext,
-}
+// pub struct StatementWithBindDataVisitor<'a> {
+//     pub context: &'a DatabaseContext,
+// }
 
-impl<'de, 'a> Visitor<'de> for StatementWithBindDataVisitor<'a> {
-    type Value = StatementWithBindData;
+// impl<'de, 'a> Visitor<'de> for StatementWithBindDataVisitor<'a> {
+//     type Value = StatementWithBindData;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("bound statement with bind data")
-    }
+//     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+//         formatter.write_str("bound statement with bind data")
+//     }
 
-    fn visit_map<V>(self, mut map: V) -> Result<StatementWithBindData, V::Error>
-    where
-        V: MapAccess<'de>,
-    {
-        let mut statement = None;
-        let mut bind_data = None;
+//     fn visit_map<V>(self, mut map: V) -> Result<StatementWithBindData, V::Error>
+//     where
+//         V: MapAccess<'de>,
+//     {
+//         let mut statement = None;
+//         let mut bind_data = None;
 
-        while let Some(key) = map.next_key()? {
-            match key {
-                "statement" => {
-                    statement = Some(map.next_value()?);
-                }
-                "bind_data" => {
-                    bind_data = Some(map.next_value_seed(BindDataVisitor {
-                        context: self.context,
-                    })?);
-                }
-                _ => {
-                    let _ = map.next_value::<de::IgnoredAny>()?;
-                }
-            }
-        }
+//         while let Some(key) = map.next_key()? {
+//             match key {
+//                 "statement" => {
+//                     statement = Some(map.next_value()?);
+//                 }
+//                 "bind_data" => {
+//                     bind_data = Some(map.next_value_seed(ContextMapDeserializer::new(
+//                         self.context,
+//                         BindDataDeserializer,
+//                     ))?);
+//                 }
+//                 _ => {
+//                     let _ = map.next_value::<de::IgnoredAny>()?;
+//                 }
+//             }
+//         }
 
-        let statement = statement.ok_or_else(|| de::Error::missing_field("statement"))?;
-        let bind_data = bind_data.ok_or_else(|| de::Error::missing_field("bind_data"))?;
+//         let statement = statement.ok_or_else(|| de::Error::missing_field("statement"))?;
+//         let bind_data = bind_data.ok_or_else(|| de::Error::missing_field("bind_data"))?;
 
-        Ok(StatementWithBindData {
-            statement,
-            bind_data,
-        })
-    }
-}
+//         Ok(StatementWithBindData {
+//             statement,
+//             bind_data,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCopyTo {

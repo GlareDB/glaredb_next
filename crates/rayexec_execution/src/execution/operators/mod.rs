@@ -28,24 +28,40 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
-use copy_to::CopyToPartitionState;
-use create_schema::CreateSchemaPartitionState;
-use create_table::{CreateTableOperatorState, CreateTablePartitionState};
-use drop::DropPartitionState;
-use insert::InsertPartitionState;
+use copy_to::{CopyToPartitionState, PhysicalCopyTo};
+use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
+use create_table::{CreateTableOperatorState, CreateTablePartitionState, PhysicalCreateTable};
+use drop::{DropPartitionState, PhysicalDrop};
+use empty::PhysicalEmpty;
+use filter::FilterOperation;
+use hash_aggregate::PhysicalHashAggregate;
+use insert::{InsertPartitionState, PhysicalInsert};
+use join::hash_join::PhysicalHashJoin;
+use join::nl_join::PhysicalNestedLoopJoin;
+use limit::PhysicalLimit;
 use materialize::{
     MaterializeOperatorState, MaterializePullPartitionState, MaterializePushPartitionState,
+    PhysicalMaterialize,
 };
+use project::ProjectOperation;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use scan::ScanPartitionState;
-use sink::QuerySinkPartitionState;
+use round_robin::PhysicalRoundRobinRepartition;
+use scan::{PhysicalScan, ScanPartitionState};
+use serde::de;
+use simple::SimpleOperator;
+use sink::{PhysicalQuerySink, QuerySinkPartitionState};
+use sort::local_sort::PhysicalLocalSort;
+use sort::merge_sorted::PhysicalMergeSortedInputs;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::Context;
-use table_function::TableFunctionPartitionState;
-use ungrouped_aggregate::{UngroupedAggregateOperatorState, UngroupedAggregatePartitionState};
-use union::{UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
+use table_function::{PhysicalTableFunction, TableFunctionPartitionState};
+use ungrouped_aggregate::{
+    PhysicalUngroupedAggregate, UngroupedAggregateOperatorState, UngroupedAggregatePartitionState,
+};
+use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
+use values::PhysicalValues;
 
 use crate::database::DatabaseContext;
 use crate::logical::explainable::Explainable;
@@ -234,6 +250,33 @@ pub enum InputOutputStates {
     },
 }
 
+// 128 bytes
+#[derive(Debug)]
+pub enum PhysicalOperator {
+    HashAggregate(PhysicalHashAggregate),
+    UngroupedAggregate(PhysicalUngroupedAggregate),
+    NestedLoopJoin(PhysicalNestedLoopJoin),
+    HashJoin(PhysicalHashJoin),
+    Values(PhysicalValues),
+    QuerySink(PhysicalQuerySink),
+    RoundRobin(PhysicalRoundRobinRepartition),
+    MergeSorted(PhysicalMergeSortedInputs),
+    LocalSort(PhysicalLocalSort),
+    Limit(PhysicalLimit),
+    Materialize(PhysicalMaterialize),
+    Union(PhysicalUnion),
+    Filter(SimpleOperator<FilterOperation>),
+    Project(SimpleOperator<ProjectOperation>),
+    Scan(PhysicalScan),
+    TableFunction(PhysicalTableFunction),
+    Insert(PhysicalInsert),
+    CopyTo(PhysicalCopyTo),
+    CreateTable(PhysicalCreateTable),
+    CreateSchema(PhysicalCreateSchema),
+    Drop(PhysicalDrop),
+    Empty(PhysicalEmpty),
+}
+
 /// States generates from an operator to use during execution.
 #[derive(Debug)]
 pub struct ExecutionStates {
@@ -244,26 +287,12 @@ pub struct ExecutionStates {
     pub partition_states: InputOutputStates,
 }
 
-pub struct SerializableOperator<'a> {
-    pub tag: &'static str,
-    pub state: &'a dyn erased_serde::Serialize,
-}
-
-pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
-    fn hello() -> &'static str
-    where
-        Self: Sized,
-    {
-        "hi"
-    }
-
+pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     /// Name of the operator.
     ///
     /// This is used during (de)serialization and is not user facing. The only
     /// requirement is that it's unique per type.
-    fn operator_name(&self) -> &'static str
-    where
-        Self: Sized;
+    fn operator_name(&self) -> &'static str;
 
     /// Create execution states for this operator.
     ///
@@ -304,4 +333,20 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollPull>;
+}
+
+pub trait SerializableOperator {
+    fn serialize(&self, serializer: &mut dyn erased_serde::Serializer) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn deserialize(
+        deserializer: &mut dyn erased_serde::Deserializer,
+        context: &DatabaseContext,
+    ) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        unimplemented!()
+    }
 }

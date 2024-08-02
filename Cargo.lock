@@ -1824,6 +1824,7 @@ name = "rayexec_error"
 version = "0.0.22"
 dependencies = [
  "erased-serde",
+ "serde",
 ]
 
 [[package]]

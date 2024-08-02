@@ -18,7 +18,7 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -95,7 +95,7 @@ impl PhysicalCreateTable {
     }
 }
 
-impl PhysicalOperator for PhysicalCreateTable {
+impl ExecutableOperator for PhysicalCreateTable {
     fn operator_name(&self) -> &'static str {
         "create_table"
     }

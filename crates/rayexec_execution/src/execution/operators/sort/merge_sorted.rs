@@ -3,7 +3,7 @@ use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinali
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
-        sort::util::merger::IterState, OperatorState, PartitionState, PhysicalOperator, PollPull,
+        sort::util::merger::IterState, ExecutableOperator, OperatorState, PartitionState, PollPull,
         PollPush,
     },
     expr::PhysicalSortExpression,
@@ -186,7 +186,7 @@ impl PhysicalMergeSortedInputs {
     }
 }
 
-impl PhysicalOperator for PhysicalMergeSortedInputs {
+impl ExecutableOperator for PhysicalMergeSortedInputs {
     fn operator_name(&self) -> &'static str {
         "merge_sorted"
     }

@@ -10,8 +10,8 @@ use std::{fmt, task::Poll};
 use std::{sync::Arc, task::Context};
 
 use super::{
-    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PhysicalOperator, PollFinalize, PollPull, PollPush,
+    util::futures::make_static, ExecutableOperator, ExecutionStates, InputOutputStates,
+    OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
 };
 
 pub struct TableFunctionPartitionState {
@@ -55,7 +55,7 @@ impl PhysicalTableFunction {
     }
 }
 
-impl PhysicalOperator for PhysicalTableFunction {
+impl ExecutableOperator for PhysicalTableFunction {
     fn operator_name(&self) -> &'static str {
         "table_function"
     }

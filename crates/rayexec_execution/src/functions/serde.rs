@@ -35,7 +35,7 @@ use crate::{
     },
 };
 
-trait ObjectLookup: Copy + 'static {
+trait FunctionObjectLookup: Copy + 'static {
     /// Object we're looking up that exists in the catalog.
     type Object: ?Sized + 'static;
     /// The stateful version of the object. This should be the "planned" version
@@ -56,7 +56,7 @@ trait ObjectLookup: Copy + 'static {
 #[derive(Debug, Clone, Copy)]
 struct ScalarFunctionLookup;
 
-impl ObjectLookup for ScalarFunctionLookup {
+impl FunctionObjectLookup for ScalarFunctionLookup {
     type Object = dyn ScalarFunction;
     type StatefulObject = dyn PlannedScalarFunction;
 
@@ -82,7 +82,7 @@ impl ObjectLookup for ScalarFunctionLookup {
 #[derive(Debug, Clone, Copy)]
 struct AggregateFunctionLookup;
 
-impl ObjectLookup for AggregateFunctionLookup {
+impl FunctionObjectLookup for AggregateFunctionLookup {
     type Object = dyn AggregateFunction;
     type StatefulObject = dyn PlannedAggregateFunction;
 
@@ -108,7 +108,7 @@ impl ObjectLookup for AggregateFunctionLookup {
 #[derive(Debug, Clone, Copy)]
 struct TableFunctionLookup;
 
-impl ObjectLookup for TableFunctionLookup {
+impl FunctionObjectLookup for TableFunctionLookup {
     type Object = dyn TableFunction;
     type StatefulObject = dyn PlannedTableFunction;
 
@@ -133,12 +133,12 @@ impl ObjectLookup for TableFunctionLookup {
 
 /// A serde visitor implementation that visits a string and returns a database
 /// object.
-struct DatabaseObjectVisitor<'a, T: ObjectLookup> {
+struct DatabaseObjectVisitor<'a, T: FunctionObjectLookup> {
     context: &'a DatabaseContext,
     lookup: T,
 }
 
-impl<'de, 'a, T: ObjectLookup> Visitor<'de> for DatabaseObjectVisitor<'a, T> {
+impl<'de, 'a, T: FunctionObjectLookup> Visitor<'de> for DatabaseObjectVisitor<'a, T> {
     type Value = Box<T::Object>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -156,7 +156,7 @@ impl<'de, 'a, T: ObjectLookup> Visitor<'de> for DatabaseObjectVisitor<'a, T> {
     }
 }
 
-impl<'de, 'a, T: ObjectLookup> DeserializeSeed<'de> for DatabaseObjectVisitor<'a, T> {
+impl<'de, 'a, T: FunctionObjectLookup> DeserializeSeed<'de> for DatabaseObjectVisitor<'a, T> {
     type Value = Box<T::Object>;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
@@ -167,12 +167,12 @@ impl<'de, 'a, T: ObjectLookup> DeserializeSeed<'de> for DatabaseObjectVisitor<'a
     }
 }
 
-struct TaggedVisitor<'a, T: ObjectLookup> {
+struct TaggedVisitor<'a, T: FunctionObjectLookup> {
     context: &'a DatabaseContext,
     lookup: T,
 }
 
-impl<'de, 'a, T: ObjectLookup> Visitor<'de> for TaggedVisitor<'a, T> {
+impl<'de, 'a, T: FunctionObjectLookup> Visitor<'de> for TaggedVisitor<'a, T> {
     type Value = Box<T::StatefulObject>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -202,12 +202,12 @@ impl<'de, 'a, T: ObjectLookup> Visitor<'de> for TaggedVisitor<'a, T> {
     }
 }
 
-struct StateDeserializer<T: ObjectLookup> {
+struct StateDeserializer<T: FunctionObjectLookup> {
     object: Box<T::Object>,
     lookup: T,
 }
 
-impl<'de, T: ObjectLookup> DeserializeSeed<'de> for StateDeserializer<T> {
+impl<'de, T: FunctionObjectLookup> DeserializeSeed<'de> for StateDeserializer<T> {
     type Value = Box<T::StatefulObject>;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>

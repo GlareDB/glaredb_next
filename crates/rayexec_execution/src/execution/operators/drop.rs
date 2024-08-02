@@ -9,7 +9,7 @@ use std::task::{Context, Poll};
 use std::{fmt, sync::Arc};
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -34,7 +34,7 @@ impl PhysicalDrop {
     }
 }
 
-impl PhysicalOperator for PhysicalDrop {
+impl ExecutableOperator for PhysicalDrop {
     fn operator_name(&self) -> &'static str {
         "drop"
     }

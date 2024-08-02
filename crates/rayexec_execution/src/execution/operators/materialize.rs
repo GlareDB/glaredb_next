@@ -12,7 +12,7 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -63,7 +63,7 @@ impl PhysicalMaterialize {
     }
 }
 
-impl PhysicalOperator for PhysicalMaterialize {
+impl ExecutableOperator for PhysicalMaterialize {
     fn operator_name(&self) -> &'static str {
         "materialize"
     }

@@ -1,14 +1,14 @@
+//! Serde helpers that are generally useful across multiple objects.
+//!
+//! Object-specific helpers should be defined closer to the objects themselves.
 use std::fmt;
-use std::marker::PhantomData;
 
-use serde::{
-    de::{self, DeserializeSeed, MapAccess, Visitor},
-    Serialize, Serializer,
-};
+use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 
 use crate::database::DatabaseContext;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::Result;
 
+/// Trait for returning a missing field error from an Option.
 pub trait SerdeMissingField<T> {
     fn missing_field<E: de::Error>(self, field: &'static str) -> Result<T, E>;
 }
@@ -22,59 +22,33 @@ impl<T> SerdeMissingField<T> for Option<T> {
     }
 }
 
-pub trait ObjectLookup: Copy + 'static {
-    /// Object we're looking up that exists in the catalog.
-    type Object;
+/// Helper for deserializing from a map.
+pub trait ContextMapDeserialize<'de> {
+    type Value: Sized;
 
-    /// Lookup an object by name in the catalog.
-    fn lookup(&self, context: &DatabaseContext, name: &str) -> Result<Self::Object>;
-}
-
-pub struct ObjectLookupVisitor<'a, T: ObjectLookup> {
-    pub context: &'a DatabaseContext,
-    pub lookup: T,
-}
-
-impl<'de, 'a, T: ObjectLookup> Visitor<'de> for ObjectLookupVisitor<'a, T> {
-    type Value = T::Object;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "object name")
-    }
-
-    fn visit_str<E>(self, name: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        self.lookup
-            .lookup(self.context, name)
-            .map_err(de::Error::custom)
-    }
-}
-
-pub trait ContextMapDeserialize<'de>: Sized {
     fn deserialize_map<V: MapAccess<'de>>(
+        self,
         map: V,
         context: &DatabaseContext,
-    ) -> Result<Self, V::Error>;
+    ) -> Result<Self::Value, V::Error>;
 }
 
 pub struct ContextMapDeserializer<'a, M> {
     pub context: &'a DatabaseContext,
-    _visit: PhantomData<M>,
+    pub deserializer: M,
 }
 
 impl<'a, M> ContextMapDeserializer<'a, M> {
-    pub fn new(context: &'a DatabaseContext) -> Self {
+    pub fn new(context: &'a DatabaseContext, deserializer: M) -> Self {
         ContextMapDeserializer {
             context,
-            _visit: PhantomData,
+            deserializer,
         }
     }
 }
 
 impl<'de, 'a, M: ContextMapDeserialize<'de>> Visitor<'de> for ContextMapDeserializer<'a, M> {
-    type Value = M;
+    type Value = M::Value;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "a map")
@@ -84,14 +58,67 @@ impl<'de, 'a, M: ContextMapDeserialize<'de>> Visitor<'de> for ContextMapDeserial
     where
         A: MapAccess<'de>,
     {
-        M::deserialize_map(map, self.context)
+        self.deserializer.deserialize_map(map, self.context)
     }
 }
 
 impl<'de, 'a, M: ContextMapDeserialize<'de>> DeserializeSeed<'de>
     for ContextMapDeserializer<'a, M>
 {
-    type Value = M;
+    type Value = M::Value;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(self)
+    }
+}
+
+pub struct ContextSeqDeserializer<'a, M> {
+    pub context: &'a DatabaseContext,
+    pub deserializer: M,
+}
+
+impl<'a, M> ContextSeqDeserializer<'a, M> {
+    pub fn new(context: &'a DatabaseContext, deserializer: M) -> Self {
+        ContextSeqDeserializer {
+            context,
+            deserializer,
+        }
+    }
+}
+
+/// Helper for deserializing from a sequence.
+pub trait ContextSeqDeserialize<'de> {
+    type Value: Sized;
+
+    fn deserialize_seq<V: SeqAccess<'de>>(
+        self,
+        seq: V,
+        context: &DatabaseContext,
+    ) -> Result<Self::Value, V::Error>;
+}
+
+impl<'de, 'a, M: ContextSeqDeserialize<'de>> Visitor<'de> for ContextSeqDeserializer<'a, M> {
+    type Value = M::Value;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "a sequence")
+    }
+
+    fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        self.deserializer.deserialize_seq(seq, self.context)
+    }
+}
+
+impl<'de, 'a, M: ContextSeqDeserialize<'de>> DeserializeSeed<'de>
+    for ContextSeqDeserializer<'a, M>
+{
+    type Value = M::Value;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where

@@ -11,7 +11,7 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -58,7 +58,7 @@ impl PhysicalLimit {
     }
 }
 
-impl PhysicalOperator for PhysicalLimit {
+impl ExecutableOperator for PhysicalLimit {
     fn operator_name(&self) -> &'static str {
         "limit"
     }

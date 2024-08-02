@@ -9,7 +9,7 @@ use std::task::{Context, Waker};
 
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+    ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -106,7 +106,7 @@ pub struct RoundRobinOperatorState {
 #[derive(Debug)]
 pub struct PhysicalRoundRobinRepartition;
 
-impl PhysicalOperator for PhysicalRoundRobinRepartition {
+impl ExecutableOperator for PhysicalRoundRobinRepartition {
     fn operator_name(&self) -> &'static str {
         "round_robin"
     }

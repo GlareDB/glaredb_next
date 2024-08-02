@@ -7,14 +7,14 @@ use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
     PollPush,
 };
 
 #[derive(Debug)]
 pub struct PhysicalIpcSink {}
 
-impl PhysicalOperator for PhysicalIpcSink {
+impl ExecutableOperator for PhysicalIpcSink {
     fn operator_name(&self) -> &'static str {
         "ipc_sink"
     }
@@ -65,7 +65,7 @@ impl Explainable for PhysicalIpcSink {
 #[derive(Debug)]
 pub struct PhysicalIpcSource {}
 
-impl PhysicalOperator for PhysicalIpcSource {
+impl ExecutableOperator for PhysicalIpcSource {
     fn operator_name(&self) -> &'static str {
         "ipc_source"
     }

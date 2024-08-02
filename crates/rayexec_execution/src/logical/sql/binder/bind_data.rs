@@ -19,7 +19,7 @@ use crate::{
         table::{PlannedTableFunction, TableFunctionArgs},
     },
     logical::operator::LocationRequirement,
-    serde::{ContextMapDeserialize, SerdeMissingField},
+    serde::SerdeMissingField,
 };
 
 use super::Bound;
@@ -157,82 +157,99 @@ impl Serialize for BindData {
     }
 }
 
-impl<'de> ContextMapDeserialize<'de> for BindData {
-    fn deserialize_map<V: MapAccess<'de>>(
-        mut map: V,
-        context: &DatabaseContext,
-    ) -> Result<Self, V::Error> {
-        let mut scalar_function_objects = None;
-        let mut aggregate_function_objects = None;
-        let mut table_function_objects = None;
-        let mut tables = None;
-        let mut functions = None;
-        let mut table_functions = None;
-        let mut current_depth = None;
-        let mut ctes = None;
+// pub struct BindDataDeserializer;
 
-        while let Some(key) = map.next_key()? {
-            match key {
-                "scalar_function_objects" => {
-                    scalar_function_objects = Some(map.next_value_seed(ObjectListVisitor {
-                        visitor: ScalarFunctionDeserializer { context },
-                    })?)
-                }
-                "aggregate_function_objects" => {
-                    aggregate_function_objects = Some(map.next_value_seed(ObjectListVisitor {
-                        visitor: AggregateFunctionDeserializer { context },
-                    })?)
-                }
-                "table_function_objects" => {
-                    table_function_objects = Some(map.next_value_seed(ObjectListVisitor {
-                        visitor: PlannedTableFunctionDeserializer { context },
-                    })?)
-                }
-                "tables" => {
-                    tables = Some(map.next_value()?);
-                }
-                "functions" => {
-                    functions = Some(map.next_value()?);
-                }
-                "table_functions" => {
-                    table_functions = Some(map.next_value()?);
-                }
-                "current_depth" => {
-                    current_depth = Some(map.next_value()?);
-                }
-                "ctes" => {
-                    ctes = Some(map.next_value()?);
-                }
-                _ => {
-                    let _ = map.next_value::<de::IgnoredAny>()?;
-                }
-            }
-        }
+// impl<'de> ContextMapDeserialize<'de> for BindDataDeserializer {
+//     type Value = BindData;
 
-        let scalar_function_objects =
-            scalar_function_objects.missing_field("scalar_function_objects")?;
-        let aggregate_function_objects =
-            aggregate_function_objects.missing_field("aggregate_function_objects")?;
-        let table_function_objects =
-            table_function_objects.missing_field("table_function_objects")?;
-        let tables = tables.missing_field("tables")?;
-        let functions = functions.missing_field("functions")?;
-        let table_functions = table_functions.missing_field("table_functions")?;
-        let current_depth = current_depth.missing_field("current_depth")?;
-        let ctes = ctes.missing_field("ctes")?;
+//     fn deserialize_map<V: MapAccess<'de>>(
+//         self,
+//         mut map: V,
+//         context: &DatabaseContext,
+//     ) -> Result<Self::Value, V::Error> {
+//         let mut scalar_function_objects = None;
+//         let mut aggregate_function_objects = None;
+//         let mut table_function_objects = None;
+//         let mut tables = None;
+//         let mut functions = None;
+//         let mut table_functions = None;
+//         let mut current_depth = None;
+//         let mut ctes = None;
 
-        Ok(BindData {
-            scalar_function_objects,
-            aggregate_function_objects,
-            table_function_objects,
-            tables,
-            functions,
-            table_functions,
-            current_depth,
-            ctes,
-        })
-    }
-}
+//         while let Some(key) = map.next_key()? {
+//             match key {
+//                 "scalar_function_objects" => {
+//                     scalar_function_objects =
+//                         Some(map.next_value_seed(ContextSeqDeserializer::new(
+//                             context,
+//                             ObjectListDeserializer {
+//                                 object: ScalarFunctionDeserializer { context },
+//                             },
+//                         ))?)
+//                 }
+//                 "aggregate_function_objects" => {
+//                     aggregate_function_objects =
+//                         Some(map.next_value_seed(ContextSeqDeserializer::new(
+//                             context,
+//                             ObjectListDeserializer {
+//                                 object: AggregateFunctionDeserializer { context },
+//                             },
+//                         ))?)
+//                 }
+//                 "table_function_objects" => {
+//                     table_function_objects =
+//                         Some(map.next_value_seed(ContextSeqDeserializer::new(
+//                             context,
+//                             ObjectListDeserializer {
+//                                 object: PlannedTableFunctionDeserializer { context },
+//                             },
+//                         ))?)
+//                 }
+//                 "tables" => {
+//                     tables = Some(map.next_value()?);
+//                 }
+//                 "functions" => {
+//                     functions = Some(map.next_value()?);
+//                 }
+//                 "table_functions" => {
+//                     table_functions = Some(map.next_value()?);
+//                 }
+//                 "current_depth" => {
+//                     current_depth = Some(map.next_value()?);
+//                 }
+//                 "ctes" => {
+//                     ctes = Some(map.next_value()?);
+//                 }
+//                 _ => {
+//                     let _ = map.next_value::<de::IgnoredAny>()?;
+//                 }
+//             }
+//         }
+
+//         let scalar_function_objects =
+//             scalar_function_objects.missing_field("scalar_function_objects")?;
+//         let aggregate_function_objects =
+//             aggregate_function_objects.missing_field("aggregate_function_objects")?;
+//         let table_function_objects =
+//             table_function_objects.missing_field("table_function_objects")?;
+//         let tables = tables.missing_field("tables")?;
+//         let functions = functions.missing_field("functions")?;
+//         let table_functions = table_functions.missing_field("table_functions")?;
+//         let current_depth = current_depth.missing_field("current_depth")?;
+//         let ctes = ctes.missing_field("ctes")?;
+
+//         Ok(BindData {
+//             scalar_function_objects,
+//             aggregate_function_objects,
+//             table_function_objects,
+//             tables,
+//             functions,
+//             table_functions,
+//             current_depth,
+//             ctes,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObjectIdx(pub usize);
@@ -273,46 +290,29 @@ impl<T: Serialize> Serialize for ObjectList<T> {
     }
 }
 
-struct ObjectListVisitor<I> {
-    visitor: I,
-}
+// struct ObjectListDeserializer<D> {
+//     object: D,
+// }
 
-impl<'de, I, T> Visitor<'de> for ObjectListVisitor<I>
-where
-    I: DeserializeSeed<'de, Value = T> + Copy,
-{
-    type Value = ObjectList<T>;
+// impl<'de, D, T> ContextSeqDeserialize<'de> for ObjectListDeserializer<D>
+// where
+//     D: DeserializeSeed<'de, Value = T> + Copy,
+// {
+//     type Value = ObjectList<T>;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a list of values")
-    }
+//     fn deserialize_seq<V: SeqAccess<'de>>(
+//         self,
+//         mut seq: V,
+//         _context: &DatabaseContext,
+//     ) -> Result<Self::Value, V::Error> {
+//         let mut inner = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+//         while let Some(value) = seq.next_element_seed(self.object)? {
+//             inner.push(value);
+//         }
 
-    fn visit_seq<V>(self, mut seq: V) -> Result<ObjectList<T>, V::Error>
-    where
-        V: SeqAccess<'de>,
-    {
-        let mut inner = Vec::with_capacity(seq.size_hint().unwrap_or(0));
-        while let Some(value) = seq.next_element_seed(self.visitor)? {
-            inner.push(value);
-        }
-
-        Ok(ObjectList(inner))
-    }
-}
-
-impl<'de, I, T> DeserializeSeed<'de> for ObjectListVisitor<I>
-where
-    I: DeserializeSeed<'de, Value = T> + Copy,
-{
-    type Value = ObjectList<T>;
-
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(self)
-    }
-}
+//         Ok(ObjectList(inner))
+//     }
+// }
 
 /// A bound aggregate or scalar function.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
