@@ -44,10 +44,6 @@ impl PhysicalInsert {
 }
 
 impl ExecutableOperator for PhysicalInsert {
-    fn operator_name(&self) -> &'static str {
-        "insert"
-    }
-
     fn create_states(
         &self,
         context: &DatabaseContext,

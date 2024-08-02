@@ -144,10 +144,6 @@ impl PhysicalHashJoin {
 }
 
 impl ExecutableOperator for PhysicalHashJoin {
-    fn operator_name(&self) -> &'static str {
-        "hash_join"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

@@ -183,10 +183,6 @@ impl PhysicalNestedLoopJoin {
 }
 
 impl ExecutableOperator for PhysicalNestedLoopJoin {
-    fn operator_name(&self) -> &'static str {
-        "nl_join"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

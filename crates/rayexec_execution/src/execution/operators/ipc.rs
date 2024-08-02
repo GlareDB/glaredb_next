@@ -15,10 +15,6 @@ use super::{
 pub struct PhysicalIpcSink {}
 
 impl ExecutableOperator for PhysicalIpcSink {
-    fn operator_name(&self) -> &'static str {
-        "ipc_sink"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -66,10 +62,6 @@ impl Explainable for PhysicalIpcSink {
 pub struct PhysicalIpcSource {}
 
 impl ExecutableOperator for PhysicalIpcSource {
-    fn operator_name(&self) -> &'static str {
-        "ipc_source"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

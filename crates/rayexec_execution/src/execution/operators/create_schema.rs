@@ -1,16 +1,18 @@
 use crate::{
     database::{catalog::CatalogTx, create::CreateSchemaInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    serde::{SeqContextVisitor, SeqContextVisitorWrapper, SerdeMissingField},
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
+use serde::{de::SeqAccess, ser::SerializeSeq, Deserializer, Serializer};
 use std::task::{Context, Poll};
 use std::{fmt, sync::Arc};
 
 use super::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    PollFinalize, PollPull, PollPush, SerializableOperator,
 };
 
 pub struct CreateSchemaPartitionState {
@@ -41,10 +43,6 @@ impl PhysicalCreateSchema {
 }
 
 impl ExecutableOperator for PhysicalCreateSchema {
-    fn operator_name(&self) -> &'static str {
-        Self::OPERATOR_NAME
-    }
-
     fn create_states(
         &self,
         context: &DatabaseContext,
@@ -111,5 +109,39 @@ impl ExecutableOperator for PhysicalCreateSchema {
 impl Explainable for PhysicalCreateSchema {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateSchema").with_value("schema", &self.info.name)
+    }
+}
+
+impl SerializableOperator for PhysicalCreateSchema {
+    const OPERATOR_TAG: &'static str = "create_schema";
+
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error> {
+        let mut seq = serializer.serialize_seq(Some(2))?;
+        seq.serialize_element(&self.catalog)?;
+        seq.serialize_element(&self.info)?;
+        seq.end()?;
+        Ok(())
+    }
+
+    fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+        context: &DatabaseContext,
+    ) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> SeqContextVisitor<'de> for Visitor {
+            type Value = PhysicalCreateSchema;
+            fn visit_seq_context<A: SeqAccess<'de>>(
+                self,
+                mut seq: A,
+                _context: &DatabaseContext,
+            ) -> Result<Self::Value, A::Error> {
+                let catalog: String = seq.next_element()?.missing_field("catalog")?;
+                let info: CreateSchemaInfo = seq.next_element()?.missing_field("info")?;
+
+                Ok(PhysicalCreateSchema { catalog, info })
+            }
+        }
+
+        deserializer.deserialize_seq(SeqContextVisitorWrapper::new(context, Visitor))
     }
 }

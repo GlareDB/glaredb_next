@@ -107,10 +107,6 @@ pub struct RoundRobinOperatorState {
 pub struct PhysicalRoundRobinRepartition;
 
 impl ExecutableOperator for PhysicalRoundRobinRepartition {
-    fn operator_name(&self) -> &'static str {
-        "round_robin"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

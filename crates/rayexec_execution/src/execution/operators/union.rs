@@ -64,10 +64,6 @@ impl PhysicalUnion {
 }
 
 impl ExecutableOperator for PhysicalUnion {
-    fn operator_name(&self) -> &'static str {
-        "union"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

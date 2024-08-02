@@ -18,10 +18,6 @@ impl ProjectOperation {
 }
 
 impl StatelessOperation for ProjectOperation {
-    fn operation_name(&self) -> &'static str {
-        "project"
-    }
-
     fn execute(&self, batch: Batch) -> Result<Batch> {
         let arrs = self
             .exprs

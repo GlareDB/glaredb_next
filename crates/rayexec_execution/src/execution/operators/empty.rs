@@ -29,10 +29,6 @@ impl PhysicalEmpty {
 }
 
 impl ExecutableOperator for PhysicalEmpty {
-    fn operator_name(&self) -> &'static str {
-        "empty"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

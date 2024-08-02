@@ -64,10 +64,6 @@ impl PhysicalMaterialize {
 }
 
 impl ExecutableOperator for PhysicalMaterialize {
-    fn operator_name(&self) -> &'static str {
-        "materialize"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

@@ -53,7 +53,6 @@ impl SimplePartitionState {
 
 /// A stateless operation on a batch.
 pub trait StatelessOperation: Sync + Send + Debug + Explainable {
-    fn operation_name(&self) -> &'static str;
     fn execute(&self, batch: Batch) -> Result<Batch>;
 }
 
@@ -73,10 +72,6 @@ impl<S: StatelessOperation> SimpleOperator<S> {
 }
 
 impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
-    fn operator_name(&self) -> &'static str {
-        self.operation.operation_name()
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

@@ -81,10 +81,6 @@ impl PhysicalQuerySink {
 }
 
 impl ExecutableOperator for PhysicalQuerySink {
-    fn operator_name(&self) -> &'static str {
-        "query_sink"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

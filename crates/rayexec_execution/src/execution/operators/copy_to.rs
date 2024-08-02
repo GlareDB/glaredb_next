@@ -66,10 +66,6 @@ impl PhysicalCopyTo {
 }
 
 impl ExecutableOperator for PhysicalCopyTo {
-    fn operator_name(&self) -> &'static str {
-        "copy_to"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

@@ -18,10 +18,6 @@ impl FilterOperation {
 }
 
 impl StatelessOperation for FilterOperation {
-    fn operation_name(&self) -> &'static str {
-        "filter"
-    }
-
     fn execute(&self, batch: Batch) -> Result<Batch> {
         let selection = self.predicate.eval(&batch)?;
         let selection = match selection.as_ref() {

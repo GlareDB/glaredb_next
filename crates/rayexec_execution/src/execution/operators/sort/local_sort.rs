@@ -53,10 +53,6 @@ impl PhysicalLocalSort {
 }
 
 impl ExecutableOperator for PhysicalLocalSort {
-    fn operator_name(&self) -> &'static str {
-        "local_sort"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,

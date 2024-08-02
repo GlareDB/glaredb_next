@@ -48,7 +48,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
-use serde::de;
+use serde::{Deserializer, Serializer};
 use simple::SimpleOperator;
 use sink::{PhysicalQuerySink, QuerySinkPartitionState};
 use sort::local_sort::PhysicalLocalSort;
@@ -261,12 +261,6 @@ pub struct ExecutionStates {
 }
 
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
-    /// Name of the operator.
-    ///
-    /// This is used during (de)serialization and is not user facing. The only
-    /// requirement is that it's unique per type.
-    fn operator_name(&self) -> &'static str;
-
     /// Create execution states for this operator.
     ///
     /// `input_partitions` is the partitioning for each input that will be
@@ -308,6 +302,22 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     ) -> Result<PollPull>;
 }
 
+pub trait SerializableOperator: Sized {
+    /// Tag used during (de)serialization to disambiguate operators.
+    const OPERATOR_TAG: &'static str;
+
+    /// Serialize this operator.
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error>;
+
+    /// Deserialize this operator.
+    ///
+    /// The provided context can be used to look up functions from the catalog.
+    fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+        context: &DatabaseContext,
+    ) -> Result<Self, D::Error>;
+}
+
 // 128 bytes
 #[derive(Debug)]
 pub enum PhysicalOperator {
@@ -336,10 +346,6 @@ pub enum PhysicalOperator {
 }
 
 impl ExecutableOperator for PhysicalOperator {
-    fn operator_name(&self) -> &'static str {
-        unimplemented!()
-    }
-
     fn create_states(
         &self,
         context: &DatabaseContext,
@@ -475,6 +481,29 @@ impl ExecutableOperator for PhysicalOperator {
 
 impl Explainable for PhysicalOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        unimplemented!()
+        match self {
+            Self::HashAggregate(op) => op.explain_entry(conf),
+            Self::UngroupedAggregate(op) => op.explain_entry(conf),
+            Self::NestedLoopJoin(op) => op.explain_entry(conf),
+            Self::HashJoin(op) => op.explain_entry(conf),
+            Self::Values(op) => op.explain_entry(conf),
+            Self::QuerySink(op) => op.explain_entry(conf),
+            Self::RoundRobin(op) => op.explain_entry(conf),
+            Self::MergeSorted(op) => op.explain_entry(conf),
+            Self::LocalSort(op) => op.explain_entry(conf),
+            Self::Limit(op) => op.explain_entry(conf),
+            Self::Materialize(op) => op.explain_entry(conf),
+            Self::Union(op) => op.explain_entry(conf),
+            Self::Filter(op) => op.explain_entry(conf),
+            Self::Project(op) => op.explain_entry(conf),
+            Self::Scan(op) => op.explain_entry(conf),
+            Self::TableFunction(op) => op.explain_entry(conf),
+            Self::Insert(op) => op.explain_entry(conf),
+            Self::CopyTo(op) => op.explain_entry(conf),
+            Self::CreateTable(op) => op.explain_entry(conf),
+            Self::CreateSchema(op) => op.explain_entry(conf),
+            Self::Drop(op) => op.explain_entry(conf),
+            Self::Empty(op) => op.explain_entry(conf),
+        }
     }
 }

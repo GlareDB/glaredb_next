@@ -19,10 +19,6 @@ pub struct TopKOperatorState {}
 pub struct PhysicalTopK {}
 
 impl ExecutableOperator for PhysicalTopK {
-    fn operator_name(&self) -> &'static str {
-        "top_k"
-    }
-
     fn create_states(
         &self,
         _context: &DatabaseContext,
