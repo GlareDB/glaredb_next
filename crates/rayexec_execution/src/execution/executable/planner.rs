@@ -11,7 +11,7 @@ use crate::{
         },
         operators::{
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
-            ExecutableOperator, InputOutputStates, OperatorState, PartitionState,
+            ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
     },
 };
@@ -34,7 +34,7 @@ impl PipelineIdGen {
 
 #[derive(Debug)]
 struct PendingOperatorWithState {
-    operator: Arc<dyn ExecutableOperator>,
+    operator: Arc<PhysicalOperator>,
     operator_state: Arc<OperatorState>,
     input_states: Vec<Option<Vec<PartitionState>>>,
     pull_states: VecDeque<Vec<PartitionState>>,

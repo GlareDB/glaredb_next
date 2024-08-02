@@ -25,6 +25,7 @@ use crate::{
             ungrouped_aggregate::PhysicalUngroupedAggregate,
             union::PhysicalUnion,
             values::PhysicalValues,
+            PhysicalOperator,
         },
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
@@ -228,7 +229,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             // Finish off the pipeline with a PhysicalMaterialize as the sink.
             let operator = IntermediateOperator {
-                operator: Arc::new(PhysicalMaterialize::new(materialized.num_scans)),
+                operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
+                    materialized.num_scans,
+                ))),
                 partitioning_requirement: None,
             };
 
@@ -478,7 +481,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let operator = IntermediateOperator {
             partitioning_requirement: sink.partition_requirement(),
-            operator: Arc::new(PhysicalQuerySink::new(sink)),
+            operator: Arc::new(PhysicalOperator::QuerySink(PhysicalQuerySink::new(sink))),
         };
 
         // Query sink is always local so that the client can get the results.
@@ -509,11 +512,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.walk(materializations, id_gen, *copy_to.source)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalCopyTo::new(
+            operator: Arc::new(PhysicalOperator::CopyTo(PhysicalCopyTo::new(
                 copy_to.copy_to,
                 copy_to.source_schema,
                 copy_to.location,
-            )),
+            ))),
             // This should be temporary until there's a better understanding of
             // how we want to handle parallel writes.
             partitioning_requirement: Some(1),
@@ -553,7 +556,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match setop.kind {
             operator::SetOpKind::Union => {
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalUnion),
+                    operator: Arc::new(PhysicalOperator::Union(PhysicalUnion)),
                     partitioning_requirement: None,
                 };
 
@@ -572,14 +575,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
             let group_types = top_schema.types;
 
-            let operator = IntermediateOperator {
-                operator: Arc::new(PhysicalHashAggregate::new(
-                    group_types,
-                    grouping_sets,
-                    Vec::new(),
-                )),
-                partitioning_requirement: None,
-            };
+            let operator =
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::HashAggregate(
+                        PhysicalHashAggregate::new(group_types, grouping_sets, Vec::new()),
+                    )),
+                    partitioning_requirement: None,
+                };
 
             self.push_intermediate_operator(operator, location, id_gen)?;
         }
@@ -600,7 +602,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalDrop::new(drop.info)),
+            operator: Arc::new(PhysicalOperator::Drop(PhysicalDrop::new(drop.info))),
             partitioning_requirement: Some(1),
         };
 
@@ -627,7 +629,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalInsert::new("temp", "temp", insert.table)),
+            operator: Arc::new(PhysicalOperator::Insert(PhysicalInsert::new(
+                "temp",
+                "temp",
+                insert.table,
+            ))),
             partitioning_requirement: None,
         };
 
@@ -649,7 +655,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalTableFunction::new(table_func.function)),
+            operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
+                table_func.function,
+            ))),
             partitioning_requirement: None,
         };
 
@@ -720,7 +728,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalScan::new(scan.catalog, scan.schema, scan.source)),
+            operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
+                scan.catalog,
+                scan.schema,
+                scan.source,
+            ))),
             partitioning_requirement: None,
         };
 
@@ -747,13 +759,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalCreateSchema::new(
+            operator: Arc::new(PhysicalOperator::CreateSchema(PhysicalCreateSchema::new(
                 create.catalog,
                 CreateSchemaInfo {
                     name: create.name,
                     on_conflict: create.on_conflict,
                 },
-            )),
+            ))),
             partitioning_requirement: Some(1),
         };
 
@@ -789,7 +801,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             None => {
                 // No input, just have an empty operator as the source.
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalEmpty),
+                    operator: Arc::new(PhysicalOperator::Empty(PhysicalEmpty)),
                     partitioning_requirement: Some(1),
                 };
 
@@ -803,7 +815,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalCreateTable::new(
+            operator: Arc::new(PhysicalOperator::CreateTable(PhysicalCreateTable::new(
                 create.catalog,
                 create.schema,
                 CreateTableInfo {
@@ -812,7 +824,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                     on_conflict: create.on_conflict,
                 },
                 is_ctas,
-            )),
+            ))),
             partitioning_requirement: None,
         };
 
@@ -842,7 +854,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let batch = Batch::try_new(vec![names, datatypes])?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalValues::new(vec![batch])),
+            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
             partitioning_requirement: Some(1),
         };
 
@@ -874,10 +886,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // TODO: Executable, intermediate (w/ location)
 
-        let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
-            Array::Utf8(Utf8Array::from_iter(["logical"])),
-            Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
-        ])?]));
+        let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
+            Batch::try_new(vec![
+                Array::Utf8(Utf8Array::from_iter(["logical"])),
+                Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
+            ])?,
+        ])));
 
         let operator = IntermediateOperator {
             operator: physical,
@@ -907,9 +921,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
-                Array::Utf8(Utf8Array::from_iter([show.var.value.to_string().as_str()])),
-            ])?])),
+            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
+                Batch::try_new(vec![Array::Utf8(Utf8Array::from_iter([show
+                    .var
+                    .value
+                    .to_string()
+                    .as_str()]))])?,
+            ]))),
             partitioning_requirement: Some(1),
         };
 
@@ -940,7 +958,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &input_schema))
             .collect::<Result<Vec<_>>>()?;
         let operator = IntermediateOperator {
-            operator: Arc::new(SimpleOperator::new(ProjectOperation::new(projections))),
+            operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
+                ProjectOperation::new(projections),
+            ))),
             partitioning_requirement: None,
         };
 
@@ -963,7 +983,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let predicate =
             PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate, &input_schema)?;
         let operator = IntermediateOperator {
-            operator: Arc::new(SimpleOperator::new(FilterOperation::new(predicate))),
+            operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
+                FilterOperation::new(predicate),
+            ))),
             partitioning_requirement: None,
         };
 
@@ -999,14 +1021,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalLocalSort::new(exprs.clone())),
+            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalLocalSort::new(
+                exprs.clone(),
+            ))),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         // Global sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalMergeSortedInputs::new(exprs)),
+            operator: Arc::new(PhysicalOperator::MergeSorted(
+                PhysicalMergeSortedInputs::new(exprs),
+            )),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1063,7 +1089,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // TODO: Who sets partitioning? How was that working before?
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalLimit::new(limit.limit, limit.offset)),
+            operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit::new(
+                limit.limit,
+                limit.offset,
+            ))),
             partitioning_requirement: None,
         };
 
@@ -1102,10 +1131,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                     .collect();
 
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalHashAggregate::new(
-                        group_types,
-                        grouping_sets,
-                        agg_exprs,
+                    operator: Arc::new(PhysicalOperator::HashAggregate(
+                        PhysicalHashAggregate::new(group_types, grouping_sets, agg_exprs),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1115,7 +1142,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 // Otherwise push an ungrouped aggregate operator.
 
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalUngroupedAggregate::new(agg_exprs)),
+                    operator: Arc::new(PhysicalOperator::UngroupedAggregate(
+                        PhysicalUngroupedAggregate::new(agg_exprs),
+                    )),
                     partitioning_requirement: None,
                 };
                 self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1145,7 +1174,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // drive output of a query that contains no FROM (typically just a
         // simple projection).
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalEmpty),
+            operator: Arc::new(PhysicalOperator::Empty(PhysicalEmpty)),
             partitioning_requirement: Some(1),
         };
 
@@ -1191,11 +1220,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         })?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalHashJoin::new(
+            operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
                 join.join_type,
                 join.left_on,
                 join.right_on,
-            )),
+            ))),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1300,7 +1329,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         })?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalNestedLoopJoin::new(filter)),
+            operator: Arc::new(PhysicalOperator::NestedLoopJoin(
+                PhysicalNestedLoopJoin::new(filter),
+            )),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1370,7 +1401,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let batch = Batch::try_new(cols)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalValues::new(vec![batch])),
+            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
             partitioning_requirement: None,
         };
 
