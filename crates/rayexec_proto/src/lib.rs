@@ -3,7 +3,10 @@ use rayexec_error::Result;
 pub mod generated;
 
 /// Convert type to/from their protobuf representations.
+///
+/// This should be implemented for types that are stateless conversions.
 pub trait ProtoConv: Sized {
+    /// The type we're converting to/from.
     type ProtoType;
 
     fn to_proto(&self) -> Result<Self::ProtoType>;

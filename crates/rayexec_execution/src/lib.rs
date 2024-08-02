@@ -6,6 +6,7 @@ pub mod expr;
 pub mod functions;
 pub mod logical;
 pub mod optimizer;
+pub mod proto;
 pub mod runtime;
 
 mod serde;

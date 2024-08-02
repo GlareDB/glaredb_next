@@ -1956,6 +1956,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_io",
  "rayexec_parser",
+ "rayexec_proto",
  "rayexec_server_client",
  "rayon",
  "regex",

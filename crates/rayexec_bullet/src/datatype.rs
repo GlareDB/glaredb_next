@@ -1,10 +1,13 @@
 use std::fmt;
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE};
+use crate::{
+    field::Field,
+    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataTypeId {
@@ -255,13 +258,51 @@ impl fmt::Display for TimeUnit {
 /// Metadata associated with structs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct StructTypeMeta {
-    pub fields: Vec<(String, DataType)>,
+    pub fields: Vec<Field>,
+}
+
+impl ProtoConv for StructTypeMeta {
+    type ProtoType = rayexec_proto::generated::schema::StructTypeMeta;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        let fields = self
+            .fields
+            .iter()
+            .map(|f| f.to_proto())
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self::ProtoType { fields })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        let fields = proto
+            .fields
+            .into_iter()
+            .map(|f| Field::from_proto(f))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self { fields })
+    }
 }
 
 /// Metadata associated with lists.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ListTypeMeta {
     pub datatype: Box<DataType>,
+}
+
+impl ProtoConv for ListTypeMeta {
+    type ProtoType = rayexec_proto::generated::schema::ListTypeMeta;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            datatype: Some(Box::new(self.datatype.to_proto()?)),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            datatype: Box::new(DataType::from_proto(*proto.datatype.required("datatype")?)?),
+        })
+    }
 }
 
 /// Supported data types.
@@ -424,6 +465,77 @@ impl DataType {
     }
 }
 
+impl ProtoConv for DataType {
+    type ProtoType = rayexec_proto::generated::schema::DataType;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::schema::{data_type::Value, EmptyMeta};
+
+        let value = match self {
+            DataType::Null => Value::TypeNull(EmptyMeta {}),
+            DataType::Boolean => Value::TypeBoolean(EmptyMeta {}),
+            DataType::Int8 => Value::TypeInt8(EmptyMeta {}),
+            DataType::Int16 => Value::TypeInt16(EmptyMeta {}),
+            DataType::Int32 => Value::TypeInt32(EmptyMeta {}),
+            DataType::Int64 => Value::TypeInt64(EmptyMeta {}),
+            DataType::Int128 => Value::TypeInt128(EmptyMeta {}),
+            DataType::UInt8 => Value::TypeUint8(EmptyMeta {}),
+            DataType::UInt16 => Value::TypeUint16(EmptyMeta {}),
+            DataType::UInt32 => Value::TypeUint32(EmptyMeta {}),
+            DataType::UInt64 => Value::TypeUint64(EmptyMeta {}),
+            DataType::UInt128 => Value::TypeUint128(EmptyMeta {}),
+            DataType::Float32 => Value::TypeFloat32(EmptyMeta {}),
+            DataType::Float64 => Value::TypeFloat64(EmptyMeta {}),
+            DataType::Decimal64(m) => Value::TypeDecimal64(m.to_proto()?),
+            DataType::Decimal128(m) => Value::TypeDecimal128(m.to_proto()?),
+            DataType::Timestamp(m) => Value::TypeTimestamp(m.to_proto()?),
+            DataType::Date32 => Value::TypeDate32(EmptyMeta {}),
+            DataType::Date64 => Value::TypeDate64(EmptyMeta {}),
+            DataType::Interval => Value::TypeInterval(EmptyMeta {}),
+            DataType::Utf8 => Value::TypeUtf8(EmptyMeta {}),
+            DataType::LargeUtf8 => Value::TypeLargeUtf8(EmptyMeta {}),
+            DataType::Binary => Value::TypeBinary(EmptyMeta {}),
+            DataType::LargeBinary => Value::TypeLargeBinary(EmptyMeta {}),
+            DataType::Struct(m) => Value::TypeStruct(m.to_proto()?),
+            DataType::List(m) => Value::TypeList(Box::new(m.to_proto()?)),
+        };
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::schema::data_type::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::TypeNull(_) => DataType::Null,
+            Value::TypeBoolean(_) => DataType::Boolean,
+            Value::TypeInt8(_) => DataType::Int8,
+            Value::TypeInt16(_) => DataType::Int16,
+            Value::TypeInt32(_) => DataType::Int32,
+            Value::TypeInt64(_) => DataType::Int64,
+            Value::TypeInt128(_) => DataType::Int128,
+            Value::TypeUint8(_) => DataType::UInt8,
+            Value::TypeUint16(_) => DataType::UInt16,
+            Value::TypeUint32(_) => DataType::UInt32,
+            Value::TypeUint64(_) => DataType::UInt64,
+            Value::TypeUint128(_) => DataType::UInt128,
+            Value::TypeFloat32(_) => DataType::Float32,
+            Value::TypeFloat64(_) => DataType::Float64,
+            Value::TypeDecimal64(m) => DataType::Decimal64(DecimalTypeMeta::from_proto(m)?),
+            Value::TypeDecimal128(m) => DataType::Decimal128(DecimalTypeMeta::from_proto(m)?),
+            Value::TypeTimestamp(m) => DataType::Timestamp(TimestampTypeMeta::from_proto(m)?),
+            Value::TypeDate32(_) => DataType::Date32,
+            Value::TypeDate64(_) => DataType::Date64,
+            Value::TypeInterval(_) => DataType::Interval,
+            Value::TypeUtf8(_) => DataType::Utf8,
+            Value::TypeLargeUtf8(_) => DataType::LargeUtf8,
+            Value::TypeBinary(_) => DataType::Binary,
+            Value::TypeLargeBinary(_) => DataType::LargeBinary,
+            Value::TypeStruct(m) => DataType::Struct(StructTypeMeta::from_proto(m)?),
+            Value::TypeList(m) => DataType::List(ListTypeMeta::from_proto(*m)?),
+        })
+    }
+}
+
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -457,7 +569,7 @@ impl fmt::Display for DataType {
                     "Struct {{{}}}",
                     meta.fields
                         .iter()
-                        .map(|(name, typ)| format!("{name}: {typ}"))
+                        .map(|field| format!("{}: {}", field.name, field.datatype))
                         .collect::<Vec<_>>()
                         .join(", ")
                 )

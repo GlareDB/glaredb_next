@@ -50,7 +50,9 @@ message TimestampTypeMeta {
     TimeUnit unit = 1;
 }
 
-message StructTypeMeta {}
+message StructTypeMeta {
+    repeated Field fields = 1;
+}
 
 message ListTypeMeta {
     DataType datatype = 1;
@@ -93,4 +95,12 @@ message Field {
     string   name     = 1;
     DataType datatype = 2;
     bool     nullable = 3;
+}
+
+message Schema {
+    repeated Field fields = 1;
+}
+
+message TypeSchema {
+    repeated DataType types = 1;
 }

@@ -5,6 +5,7 @@ edition = { workspace = true }
 
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
+rayexec_proto = { path = "../rayexec_proto" }
 rayexec_parser = { path = "../rayexec_parser" }
 rayexec_bullet = { path = "../rayexec_bullet" }
 rayexec_io = { path = "../rayexec_io" }
