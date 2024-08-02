@@ -1,18 +1,16 @@
 use crate::{
     database::{catalog::CatalogTx, create::CreateSchemaInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    serde::{ContextMapDeserialize, SerdeMissingField},
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result, ResultExt};
-use serde::de;
+use rayexec_error::{RayexecError, Result};
 use std::task::{Context, Poll};
 use std::{fmt, sync::Arc};
 
 use super::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush, SerializableOperator,
+    PollFinalize, PollPull, PollPush,
 };
 
 pub struct CreateSchemaPartitionState {

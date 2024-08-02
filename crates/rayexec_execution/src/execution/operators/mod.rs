@@ -334,19 +334,3 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         operator_state: &OperatorState,
     ) -> Result<PollPull>;
 }
-
-pub trait SerializableOperator {
-    fn serialize(&self, serializer: &mut dyn erased_serde::Serializer) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn deserialize(
-        deserializer: &mut dyn erased_serde::Deserializer,
-        context: &DatabaseContext,
-    ) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        unimplemented!()
-    }
-}
