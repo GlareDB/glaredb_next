@@ -68,6 +68,24 @@ message OwnedScalarValue {
     }
 }
 
+message ScalarFunction {
+    string name = 1;  // Name of the function in the catalog.
+}
+
+message PlannedScalarFunction {
+    string name  = 1;  // Name of the function in the catalog.
+    bytes  state = 2;  // Opaque state, function implementation handles this.
+}
+
+message AggregateFunction {
+    string name = 1;
+}
+
+message PlannedAggregateFunction {
+    string name  = 1;
+    bytes  state = 2;
+}
+
 message PhysicalCastExpression {
     schema.DataType          cast_to = 1;
     PhysicalScalarExpression expr    = 2;

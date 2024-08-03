@@ -1,7 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 use serde::{
-    de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
     Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -12,14 +11,9 @@ use crate::{
     functions::{
         aggregate::AggregateFunction,
         scalar::ScalarFunction,
-        serde::{
-            AggregateFunctionDeserializer, PlannedTableFunctionDeserializer,
-            ScalarFunctionDeserializer,
-        },
         table::{PlannedTableFunction, TableFunctionArgs},
     },
     logical::operator::LocationRequirement,
-    serde::SerdeMissingField,
 };
 
 use super::Bound;
@@ -141,19 +135,20 @@ impl Serialize for BindData {
     where
         S: Serializer,
     {
-        let mut map = serializer.serialize_map(Some(5))?;
-        map.serialize_entry("scalar_function_objects", &self.scalar_function_objects.0)?;
-        map.serialize_entry(
-            "aggregate_function_objects",
-            &self.aggregate_function_objects.0,
-        )?;
-        map.serialize_entry("table_function_objects", &self.table_function_objects.0)?;
-        map.serialize_entry("tables", &self.tables)?;
-        map.serialize_entry("functions", &self.functions)?;
-        map.serialize_entry("table_functions", &self.table_functions)?;
-        map.serialize_entry("current_depth", &self.current_depth)?;
-        map.serialize_entry("ctes", &self.ctes)?;
-        map.end()
+        unimplemented!()
+        // let mut map = serializer.serialize_map(Some(5))?;
+        // map.serialize_entry("scalar_function_objects", &self.scalar_function_objects.0)?;
+        // map.serialize_entry(
+        //     "aggregate_function_objects",
+        //     &self.aggregate_function_objects.0,
+        // )?;
+        // map.serialize_entry("table_function_objects", &self.table_function_objects.0)?;
+        // map.serialize_entry("tables", &self.tables)?;
+        // map.serialize_entry("functions", &self.functions)?;
+        // map.serialize_entry("table_functions", &self.table_functions)?;
+        // map.serialize_entry("current_depth", &self.current_depth)?;
+        // map.serialize_entry("ctes", &self.ctes)?;
+        // map.end()
     }
 }
 

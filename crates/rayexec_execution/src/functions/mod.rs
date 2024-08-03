@@ -1,8 +1,8 @@
 pub mod aggregate;
 pub mod copy;
 pub mod implicit;
+pub mod proto;
 pub mod scalar;
-pub mod serde;
 pub mod table;
 
 use std::{borrow::Borrow, fmt::Display};

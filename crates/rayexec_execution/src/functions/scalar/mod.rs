@@ -76,6 +76,10 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<dyn PlannedScalarFunction>>;
 
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        unimplemented!()
+    }
+
     /// Plan a scalar function based on datatype inputs.
     ///
     /// The datatypes passed in correspond directly to the arguments to the
@@ -132,6 +136,10 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// The scalar function that's able to produce an instance of this planned
     /// function.
     fn scalar_function(&self) -> &dyn ScalarFunction;
+
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        unimplemented!()
+    }
 
     /// Return an reference to some serializable state.
     ///

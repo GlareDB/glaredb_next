@@ -8,6 +8,8 @@ use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::scalar::interval::Interval;
 use rayexec_error::Result;
+use rayexec_proto::packed::PackedDecoder;
+use rayexec_proto::{packed::PackedEncoder, ProtoConv};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -108,6 +110,11 @@ impl ScalarFunction for Add {
         Ok(Box::new(AddImpl::deserialize(deserializer)?))
     }
 
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
+        Ok(Box::new(AddImpl { datatype }))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -139,6 +146,10 @@ pub struct AddImpl {
 impl PlannedScalarFunction for AddImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Add
+    }
+
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn serializable_state(&self) -> &dyn erased_serde::Serialize {
