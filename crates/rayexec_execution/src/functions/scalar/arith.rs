@@ -103,13 +103,6 @@ impl FunctionInfo for Add {
 }
 
 impl ScalarFunction for Add {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(AddImpl::deserialize(deserializer)?))
-    }
-
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
         let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
         Ok(Box::new(AddImpl { datatype }))
@@ -150,10 +143,6 @@ impl PlannedScalarFunction for AddImpl {
 
     fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
         PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
-    }
-
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
     }
 
     fn return_type(&self) -> DataType {
@@ -247,11 +236,9 @@ impl FunctionInfo for Sub {
 }
 
 impl ScalarFunction for Sub {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(SubImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
+        Ok(Box::new(SubImpl { datatype }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -287,8 +274,8 @@ impl PlannedScalarFunction for SubImpl {
         &Sub
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn return_type(&self) -> DataType {
@@ -382,11 +369,9 @@ impl FunctionInfo for Div {
 }
 
 impl ScalarFunction for Div {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(DivImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
+        Ok(Box::new(DivImpl { datatype }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -422,8 +407,8 @@ impl PlannedScalarFunction for DivImpl {
         &Div
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn return_type(&self) -> DataType {
@@ -514,11 +499,9 @@ impl FunctionInfo for Mul {
 }
 
 impl ScalarFunction for Mul {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(MulImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
+        Ok(Box::new(MulImpl { datatype }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -555,8 +538,8 @@ impl PlannedScalarFunction for MulImpl {
         &Mul
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn return_type(&self) -> DataType {
@@ -659,11 +642,9 @@ impl FunctionInfo for Rem {
 }
 
 impl ScalarFunction for Rem {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(RemImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
+        Ok(Box::new(RemImpl { datatype }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -698,8 +679,8 @@ impl PlannedScalarFunction for RemImpl {
         &Rem
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn return_type(&self) -> DataType {

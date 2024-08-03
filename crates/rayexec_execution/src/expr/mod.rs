@@ -5,6 +5,7 @@ use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::expr::LogicalExpression;
 use crate::proto::DatabaseProtoConv;
+use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
@@ -289,11 +290,7 @@ impl fmt::Display for PhysicalAggregateExpression {
             f,
             "{:?}({})",
             self.function,
-            self.column_indices
-                .iter()
-                .map(|c| c.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
+            self.column_indices.displayable(),
         )
     }
 }

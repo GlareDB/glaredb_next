@@ -1,5 +1,6 @@
 pub mod generated;
 pub mod packed;
+pub mod util_types;
 
 use rayexec_error::Result;
 
