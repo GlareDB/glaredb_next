@@ -33,7 +33,7 @@ use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
 use create_table::{CreateTableOperatorState, CreateTablePartitionState, PhysicalCreateTable};
 use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
-use filter::FilterOperation;
+use filter::{FilterOperation, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
 use insert::{InsertPartitionState, PhysicalInsert};
 use join::hash_join::PhysicalHashJoin;
@@ -43,12 +43,11 @@ use materialize::{
     MaterializeOperatorState, MaterializePullPartitionState, MaterializePushPartitionState,
     PhysicalMaterialize,
 };
-use project::ProjectOperation;
+use project::{PhysicalProject, ProjectOperation};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
-use serde::{Deserializer, Serializer};
 use simple::SimpleOperator;
 use sink::{PhysicalQuerySink, QuerySinkPartitionState};
 use sort::local_sort::PhysicalLocalSort;
@@ -65,6 +64,7 @@ use values::PhysicalValues;
 
 use crate::database::DatabaseContext;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
@@ -489,5 +489,76 @@ impl Explainable for PhysicalOperator {
             Self::Drop(op) => op.explain_entry(conf),
             Self::Empty(op) => op.explain_entry(conf),
         }
+    }
+}
+
+impl DatabaseProtoConv for PhysicalOperator {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalOperator;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::execution::physical_operator::Value;
+
+        let value = match self {
+            Self::CreateSchema(op) => Value::CreateSchema(op.to_proto_ctx(context)?),
+            Self::CreateTable(op) => Value::CreateTable(op.to_proto_ctx(context)?),
+            Self::Drop(op) => Value::Drop(op.to_proto_ctx(context)?),
+            Self::Empty(op) => Value::Empty(op.to_proto_ctx(context)?),
+            Self::Filter(op) => Value::Filter(op.to_proto_ctx(context)?),
+            Self::Project(op) => Value::Project(op.to_proto_ctx(context)?),
+            Self::Insert(op) => Value::Insert(op.to_proto_ctx(context)?),
+            Self::Limit(op) => Value::Limit(op.to_proto_ctx(context)?),
+            Self::Materialize(op) => Value::Materialize(op.to_proto_ctx(context)?),
+            Self::Scan(op) => Value::Scan(op.to_proto_ctx(context)?),
+            Self::UngroupedAggregate(op) => Value::UngroupedAggregate(op.to_proto_ctx(context)?),
+            Self::Union(op) => Value::Union(op.to_proto_ctx(context)?),
+            Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
+            _ => unimplemented!(),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        use rayexec_proto::generated::execution::physical_operator::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::CreateSchema(op) => {
+                PhysicalOperator::CreateSchema(PhysicalCreateSchema::from_proto_ctx(op, context)?)
+            }
+            Value::CreateTable(op) => {
+                PhysicalOperator::CreateTable(PhysicalCreateTable::from_proto_ctx(op, context)?)
+            }
+            Value::Drop(op) => PhysicalOperator::Drop(PhysicalDrop::from_proto_ctx(op, context)?),
+            Value::Empty(op) => {
+                PhysicalOperator::Empty(PhysicalEmpty::from_proto_ctx(op, context)?)
+            }
+            Value::Filter(op) => {
+                PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
+            }
+            Value::Project(op) => {
+                PhysicalOperator::Project(PhysicalProject::from_proto_ctx(op, context)?)
+            }
+            Value::Insert(op) => {
+                PhysicalOperator::Insert(PhysicalInsert::from_proto_ctx(op, context)?)
+            }
+            Value::Limit(op) => {
+                PhysicalOperator::Limit(PhysicalLimit::from_proto_ctx(op, context)?)
+            }
+            Value::Materialize(op) => {
+                PhysicalOperator::Materialize(PhysicalMaterialize::from_proto_ctx(op, context)?)
+            }
+            Value::Scan(op) => PhysicalOperator::Scan(PhysicalScan::from_proto_ctx(op, context)?),
+            Value::UngroupedAggregate(op) => PhysicalOperator::UngroupedAggregate(
+                PhysicalUngroupedAggregate::from_proto_ctx(op, context)?,
+            ),
+            Value::Union(op) => {
+                PhysicalOperator::Union(PhysicalUnion::from_proto_ctx(op, context)?)
+            }
+            Value::Values(op) => {
+                PhysicalOperator::Values(PhysicalValues::from_proto_ctx(op, context)?)
+            }
+
+            _ => unimplemented!(),
+        })
     }
 }

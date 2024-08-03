@@ -4,6 +4,7 @@ package rayexec.execution;
 
 import "schema.proto";
 import "expr.proto";
+import "array.proto";
 
 message TableEntry {
     string   name                 = 1;
@@ -36,7 +37,7 @@ message DropObject {
         string          function = 2;
         string          table    = 3;
         string          view     = 4;
-        EmptyDropObject schema   = 5;  // Schema name already contained in drop info.
+        EmptyDropObject schema   = 5; // Schema name already contained in drop info.
     }
 }
 
@@ -100,3 +101,25 @@ message PhysicalUngroupedAggregate {
 }
 
 message PhysicalUnion {}
+
+message PhysicalValues {
+    array.IpcStreamBatch batches = 1;
+}
+
+message PhysicalOperator {
+    oneof value {
+        PhysicalCreateSchema       create_schema       = 1;
+        PhysicalCreateTable        create_table        = 2;
+        PhysicalDrop               drop                = 3;
+        PhysicalEmpty              empty               = 4;
+        PhysicalFilter             filter              = 5;
+        PhysicalProject            project             = 6;
+        PhysicalInsert             insert              = 7;
+        PhysicalLimit              limit               = 8;
+        PhysicalMaterialize        materialize         = 9;
+        PhysicalScan               scan                = 10;
+        PhysicalUngroupedAggregate ungrouped_aggregate = 11;
+        PhysicalUnion union                            = 12;
+        PhysicalValues values                          = 13;
+    }
+}
