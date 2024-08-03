@@ -1,9 +1,11 @@
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, table::DataTableInsert, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
+use rayexec_proto::ProtoConv;
 use std::{
     sync::Arc,
     task::{Context, Waker},
@@ -148,5 +150,25 @@ impl ExecutableOperator for PhysicalInsert {
 impl Explainable for PhysicalInsert {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Insert").with_value("table", &self.table.name)
+    }
+}
+
+impl DatabaseProtoConv for PhysicalInsert {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalInsert;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            catalog: self.catalog.clone(),
+            schema: self.schema.clone(),
+            table: Some(self.table.to_proto_ctx(context)?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            catalog: proto.catalog,
+            schema: proto.schema,
+            table: TableEntry::from_proto(proto.table.required("table")?)?,
+        })
     }
 }

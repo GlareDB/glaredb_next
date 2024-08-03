@@ -62,7 +62,7 @@ pub trait StatelessOperation: Sync + Send + Debug + Explainable {
 /// Filter and Project are both examples that use this.
 #[derive(Debug)]
 pub struct SimpleOperator<S> {
-    operation: S,
+    pub(crate) operation: S,
 }
 
 impl<S: StatelessOperation> SimpleOperator<S> {

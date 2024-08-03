@@ -1,6 +1,7 @@
 use crate::{
     database::DatabaseContext,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -246,5 +247,17 @@ impl ExecutableOperator for PhysicalUnion {
 impl Explainable for PhysicalUnion {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Union")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalUnion {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalUnion;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {})
+    }
+
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self)
     }
 }

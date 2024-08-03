@@ -1,6 +1,7 @@
 use crate::{
     database::DatabaseContext,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -198,5 +199,21 @@ impl ExecutableOperator for PhysicalMaterialize {
 impl Explainable for PhysicalMaterialize {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("PhysicalMaterialize")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalMaterialize {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalMaterialize;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            num_outputs: self.num_outputs as u64,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            num_outputs: proto.num_outputs as usize,
+        })
     }
 }

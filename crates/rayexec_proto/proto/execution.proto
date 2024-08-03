@@ -3,6 +3,12 @@ syntax = "proto3";
 package rayexec.execution;
 
 import "schema.proto";
+import "expr.proto";
+
+message TableEntry {
+    string   name                 = 1;
+    repeated schema.Field columns = 2;
+}
 
 enum OnConflict {
     INVALID_ON_CONFLICT = 0;
@@ -59,3 +65,38 @@ message PhysicalDrop {
 }
 
 message PhysicalEmpty {}
+
+message PhysicalFilter {
+    expr.PhysicalScalarExpression predicate = 1;
+}
+
+message PhysicalProject {
+    repeated expr.PhysicalScalarExpression exprs = 1;
+}
+
+message PhysicalInsert {
+    string     catalog = 1;
+    string     schema  = 2;
+    TableEntry table   = 3;
+}
+
+message PhysicalLimit {
+    uint64          limit  = 1;
+    optional uint64 offset = 2;
+}
+
+message PhysicalMaterialize {
+    uint64 num_outputs = 1;
+}
+
+message PhysicalScan {
+    string     catalog = 1;
+    string     schema  = 2;
+    TableEntry table   = 3;
+}
+
+message PhysicalUngroupedAggregate {
+    repeated expr.PhysicalAggregateExpression aggregates = 1;
+}
+
+message PhysicalUnion {}

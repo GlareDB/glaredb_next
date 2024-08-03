@@ -68,4 +68,34 @@ message OwnedScalarValue {
     }
 }
 
-message PhysicalScalarExpression {}
+message PhysicalCastExpression {
+    schema.DataType          cast_to = 1;
+    PhysicalScalarExpression expr    = 2;
+}
+
+message PhysicalScalarFunction {
+    // TODO: Function
+    repeated PhysicalScalarExpression inputs = 2;
+}
+
+message PhysicalScalarExpression {
+    oneof value {
+        uint32                 column          = 1;
+        OwnedScalarValue       literal         = 2;
+        PhysicalCastExpression cast            = 3;
+        PhysicalScalarFunction scalar_function = 4;
+        // TODO: Case
+    }
+}
+
+message PhysicalAggregateExpression {
+    // TODO: Function
+    repeated uint64 column_indices = 2;
+    schema.DataType output_type    = 3;
+}
+
+message PhysicalSortExpression {
+    uint64 column      = 1;
+    bool   desc        = 2;
+    bool   nulls_first = 3;
+}

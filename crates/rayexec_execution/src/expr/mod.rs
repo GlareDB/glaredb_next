@@ -1,13 +1,16 @@
 pub mod scalar;
 
+use crate::database::DatabaseContext;
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::expr::LogicalExpression;
+use crate::proto::DatabaseProtoConv;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
@@ -178,6 +181,47 @@ impl fmt::Display for PhysicalScalarExpression {
     }
 }
 
+impl DatabaseProtoConv for PhysicalScalarExpression {
+    type ProtoType = rayexec_proto::generated::expr::PhysicalScalarExpression;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::expr::{
+            physical_scalar_expression::Value, PhysicalCastExpression,
+        };
+
+        let value = match self {
+            Self::Column(idx) => Value::Column(*idx as u32),
+            Self::Literal(v) => Value::Literal(v.to_proto()?),
+            Self::Cast { to, expr } => Value::Cast(Box::new(PhysicalCastExpression {
+                cast_to: Some(to.to_proto()?),
+                expr: Some(Box::new(expr.to_proto_ctx(context)?)),
+            })),
+            Self::ScalarFunction { function, inputs } => {
+                unimplemented!()
+            }
+            Self::Case { .. } => unimplemented!(),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        use rayexec_proto::generated::expr::physical_scalar_expression::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::Column(idx) => Self::Column(idx as usize),
+            Value::Literal(v) => Self::Literal(OwnedScalarValue::from_proto(v)?),
+            Value::Cast(cast) => Self::Cast {
+                to: DataType::from_proto(cast.cast_to.required("cast_to")?)?,
+                expr: Box::new(Self::from_proto_ctx(*cast.expr.required("expr")?, context)?),
+            },
+            Value::ScalarFunction(_) => {
+                unimplemented!()
+            }
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
@@ -239,6 +283,21 @@ impl fmt::Display for PhysicalAggregateExpression {
     }
 }
 
+impl DatabaseProtoConv for PhysicalAggregateExpression {
+    type ProtoType = rayexec_proto::generated::expr::PhysicalAggregateExpression;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            column_indices: self.column_indices.iter().map(|c| *c as u64).collect(),
+            output_type: Some(self.output_type.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PhysicalSortExpression {
     /// Column this expression is for.
@@ -294,5 +353,25 @@ impl fmt::Display for PhysicalSortExpression {
                 "NULLS LAST"
             }
         )
+    }
+}
+
+impl ProtoConv for PhysicalSortExpression {
+    type ProtoType = rayexec_proto::generated::expr::PhysicalSortExpression;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            column: self.column as u64,
+            desc: self.desc,
+            nulls_first: self.nulls_first,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            column: proto.column as usize,
+            desc: proto.desc,
+            nulls_first: proto.nulls_first,
+        })
     }
 }
