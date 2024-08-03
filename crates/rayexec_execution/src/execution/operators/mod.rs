@@ -302,22 +302,6 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     ) -> Result<PollPull>;
 }
 
-pub trait SerializableOperator: Sized {
-    /// Tag used during (de)serialization to disambiguate operators.
-    const OPERATOR_TAG: &'static str;
-
-    /// Serialize this operator.
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error>;
-
-    /// Deserialize this operator.
-    ///
-    /// The provided context can be used to look up functions from the catalog.
-    fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-        context: &DatabaseContext,
-    ) -> Result<Self, D::Error>;
-}
-
 // 128 bytes
 #[derive(Debug)]
 pub enum PhysicalOperator {

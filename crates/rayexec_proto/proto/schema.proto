@@ -81,7 +81,7 @@ message DataType {
         TimestampTypeMeta type_timestamp    = 18;
         EmptyMeta         type_date32       = 19;
         EmptyMeta         type_date64       = 20;
-        EmptyMeta         type_Interval     = 21;
+        EmptyMeta         type_interval     = 21;
         EmptyMeta         type_utf8         = 22;
         EmptyMeta         type_large_utf8   = 23;
         EmptyMeta         type_binary       = 24;

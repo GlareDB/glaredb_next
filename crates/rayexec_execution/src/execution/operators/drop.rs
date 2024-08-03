@@ -1,10 +1,12 @@
 use crate::{
     database::{catalog::CatalogTx, drop::DropInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use std::task::{Context, Poll};
 use std::{fmt, sync::Arc};
 
@@ -99,5 +101,21 @@ impl ExecutableOperator for PhysicalDrop {
 impl Explainable for PhysicalDrop {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Drop")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalDrop {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalDrop;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            info: Some(self.info.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            info: DropInfo::from_proto(proto.info.required("info")?)?,
+        })
     }
 }

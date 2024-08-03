@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package rayexec.execution;
+
+import "schema.proto";
+
+enum OnConflict {
+    INVALID_ON_CONFLICT = 0;
+    IGNORE              = 1;
+    REPLACE             = 2;
+    ERROR               = 3;
+}
+
+message CreateTableInfo {
+    string   name                     = 1;
+    repeated schema.Field columns     = 2;
+    OnConflict            on_conflict = 3;
+}
+
+message CreateSchemaInfo {
+    string     name        = 1;
+    OnConflict on_conflict = 2;
+}
+
+message EmptyDropObject {}
+
+message DropObject {
+    oneof value {
+        string          index    = 1;
+        string          function = 2;
+        string          table    = 3;
+        string          view     = 4;
+        EmptyDropObject schema   = 5;  // Schema name already contained in drop info.
+    }
+}
+
+message DropInfo {
+    string     catalog   = 1;
+    string     schema    = 2;
+    DropObject object    = 3;
+    bool       cascade   = 4;
+    bool       if_exists = 5;
+}
+
+message PhysicalCreateSchema {
+    string           catalog = 1;
+    CreateSchemaInfo info    = 2;
+}
+
+message PhysicalCreateTable {
+    string          catalog = 1;
+    string          schema  = 2;
+    CreateTableInfo info    = 3;
+    bool            is_ctas = 4;
+}
+
+message PhysicalDrop {
+    DropInfo info = 1;
+}
+
+message PhysicalEmpty {}

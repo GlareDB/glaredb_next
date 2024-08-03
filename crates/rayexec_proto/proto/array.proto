@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package rayexec.array;
+
+// IPC-encoded batch.
+message IpcBatch {
+    bytes ipc = 1;
+}

@@ -1,18 +1,18 @@
 use crate::{
     database::{catalog::CatalogTx, create::CreateSchemaInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    serde::{SeqContextVisitor, SeqContextVisitorWrapper, SerdeMissingField},
+    proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
-use serde::{de::SeqAccess, ser::SerializeSeq, Deserializer, Serializer};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use std::task::{Context, Poll};
 use std::{fmt, sync::Arc};
 
 use super::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush, SerializableOperator,
+    PollFinalize, PollPull, PollPush,
 };
 
 pub struct CreateSchemaPartitionState {
@@ -32,8 +32,6 @@ pub struct PhysicalCreateSchema {
 }
 
 impl PhysicalCreateSchema {
-    pub const OPERATOR_NAME: &'static str = "create_schema";
-
     pub fn new(catalog: impl Into<String>, info: CreateSchemaInfo) -> Self {
         PhysicalCreateSchema {
             catalog: catalog.into(),
@@ -112,36 +110,20 @@ impl Explainable for PhysicalCreateSchema {
     }
 }
 
-impl SerializableOperator for PhysicalCreateSchema {
-    const OPERATOR_TAG: &'static str = "create_schema";
+impl DatabaseProtoConv for PhysicalCreateSchema {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalCreateSchema;
 
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error> {
-        let mut seq = serializer.serialize_seq(Some(2))?;
-        seq.serialize_element(&self.catalog)?;
-        seq.serialize_element(&self.info)?;
-        seq.end()?;
-        Ok(())
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            catalog: self.catalog.clone(),
+            info: Some(self.info.to_proto()?),
+        })
     }
 
-    fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-        context: &DatabaseContext,
-    ) -> Result<Self, D::Error> {
-        struct Visitor;
-        impl<'de> SeqContextVisitor<'de> for Visitor {
-            type Value = PhysicalCreateSchema;
-            fn visit_seq_context<A: SeqAccess<'de>>(
-                self,
-                mut seq: A,
-                _context: &DatabaseContext,
-            ) -> Result<Self::Value, A::Error> {
-                let catalog: String = seq.next_element()?.missing_field("catalog")?;
-                let info: CreateSchemaInfo = seq.next_element()?.missing_field("info")?;
-
-                Ok(PhysicalCreateSchema { catalog, info })
-            }
-        }
-
-        deserializer.deserialize_seq(SeqContextVisitorWrapper::new(context, Visitor))
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            catalog: proto.catalog,
+            info: CreateSchemaInfo::from_proto(proto.info.required("info")?)?,
+        })
     }
 }

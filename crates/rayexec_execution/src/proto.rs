@@ -8,8 +8,8 @@ use crate::database::DatabaseContext;
 pub trait DatabaseProtoConv: Sized {
     type ProtoType;
 
-    fn to_proto(&self, context: &DatabaseContext) -> Result<Self::ProtoType>;
-    fn from_proto(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self>;
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType>;
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self>;
 }
 
 /// Default implementation for anything implementing the stateless proto
@@ -20,11 +20,11 @@ pub trait DatabaseProtoConv: Sized {
 impl<P: ProtoConv> DatabaseProtoConv for P {
     type ProtoType = P::ProtoType;
 
-    fn to_proto(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         self.to_proto()
     }
 
-    fn from_proto(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         Self::from_proto(proto)
     }
 }
