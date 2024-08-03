@@ -107,6 +107,10 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
         &self,
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<dyn PlannedTableFunction>>;
+
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+        unimplemented!()
+    }
 }
 
 impl Clone for Box<dyn TableFunction> {
@@ -138,6 +142,10 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// The default implementation does nothing.
     fn reinitialize(&self) -> BoxFuture<Result<()>> {
         async move { Ok(()) }.boxed()
+    }
+
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        unimplemented!()
     }
 
     /// Return an reference to some serializable state.

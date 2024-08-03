@@ -41,6 +41,10 @@ pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<dyn PlannedAggregateFunction>>;
 
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+        unimplemented!()
+    }
+
     /// Plans an aggregate function from input data types.
     ///
     /// The data types passed in correspond directly to the arguments to the
@@ -91,6 +95,10 @@ pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
 
     /// Serializable state for the function
     fn serializable_state(&self) -> &dyn erased_serde::Serialize;
+
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        unimplemented!()
+    }
 
     /// Return type of the aggregate.
     fn return_type(&self) -> DataType;

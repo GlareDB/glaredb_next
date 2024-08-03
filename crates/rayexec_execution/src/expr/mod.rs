@@ -186,7 +186,7 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         use rayexec_proto::generated::expr::{
-            physical_scalar_expression::Value, PhysicalCastExpression,
+            physical_scalar_expression::Value, PhysicalCastExpression, PhysicalScalarFunction,
         };
 
         let value = match self {
@@ -197,7 +197,13 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
                 expr: Some(Box::new(expr.to_proto_ctx(context)?)),
             })),
             Self::ScalarFunction { function, inputs } => {
-                unimplemented!()
+                Value::ScalarFunction(PhysicalScalarFunction {
+                    function: Some(function.to_proto_ctx(context)?),
+                    inputs: inputs
+                        .iter()
+                        .map(|input| input.to_proto_ctx(context))
+                        .collect::<Result<Vec<_>>>()?,
+                })
             }
             Self::Case { .. } => unimplemented!(),
         };
@@ -215,8 +221,17 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
                 to: DataType::from_proto(cast.cast_to.required("cast_to")?)?,
                 expr: Box::new(Self::from_proto_ctx(*cast.expr.required("expr")?, context)?),
             },
-            Value::ScalarFunction(_) => {
-                unimplemented!()
+            Value::ScalarFunction(function) => {
+                let inputs = function
+                    .inputs
+                    .into_iter()
+                    .map(|input| Self::from_proto_ctx(input, context))
+                    .collect::<Result<Vec<_>>>()?;
+                let function = DatabaseProtoConv::from_proto_ctx(
+                    function.function.required("function")?,
+                    context,
+                )?;
+                Self::ScalarFunction { function, inputs }
             }
         })
     }
@@ -288,13 +303,25 @@ impl DatabaseProtoConv for PhysicalAggregateExpression {
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
+            function: Some(self.function.to_proto_ctx(context)?),
             column_indices: self.column_indices.iter().map(|c| *c as u64).collect(),
             output_type: Some(self.output_type.to_proto()?),
         })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
+        Ok(Self {
+            function: DatabaseProtoConv::from_proto_ctx(
+                proto.function.required("function")?,
+                context,
+            )?,
+            column_indices: proto
+                .column_indices
+                .into_iter()
+                .map(|i| i as usize)
+                .collect(),
+            output_type: DataType::from_proto(proto.output_type.required("datatype")?)?,
+        })
     }
 }
 

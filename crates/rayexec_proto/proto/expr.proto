@@ -86,14 +86,27 @@ message PlannedAggregateFunction {
     bytes  state = 2;
 }
 
+message TableFunction {
+    string name = 1;
+}
+
+message PlannedTableFunction {
+    string name  = 1;
+    bytes  state = 2;
+}
+
+message CopyToFunction {
+    string name = 1;
+}
+
 message PhysicalCastExpression {
     schema.DataType          cast_to = 1;
     PhysicalScalarExpression expr    = 2;
 }
 
 message PhysicalScalarFunction {
-    // TODO: Function
-    repeated PhysicalScalarExpression inputs = 2;
+    PlannedScalarFunction             function = 1;
+    repeated PhysicalScalarExpression inputs   = 2;
 }
 
 message PhysicalScalarExpression {
@@ -107,9 +120,9 @@ message PhysicalScalarExpression {
 }
 
 message PhysicalAggregateExpression {
-    // TODO: Function
-    repeated uint64 column_indices = 2;
-    schema.DataType output_type    = 3;
+    PlannedAggregateFunction function       = 1;
+    repeated uint64          column_indices = 2;
+    schema.DataType          output_type    = 3;
 }
 
 message PhysicalSortExpression {
