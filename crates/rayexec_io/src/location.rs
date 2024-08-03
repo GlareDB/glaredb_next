@@ -1,4 +1,5 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -16,6 +17,50 @@ pub enum AccessConfig {
         region: String,
     },
     None,
+}
+
+impl ProtoConv for AccessConfig {
+    type ProtoType = rayexec_proto::generated::access::AccessConfig;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::access::{
+            access_config::Value, AwsCredentials, EmptyAccessConfig, S3AccessConfig,
+        };
+
+        let value = match self {
+            Self::S3 {
+                credentials,
+                region,
+            } => Value::S3(S3AccessConfig {
+                credentials: Some(AwsCredentials {
+                    key_id: credentials.key_id.clone(),
+                    secret: credentials.secret.clone(),
+                }),
+                region: region.clone(),
+            }),
+            Self::None => Value::None(EmptyAccessConfig {}),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::access::access_config::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::None(_) => Self::None,
+            Value::S3(s3) => {
+                let credentials = s3.credentials.required("credentials")?;
+                Self::S3 {
+                    credentials: AwsCredentials {
+                        key_id: credentials.key_id,
+                        secret: credentials.secret,
+                    },
+                    region: s3.region,
+                }
+            }
+        })
+    }
 }
 
 /// Location for a file.
@@ -78,6 +123,33 @@ impl fmt::Display for FileLocation {
             Self::Url(u) => write!(f, "{}", u),
             Self::Path(p) => write!(f, "{}", p.display()),
         }
+    }
+}
+
+impl ProtoConv for FileLocation {
+    type ProtoType = rayexec_proto::generated::access::FileLocation;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::access::file_location::Value;
+
+        let value = match self {
+            Self::Url(url) => Value::Url(url.to_string()),
+            Self::Path(path) => Value::Path(
+                path.to_str()
+                    .ok_or_else(|| RayexecError::new("path not utf8"))?
+                    .to_string(),
+            ),
+        };
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::access::file_location::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::Url(url) => Self::Url(Url::parse(&url).context("failed to parse url")?),
+            Value::Path(path) => Self::Path(PathBuf::from(path)),
+        })
     }
 }
 

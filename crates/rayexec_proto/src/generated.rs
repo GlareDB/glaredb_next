@@ -15,3 +15,7 @@ pub mod execution {
 pub mod expr {
     include!(concat!(env!("OUT_DIR"), "/rayexec.expr.rs"));
 }
+
+pub mod access {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.access.rs"));
+}

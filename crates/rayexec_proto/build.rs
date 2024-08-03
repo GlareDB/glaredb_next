@@ -5,6 +5,7 @@ fn main() {
             "proto/array.proto",
             "proto/execution.proto",
             "proto/expr.proto",
+            "proto/access.proto",
         ],
         &["proto"],
     ) {
