@@ -4,7 +4,7 @@ package rayexec.binder;
 
 import "expr.proto";
 import "logical.proto";
-import "ast.proto";
+import "ast/raw.proto";
 import "execution.proto"; // TODO: Probably move catalog stuff out of this.
 
 message BoundFunctionReference {
@@ -20,8 +20,8 @@ message BoundTableFunctionReference {
 }
 
 message UnboundTableFunctionReference {
-    ast.ObjectReference    reference = 1;
-    expr.TableFunctionArgs args      = 2;
+    ast.raw.ObjectReference reference = 1;
+    expr.TableFunctionArgs  args      = 2;
 }
 
 message BoundCteReference {
@@ -63,14 +63,14 @@ message BoundTableFunctionReferenceWithLocation {
 message MaybeBoundTable {
     oneof value {
         BoundTableOrCteReferenceWithLocation bound   = 1;
-        ast.ObjectReference                  unbound = 2;
+        ast.raw.ObjectReference              unbound = 2;
     }
 }
 
 message MaybeBoundFunction {
     oneof value {
         BoundFunctionReferenceWithLocation bound   = 1;
-        ast.ObjectReference                unbound = 2;
+        ast.raw.ObjectReference            unbound = 2;
     }
 }
 
@@ -79,6 +79,10 @@ message MaybeBoundTableFunction {
         BoundTableFunctionReferenceWithLocation bound   = 1;
         UnboundTableFunctionReference           unbound = 2;
     }
+}
+
+message BindListIdx {
+    uint32 idx = 1;
 }
 
 message TablesBindList {

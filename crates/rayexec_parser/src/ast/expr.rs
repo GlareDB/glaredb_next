@@ -221,10 +221,10 @@ pub enum Expr<T: AstMeta> {
     /// LIKE/NOT LIKE
     /// ILIKE/NOT ILIKE
     Like {
-        not_like: bool,
-        case_insensitive: bool,
         expr: Box<Expr<T>>,
         pattern: Box<Expr<T>>,
+        not_like: bool,
+        case_insensitive: bool,
     },
     /// Interval
     ///

@@ -160,7 +160,7 @@ impl DatabaseProtoConv for PhysicalInsert {
         Ok(Self::ProtoType {
             catalog: self.catalog.clone(),
             schema: self.schema.clone(),
-            table: Some(self.table.to_proto_ctx(context)?),
+            table: Some(self.table.to_proto()?),
         })
     }
 

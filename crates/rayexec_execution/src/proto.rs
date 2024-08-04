@@ -17,14 +17,23 @@ pub trait DatabaseProtoConv: Sized {
 ///
 /// The database context that's provide is just ignored, and the underlying
 /// to/from methods are called.
-impl<P: ProtoConv> DatabaseProtoConv for P {
+#[derive(Debug)]
+pub struct WrappedProtoConv<P: ProtoConv>(pub P);
+
+impl<P: ProtoConv> DatabaseProtoConv for WrappedProtoConv<P> {
     type ProtoType = P::ProtoType;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        self.to_proto()
+        self.0.to_proto()
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        Self::from_proto(proto)
+        Ok(Self(P::from_proto(proto)?))
+    }
+}
+
+impl<P: ProtoConv> From<P> for WrappedProtoConv<P> {
+    fn from(value: P) -> Self {
+        Self(value)
     }
 }

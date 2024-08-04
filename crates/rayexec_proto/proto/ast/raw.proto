@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package rayexec.ast;
+package rayexec.ast.raw;
 
 message Ident {
     string value  = 1;

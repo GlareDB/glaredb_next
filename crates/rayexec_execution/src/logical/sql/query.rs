@@ -4,7 +4,7 @@ use super::{
     aggregate::AggregatePlanner,
     binder::{
         bind_data::{BindData, BoundTableOrCteReference, CteReference},
-        Bound,
+        bound_ast::Bound,
     },
     expr::{ExpandedSelectExpr, ExpressionContext},
     planner::LogicalQuery,

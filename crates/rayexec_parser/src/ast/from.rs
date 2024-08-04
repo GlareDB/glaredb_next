@@ -5,7 +5,6 @@ use crate::{
     tokens::{Token, TokenWithLocation},
 };
 use rayexec_error::{RayexecError, Result};
-use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, FunctionArg, Ident, ObjectReference, QueryNode};
 

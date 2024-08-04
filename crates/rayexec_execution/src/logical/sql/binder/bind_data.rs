@@ -432,7 +432,7 @@ impl DatabaseProtoConv for BindList<BoundTableFunctionReference, UnboundTableFun
                     })),
                 },
                 MaybeBound::Unbound(unbound) => MaybeBoundTableFunction {
-                    value: Some(Value::Unbound(unbound.to_proto_ctx(context)?)),
+                    value: Some(Value::Unbound(unbound.to_proto()?)),
                 },
             };
             funcs.push(func);

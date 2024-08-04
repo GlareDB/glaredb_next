@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{
     binder::{
         bind_data::{BindData, BoundTableOrCteReference},
-        Bound,
+        bound_ast::Bound,
     },
     expr::ExpressionContext,
     scope::Scope,

@@ -19,11 +19,9 @@ use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
 use super::binder::bind_data::BoundFunctionReference;
+use super::binder::bound_ast::Bound;
 use super::query::QueryNodePlanner;
-use super::{
-    binder::Bound,
-    scope::{Scope, TableReference},
-};
+use super::scope::{Scope, TableReference};
 
 /// An expanded select expression.
 #[derive(Debug, Clone, PartialEq)]

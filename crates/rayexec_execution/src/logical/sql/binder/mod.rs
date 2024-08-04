@@ -1,4 +1,5 @@
 pub mod bind_data;
+pub mod bound_ast;
 pub mod hybrid;
 
 mod exprbinder;
@@ -11,6 +12,7 @@ use bind_data::{
     BindData, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference, ItemReference,
     MaybeBound, UnboundTableFunctionReference,
 };
+use bound_ast::{Bound, BoundStatement};
 use exprbinder::ExpressionBinder;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
@@ -27,11 +29,6 @@ use rayexec_parser::{
     statement::{RawStatement, Statement},
 };
 use resolver::Resolver;
-use serde::{
-    de::{self, MapAccess, Visitor},
-    ser::SerializeMap,
-    Deserialize, Serialize, Serializer,
-};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -39,29 +36,6 @@ use crate::{
     functions::{copy::CopyToFunction, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
 };
-
-pub type BoundStatement = Statement<Bound>;
-
-/// Implementation of `AstMeta` which annotates the AST query with
-/// tables/functions/etc found in the db.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Bound;
-
-impl AstMeta for Bound {
-    type DataSourceName = String;
-    type ItemReference = ItemReference;
-    type TableReference = BindListIdx;
-    type TableFunctionReference = BindListIdx;
-    // TODO: Having this be the actual table function args does require that we
-    // clone them, and the args that go back into the ast don't actually do
-    // anything, they're never referenced again.
-    type TableFunctionArgs = TableFunctionArgs;
-    type CteReference = CteReference;
-    type FunctionReference = BindListIdx;
-    type ColumnReference = String;
-    type DataType = DataType;
-    type CopyToDestination = BoundCopyTo;
-}
 
 /// Simple wrapper around a bound statement and its bind data.
 ///
