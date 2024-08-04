@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package rayexec.logical;
+
+enum LocationRequirement {
+    INVALID_LOCATION_REQUIREMENT = 0;
+    CLIENT_LOCAL                 = 1;
+    REMOTE                       = 2;
+    ANY                          = 3;
+}

@@ -124,7 +124,7 @@ impl From<Word> for Ident {
 }
 
 impl ProtoConv for Ident {
-    type ProtoType = rayexec_proto::generated::sql::Ident;
+    type ProtoType = rayexec_proto::generated::ast::Ident;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -202,7 +202,7 @@ impl AstParseable for ObjectReference {
 }
 
 impl ProtoConv for ObjectReference {
-    type ProtoType = rayexec_proto::generated::sql::ObjectReference;
+    type ProtoType = rayexec_proto::generated::ast::ObjectReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

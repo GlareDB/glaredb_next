@@ -7,7 +7,8 @@ fn main() {
             "proto/expr.proto",
             "proto/access.proto",
             "proto/binder.proto",
-            "proto/sql.proto",
+            "proto/ast.proto",
+            "proto/logical.proto",
         ],
         &["proto"],
     ) {

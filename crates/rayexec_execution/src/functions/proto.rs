@@ -1,13 +1,17 @@
+use std::collections::HashMap;
+
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     proto::DatabaseProtoConv,
 };
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{OptionExt, Result};
+use rayexec_proto::ProtoConv;
 
 use super::{
     aggregate::{AggregateFunction, PlannedAggregateFunction},
     scalar::{PlannedScalarFunction, ScalarFunction},
-    table::{PlannedTableFunction, TableFunction},
+    table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
 };
 
 const LOOKUP_CATALOG: &'static str = "glare_catalog";
@@ -147,5 +151,41 @@ impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
         let planned = table.decode_state(&proto.state)?;
 
         Ok(planned)
+    }
+}
+
+impl ProtoConv for TableFunctionArgs {
+    type ProtoType = rayexec_proto::generated::expr::TableFunctionArgs;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        let mut named = HashMap::new();
+        for (key, val) in &self.named {
+            named.insert(key.clone(), val.to_proto()?);
+        }
+
+        Ok(Self::ProtoType {
+            named,
+            positional: self
+                .positional
+                .iter()
+                .map(|v| v.to_proto())
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        let mut named = HashMap::new();
+        for (key, val) in proto.named {
+            named.insert(key, OwnedScalarValue::from_proto(val)?);
+        }
+
+        Ok(Self {
+            named,
+            positional: proto
+                .positional
+                .into_iter()
+                .map(|v| OwnedScalarValue::from_proto(v))
+                .collect::<Result<Vec<_>>>()?,
+        })
     }
 }

@@ -24,6 +24,10 @@ pub mod binder {
     include!(concat!(env!("OUT_DIR"), "/rayexec.binder.rs"));
 }
 
-pub mod sql {
-    include!(concat!(env!("OUT_DIR"), "/rayexec.sql.rs"));
+pub mod ast {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.ast.rs"));
+}
+
+pub mod logical {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.logical.rs"));
 }

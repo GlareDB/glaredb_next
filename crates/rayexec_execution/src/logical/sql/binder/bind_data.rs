@@ -1,5 +1,6 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
+use rayexec_proto::ProtoConv;
 use std::fmt;
 
 use crate::{
@@ -10,6 +11,7 @@ use crate::{
         table::{PlannedTableFunction, TableFunctionArgs},
     },
     logical::operator::LocationRequirement,
+    proto::DatabaseProtoConv,
 };
 
 use super::Bound;
@@ -106,6 +108,37 @@ impl BindData {
     }
 }
 
+impl DatabaseProtoConv for BindData {
+    type ProtoType = rayexec_proto::generated::binder::BindData;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        if !self.ctes.is_empty() {
+            // More ast work needed.
+            not_implemented!("encode ctes in bind data")
+        }
+
+        Ok(Self::ProtoType {
+            tables: Some(self.tables.to_proto_ctx(context)?),
+            functions: Some(self.functions.to_proto_ctx(context)?),
+            table_functions: Some(self.table_functions.to_proto_ctx(context)?),
+            current_depth: self.current_depth as u32,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            tables: BindList::from_proto_ctx(proto.tables.required("tables")?, context)?,
+            functions: BindList::from_proto_ctx(proto.functions.required("functions")?, context)?,
+            table_functions: BindList::from_proto_ctx(
+                proto.table_functions.required("table_functions")?,
+                context,
+            )?,
+            current_depth: proto.current_depth as usize,
+            ctes: Vec::new(),
+        })
+    }
+}
+
 /// A bound aggregate or scalar function.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
@@ -122,6 +155,34 @@ impl BoundFunctionReference {
     }
 }
 
+impl DatabaseProtoConv for BoundFunctionReference {
+    type ProtoType = rayexec_proto::generated::binder::BoundFunctionReference;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::binder::bound_function_reference::Value;
+
+        let value = match self {
+            Self::Scalar(scalar) => Value::Scalar(scalar.to_proto_ctx(context)?),
+            Self::Aggregate(agg) => Value::Aggregate(agg.to_proto_ctx(context)?),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        use rayexec_proto::generated::binder::bound_function_reference::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::Scalar(scalar) => {
+                Self::Scalar(DatabaseProtoConv::from_proto_ctx(scalar, context)?)
+            }
+            Value::Aggregate(agg) => {
+                Self::Aggregate(DatabaseProtoConv::from_proto_ctx(agg, context)?)
+            }
+        })
+    }
+}
+
 /// A bound table function reference.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundTableFunctionReference {
@@ -135,6 +196,24 @@ pub struct BoundTableFunctionReference {
     // TODO: Maybe keep args here?
 }
 
+impl DatabaseProtoConv for BoundTableFunctionReference {
+    type ProtoType = rayexec_proto::generated::binder::BoundTableFunctionReference;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            name: self.name.clone(),
+            func: Some(self.func.to_proto_ctx(context)?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            name: proto.name,
+            func: DatabaseProtoConv::from_proto_ctx(proto.func.required("func")?, context)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnboundTableFunctionReference {
     /// Original reference in the ast.
@@ -144,6 +223,24 @@ pub struct UnboundTableFunctionReference {
     /// Note that these are required to be constant and so we don't need to
     /// delay binding.
     pub args: TableFunctionArgs,
+}
+
+impl ProtoConv for UnboundTableFunctionReference {
+    type ProtoType = rayexec_proto::generated::binder::UnboundTableFunctionReference;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            reference: Some(self.reference.to_proto()?),
+            args: Some(self.args.to_proto()?),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            reference: ast::ObjectReference::from_proto(proto.reference.required("reference")?)?,
+            args: TableFunctionArgs::from_proto(proto.args.required("args")?)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,6 +311,161 @@ impl<B, U> Default for BindList<B, U> {
     }
 }
 
+impl DatabaseProtoConv for BindList<BoundTableOrCteReference, ast::ObjectReference> {
+    type ProtoType = rayexec_proto::generated::binder::TablesBindList;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::binder::{
+            maybe_bound_table::Value, BoundTableOrCteReferenceWithLocation, MaybeBoundTable,
+        };
+
+        let mut tables = Vec::new();
+        for table in &self.inner {
+            let table = match table {
+                MaybeBound::Bound(bound, loc) => MaybeBoundTable {
+                    value: Some(Value::Bound(BoundTableOrCteReferenceWithLocation {
+                        bound: Some(bound.to_proto()?),
+                        location: loc.to_proto()? as i32,
+                    })),
+                },
+                MaybeBound::Unbound(unbound) => MaybeBoundTable {
+                    value: Some(Value::Unbound(unbound.to_proto()?)),
+                },
+            };
+            tables.push(table);
+        }
+
+        Ok(Self::ProtoType { tables })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        use rayexec_proto::generated::binder::maybe_bound_table::Value;
+
+        let tables = proto
+            .tables
+            .into_iter()
+            .map(|t| match t.value.required("value")? {
+                Value::Bound(bound) => {
+                    let location = LocationRequirement::from_proto(bound.location())?;
+                    let bound =
+                        BoundTableOrCteReference::from_proto(bound.bound.required("bound")?)?;
+                    Ok(MaybeBound::Bound(bound, location))
+                }
+                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(
+                    ast::ObjectReference::from_proto(unbound)?,
+                )),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Self { inner: tables })
+    }
+}
+
+impl DatabaseProtoConv for BindList<BoundFunctionReference, ast::ObjectReference> {
+    type ProtoType = rayexec_proto::generated::binder::FunctionsBindList;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::binder::{
+            maybe_bound_function::Value, BoundFunctionReferenceWithLocation, MaybeBoundFunction,
+        };
+
+        let mut funcs = Vec::new();
+        for func in &self.inner {
+            let func = match func {
+                MaybeBound::Bound(bound, loc) => MaybeBoundFunction {
+                    value: Some(Value::Bound(BoundFunctionReferenceWithLocation {
+                        bound: Some(bound.to_proto_ctx(context)?),
+                        location: loc.to_proto()? as i32,
+                    })),
+                },
+                MaybeBound::Unbound(unbound) => MaybeBoundFunction {
+                    value: Some(Value::Unbound(unbound.to_proto()?)),
+                },
+            };
+            funcs.push(func);
+        }
+
+        Ok(Self::ProtoType { functions: funcs })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        use rayexec_proto::generated::binder::maybe_bound_function::Value;
+
+        let funcs = proto
+            .functions
+            .into_iter()
+            .map(|f| match f.value.required("value")? {
+                Value::Bound(bound) => {
+                    let location = LocationRequirement::from_proto(bound.location())?;
+                    let bound = BoundFunctionReference::from_proto_ctx(
+                        bound.bound.required("bound")?,
+                        context,
+                    )?;
+                    Ok(MaybeBound::Bound(bound, location))
+                }
+                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(
+                    ast::ObjectReference::from_proto(unbound)?,
+                )),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Self { inner: funcs })
+    }
+}
+
+impl DatabaseProtoConv for BindList<BoundTableFunctionReference, UnboundTableFunctionReference> {
+    type ProtoType = rayexec_proto::generated::binder::TableFunctionsBindList;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::binder::{
+            maybe_bound_table_function::Value, BoundTableFunctionReferenceWithLocation,
+            MaybeBoundTableFunction,
+        };
+
+        let mut funcs = Vec::new();
+        for func in &self.inner {
+            let func = match func {
+                MaybeBound::Bound(bound, loc) => MaybeBoundTableFunction {
+                    value: Some(Value::Bound(BoundTableFunctionReferenceWithLocation {
+                        bound: Some(bound.to_proto_ctx(context)?),
+                        location: loc.to_proto()? as i32,
+                    })),
+                },
+                MaybeBound::Unbound(unbound) => MaybeBoundTableFunction {
+                    value: Some(Value::Unbound(unbound.to_proto_ctx(context)?)),
+                },
+            };
+            funcs.push(func);
+        }
+
+        Ok(Self::ProtoType { functions: funcs })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        use rayexec_proto::generated::binder::maybe_bound_table_function::Value;
+
+        let funcs = proto
+            .functions
+            .into_iter()
+            .map(|f| match f.value.required("value")? {
+                Value::Bound(bound) => {
+                    let location = LocationRequirement::from_proto(bound.location())?;
+                    let bound = BoundTableFunctionReference::from_proto_ctx(
+                        bound.bound.required("bound")?,
+                        context,
+                    )?;
+                    Ok(MaybeBound::Bound(bound, location))
+                }
+                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(
+                    UnboundTableFunctionReference::from_proto(unbound)?,
+                )),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Self { inner: funcs })
+    }
+}
+
 /// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundTableOrCteReference {
@@ -227,6 +479,44 @@ pub enum BoundTableOrCteReference {
     Cte(CteReference),
 }
 
+impl ProtoConv for BoundTableOrCteReference {
+    type ProtoType = rayexec_proto::generated::binder::BoundTableOrCteReference;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::binder::{
+            bound_table_or_cte_reference::Value, BoundTableReference,
+        };
+
+        let value = match self {
+            Self::Table {
+                catalog,
+                schema,
+                entry,
+            } => Value::Table(BoundTableReference {
+                catalog: catalog.clone(),
+                schema: schema.clone(),
+                table: Some(entry.to_proto()?),
+            }),
+            Self::Cte(cte) => Value::Cte(cte.to_proto()?),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::binder::bound_table_or_cte_reference::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::Table(table) => Self::Table {
+                catalog: table.catalog,
+                schema: table.schema,
+                entry: TableEntry::from_proto(table.table.required("table")?)?,
+            },
+            Value::Cte(cte) => Self::Cte(CteReference::from_proto(cte)?),
+        })
+    }
+}
+
 /// References a CTE that can be found in `BindData`.
 ///
 /// Note that this doesn't hold the CTE itself since it may be referenced more
@@ -235,6 +525,22 @@ pub enum BoundTableOrCteReference {
 pub struct CteReference {
     /// Index into the CTE map.
     pub idx: usize,
+}
+
+impl ProtoConv for CteReference {
+    type ProtoType = rayexec_proto::generated::binder::BoundCteReference;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            idx: self.idx as u32,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            idx: proto.idx as usize,
+        })
+    }
 }
 
 // TODO: Figure out how we want to represent things like tables in a CREATE
@@ -288,6 +594,20 @@ impl From<Vec<String>> for ItemReference {
 impl fmt::Display for ItemReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.join(","))
+    }
+}
+
+impl ProtoConv for ItemReference {
+    type ProtoType = rayexec_proto::generated::binder::ItemReference;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            idents: self.0.clone(),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self(proto.idents))
     }
 }
 

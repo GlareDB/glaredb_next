@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package rayexec.sql;
+package rayexec.ast;
 
 message Ident {
     string value  = 1;

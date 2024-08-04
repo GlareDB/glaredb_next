@@ -15,7 +15,10 @@ pub trait ProtoConv: Sized {
     fn from_proto(proto: Self::ProtoType) -> Result<Self>;
 }
 
-// TODO: Configure?
+// Not using `cfg(test)` here since that would make this not visible outside of
+// this crate.
+//
+// See: <https://github.com/rust-lang/cargo/issues/8379>
 pub mod testutil {
     use crate::ProtoConv;
     use std::fmt::Debug;

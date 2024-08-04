@@ -95,6 +95,11 @@ message PlannedTableFunction {
     bytes  state = 2;
 }
 
+message TableFunctionArgs {
+    map<string, expr.OwnedScalarValue> named  = 1;
+    repeated expr.OwnedScalarValue positional = 2;
+}
+
 message CopyToFunction {
     string name = 1;
 }
