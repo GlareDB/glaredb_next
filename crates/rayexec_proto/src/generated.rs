@@ -19,3 +19,11 @@ pub mod expr {
 pub mod access {
     include!(concat!(env!("OUT_DIR"), "/rayexec.access.rs"));
 }
+
+pub mod binder {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.binder.rs"));
+}
+
+pub mod sql {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.sql.rs"));
+}

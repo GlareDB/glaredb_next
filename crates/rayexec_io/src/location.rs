@@ -155,6 +155,8 @@ impl ProtoConv for FileLocation {
 
 #[cfg(test)]
 mod tests {
+    use rayexec_proto::testutil::assert_proto_roundtrip;
+
     use super::*;
 
     #[test]
@@ -184,5 +186,17 @@ mod tests {
         // TODO: Should this be allowed?
         // location.join_mut(["d/e"]).unwrap();
         // assert_eq!("s3://bucket/path/a/b/c/d/e", location.to_string());
+    }
+
+    #[test]
+    fn location_proto_roundtrip() {
+        let location = FileLocation::parse("./some/file.parquet");
+        assert_proto_roundtrip(location);
+
+        let location = FileLocation::parse("https://example.com/file.json");
+        assert_proto_roundtrip(location);
+
+        let location = FileLocation::parse("s3://bucket/to/file.csv");
+        assert_proto_roundtrip(location);
     }
 }

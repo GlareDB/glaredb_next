@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, ObjectReference};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropType {
     Index,
     Function,
@@ -17,14 +17,14 @@ pub enum DropType {
     Schema,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DropDependents {
     #[default]
     Restrict,
     Cascade,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropStatement<T: AstMeta> {
     pub drop_type: DropType,
     pub if_exists: bool,

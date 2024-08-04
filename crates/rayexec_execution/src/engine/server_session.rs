@@ -87,24 +87,8 @@ where
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq)]
 pub struct HybridExecuteRequest {
     pub stmt: BoundStatement,
     pub bind_data: BindData,
-}
-
-#[derive(Debug)]
-struct HybridExecuteRequestDeserializer<'a> {
-    context: &'a DatabaseContext,
-}
-
-impl<'de, 'a> DeserializeSeed<'de> for HybridExecuteRequestDeserializer<'a> {
-    type Value = HybridExecuteRequest;
-
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        unimplemented!()
-    }
 }

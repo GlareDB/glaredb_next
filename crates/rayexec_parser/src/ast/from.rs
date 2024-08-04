@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, FunctionArg, Ident, ObjectReference, QueryNode};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FromNode<T: AstMeta> {
     pub alias: Option<FromAlias>,
     pub body: FromNodeBody<T>,
@@ -224,13 +224,13 @@ impl FromNode<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FromAlias {
     pub alias: Ident,
     pub columns: Option<Vec<Ident>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FromNodeBody<T: AstMeta> {
     BaseTable(FromBaseTable<T>),
     File(FromFilePath),
@@ -239,28 +239,28 @@ pub enum FromNodeBody<T: AstMeta> {
     Join(FromJoin<T>),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FromFilePath {
     pub path: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FromBaseTable<T: AstMeta> {
     pub reference: T::TableReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FromSubquery<T: AstMeta> {
     pub query: QueryNode<T>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FromTableFunction<T: AstMeta> {
     pub reference: T::TableFunctionReference,
     pub args: T::TableFunctionArgs,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FromJoin<T: AstMeta> {
     pub left: Box<FromNode<T>>,
     pub right: Box<FromNode<T>>,
@@ -268,7 +268,7 @@ pub struct FromJoin<T: AstMeta> {
     pub join_condition: JoinCondition<T>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
     Cross,
     Inner,
@@ -281,7 +281,7 @@ pub enum JoinType {
     RightSemi,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum JoinCondition<T: AstMeta> {
     On(Expr<T>),
     Using(Vec<Ident>),

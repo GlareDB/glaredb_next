@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByNode, SelectNode};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct QueryNode<T: AstMeta> {
     pub ctes: Option<CommonTableExprDefs<T>>,
     pub body: QueryNodeBody<T>,
@@ -62,7 +62,7 @@ impl QueryNode<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum QueryNodeBody<T: AstMeta> {
     Select(Box<SelectNode<T>>),
     Nested(Box<QueryNode<T>>),
@@ -123,14 +123,14 @@ impl QueryNodeBody<Raw> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetOperation {
     Union,
     Except,
     Intersect,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Values<T: AstMeta> {
     pub rows: Vec<Vec<Expr<T>>>,
 }

@@ -14,3 +14,18 @@ pub trait ProtoConv: Sized {
     fn to_proto(&self) -> Result<Self::ProtoType>;
     fn from_proto(proto: Self::ProtoType) -> Result<Self>;
 }
+
+// TODO: Configure?
+pub mod testutil {
+    use crate::ProtoConv;
+    use std::fmt::Debug;
+
+    /// Assert that a value roundtrips correctly through the conversion to and
+    /// from a protobuf value.
+    pub fn assert_proto_roundtrip<P: ProtoConv + PartialEq + Debug>(val: P) {
+        let proto = val.to_proto().unwrap();
+        let got = P::from_proto(proto).unwrap();
+
+        assert_eq!(val, got);
+    }
+}

@@ -378,7 +378,7 @@ impl<'a> QueryNodePlanner<'a> {
                     schema: None,
                     table: reference.name.clone(),
                 };
-                let func = self.bind_data.table_function_objects.get(reference.idx)?;
+                let func = reference.func.clone();
                 let scope = Scope::with_columns(
                     Some(scope_reference),
                     func.schema().fields.into_iter().map(|f| f.name),
@@ -386,7 +386,7 @@ impl<'a> QueryNodePlanner<'a> {
 
                 // TODO: Loc
                 let operator = LogicalOperator::TableFunction(LogicalNode::new(TableFunction {
-                    function: func.clone(),
+                    function: func,
                 }));
 
                 LogicalQuery {

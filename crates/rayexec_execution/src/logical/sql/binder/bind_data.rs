@@ -1,9 +1,5 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
-use serde::{
-    ser::{SerializeMap, SerializeSeq},
-    Deserialize, Deserializer, Serialize, Serializer,
-};
 use std::fmt;
 
 use crate::{
@@ -23,28 +19,8 @@ use super::Bound;
 ///
 /// Planning will reference these items directly instead of having to resolve
 /// them.
-///
-/// Note that there's a bit of indirection between "bound" objects and actual
-/// references to the objects. This mostly exists to make implementing statefule
-/// (de)serialization easier since the things that require state are in the
-/// `ObjectList`s at the top level. If we didn't have that indirection, manually
-/// implementing (de)serialization for all the types that would need it would
-/// make this file double in size. I (Sean) am not opposed to that if we find
-/// that gets in the way, but I didn't want to spend time on that right now
-/// especially since this stuff is still evolving.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct BindData {
-    /// Scalar functions referenced from bound function references.
-    pub scalar_function_objects: ObjectList<Box<dyn ScalarFunction>>,
-
-    /// Aggregate functions referenced from bound function references.
-    pub aggregate_function_objects: ObjectList<Box<dyn AggregateFunction>>,
-
-    // TODO: This may change to just have `dyn TableFunction` references, and
-    // then have a separate step after binding that initializes all table
-    // functions.
-    pub table_function_objects: ObjectList<Box<dyn PlannedTableFunction>>,
-
     /// A bound table may reference either an actual table, or a CTE. An unbound
     /// reference may only reference a table.
     pub tables: BindList<BoundTableOrCteReference, ast::ObjectReference>,
@@ -130,208 +106,36 @@ impl BindData {
     }
 }
 
-impl Serialize for BindData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        unimplemented!()
-        // let mut map = serializer.serialize_map(Some(5))?;
-        // map.serialize_entry("scalar_function_objects", &self.scalar_function_objects.0)?;
-        // map.serialize_entry(
-        //     "aggregate_function_objects",
-        //     &self.aggregate_function_objects.0,
-        // )?;
-        // map.serialize_entry("table_function_objects", &self.table_function_objects.0)?;
-        // map.serialize_entry("tables", &self.tables)?;
-        // map.serialize_entry("functions", &self.functions)?;
-        // map.serialize_entry("table_functions", &self.table_functions)?;
-        // map.serialize_entry("current_depth", &self.current_depth)?;
-        // map.serialize_entry("ctes", &self.ctes)?;
-        // map.end()
-    }
-}
-
-// pub struct BindDataDeserializer;
-
-// impl<'de> ContextMapDeserialize<'de> for BindDataDeserializer {
-//     type Value = BindData;
-
-//     fn deserialize_map<V: MapAccess<'de>>(
-//         self,
-//         mut map: V,
-//         context: &DatabaseContext,
-//     ) -> Result<Self::Value, V::Error> {
-//         let mut scalar_function_objects = None;
-//         let mut aggregate_function_objects = None;
-//         let mut table_function_objects = None;
-//         let mut tables = None;
-//         let mut functions = None;
-//         let mut table_functions = None;
-//         let mut current_depth = None;
-//         let mut ctes = None;
-
-//         while let Some(key) = map.next_key()? {
-//             match key {
-//                 "scalar_function_objects" => {
-//                     scalar_function_objects =
-//                         Some(map.next_value_seed(ContextSeqDeserializer::new(
-//                             context,
-//                             ObjectListDeserializer {
-//                                 object: ScalarFunctionDeserializer { context },
-//                             },
-//                         ))?)
-//                 }
-//                 "aggregate_function_objects" => {
-//                     aggregate_function_objects =
-//                         Some(map.next_value_seed(ContextSeqDeserializer::new(
-//                             context,
-//                             ObjectListDeserializer {
-//                                 object: AggregateFunctionDeserializer { context },
-//                             },
-//                         ))?)
-//                 }
-//                 "table_function_objects" => {
-//                     table_function_objects =
-//                         Some(map.next_value_seed(ContextSeqDeserializer::new(
-//                             context,
-//                             ObjectListDeserializer {
-//                                 object: PlannedTableFunctionDeserializer { context },
-//                             },
-//                         ))?)
-//                 }
-//                 "tables" => {
-//                     tables = Some(map.next_value()?);
-//                 }
-//                 "functions" => {
-//                     functions = Some(map.next_value()?);
-//                 }
-//                 "table_functions" => {
-//                     table_functions = Some(map.next_value()?);
-//                 }
-//                 "current_depth" => {
-//                     current_depth = Some(map.next_value()?);
-//                 }
-//                 "ctes" => {
-//                     ctes = Some(map.next_value()?);
-//                 }
-//                 _ => {
-//                     let _ = map.next_value::<de::IgnoredAny>()?;
-//                 }
-//             }
-//         }
-
-//         let scalar_function_objects =
-//             scalar_function_objects.missing_field("scalar_function_objects")?;
-//         let aggregate_function_objects =
-//             aggregate_function_objects.missing_field("aggregate_function_objects")?;
-//         let table_function_objects =
-//             table_function_objects.missing_field("table_function_objects")?;
-//         let tables = tables.missing_field("tables")?;
-//         let functions = functions.missing_field("functions")?;
-//         let table_functions = table_functions.missing_field("table_functions")?;
-//         let current_depth = current_depth.missing_field("current_depth")?;
-//         let ctes = ctes.missing_field("ctes")?;
-
-//         Ok(BindData {
-//             scalar_function_objects,
-//             aggregate_function_objects,
-//             table_function_objects,
-//             tables,
-//             functions,
-//             table_functions,
-//             current_depth,
-//             ctes,
-//         })
-//     }
-// }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ObjectIdx(pub usize);
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ObjectList<T>(Vec<T>);
-
-impl<T> ObjectList<T> {
-    pub fn push(&mut self, val: T) -> ObjectIdx {
-        let idx = self.0.len();
-        self.0.push(val);
-        ObjectIdx(idx)
-    }
-
-    pub fn get(&self, idx: ObjectIdx) -> Result<&T> {
-        self.0
-            .get(idx.0)
-            .ok_or_else(|| RayexecError::new("Missing object"))
-    }
-}
-
-impl<T> Default for ObjectList<T> {
-    fn default() -> Self {
-        ObjectList(Vec::new())
-    }
-}
-
-impl<T: Serialize> Serialize for ObjectList<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
-        for v in &self.0 {
-            seq.serialize_element(v)?;
-        }
-        seq.end()
-    }
-}
-
-// struct ObjectListDeserializer<D> {
-//     object: D,
-// }
-
-// impl<'de, D, T> ContextSeqDeserialize<'de> for ObjectListDeserializer<D>
-// where
-//     D: DeserializeSeed<'de, Value = T> + Copy,
-// {
-//     type Value = ObjectList<T>;
-
-//     fn deserialize_seq<V: SeqAccess<'de>>(
-//         self,
-//         mut seq: V,
-//         _context: &DatabaseContext,
-//     ) -> Result<Self::Value, V::Error> {
-//         let mut inner = Vec::with_capacity(seq.size_hint().unwrap_or(0));
-//         while let Some(value) = seq.next_element_seed(self.object)? {
-//             inner.push(value);
-//         }
-
-//         Ok(ObjectList(inner))
-//     }
-// }
-
 /// A bound aggregate or scalar function.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
-    /// Index into the scalar objects list.
-    Scalar(ObjectIdx),
-    /// Index into the aggregate objects list.
-    Aggregate(ObjectIdx),
+    Scalar(Box<dyn ScalarFunction>),
+    Aggregate(Box<dyn AggregateFunction>),
+}
+
+impl BoundFunctionReference {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Scalar(f) => f.name(),
+            Self::Aggregate(f) => f.name(),
+        }
+    }
 }
 
 /// A bound table function reference.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundTableFunctionReference {
     /// Name of the original function.
     ///
     /// This is used to allow the user to reference the output of the function
     /// if not provided an alias.
     pub name: String,
-    /// Index into the table function objects list.
-    pub idx: ObjectIdx,
+    /// The function.
+    pub func: Box<dyn PlannedTableFunction>,
     // TODO: Maybe keep args here?
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnboundTableFunctionReference {
     /// Original reference in the ast.
     pub reference: ast::ObjectReference,
@@ -342,7 +146,7 @@ pub struct UnboundTableFunctionReference {
     pub args: TableFunctionArgs,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaybeBound<B, U> {
     /// The object has been bound, and has a given location requirement.
     Bound(B, LocationRequirement),
@@ -365,13 +169,13 @@ impl<B, U> MaybeBound<B, U> {
 
 /// List for holding bound and unbound variants for a single logical concept
 /// (table, function, etc).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindList<B, U> {
     pub inner: Vec<MaybeBound<B, U>>,
 }
 
 /// Index into the bind list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BindListIdx(pub usize);
 
 impl<B, U> BindList<B, U> {
@@ -411,7 +215,7 @@ impl<B, U> Default for BindList<B, U> {
 }
 
 /// Table or CTE found in the FROM clause.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BoundTableOrCteReference {
     /// Resolved table.
     Table {
@@ -427,7 +231,7 @@ pub enum BoundTableOrCteReference {
 ///
 /// Note that this doesn't hold the CTE itself since it may be referenced more
 /// than once in a query.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CteReference {
     /// Index into the CTE map.
     pub idx: usize,
@@ -435,7 +239,7 @@ pub struct CteReference {
 
 // TODO: Figure out how we want to represent things like tables in a CREATE
 // TABLE. We don't want to resolve, so a vec of strings works for now.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ItemReference(pub Vec<String>);
 
 impl ItemReference {
@@ -488,7 +292,7 @@ impl fmt::Display for ItemReference {
 }
 
 // TODO: This might need some scoping information.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundCte {
     /// Normalized name for the CTE.
     pub name: String,

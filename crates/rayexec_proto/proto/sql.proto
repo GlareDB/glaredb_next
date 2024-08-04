@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package rayexec.sql;
+
+message Ident {
+    string value  = 1;
+    bool   quoted = 2;
+}
+
+message ObjectReference {
+    repeated Ident idents = 1;
+}

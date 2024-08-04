@@ -13,11 +13,16 @@ pub struct PackedEncoder<'a> {
 }
 
 impl<'a> PackedEncoder<'a> {
+    /// Create a new packed encoder that will write the provided buffer.
+    ///
+    /// Encoded messages will start at the end of the buffer to enable multiple
+    /// instantiations of the encoder without clobbering previously written
+    /// data.
     pub fn new(buf: &'a mut Vec<u8>) -> Self {
-        buf.clear();
         PackedEncoder { buf }
     }
 
+    /// Encode a message into the buffer.
     pub fn encode_next<M: Message>(&mut self, msg: &M) -> Result<()> {
         let msg_len = msg.encoded_len();
         let mut buf_start = self.buf.len();
@@ -41,10 +46,12 @@ pub struct PackedDecoder<'a> {
 }
 
 impl<'a> PackedDecoder<'a> {
+    /// Create a new packed decoder that will read from the provided buffer.
     pub fn new(buf: &'a [u8]) -> Self {
         PackedDecoder { buf, n: 0 }
     }
 
+    /// Decode the next message from the buffer.
     pub fn decode_next<M: Message + Default>(&mut self) -> Result<M> {
         let msg_len_buf: [u8; 8] = self
             .buf

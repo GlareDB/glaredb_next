@@ -8,7 +8,7 @@ use crate::{
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Insert<T: AstMeta> {
     pub table: T::TableReference,
     pub columns: Vec<Ident>,

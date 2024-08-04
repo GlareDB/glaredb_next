@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{
     ast::{
         Attach, CopyTo, CreateSchema, CreateTable, Describe, Detach, DropStatement, ExplainNode,
@@ -10,7 +8,7 @@ use crate::{
 
 pub type RawStatement = Statement<Raw>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement<T: AstMeta> {
     Attach(Attach<T>),
     Detach(Detach<T>),

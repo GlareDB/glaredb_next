@@ -10,13 +10,13 @@ use crate::{
 
 use super::{AstParseable, Expr, Ident, ObjectReference};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttachType {
     Database,
     Table,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Attach<T: AstMeta> {
     pub datasource_name: T::DataSourceName,
     pub attach_type: AttachType,
@@ -62,7 +62,7 @@ impl AstParseable for Attach<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Detach<T: AstMeta> {
     pub attach_type: AttachType,
     pub alias: T::ItemReference,

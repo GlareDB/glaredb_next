@@ -44,7 +44,7 @@ pub type BoundStatement = Statement<Bound>;
 
 /// Implementation of `AstMeta` which annotates the AST query with
 /// tables/functions/etc found in the db.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bound;
 
 impl AstMeta for Bound {
@@ -75,68 +75,10 @@ pub struct StatementWithBindData {
     pub bind_data: BindData,
 }
 
-impl Serialize for StatementWithBindData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(2))?;
-        map.serialize_entry("statement", &self.statement)?;
-        map.serialize_entry("bind_data", &self.bind_data)?;
-        map.end()
-    }
-}
-
-// pub struct StatementWithBindDataVisitor<'a> {
-//     pub context: &'a DatabaseContext,
-// }
-
-// impl<'de, 'a> Visitor<'de> for StatementWithBindDataVisitor<'a> {
-//     type Value = StatementWithBindData;
-
-//     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-//         formatter.write_str("bound statement with bind data")
-//     }
-
-//     fn visit_map<V>(self, mut map: V) -> Result<StatementWithBindData, V::Error>
-//     where
-//         V: MapAccess<'de>,
-//     {
-//         let mut statement = None;
-//         let mut bind_data = None;
-
-//         while let Some(key) = map.next_key()? {
-//             match key {
-//                 "statement" => {
-//                     statement = Some(map.next_value()?);
-//                 }
-//                 "bind_data" => {
-//                     bind_data = Some(map.next_value_seed(ContextMapDeserializer::new(
-//                         self.context,
-//                         BindDataDeserializer,
-//                     ))?);
-//                 }
-//                 _ => {
-//                     let _ = map.next_value::<de::IgnoredAny>()?;
-//                 }
-//             }
-//         }
-
-//         let statement = statement.ok_or_else(|| de::Error::missing_field("statement"))?;
-//         let bind_data = bind_data.ok_or_else(|| de::Error::missing_field("bind_data"))?;
-
-//         Ok(StatementWithBindData {
-//             statement,
-//             bind_data,
-//         })
-//     }
-// }
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundCopyTo {
     pub location: FileLocation,
     // TODO: Remote skip and Option when serializing is figured out.
-    #[serde(skip)]
     pub func: Option<Box<dyn CopyToFunction>>,
 }
 
@@ -745,12 +687,8 @@ impl<'a> Binder<'a> {
                         let name = handler.table_func.name().to_string();
                         let func = handler.table_func.plan_and_initialize(args.clone()).await?;
 
-                        let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference {
-                                name,
-                                idx: func_idx,
-                            },
+                            BoundTableFunctionReference { name, func },
                             LocationRequirement::ClientLocal,
                         );
 
@@ -777,12 +715,8 @@ impl<'a> Binder<'a> {
                         let name = table_fn.name().to_string();
                         let func = table_fn.plan_and_initialize(args.clone()).await?;
 
-                        let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference {
-                                name,
-                                idx: func_idx,
-                            },
+                            BoundTableFunctionReference { name, func },
                             LocationRequirement::ClientLocal,
                         );
 
