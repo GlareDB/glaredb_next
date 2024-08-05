@@ -50,7 +50,7 @@ use super::{
 };
 
 /// Configuration used during intermediate pipeline planning.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IntermediateConfig {
     /// Trigger an error if we attempt to plan a nested loop join.
     pub error_on_nested_loop_join: bool,
@@ -94,7 +94,6 @@ impl IntermediatePipelinePlanner {
         &self,
         root: operator::LogicalOperator,
         context: QueryContext,
-        sink: Box<dyn QuerySink>,
     ) -> Result<PlannedPipelineGroups> {
         let mut state = IntermediatePipelineBuildState::new(&self.config);
         let mut id_gen = PipelineIdGen {
@@ -104,8 +103,7 @@ impl IntermediatePipelinePlanner {
         let mut materializations = state.plan_materializations(context, &mut id_gen)?;
         state.walk(&mut materializations, &mut id_gen, root)?;
 
-        // Finish with query sink.
-        state.push_query_sink(&mut id_gen, sink)?;
+        state.finish(&mut id_gen)?;
 
         debug_assert!(state.in_progress.is_none());
 
@@ -465,6 +463,45 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             }
 
             self.in_progress = Some(new_in_progress)
+        }
+
+        Ok(())
+    }
+
+    fn finish(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {
+        let mut in_progress = self.take_in_progress_pipeline()?;
+        if in_progress.location == LocationRequirement::Any {
+            in_progress.location = LocationRequirement::ClientLocal;
+        }
+
+        if in_progress.location != LocationRequirement::ClientLocal {
+            let final_pipeline = IntermediatePipeline {
+                id: id_gen.next(),
+                sink: PipelineSink::QueryOutput,
+                source: PipelineSource::OtherGroup { partitions: 1 },
+                operators: Vec::new(),
+            };
+
+            let pipeline = IntermediatePipeline {
+                id: in_progress.id,
+                sink: PipelineSink::OtherGroup { partitions: 1 },
+                source: in_progress.source,
+                operators: in_progress.operators,
+            };
+
+            self.remote_group.pipelines.insert(pipeline.id, pipeline);
+            self.local_group
+                .pipelines
+                .insert(final_pipeline.id, final_pipeline);
+        } else {
+            let pipeline = IntermediatePipeline {
+                id: in_progress.id,
+                sink: PipelineSink::QueryOutput,
+                source: in_progress.source,
+                operators: in_progress.operators,
+            };
+
+            self.local_group.pipelines.insert(pipeline.id, pipeline);
         }
 
         Ok(())

@@ -197,11 +197,7 @@ where
             LogicalOperator::AttachDatabase(attach) => {
                 let attach = attach.into_inner();
                 // Here to avoid lifetime issues.
-                let empty = planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?;
+                let empty = planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?;
 
                 // TODO: No clue if we want to do this here. What happens during
                 // hybrid exec?
@@ -211,11 +207,7 @@ where
                 empty
             }
             LogicalOperator::DetachDatabase(detach) => {
-                let empty = planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?; // Here to avoid lifetime issues.
+                let empty = planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?; // Here to avoid lifetime issues.
                 self.context.detach_catalog(&detach.as_ref().name)?;
                 empty
             }
@@ -235,11 +227,7 @@ where
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
-                planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?
+                planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
             }
             LogicalOperator::ResetVar(reset) => {
                 // Same TODO as above.
@@ -247,13 +235,9 @@ where
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
-                planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?
+                planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
             }
-            root => planner.plan_pipelines(root, context, Box::new(sink))?,
+            root => planner.plan_pipelines(root, context)?,
         };
 
         if !pipelines.remote.is_empty() {
@@ -267,6 +251,7 @@ where
             ExecutionConfig {
                 target_partitions: VarAccessor::new(&self.vars).partitions(),
             },
+            Some(Box::new(sink)),
         );
 
         let pipelines = planner.plan_from_intermediate(pipelines.local)?;

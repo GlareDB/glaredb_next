@@ -1,15 +1,39 @@
+use dashmap::DashMap;
+use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_parser::statement::Statement;
 use serde::{de::DeserializeSeed, Deserializer, Serialize};
+use uuid::Uuid;
 
 use crate::{
-    database::DatabaseContext,
+    database::{catalog::CatalogTx, DatabaseContext},
     datasource::DataSourceRegistry,
+    engine::vars::SessionVars,
+    execution::intermediate::{
+        planner::{IntermediateConfig, IntermediatePipelinePlanner},
+        IntermediatePipeline, IntermediatePipelineGroup,
+    },
     hybrid::buffer::ServerStreamBuffers,
-    logical::sql::binder::{bind_data::BindData, BoundStatement},
+    logical::sql::{
+        binder::{bind_data::BindData, hybrid::HybridResolver, BoundStatement},
+        planner::PlanContext,
+    },
+    optimizer::Optimizer,
     runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;
+
+/// Output after planning a partially bound query, containing parts of the
+/// pipeline the should be executed on the client.
+#[derive(Debug)]
+pub struct PartialPlannedPipeline {
+    /// Id for the query.
+    query_id: Uuid,
+    /// Pipelines that should be executed on the client.
+    pipelines: IntermediatePipelineGroup,
+    /// Output schema for the query.
+    schema: Schema,
+}
 
 /// A "server" session for doing remote planning and remote execution.
 ///
@@ -25,6 +49,8 @@ pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
 
     /// Hybrid execution streams.
     streams: ServerStreamBuffers,
+
+    pending_pipelines: DashMap<Uuid, IntermediatePipeline>,
 
     executor: P,
     runtime: R,
@@ -45,6 +71,7 @@ where
             context,
             registry,
             streams: ServerStreamBuffers::default(),
+            pending_pipelines: DashMap::new(),
             executor,
             runtime,
         }
@@ -62,7 +89,23 @@ where
         &self,
         stmt: BoundStatement,
         bind_data: BindData,
-    ) -> Result<(BoundStatement, BindData)> {
+    ) -> Result<PartialPlannedPipeline> {
+        let tx = CatalogTx::new();
+        let resolver = HybridResolver::new(&tx, &self.context);
+        let bind_data = resolver.resolve_all_unbound(bind_data).await?;
+
+        // TODO: Remove session var requirement.
+        let vars = SessionVars::new_local();
+
+        let (mut logical, context) = PlanContext::new(&vars, &bind_data).plan_statement(stmt)?;
+
+        let optimizer = Optimizer::new();
+        logical.root = optimizer.optimize(logical.root)?;
+        let schema = logical.schema()?;
+
+        let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default());
+        // let pipelines = planner.plan_pipelines(logical.root, context, sink)
+
         // TODO: Check the statement and complete anything pending.
         // Straightforward.
         unimplemented!()

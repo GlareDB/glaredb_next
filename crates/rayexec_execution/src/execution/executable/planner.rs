@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
@@ -11,6 +11,7 @@ use crate::{
         },
         operators::{
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
+            sink::{PhysicalQuerySink, QuerySink},
             ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
     },
@@ -63,14 +64,26 @@ pub struct ExecutablePipelinePlanner<'a> {
     context: &'a DatabaseContext,
     config: ExecutionConfig,
     id_gen: PipelineIdGen,
+    /// Optional output sink.
+    ///
+    /// Should only be Some if the planner is planning a pipeline group with a
+    /// pipeline that sends its results to the output.
+    ///
+    /// Only single pipeline may use this.
+    output_sink: Option<Box<dyn QuerySink>>,
 }
 
 impl<'a> ExecutablePipelinePlanner<'a> {
-    pub fn new(context: &'a DatabaseContext, config: ExecutionConfig) -> Self {
+    pub fn new(
+        context: &'a DatabaseContext,
+        config: ExecutionConfig,
+        output_sink: Option<Box<dyn QuerySink>>,
+    ) -> Self {
         ExecutablePipelinePlanner {
             context,
             config,
             id_gen: PipelineIdGen { gen: PipelineId(0) },
+            output_sink,
         }
     }
 
@@ -180,6 +193,37 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
         // Wire up sink.
         match pending.sink {
+            PipelineSink::QueryOutput => match self.output_sink.take() {
+                Some(sink) => {
+                    let partitions = match sink.partition_requirement() {
+                        Some(n) => n,
+                        None => pipeline.num_partitions(),
+                    };
+
+                    if partitions != pipeline.num_partitions() {
+                        pipeline = self.push_repartition(pipeline, partitions, executables)?;
+                    }
+
+                    let operator =
+                        Arc::new(PhysicalOperator::QuerySink(PhysicalQuerySink::new(sink)));
+                    let states = operator.create_states(&self.context, vec![partitions])?;
+                    let partition_states = match states.partition_states {
+                        InputOutputStates::OneToOne { partition_states } => partition_states,
+                        _ => {
+                            return Err(RayexecError::new(
+                                "invalid partition states for query sink",
+                            ))
+                        }
+                    };
+
+                    pipeline.push_operator(operator, states.operator_state, partition_states)?;
+                }
+                None => {
+                    return Err(RayexecError::new(
+                        "Pipeline expects to send results to output, missing output sink",
+                    ))
+                }
+            },
             PipelineSink::InPipeline => {
                 // The pipeline's final operator is the query sink. A requisite
                 // states have already been created from above, so nothing for

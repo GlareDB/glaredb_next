@@ -18,6 +18,8 @@ pub struct IntermediatePipelineId(pub usize);
 /// appropriately.
 #[derive(Debug, Clone)]
 pub enum PipelineSink {
+    /// Send this pipeline's results the query output (client).
+    QueryOutput,
     /// The pipeline's sink is already included in the pipeline.
     InPipeline,
     /// Sink is in the same group of operators as itself.
