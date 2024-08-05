@@ -74,11 +74,11 @@ impl DatabaseProtoConv for HybridPlanRequest {
 #[derive(Debug)]
 pub struct HybridPlanResponse {
     /// Id for the query.
-    query_id: Uuid,
+    pub query_id: Uuid,
     /// Pipelines that should be executed on the client.
-    pipelines: IntermediatePipelineGroup,
+    pub pipelines: IntermediatePipelineGroup,
     /// Output schema for the query.
-    schema: Schema,
+    pub schema: Schema,
 }
 
 impl DatabaseProtoConv for HybridPlanResponse {
@@ -101,6 +101,42 @@ impl DatabaseProtoConv for HybridPlanResponse {
             )?,
             schema: Schema::from_proto(proto.schema.required("schema")?)?,
         })
+    }
+}
+
+#[derive(Debug)]
+pub struct HybridExecuteRequest {
+    pub query_id: Uuid,
+}
+
+impl DatabaseProtoConv for HybridExecuteRequest {
+    type ProtoType = rayexec_proto::generated::hybrid::ExecuteRequest;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            query_id: Some(self.query_id.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            query_id: Uuid::from_proto(proto.query_id.required("query_id")?)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct HybridExecuteResponse {}
+
+impl DatabaseProtoConv for HybridExecuteResponse {
+    type ProtoType = rayexec_proto::generated::hybrid::ExecuteResponse;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {})
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {})
     }
 }
 

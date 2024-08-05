@@ -19,6 +19,7 @@ message PlanResponse {
 }
 
 message ExecuteRequest {
+    foreign.Uuid query_id = 1;
 }
 
 message ExecuteResponse {

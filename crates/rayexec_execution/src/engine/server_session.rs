@@ -14,7 +14,7 @@ use crate::{
             IntermediatePipelineGroup,
         },
     },
-    hybrid::buffer::ServerStreamBuffers,
+    hybrid::{buffer::ServerStreamBuffers, client::HybridPlanResponse},
     logical::sql::{
         binder::{bind_data::BindData, hybrid::HybridResolver, BoundStatement},
         planner::PlanContext,
@@ -23,18 +23,6 @@ use crate::{
     runtime::{NopErrorSink, PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;
-
-/// Output after planning a partially bound query, containing parts of the
-/// pipeline the should be executed on the client.
-#[derive(Debug)]
-pub struct PartialPlannedPipeline {
-    /// Id for the query.
-    query_id: Uuid,
-    /// Pipelines that should be executed on the client.
-    pipelines: IntermediatePipelineGroup,
-    /// Output schema for the query.
-    schema: Schema,
-}
 
 /// A "server" session for doing remote planning and remote execution.
 ///
@@ -92,7 +80,7 @@ where
         &self,
         stmt: BoundStatement,
         bind_data: BindData,
-    ) -> Result<PartialPlannedPipeline> {
+    ) -> Result<HybridPlanResponse> {
         let tx = CatalogTx::new();
         let resolver = HybridResolver::new(&tx, &self.context);
         let bind_data = resolver.resolve_all_unbound(bind_data).await?;
@@ -113,7 +101,7 @@ where
 
         self.pending_pipelines.insert(query_id, pipelines.remote);
 
-        Ok(PartialPlannedPipeline {
+        Ok(HybridPlanResponse {
             query_id,
             pipelines: pipelines.local,
             schema,
