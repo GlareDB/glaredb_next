@@ -5,7 +5,6 @@ mod expr_binder;
 mod resolver;
 
 use std::collections::HashMap;
-use std::fmt;
 
 use bind_data::{
     BindData, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference, ItemReference,
