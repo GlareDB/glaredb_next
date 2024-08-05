@@ -1,11 +1,27 @@
 pub mod planner;
 
-use super::operators::PhysicalOperator;
+use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
+use rayexec_error::{OptionExt, Result};
+use rayexec_proto::ProtoConv;
 use std::{collections::HashMap, sync::Arc};
+
+use super::operators::PhysicalOperator;
 
 /// ID of a single intermediate pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntermediatePipelineId(pub usize);
+
+impl ProtoConv for IntermediatePipelineId {
+    type ProtoType = rayexec_proto::generated::execution::IntermediatePipelineId;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType { id: self.0 as u32 })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self(proto.id as usize))
+    }
+}
 
 /// Location of the sink for a particular pipeline.
 ///
@@ -32,6 +48,58 @@ pub enum PipelineSink {
     OtherGroup { partitions: usize },
 }
 
+impl ProtoConv for PipelineSink {
+    type ProtoType = rayexec_proto::generated::execution::PipelineSink;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::execution::{
+            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkOtherGroup,
+        };
+
+        let value = match self {
+            Self::QueryOutput => Value::QueryOutput(Default::default()),
+            Self::InPipeline => Value::InPipeline(Default::default()),
+            Self::InGroup {
+                pipeline_id,
+                operator_idx,
+                input_idx,
+            } => Value::InGroup(PipelineSinkInGroup {
+                id: Some(pipeline_id.to_proto()?),
+                operator_idx: *operator_idx as u32,
+                input_idx: *input_idx as u32,
+            }),
+            Self::OtherGroup { partitions } => Value::OtherGroup(PipelineSinkOtherGroup {
+                partitions: *partitions as u32,
+            }),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::execution::{
+            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkOtherGroup,
+        };
+
+        Ok(match proto.value.required("value")? {
+            Value::QueryOutput(_) => Self::QueryOutput,
+            Value::InPipeline(_) => Self::InPipeline,
+            Value::InGroup(PipelineSinkInGroup {
+                id,
+                operator_idx,
+                input_idx,
+            }) => Self::InGroup {
+                pipeline_id: IntermediatePipelineId::from_proto(id.required("id")?)?,
+                operator_idx: operator_idx as usize,
+                input_idx: input_idx as usize,
+            },
+            Value::OtherGroup(PipelineSinkOtherGroup { partitions }) => Self::OtherGroup {
+                partitions: partitions as usize,
+            },
+        })
+    }
+}
+
 /// Location of the source of a pipeline.
 ///
 /// Single-node execution will always have the source as the first operator in
@@ -49,6 +117,44 @@ pub enum PipelineSource {
     OtherGroup { partitions: usize },
 }
 
+impl ProtoConv for PipelineSource {
+    type ProtoType = rayexec_proto::generated::execution::PipelineSource;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::execution::{
+            pipeline_source::Value, PipelineSourceOtherGroup, PipelineSourceOtherPipeline,
+        };
+
+        let value = match self {
+            Self::InPipeline => Value::InPipeline(Default::default()),
+            Self::OtherPipeline { pipeline } => Value::OtherPipeline(PipelineSourceOtherPipeline {
+                id: Some(pipeline.to_proto()?),
+            }),
+            Self::OtherGroup { partitions } => Value::OtherGroup(PipelineSourceOtherGroup {
+                partitions: *partitions as u32,
+            }),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::execution::{
+            pipeline_source::Value, PipelineSourceOtherGroup, PipelineSourceOtherPipeline,
+        };
+
+        Ok(match proto.value.required("value")? {
+            Value::InPipeline(_) => Self::InPipeline,
+            Value::OtherPipeline(PipelineSourceOtherPipeline { id }) => Self::OtherPipeline {
+                pipeline: IntermediatePipelineId::from_proto(id.required("id")?)?,
+            },
+            Value::OtherGroup(PipelineSourceOtherGroup { partitions }) => Self::OtherGroup {
+                partitions: partitions as usize,
+            },
+        })
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct IntermediatePipelineGroup {
     pub(crate) pipelines: HashMap<IntermediatePipelineId, IntermediatePipeline>,
@@ -64,12 +170,69 @@ impl IntermediatePipelineGroup {
     }
 }
 
+impl DatabaseProtoConv for IntermediatePipelineGroup {
+    type ProtoType = rayexec_proto::generated::execution::IntermediatePipelineGroup;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            pipelines: self
+                .pipelines
+                .values()
+                .map(|p| p.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            pipelines: proto
+                .pipelines
+                .into_iter()
+                .map(|p| {
+                    let pipeline = IntermediatePipeline::from_proto_ctx(p, context)?;
+                    Ok((pipeline.id, pipeline))
+                })
+                .collect::<Result<HashMap<_, _>>>()?,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct IntermediatePipeline {
     pub(crate) id: IntermediatePipelineId,
     pub(crate) sink: PipelineSink,
     pub(crate) source: PipelineSource,
     pub(crate) operators: Vec<IntermediateOperator>,
+}
+
+impl DatabaseProtoConv for IntermediatePipeline {
+    type ProtoType = rayexec_proto::generated::execution::IntermediatePipeline;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            id: Some(self.id.to_proto()?),
+            sink: Some(self.sink.to_proto()?),
+            source: Some(self.source.to_proto()?),
+            operators: self
+                .operators
+                .iter()
+                .map(|o| o.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            id: IntermediatePipelineId::from_proto(proto.id.required("id")?)?,
+            sink: PipelineSink::from_proto(proto.sink.required("sink")?)?,
+            source: PipelineSource::from_proto(proto.source.required("source")?)?,
+            operators: proto
+                .operators
+                .into_iter()
+                .map(|o| IntermediateOperator::from_proto_ctx(o, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -83,4 +246,25 @@ pub struct IntermediateOperator {
     /// value provided. If unset, it'll default to a value determeded by the
     /// executable pipeline planner.
     pub(crate) partitioning_requirement: Option<usize>,
+}
+
+impl DatabaseProtoConv for IntermediateOperator {
+    type ProtoType = rayexec_proto::generated::execution::IntermediateOperator;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            operator: Some(self.operator.to_proto_ctx(context)?),
+            partitioning_requirement: self.partitioning_requirement.map(|v| v as u32),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            operator: Arc::new(PhysicalOperator::from_proto_ctx(
+                proto.operator.required("operator")?,
+                context,
+            )?),
+            partitioning_requirement: proto.partitioning_requirement.map(|v| v as usize),
+        })
+    }
 }

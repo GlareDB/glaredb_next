@@ -1,11 +1,14 @@
-use crate::{logical::sql::binder::bind_data::BindData, proto::DatabaseProtoConv};
-use rayexec_bullet::batch::Batch;
+use crate::{
+    execution::intermediate::IntermediatePipelineGroup, logical::sql::binder::bind_data::BindData,
+    proto::DatabaseProtoConv,
+};
+use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::{
     reqwest::{Method, Request, StatusCode},
     HttpClient, HttpResponse,
 };
-use rayexec_proto::prost::Message;
+use rayexec_proto::{prost::Message, ProtoConv};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
 use url::Url;
@@ -64,6 +67,39 @@ impl DatabaseProtoConv for HybridPlanRequest {
         Ok(Self {
             statement,
             bind_data: BindData::from_proto_ctx(proto.bind_data.required("bind_data")?, context)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct HybridPlanResponse {
+    /// Id for the query.
+    query_id: Uuid,
+    /// Pipelines that should be executed on the client.
+    pipelines: IntermediatePipelineGroup,
+    /// Output schema for the query.
+    schema: Schema,
+}
+
+impl DatabaseProtoConv for HybridPlanResponse {
+    type ProtoType = rayexec_proto::generated::hybrid::PlanResponse;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            query_id: Some(self.query_id.to_proto()?),
+            pipelines: Some(self.pipelines.to_proto_ctx(context)?),
+            schema: Some(self.schema.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            query_id: Uuid::from_proto(proto.query_id.required("query_id")?)?,
+            pipelines: IntermediatePipelineGroup::from_proto_ctx(
+                proto.pipelines.required("pipelines")?,
+                context,
+            )?,
+            schema: Schema::from_proto(proto.schema.required("schema")?)?,
         })
     }
 }

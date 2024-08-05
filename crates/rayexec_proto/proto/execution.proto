@@ -37,7 +37,7 @@ message DropObject {
         string          function = 2;
         string          table    = 3;
         string          view     = 4;
-        EmptyDropObject schema   = 5; // Schema name already contained in drop info.
+        EmptyDropObject schema   = 5;  // Schema name already contained in drop info.
     }
 }
 
@@ -122,4 +122,65 @@ message PhysicalOperator {
         PhysicalUnion union                            = 12;
         PhysicalValues values                          = 13;
     }
+}
+
+message IntermediatePipelineId {
+    uint32 id = 1;
+}
+
+message PipelineSinkQueryOutput {}
+
+message PipelineSinkInPipeline {}
+
+message PipelineSinkInGroup {
+    IntermediatePipelineId id           = 1;
+    uint32                 operator_idx = 2;
+    uint32                 input_idx    = 3;
+}
+
+message PipelineSinkOtherGroup {
+    uint32 partitions = 1;
+}
+
+message PipelineSink {
+    oneof value {
+        PipelineSinkQueryOutput query_output = 1;
+        PipelineSinkInPipeline  in_pipeline  = 2;
+        PipelineSinkInGroup     in_group     = 3;
+        PipelineSinkOtherGroup  other_group  = 4;
+    }
+}
+
+message PipelineSourceInPipeline {}
+
+message PipelineSourceOtherPipeline {
+    IntermediatePipelineId id = 1;
+}
+
+message PipelineSourceOtherGroup {
+    uint32 partitions = 1;
+}
+
+message PipelineSource {
+    oneof value {
+        PipelineSourceInPipeline    in_pipeline    = 1;
+        PipelineSourceOtherPipeline other_pipeline = 2;
+        PipelineSourceOtherGroup    other_group    = 3;
+    }
+}
+
+message IntermediateOperator {
+    PhysicalOperator operator = 1;
+    optional uint32 partitioning_requirement = 2;
+}
+
+message IntermediatePipeline {
+    IntermediatePipelineId        id        = 1;
+    PipelineSink                  sink      = 2;
+    PipelineSource                source    = 3;
+    repeated IntermediateOperator operators = 4;
+}
+
+message IntermediatePipelineGroup {
+    repeated IntermediatePipeline pipelines = 1;
 }

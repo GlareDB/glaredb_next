@@ -3,6 +3,9 @@ syntax = "proto3";
 package rayexec.hybrid;
 
 import "binder.proto";
+import "foreign.proto";
+import "execution.proto";
+import "schema.proto";
 
 message PlanRequest {
     bytes           bound_statement_json = 1;  // Bytes encoded using serde_json, at some point maybe that all becomes proto.
@@ -10,6 +13,9 @@ message PlanRequest {
 }
 
 message PlanResponse {
+    foreign.Uuid                        query_id  = 1;
+    execution.IntermediatePipelineGroup pipelines = 2;
+    schema.Schema                       schema    = 3;  // Schema
 }
 
 message ExecuteRequest {
