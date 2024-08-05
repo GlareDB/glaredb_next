@@ -2,6 +2,8 @@ pub mod generated;
 pub mod packed;
 pub mod util_types;
 
+pub use prost;
+
 use rayexec_error::Result;
 
 /// Convert type to/from their protobuf representations.

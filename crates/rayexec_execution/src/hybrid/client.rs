@@ -1,13 +1,17 @@
-use futures::future::BoxFuture;
+use crate::{logical::sql::binder::bind_data::BindData, proto::DatabaseProtoConv};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::{
     reqwest::{Method, Request, StatusCode},
     HttpClient, HttpResponse,
 };
+use rayexec_proto::prost::Message;
+use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
 use url::Url;
 use uuid::Uuid;
+
+use crate::{database::DatabaseContext, logical::sql::binder::BoundStatement};
 
 use super::stream::StreamId;
 
@@ -30,6 +34,38 @@ pub struct Endpoints {
     pub rpc_hybrid_push: &'static str,
     pub rpc_hybrid_finalize: &'static str,
     pub rpc_hybrid_pull: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HybridPlanRequest {
+    /// The sql statement we're planning.
+    ///
+    /// This includes partially bound items that reference the things in the
+    /// bind data.
+    pub statement: BoundStatement,
+    pub bind_data: BindData,
+}
+
+impl DatabaseProtoConv for HybridPlanRequest {
+    type ProtoType = rayexec_proto::generated::hybrid::PlanRequest;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        let statement =
+            serde_json::to_vec(&self.statement).context("failed to encode statement")?;
+        Ok(Self::ProtoType {
+            bound_statement_json: statement,
+            bind_data: Some(self.bind_data.to_proto_ctx(context)?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        let statement = serde_json::from_slice(&proto.bound_statement_json)
+            .context("failed to decode statement")?;
+        Ok(Self {
+            statement,
+            bind_data: BindData::from_proto_ctx(proto.bind_data.required("bind_data")?, context)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

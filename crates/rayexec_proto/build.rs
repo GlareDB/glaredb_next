@@ -10,6 +10,7 @@ fn main() {
             "proto/ast/raw.proto",
             "proto/logical.proto",
             "proto/foreign.proto",
+            "proto/hybrid.proto",
         ],
         &["proto"],
     ) {

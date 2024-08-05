@@ -1974,10 +1974,10 @@ dependencies = [
  "rayexec_io",
  "rayexec_parser",
  "rayexec_proto",
- "rayexec_server_client",
  "rayon",
  "regex",
  "serde",
+ "serde_bytes",
  "serde_json",
  "smallvec",
  "tokio",
@@ -2095,23 +2095,11 @@ dependencies = [
  "rayexec_parquet",
  "rayexec_postgres",
  "rayexec_rt_native",
- "rayexec_server_client",
  "serde",
  "serde_json",
  "tokio",
  "tower-http",
  "tracing",
-]
-
-[[package]]
-name = "rayexec_server_client"
-version = "0.0.22"
-dependencies = [
- "rayexec_error",
- "reqwest",
- "serde",
- "serde_bytes",
- "url",
 ]
 
 [[package]]
@@ -2123,7 +2111,6 @@ dependencies = [
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
- "rayexec_server_client",
  "tokio",
  "tracing",
  "url",
