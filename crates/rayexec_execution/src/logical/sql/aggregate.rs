@@ -9,7 +9,7 @@ use crate::logical::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::{binder::bound_ast::Bound, expr::ExpressionContext};
+use super::{binder::Bound, expr::ExpressionContext};
 
 /// Logic for planning aggregates and group bys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

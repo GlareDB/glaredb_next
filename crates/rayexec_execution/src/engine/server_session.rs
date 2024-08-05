@@ -9,7 +9,7 @@ use serde::{de::DeserializeSeed, Deserializer, Serialize};
 use crate::{
     database::DatabaseContext,
     datasource::DataSourceRegistry,
-    logical::sql::binder::{bind_data::BindData, bound_ast::BoundStatement},
+    logical::sql::binder::{bind_data::BindData, BoundStatement},
     runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;

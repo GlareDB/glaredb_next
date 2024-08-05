@@ -19,7 +19,7 @@ use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
 use super::binder::bind_data::BoundFunctionReference;
-use super::binder::bound_ast::Bound;
+use super::binder::Bound;
 use super::query::QueryNodePlanner;
 use super::scope::{Scope, TableReference};
 

@@ -1,5 +1,4 @@
 pub mod bind_data;
-pub mod bound_ast;
 pub mod hybrid;
 
 mod expr_binder;
@@ -12,7 +11,6 @@ use bind_data::{
     BindData, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference, ItemReference,
     MaybeBound, UnboundTableFunctionReference,
 };
-use bound_ast::{Bound, BoundStatement};
 use expr_binder::ExpressionBinder;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
@@ -34,9 +32,36 @@ use serde::{Deserialize, Serialize};
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
+    expr::scalar::{BinaryOperator, UnaryOperator},
     functions::{copy::CopyToFunction, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
 };
+
+/// An AST statement with references bound to data inside of the `bind_data`.
+pub type BoundStatement = Statement<Bound>;
+
+/// Implementation of `AstMeta` which annotates the AST query with
+/// tables/functions/etc found in the db.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Bound;
+
+impl AstMeta for Bound {
+    type DataSourceName = String;
+    type ItemReference = ItemReference;
+    type TableReference = BindListIdx;
+    type TableFunctionReference = BindListIdx;
+    // TODO: Having this be the actual table function args does require that we
+    // clone them, and the args that go back into the ast don't actually do
+    // anything, they're never referenced again.
+    type TableFunctionArgs = TableFunctionArgs;
+    type CteReference = CteReference;
+    type FunctionReference = BindListIdx;
+    type ColumnReference = String;
+    type DataType = DataType;
+    type CopyToDestination = BoundCopyTo; // TODO: Move this here.
+    type BinaryOperator = BinaryOperator;
+    type UnaryOperator = UnaryOperator;
+}
 
 /// Simple wrapper around a bound statement and its bind data.
 ///
