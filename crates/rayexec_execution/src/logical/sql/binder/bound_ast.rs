@@ -4,7 +4,10 @@ use rayexec_error::Result;
 use rayexec_parser::{ast, meta::AstMeta, statement::Statement};
 
 use crate::{
-    database::DatabaseContext, functions::table::TableFunctionArgs, proto::DatabaseProtoConv,
+    database::DatabaseContext,
+    expr::scalar::{BinaryOperator, UnaryOperator},
+    functions::table::TableFunctionArgs,
+    proto::DatabaseProtoConv,
 };
 
 use super::{
@@ -34,6 +37,8 @@ impl AstMeta for Bound {
     type ColumnReference = String;
     type DataType = DataType;
     type CopyToDestination = BoundCopyTo; // TODO: Move this here.
+    type BinaryOperator = BinaryOperator;
+    type UnaryOperator = UnaryOperator;
 }
 
 impl DatabaseProtoConv for Statement<Bound> {

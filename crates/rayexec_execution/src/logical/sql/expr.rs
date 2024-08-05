@@ -215,12 +215,6 @@ impl<'a> ExpressionContext<'a> {
             }
             ast::Expr::UnaryExpr { op, expr } => {
                 let expr = self.plan_expression(context, *expr)?;
-                let op = match op {
-                    ast::UnaryOperator::Plus => return Ok(expr), // Nothing to do.
-                    ast::UnaryOperator::Minus => UnaryOperator::Negate,
-                    ast::UnaryOperator::Not => unimplemented!(),
-                };
-
                 let scalar = op
                     .scalar_function()
                     .plan_from_expressions(&[&expr], self.input)?;
@@ -231,7 +225,6 @@ impl<'a> ExpressionContext<'a> {
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
-                let op = BinaryOperator::try_from(op)?;
                 let left = self.plan_expression(context, *left)?;
                 let right = self.plan_expression(context, *right)?;
 

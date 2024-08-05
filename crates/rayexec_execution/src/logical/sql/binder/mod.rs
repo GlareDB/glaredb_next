@@ -2,7 +2,7 @@ pub mod bind_data;
 pub mod bound_ast;
 pub mod hybrid;
 
-mod exprbinder;
+mod expr_binder;
 mod resolver;
 
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use bind_data::{
     MaybeBound, UnboundTableFunctionReference,
 };
 use bound_ast::{Bound, BoundStatement};
-use exprbinder::ExpressionBinder;
+use expr_binder::ExpressionBinder;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{

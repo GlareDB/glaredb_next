@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
+    expr::scalar::{BinaryOperator, UnaryOperator},
     functions::table::TableFunctionArgs,
     logical::{operator::LocationRequirement, sql::expr::ExpressionContext},
 };
@@ -245,18 +246,29 @@ impl<'a> ExpressionBinder<'a> {
                     subscript: Box::new(subscript),
                 })
             }
-            ast::Expr::UnaryExpr { op, expr } => match (op, *expr) {
-                (ast::UnaryOperator::Minus, ast::Expr::Literal(ast::Literal::Number(n))) => {
-                    Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
+            ast::Expr::UnaryExpr { op, expr } => {
+                match op {
+                    ast::UnaryOperator::Plus => {
+                        // Nothing to do, just bind and return the inner expression.
+                        Box::pin(self.bind_expression(*expr, bind_data)).await
+                    }
+                    ast::UnaryOperator::Minus => match *expr {
+                        ast::Expr::Literal(ast::Literal::Number(n)) => {
+                            Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
+                        }
+                        expr => Ok(ast::Expr::UnaryExpr {
+                            op: UnaryOperator::Negate,
+                            expr: Box::new(Box::pin(self.bind_expression(expr, bind_data)).await?),
+                        }),
+                    },
+                    ast::UnaryOperator::Not => {
+                        not_implemented!("bind not")
+                    }
                 }
-                (_, expr) => Ok(ast::Expr::UnaryExpr {
-                    op,
-                    expr: Box::new(Box::pin(self.bind_expression(expr, bind_data)).await?),
-                }),
-            },
+            }
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.bind_expression(*left, bind_data)).await?),
-                op,
+                op: op.try_into()?,
                 right: Box::new(Box::pin(self.bind_expression(*right, bind_data)).await?),
             }),
             ast::Expr::Function(func) => {

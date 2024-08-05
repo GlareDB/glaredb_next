@@ -1,5 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
+use rayexec_proto::ProtoConv;
 use std::fmt;
 
 use crate::functions::scalar::{
@@ -39,6 +40,31 @@ impl fmt::Display for UnaryOperator {
             Self::IsNotNull => write!(f, "IS NOT NULL"),
             Self::Negate => write!(f, "-"),
         }
+    }
+}
+
+impl ProtoConv for UnaryOperator {
+    type ProtoType = rayexec_proto::generated::logical::UnaryOperator;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(match self {
+            Self::IsTrue => Self::ProtoType::UnaryIsTrue,
+            Self::IsFalse => Self::ProtoType::UnaryIsFalse,
+            Self::IsNull => Self::ProtoType::UnaryIsNull,
+            Self::IsNotNull => Self::ProtoType::UnaryIsNotNull,
+            Self::Negate => Self::ProtoType::UnaryNegate,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(match proto {
+            Self::ProtoType::InvalidUnaryOperator => return Err(RayexecError::new("invalid")),
+            Self::ProtoType::UnaryIsTrue => Self::IsTrue,
+            Self::ProtoType::UnaryIsFalse => Self::IsFalse,
+            Self::ProtoType::UnaryIsNull => Self::IsNull,
+            Self::ProtoType::UnaryIsNotNull => Self::IsNotNull,
+            Self::ProtoType::UnaryNegate => Self::Negate,
+        })
     }
 }
 
