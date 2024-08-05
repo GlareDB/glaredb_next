@@ -280,7 +280,7 @@ where
         })
     }
 
-    pub fn set_hybrid_client(&mut self, client: Arc<dyn HybridClient>) {
+    pub fn set_hybrid_client(&mut self, client: Arc<HybridClient<R::HttpClient>>) {
         self.hybrid_client = Some(client);
     }
 

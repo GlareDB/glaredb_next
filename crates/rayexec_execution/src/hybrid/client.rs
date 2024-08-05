@@ -1,15 +1,15 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
-use rayexec_io::http::{reqwest::StatusCode, HttpClient};
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_io::http::{
+    reqwest::{Method, Request, StatusCode},
+    HttpClient, HttpResponse,
+};
 use std::fmt::Debug;
 use url::Url;
 use uuid::Uuid;
 
-use crate::{
-    execution::executable::pipeline::ExecutablePartitionPipeline,
-    logical::sql::binder::StatementWithBindData,
-};
+use super::stream::StreamId;
 
 pub const API_VERSION: usize = 0;
 
@@ -33,21 +33,6 @@ pub struct HybridConnectConfig {
     pub remote: Url,
 }
 
-// pub trait HybridClient: Debug + Sync + Send {
-//     fn ping(&self) -> BoxFuture<'_, Result<()>>;
-
-//     fn remote_bind(
-//         &self,
-//         statement: StatementWithBindData,
-//     ) -> BoxFuture<'_, Result<Vec<ExecutablePartitionPipeline>>>;
-
-//     // TODO: batch enum (more?, done?), query id
-//     fn pull(&self) -> BoxFuture<'_, Result<Option<Batch>>>;
-
-//     // TODO: Query id
-//     fn push(&self, batch: Batch) -> BoxFuture<'_, Result<()>>;
-// }
-
 #[derive(Debug)]
 pub enum PullStatus {
     Batch(Batch),
@@ -57,6 +42,7 @@ pub enum PullStatus {
 
 #[derive(Debug)]
 pub struct HybridClient<C: HttpClient> {
+    url: Url,
     client: C,
 }
 
@@ -68,8 +54,7 @@ impl<C: HttpClient> HybridClient<C> {
             .context("failed to parse healthz url")?;
         let resp = self
             .client
-            .get(url)
-            .send()
+            .do_request(Request::new(Method::GET, url))
             .await
             .context("failed to send request")?;
 
@@ -83,15 +68,15 @@ impl<C: HttpClient> HybridClient<C> {
         Ok(())
     }
 
-    pub async fn push(&self, query_id: &Uuid, partition: usize, batch: Batch) -> Result<()> {
+    pub async fn push(&self, stream_id: &StreamId, partition: usize, batch: Batch) -> Result<()> {
         unimplemented!()
     }
 
-    pub async fn finalize(&self, query_id: &Uuid, partition: usize) -> Result<()> {
+    pub async fn finalize(&self, stream_id: &StreamId, partition: usize) -> Result<()> {
         unimplemented!()
     }
 
-    pub async fn pull(&self, query_id: &Uuid, partition: usize) -> Result<PullStatus> {
+    pub async fn pull(&self, stream_id: &StreamId, partition: usize) -> Result<PullStatus> {
         unimplemented!()
     }
 }

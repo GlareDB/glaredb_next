@@ -28,9 +28,6 @@ pub mod ast {
     pub mod raw {
         include!(concat!(env!("OUT_DIR"), "/rayexec.ast.raw.rs"));
     }
-    pub mod bound {
-        include!(concat!(env!("OUT_DIR"), "/rayexec.ast.bound.rs"));
-    }
 }
 
 pub mod logical {
