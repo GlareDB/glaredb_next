@@ -1,7 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-
 use rayexec_error::Result;
 use rayexec_parser::statement::Statement;
 use serde::{de::DeserializeSeed, Deserializer, Serialize};
@@ -9,6 +5,7 @@ use serde::{de::DeserializeSeed, Deserializer, Serialize};
 use crate::{
     database::DatabaseContext,
     datasource::DataSourceRegistry,
+    hybrid::buffer::ServerStreamBuffers,
     logical::sql::binder::{bind_data::BindData, BoundStatement},
     runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
@@ -25,6 +22,9 @@ pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
 
     /// Registered data source implementations.
     registry: Arc<DataSourceRegistry>,
+
+    /// Hybrid execution streams.
+    streams: ServerStreamBuffers,
 
     executor: P,
     runtime: R,
@@ -44,6 +44,7 @@ where
         ServerSession {
             context,
             registry,
+            streams: ServerStreamBuffers::default(),
             executor,
             runtime,
         }
@@ -85,10 +86,4 @@ where
         // "stateless" pipelines.
         unimplemented!()
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct HybridExecuteRequest {
-    pub stmt: BoundStatement,
-    pub bind_data: BindData,
 }

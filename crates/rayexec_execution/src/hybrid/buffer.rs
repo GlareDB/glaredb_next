@@ -1,11 +1,12 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     future::Future,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Waker},
 };
 
+use dashmap::DashMap;
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -21,14 +22,18 @@ use crate::{
 
 use super::{client::PullStatus, stream::StreamId};
 
-#[derive(Debug)]
+/// Holds streams used for hybrid execution.
+// TODO: Remove old streams.
+#[derive(Debug, Default)]
 pub struct ServerStreamBuffers {
-    incoming: HashMap<StreamId, IncomingStream>,
-    outgoing: HashMap<StreamId, OutgoingStream>,
+    /// Streams that are sending batches to the server.
+    incoming: DashMap<StreamId, IncomingStream>,
+    /// Streams that are sending batches to the client.
+    outgoing: DashMap<StreamId, OutgoingStream>,
 }
 
 impl ServerStreamBuffers {
-    pub fn push(&mut self, stream_id: &StreamId, batch: Batch) -> Result<()> {
+    pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
         let incoming = self.incoming.get(stream_id).ok_or_else(|| {
             RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
         })?;
@@ -43,7 +48,7 @@ impl ServerStreamBuffers {
         Ok(())
     }
 
-    pub fn finalize(&mut self, stream_id: &StreamId) -> Result<()> {
+    pub fn finalize_stream(&self, stream_id: &StreamId) -> Result<()> {
         let incoming = self.incoming.get(stream_id).ok_or_else(|| {
             RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
         })?;
@@ -58,7 +63,7 @@ impl ServerStreamBuffers {
         Ok(())
     }
 
-    pub fn pull(&mut self, stream_id: &StreamId) -> Result<PullStatus> {
+    pub fn pull_batch_for_stream(&self, stream_id: &StreamId) -> Result<PullStatus> {
         let outgoing = self.outgoing.get(stream_id).ok_or_else(|| {
             RayexecError::new(format!("Missing outgoing stream with id: {stream_id:?}"))
         })?;
@@ -85,7 +90,11 @@ pub struct OutgoingStream {
 
 impl QuerySink for OutgoingStream {
     fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>> {
-        unimplemented!()
+        assert_eq!(1, num_sinks);
+
+        vec![Box::new(OutgoingPartitionStream {
+            state: self.state.clone(),
+        })]
     }
 
     fn partition_requirement(&self) -> Option<usize> {
