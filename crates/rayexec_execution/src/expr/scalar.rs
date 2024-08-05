@@ -1,6 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::functions::scalar::{
@@ -13,7 +14,7 @@ pub struct PlannedUnaryOperator {
     pub scalar: Box<dyn PlannedScalarFunction>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum UnaryOperator {
     IsTrue,
     IsFalse,
@@ -74,7 +75,7 @@ pub struct PlannedBinaryOperator {
     pub scalar: Box<dyn PlannedScalarFunction>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BinaryOperator {
     Eq,
     NotEq,

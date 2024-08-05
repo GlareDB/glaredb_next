@@ -1,3 +1,5 @@
+// TODO: Not sure if we actually want this.
+
 syntax = "proto3";
 
 package rayexec.ast.bound;

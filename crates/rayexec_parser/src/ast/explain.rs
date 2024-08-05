@@ -7,13 +7,13 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, QueryNode};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ExplainOutput {
     Text,
     Json,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExplainNode<T: AstMeta> {
     pub analyze: bool,
     pub verbose: bool,
@@ -21,7 +21,7 @@ pub struct ExplainNode<T: AstMeta> {
     pub output: Option<ExplainOutput>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExplainBody<T: AstMeta> {
     Query(QueryNode<T>),
 }

@@ -18,35 +18,35 @@ use crate::ast::{
 /// resolved tables and types.
 pub trait AstMeta: Clone {
     /// Name of a data source for ATTACH.
-    type DataSourceName: Debug + Clone + PartialEq;
+    type DataSourceName: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to item that might not have any associated context with it.
-    type ItemReference: Debug + Clone + PartialEq;
+    type ItemReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a table.
-    type TableReference: Debug + Clone + PartialEq;
+    type TableReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a table function.
-    type TableFunctionReference: Debug + Clone + PartialEq;
+    type TableFunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Arguments to a table function.
-    type TableFunctionArgs: Debug + Clone + PartialEq;
+    type TableFunctionArgs: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
-    type CteReference: Debug + Clone + PartialEq;
+    type CteReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a scalar or aggregate function.
-    type FunctionReference: Debug + Clone + PartialEq;
+    type FunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a column.
-    type ColumnReference: Debug + Clone + PartialEq;
+    type ColumnReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// A data type.
-    type DataType: Debug + Clone + PartialEq;
+    type DataType: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
-    type CopyToDestination: Debug + Clone + PartialEq;
+    type CopyToDestination: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
-    type BinaryOperator: Debug + Clone + PartialEq;
-    type UnaryOperator: Debug + Clone + PartialEq;
+    type BinaryOperator: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+    type UnaryOperator: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 }
 
 /// The raw representation of a statement.

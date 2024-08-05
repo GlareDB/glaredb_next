@@ -9,19 +9,19 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, ObjectReference, QueryNode};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CopyToSource<T: AstMeta> {
     Query(QueryNode<T>),
     // TODO: Include optional columns.
     Table(T::TableReference),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CopyToTarget {
     File(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CopyTo<T: AstMeta> {
     pub source: CopyToSource<T>,
     pub target: T::CopyToDestination,

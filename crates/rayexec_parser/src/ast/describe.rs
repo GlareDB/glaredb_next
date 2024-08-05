@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, FromNode, QueryNode};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Describe<T: AstMeta> {
     /// DESCRIBE <query>
     Query(QueryNode<T>),

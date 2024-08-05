@@ -29,6 +29,7 @@ use rayexec_parser::{
     statement::{RawStatement, Statement},
 };
 use resolver::Resolver;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -49,10 +50,12 @@ pub struct StatementWithBindData {
     pub bind_data: BindData,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+// TODO: Move func to bind data
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCopyTo {
     pub location: FileLocation,
     // TODO: Remote skip and Option when serializing is figured out.
+    #[serde(skip)]
     pub func: Option<Box<dyn CopyToFunction>>,
 }
 

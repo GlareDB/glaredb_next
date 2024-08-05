@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DistinctModifier, Expr, FromNode, Ident, ObjectReference};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SelectNode<T: AstMeta> {
     /// DISTINCT [ON]
     pub distinct: Option<DistinctModifier<T>>,
@@ -71,7 +71,7 @@ impl AstParseable for SelectNode<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SelectExpr<T: AstMeta> {
     /// An unaliases expression.
     Expr(Expr<T>),
@@ -111,7 +111,7 @@ impl AstParseable for SelectExpr<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Wildcard<T: AstMeta> {
     /// Columns to exclude in the star select.
     ///
@@ -212,13 +212,13 @@ impl AstParseable for WildcardExpr<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplaceColumn<T: AstMeta> {
     pub col: Ident,
     pub expr: Expr<T>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GroupByNode<T: AstMeta> {
     All,
     Exprs { exprs: Vec<GroupByExpr<T>> },
@@ -235,7 +235,7 @@ impl AstParseable for GroupByNode<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GroupByExpr<T: AstMeta> {
     /// `GROUP BY <expr>[, ...]`
     Expr(Vec<Expr<T>>),

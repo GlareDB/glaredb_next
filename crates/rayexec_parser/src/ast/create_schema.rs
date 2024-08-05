@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, ObjectReference};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateSchema<T: AstMeta> {
     pub if_not_exists: bool,
     pub name: T::ItemReference,

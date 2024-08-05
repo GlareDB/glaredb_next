@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Ident, QueryNode};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommonTableExprDefs<T: AstMeta> {
     pub recursive: bool,
     pub ctes: Vec<T::CteReference>,
@@ -25,7 +25,7 @@ impl AstParseable for CommonTableExprDefs<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommonTableExpr<T: AstMeta> {
     pub alias: Ident,
     pub column_aliases: Option<Vec<Ident>>,

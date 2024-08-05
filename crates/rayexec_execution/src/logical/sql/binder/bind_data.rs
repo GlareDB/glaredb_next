@@ -1,6 +1,7 @@
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 use rayexec_proto::ProtoConv;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::{
@@ -272,7 +273,7 @@ pub struct BindList<B, U> {
 }
 
 /// Index into the bind list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BindListIdx(pub usize);
 
 impl<B, U> BindList<B, U> {
@@ -521,7 +522,7 @@ impl ProtoConv for BoundTableOrCteReference {
 ///
 /// Note that this doesn't hold the CTE itself since it may be referenced more
 /// than once in a query.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CteReference {
     /// Index into the CTE map.
     pub idx: usize,
@@ -545,7 +546,7 @@ impl ProtoConv for CteReference {
 
 // TODO: Figure out how we want to represent things like tables in a CREATE
 // TABLE. We don't want to resolve, so a vec of strings works for now.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItemReference(pub Vec<String>);
 
 impl ItemReference {

@@ -2,6 +2,7 @@
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 use rayexec_parser::{ast, meta::AstMeta, statement::Statement};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     database::DatabaseContext,
@@ -20,7 +21,7 @@ pub type BoundStatement = Statement<Bound>;
 
 /// Implementation of `AstMeta` which annotates the AST query with
 /// tables/functions/etc found in the db.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Bound;
 
 impl AstMeta for Bound {
@@ -39,16 +40,4 @@ impl AstMeta for Bound {
     type CopyToDestination = BoundCopyTo; // TODO: Move this here.
     type BinaryOperator = BinaryOperator;
     type UnaryOperator = UnaryOperator;
-}
-
-impl DatabaseProtoConv for Statement<Bound> {
-    type ProtoType = rayexec_proto::generated::ast::bound::Statement;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-    }
 }
