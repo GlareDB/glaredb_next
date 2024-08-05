@@ -1,5 +1,4 @@
 pub mod dump;
-pub mod hybrid;
 
 use std::fmt::Debug;
 use std::sync::Arc;

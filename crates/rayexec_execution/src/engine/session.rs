@@ -10,6 +10,7 @@ use crate::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
     },
+    hybrid::client::HybridClient,
     logical::{
         context::QueryContext,
         operator::{LogicalOperator, VariableOrAll},
@@ -19,7 +20,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::{hybrid::HybridClient, PipelineExecutor, Runtime},
+    runtime::{PipelineExecutor, Runtime},
 };
 
 use super::{
@@ -80,7 +81,7 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     portals: HashMap<String, Portal>,
 
     /// Client for hybrid execution if enabled.
-    hybrid_client: Option<Arc<dyn HybridClient>>,
+    hybrid_client: Option<Arc<HybridClient<R::HttpClient>>>,
 }
 
 impl<P, R> Session<P, R>

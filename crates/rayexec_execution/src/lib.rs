@@ -4,6 +4,7 @@ pub mod engine;
 pub mod execution;
 pub mod expr;
 pub mod functions;
+pub mod hybrid;
 pub mod logical;
 pub mod optimizer;
 pub mod proto;

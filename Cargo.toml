@@ -33,3 +33,4 @@ serde = { version = "1.0.204", features = ["derive", "rc"] }
 erased-serde = "0.4.5"
 serde_json = { version = "1.0", features = ["std"] }
 bytes = "1.6.0"
+uuid = "1.10.0"

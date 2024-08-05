@@ -18,6 +18,7 @@ pub mod scan;
 pub mod simple;
 pub mod sink;
 pub mod sort;
+pub mod source;
 pub mod table_function;
 pub mod ungrouped_aggregate;
 pub mod union;
