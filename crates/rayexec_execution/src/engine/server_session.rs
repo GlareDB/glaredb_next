@@ -1,17 +1,18 @@
 use dashmap::DashMap;
 use rayexec_bullet::field::Schema;
-use rayexec_error::Result;
-use rayexec_parser::statement::Statement;
-use serde::{de::DeserializeSeed, Deserializer, Serialize};
+use rayexec_error::{RayexecError, Result};
 use uuid::Uuid;
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::DataSourceRegistry,
     engine::vars::SessionVars,
-    execution::intermediate::{
-        planner::{IntermediateConfig, IntermediatePipelinePlanner},
-        IntermediatePipeline, IntermediatePipelineGroup,
+    execution::{
+        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
+        intermediate::{
+            planner::{IntermediateConfig, IntermediatePipelinePlanner},
+            IntermediatePipelineGroup,
+        },
     },
     hybrid::buffer::ServerStreamBuffers,
     logical::sql::{
@@ -19,7 +20,7 @@ use crate::{
         planner::PlanContext,
     },
     optimizer::Optimizer,
-    runtime::{PipelineExecutor, QueryHandle, Runtime},
+    runtime::{NopErrorSink, PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;
 
@@ -50,7 +51,8 @@ pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
     /// Hybrid execution streams.
     streams: ServerStreamBuffers,
 
-    pending_pipelines: DashMap<Uuid, IntermediatePipeline>,
+    pending_pipelines: DashMap<Uuid, IntermediatePipelineGroup>,
+    executing_pipelines: DashMap<Uuid, Box<dyn QueryHandle>>,
 
     executor: P,
     runtime: R,
@@ -72,6 +74,7 @@ where
             registry,
             streams: ServerStreamBuffers::default(),
             pending_pipelines: DashMap::new(),
+            executing_pipelines: DashMap::new(),
             executor,
             runtime,
         }
@@ -104,32 +107,39 @@ where
         let schema = logical.schema()?;
 
         let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default());
-        // let pipelines = planner.plan_pipelines(logical.root, context, sink)
+        let pipelines = planner.plan_pipelines(logical.root, context)?;
 
-        // TODO: Check the statement and complete anything pending.
-        // Straightforward.
-        unimplemented!()
+        let query_id = Uuid::new_v4();
+
+        self.pending_pipelines.insert(query_id, pipelines.remote);
+
+        Ok(PartialPlannedPipeline {
+            query_id,
+            pipelines: pipelines.local,
+            schema,
+        })
     }
 
-    /// Plans a hyrbid query graph from a completely bound statement.
-    pub fn plan_hybrid_graph(&self, stmt: BoundStatement, bind_data: BindData) -> Result<()> {
-        // TODO: Statement -> logical with typical planning.
-        //
-        // Logical -> "stateless" pipeline. Will not be returning a query graph,
-        // but pre-marked pipelines with locations where to execute.
-        //
-        // Handler should serialize "client" pipelines and send back to client.
-        // "server" pipelines should immediately start executing.
-        unimplemented!()
-    }
+    pub fn execute_pending(&self, query_id: Uuid) -> Result<()> {
+        let (_, group) = self.pending_pipelines.remove(&query_id).ok_or_else(|| {
+            RayexecError::new(format!("Missing pending pipeline for id: {query_id}"))
+        })?;
 
-    pub fn execute_pipelines(&self, pipelines: Vec<()>) {
-        // TODO: Accept "stateless" pipelines. Inflate with states. Execute.
-        //
-        // Return something to allow remote cancelation (uuid).
-        //
-        // Probably change ExecutionRuntime to handle "state inflation" on
-        // "stateless" pipelines.
-        unimplemented!()
+        let mut planner = ExecutablePipelinePlanner::new(
+            &self.context,
+            ExecutionConfig {
+                target_partitions: num_cpus::get(),
+            },
+            None,
+        );
+
+        let pipelines = planner.plan_from_intermediate(group)?;
+        let handle = self
+            .executor
+            .spawn_pipelines(pipelines, Arc::new(NopErrorSink));
+
+        self.executing_pipelines.insert(query_id, handle);
+
+        Ok(())
     }
 }
