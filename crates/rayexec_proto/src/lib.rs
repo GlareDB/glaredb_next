@@ -32,3 +32,36 @@ pub mod testutil {
         assert_eq!(val, got);
     }
 }
+
+pub mod foreign_impls {
+    use crate::ProtoConv;
+    use rayexec_error::{Result, ResultExt};
+    use uuid::Uuid;
+
+    impl ProtoConv for Uuid {
+        type ProtoType = crate::generated::foreign::Uuid;
+
+        fn to_proto(&self) -> Result<Self::ProtoType> {
+            Ok(Self::ProtoType {
+                value: self.as_bytes().to_vec(),
+            })
+        }
+
+        fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+            Ok(Self::from_slice(&proto.value).context("not a uuid slice")?)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use crate::testutil::assert_proto_roundtrip;
+
+        use super::*;
+
+        #[test]
+        fn uuid() {
+            let v = Uuid::new_v4();
+            assert_proto_roundtrip(v);
+        }
+    }
+}

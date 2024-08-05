@@ -33,3 +33,7 @@ pub mod ast {
 pub mod logical {
     include!(concat!(env!("OUT_DIR"), "/rayexec.logical.rs"));
 }
+
+pub mod foreign {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.foreign.rs"));
+}

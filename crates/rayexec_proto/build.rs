@@ -9,6 +9,7 @@ fn main() {
             "proto/binder.proto",
             "proto/ast/raw.proto",
             "proto/logical.proto",
+            "proto/foreign.proto",
         ],
         &["proto"],
     ) {

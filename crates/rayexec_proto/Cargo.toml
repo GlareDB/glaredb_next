@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
 prost = "0.13"
+uuid = { workspace = true }
 
 [build-dependencies]
 prost-build = "0.13"

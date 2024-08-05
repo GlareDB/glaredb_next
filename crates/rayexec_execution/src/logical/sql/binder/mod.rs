@@ -62,18 +62,6 @@ impl AstMeta for Bound {
     type UnaryOperator = UnaryOperator;
 }
 
-/// Simple wrapper around a bound statement and its bind data.
-///
-/// This also requires custom (de)serializations logic due to the stateful
-/// nature of deserializing functions. While the manual serialization
-/// implementation isn't needed, having it makes it easier to determine the
-/// correct deserialization logic.
-#[derive(Debug, PartialEq)]
-pub struct StatementWithBindData {
-    pub statement: BoundStatement,
-    pub bind_data: BindData,
-}
-
 // TODO: Move func to bind data
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCopyTo {

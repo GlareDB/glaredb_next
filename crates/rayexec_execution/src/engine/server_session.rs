@@ -50,12 +50,15 @@ where
         }
     }
 
-    /// Completes binding for a statement.
+    /// Plans a partially bound query, preparing it for execution.
+    ///
+    /// An intermediate pipeline group will be returned. This is expected to be
+    /// sent back to the client for execution.
     ///
     /// Failing to complete binding (e.g. unable to resolve a table) should
     /// result in an error. Otherwise we can assume that all references are
     /// bound and we can continue with planning for hybrid exec.
-    pub async fn complete_binding(
+    pub async fn plan_partially_bound(
         &self,
         stmt: BoundStatement,
         bind_data: BindData,
