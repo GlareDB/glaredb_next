@@ -4,6 +4,7 @@ package rayexec.ast.bound;
 
 import "ast/raw.proto";
 import "binder.proto";
+import "logical.proto";
 import "expr.proto";
 import "schema.proto";
 
@@ -209,13 +210,13 @@ message ArraySubscriptExpr {
 }
 
 message UnaryExpr {
-    ast.raw.UnaryOperator op   = 1;
+    logical.UnaryOperator op   = 1;
     Expr                  expr = 2;
 }
 
 message BinaryExpr {
     Expr                   left  = 1;
-    ast.raw.BinaryOperator op    = 2;
+    logical.BinaryOperator op    = 2;
     Expr                   right = 3;
 }
 
