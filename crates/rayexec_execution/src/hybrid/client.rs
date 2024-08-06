@@ -15,8 +15,7 @@ use rayexec_io::http::{
     reqwest::{Method, Request, StatusCode},
     HttpClient, HttpResponse,
 };
-use rayexec_proto::{prost::Message, ProtoConv};
-use serde::{Deserialize, Serialize, Serializer};
+use rayexec_proto::ProtoConv;
 use std::fmt::Debug;
 use std::io::Cursor;
 use url::Url;
@@ -176,20 +175,67 @@ pub struct HybridFinalizeRequest {
     pub partition: usize,
 }
 
+impl ProtoConv for HybridFinalizeRequest {
+    type ProtoType = rayexec_proto::generated::hybrid::FinalizeRequest;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            stream_id: Some(self.stream_id.to_proto()?),
+            partition: self.partition as u32,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
+            partition: proto.partition as usize,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct HybridPullRequest {
     pub stream_id: StreamId,
     pub partition: usize,
 }
 
-#[derive(Debug)]
-pub struct HybridPullResponse {
-    pub batch: IpcBatch,
+impl ProtoConv for HybridPullRequest {
+    type ProtoType = rayexec_proto::generated::hybrid::PullRequest;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            stream_id: Some(self.stream_id.to_proto()?),
+            partition: self.partition as u32,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
+            partition: proto.partition as usize,
+        })
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HybridConnectConfig {
-    pub remote: Url,
+#[derive(Debug)]
+pub struct HybridPullResponse {
+    pub status: PullStatus,
+}
+
+impl ProtoConv for HybridPullResponse {
+    type ProtoType = rayexec_proto::generated::hybrid::PullResponse;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            status: Some(self.status.to_proto()?),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            status: PullStatus::from_proto(proto.status.required("status")?)?,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -197,6 +243,41 @@ pub enum PullStatus {
     Batch(IpcBatch),
     Pending,
     Finished,
+}
+
+impl ProtoConv for PullStatus {
+    type ProtoType = rayexec_proto::generated::hybrid::PullStatus;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::hybrid::{pull_status::Value, PullStatusBatch};
+
+        let value = match self {
+            Self::Batch(batch) => Value::Batch(PullStatusBatch {
+                batch: Some(batch.to_proto()?),
+            }),
+            Self::Pending => Value::Pending(Default::default()),
+            Self::Finished => Value::Finished(Default::default()),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::hybrid::pull_status::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::Batch(batch) => {
+                Self::Batch(IpcBatch::from_proto(batch.batch.required("batch")?)?)
+            }
+            Value::Pending(_) => Self::Pending,
+            Value::Finished(_) => Self::Finished,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HybridConnectConfig {
+    pub remote: Url,
 }
 
 /// Wrapper around a batch that implements IPC encoding/decoding when converting

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
 use rayexec_io::http::HttpClient;
 use rayexec_proto::ProtoConv;
 use uuid::Uuid;
@@ -21,6 +21,24 @@ use super::client::{HybridClient, PullStatus};
 pub struct StreamId {
     pub query_id: Uuid,
     pub stream_id: Uuid,
+}
+
+impl ProtoConv for StreamId {
+    type ProtoType = rayexec_proto::generated::hybrid::StreamId;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            query_id: Some(self.query_id.to_proto()?),
+            stream_id: Some(self.stream_id.to_proto()?),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            query_id: Uuid::from_proto(proto.query_id.required("query_id")?)?,
+            stream_id: Uuid::from_proto(proto.stream_id.required("stream_id")?)?,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -89,7 +107,7 @@ impl<C: HttpClient + 'static> QuerySource for ServerToClientStream<C> {
 }
 
 impl<C: HttpClient> Explainable for ServerToClientStream<C> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ServerToClientStream")
     }
 }
