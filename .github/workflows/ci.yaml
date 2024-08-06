@@ -17,7 +17,8 @@ jobs:
           ssh-key: ${{ secrets.SSH_KEY }}
           submodules: 'true'
 
-      - uses: ./.github/actions/protoc
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
 
       - name: Tests
         env:
@@ -61,7 +62,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - uses: ./.github/actions/protoc
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
