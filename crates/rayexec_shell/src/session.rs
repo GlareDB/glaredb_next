@@ -1,5 +1,6 @@
 use futures::TryStreamExt;
 use rayexec_bullet::format::pretty::table::PrettyTable;
+use rayexec_execution::hybrid::client::{HybridClient, HybridConnectConfig};
 use std::sync::Arc;
 use url::{Host, Url};
 
@@ -15,6 +16,7 @@ use tokio::sync::Mutex;
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
 pub struct SingleUserEngine<P: PipelineExecutor, R: Runtime> {
+    pub runtime: R,
     pub engine: Engine<P, R>,
 
     /// Session connected to the above engine.
@@ -34,10 +36,11 @@ where
 {
     /// Create a new single user engine using the provided runtime and registry.
     pub fn try_new(executor: P, runtime: R, registry: DataSourceRegistry) -> Result<Self> {
-        let engine = Engine::new_with_registry(executor, runtime, registry)?;
+        let engine = Engine::new_with_registry(executor, runtime.clone(), registry)?;
         let session = engine.new_session()?;
 
         Ok(SingleUserEngine {
+            runtime,
             engine,
             session: Arc::new(Mutex::new(session)),
         })
@@ -68,24 +71,18 @@ where
     /// Connect to a remote server for hybrid execution.
     pub async fn connect_hybrid(&self, connection_string: String) -> Result<()> {
         // TODO: Should this all be happening here, or move to session?
+        //
+        // Currently outside of the session to avoid have an additional async
+        // method for the ping.
 
-        // TODO: I don't know yet.
-        let _url = if Host::parse(&connection_string).is_ok() {
-            Url::parse(&format!("http://{connection_string}:80"))
-        } else {
-            Url::parse(&connection_string)
-        }
-        .context("failed to parse connection string")?;
+        let config = HybridConnectConfig::try_from_connection_string(&connection_string)?;
+        let client = self.runtime.http_client();
+        let hybrid = HybridClient::new(client, config);
 
-        // let conf = HybridConnectConfig { remote: url };
+        hybrid.ping().await?;
+        self.session.lock().await.set_hybrid(hybrid);
 
-        unimplemented!()
-        // let client = self.engine.runtime().hybrid_client(conf);
-        // client.ping().await?;
-
-        // self.session.lock().await.set_hybrid_client(client);
-
-        // Ok(())
+        Ok(())
     }
 }
 

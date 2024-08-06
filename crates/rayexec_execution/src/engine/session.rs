@@ -3,6 +3,7 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
+use url::Host;
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -10,7 +11,7 @@ use crate::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
     },
-    hybrid::client::HybridClient,
+    hybrid::client::{HybridClient, HybridConnectConfig},
     logical::{
         context::QueryContext,
         operator::{LogicalOperator, VariableOrAll},
@@ -285,11 +286,11 @@ where
         })
     }
 
-    pub fn set_hybrid_client(&mut self, client: Arc<HybridClient<R::HttpClient>>) {
-        self.hybrid_client = Some(client);
+    pub fn set_hybrid(&mut self, client: HybridClient<R::HttpClient>) {
+        self.hybrid_client = Some(Arc::new(client));
     }
 
-    pub fn unset_hybrid_client(&mut self) {
+    pub fn unset_hybrid(&mut self) {
         self.hybrid_client = None;
     }
 }

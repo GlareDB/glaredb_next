@@ -23,7 +23,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::io::Cursor;
-use url::Url;
+use url::{Host, Url};
 use uuid::Uuid;
 
 use crate::{database::DatabaseContext, logical::sql::binder::BoundStatement};
@@ -315,11 +315,6 @@ impl ProtoConv for PullStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HybridConnectConfig {
-    pub remote: Url,
-}
-
 /// Wrapper around a batch that implements IPC encoding/decoding when converting
 /// to protobuf.
 #[derive(Debug)]
@@ -363,6 +358,25 @@ impl ProtoConv for IpcBatch {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HybridConnectConfig {
+    pub remote: Url,
+}
+
+impl HybridConnectConfig {
+    pub fn try_from_connection_string(conn_str: &str) -> Result<Self> {
+        // TODO: I don't know yet.
+        let url = if Host::parse(conn_str).is_ok() {
+            Url::parse(&format!("http://{conn_str}:80"))
+        } else {
+            Url::parse(conn_str)
+        }
+        .context("failed to parse connection string")?;
+
+        Ok(Self { remote: url })
+    }
+}
+
 // TODO: Borrowed bytes
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RequestEnvelope {
@@ -384,6 +398,13 @@ pub struct HybridClient<C: HttpClient> {
 }
 
 impl<C: HttpClient> HybridClient<C> {
+    pub fn new(client: C, conf: HybridConnectConfig) -> Self {
+        HybridClient {
+            url: conf.remote,
+            client,
+        }
+    }
+
     pub async fn ping(&self) -> Result<()> {
         let url = self
             .url
