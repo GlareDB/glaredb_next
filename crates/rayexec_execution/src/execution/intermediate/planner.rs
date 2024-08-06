@@ -43,10 +43,11 @@ use rayexec_bullet::{
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
+use uuid::Uuid;
 
 use super::{
     IntermediateOperator, IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId,
-    PipelineSource,
+    PipelineSource, StreamId,
 };
 
 /// Configuration used during intermediate pipeline planning.
@@ -96,9 +97,7 @@ impl IntermediatePipelinePlanner {
         context: QueryContext,
     ) -> Result<PlannedPipelineGroups> {
         let mut state = IntermediatePipelineBuildState::new(&self.config);
-        let mut id_gen = PipelineIdGen {
-            gen: IntermediatePipelineId(0),
-        };
+        let mut id_gen = PipelineIdGen::new(Uuid::new_v4());
 
         let mut materializations = state.plan_materializations(context, &mut id_gen)?;
         state.walk(&mut materializations, &mut id_gen, root)?;
@@ -117,14 +116,29 @@ impl IntermediatePipelinePlanner {
 /// Used for ensuring every pipeline in a query has a unique id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PipelineIdGen {
-    gen: IntermediatePipelineId,
+    query_id: Uuid,
+    pipeline_gen: IntermediatePipelineId,
 }
 
 impl PipelineIdGen {
-    fn next(&mut self) -> IntermediatePipelineId {
-        let id = self.gen;
-        self.gen.0 += 1;
+    fn new(query_id: Uuid) -> Self {
+        PipelineIdGen {
+            query_id,
+            pipeline_gen: IntermediatePipelineId(0),
+        }
+    }
+
+    fn next_pipeline_id(&mut self) -> IntermediatePipelineId {
+        let id = self.pipeline_gen;
+        self.pipeline_gen.0 += 1;
         id
+    }
+
+    fn new_stream_id(&self) -> StreamId {
+        StreamId {
+            query_id: self.query_id,
+            stream_id: Uuid::new_v4(),
+        }
     }
 }
 
@@ -429,23 +443,27 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             let in_progress = self.in_progress_pipeline_mut()?;
             in_progress.operators.push(operator);
         } else {
-            println!("DIFFERENT, CURRENT: {current_location:?}, LOC: {location:?}");
-
             // Different locations, finalize in-progress and start a new one.
             let in_progress = self.take_in_progress_pipeline()?;
 
             let new_in_progress = InProgressPipeline {
-                id: id_gen.next(),
+                id: id_gen.next_pipeline_id(),
                 operators: vec![operator],
                 location,
                 // TODO: partitions? include other pipeline id
-                source: PipelineSource::OtherGroup { partitions: 1 },
+                source: PipelineSource::OtherGroup {
+                    stream_id: id_gen.new_stream_id(),
+                    partitions: 1,
+                },
             };
 
             let finalized = IntermediatePipeline {
                 id: in_progress.id,
                 // TODO: partitions? include other pipeline id
-                sink: PipelineSink::OtherGroup { partitions: 1 },
+                sink: PipelineSink::OtherGroup {
+                    stream_id: id_gen.new_stream_id(),
+                    partitions: 1,
+                },
                 source: in_progress.source,
                 operators: in_progress.operators,
             };
@@ -476,15 +494,21 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         if in_progress.location != LocationRequirement::ClientLocal {
             let final_pipeline = IntermediatePipeline {
-                id: id_gen.next(),
+                id: id_gen.next_pipeline_id(),
                 sink: PipelineSink::QueryOutput,
-                source: PipelineSource::OtherGroup { partitions: 1 },
+                source: PipelineSource::OtherGroup {
+                    stream_id: id_gen.new_stream_id(),
+                    partitions: 1,
+                },
                 operators: Vec::new(),
             };
 
             let pipeline = IntermediatePipeline {
                 id: in_progress.id,
-                sink: PipelineSink::OtherGroup { partitions: 1 },
+                sink: PipelineSink::OtherGroup {
+                    stream_id: id_gen.new_stream_id(),
+                    partitions: 1,
+                },
                 source: in_progress.source,
                 operators: in_progress.operators,
             };
@@ -503,36 +527,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             self.local_group.pipelines.insert(pipeline.id, pipeline);
         }
-
-        Ok(())
-    }
-
-    /// Push a query sink onto the current pipeline. This marks the current
-    /// pipeline as completed.
-    ///
-    /// This is the last step when building up pipelines for a query graph.
-    fn push_query_sink(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        sink: Box<dyn QuerySink>,
-    ) -> Result<()> {
-        let operator = IntermediateOperator {
-            partitioning_requirement: sink.partition_requirement(),
-            operator: Arc::new(PhysicalOperator::QuerySink(PhysicalQuerySink::new(sink))),
-        };
-
-        // Query sink is always local so that the client can get the results.
-        self.push_intermediate_operator(operator, LocationRequirement::ClientLocal, id_gen)?;
-
-        let in_progress = self.take_in_progress_pipeline()?;
-        let pipeline = IntermediatePipeline {
-            id: in_progress.id,
-            sink: PipelineSink::InPipeline,
-            source: in_progress.source,
-            operators: in_progress.operators,
-        };
-
-        self.local_group.pipelines.insert(pipeline.id, pipeline);
 
         Ok(())
     }
@@ -644,7 +638,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -699,7 +693,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -741,7 +735,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: Vec::new(),
             location,
             source: PipelineSource::OtherPipeline {
@@ -774,7 +768,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -807,7 +801,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -843,7 +837,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 };
 
                 self.in_progress = Some(InProgressPipeline {
-                    id: id_gen.next(),
+                    id: id_gen.next_pipeline_id(),
                     operators: vec![operator],
                     location,
                     source: PipelineSource::InPipeline,
@@ -896,7 +890,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -936,7 +930,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -969,7 +963,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -1081,7 +1075,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let in_progress = self.take_in_progress_pipeline()?;
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: Vec::new(),
             location,
             // TODO:
@@ -1216,7 +1210,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location: empty.location,
             source: PipelineSource::InPipeline,
@@ -1443,7 +1437,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,

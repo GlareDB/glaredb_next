@@ -4,12 +4,43 @@ use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use std::{collections::HashMap, sync::Arc};
+use uuid::Uuid;
 
 use super::operators::PhysicalOperator;
 
 /// ID of a single intermediate pipeline.
+///
+/// Unique within a query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntermediatePipelineId(pub usize);
+
+/// Identifier for streams that connect different pipelines across pipeline
+/// groups.
+///
+/// Globally unique.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StreamId {
+    pub query_id: Uuid,
+    pub stream_id: Uuid,
+}
+
+impl ProtoConv for StreamId {
+    type ProtoType = rayexec_proto::generated::execution::StreamId;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            query_id: Some(self.query_id.to_proto()?),
+            stream_id: Some(self.stream_id.to_proto()?),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            query_id: Uuid::from_proto(proto.query_id.required("query_id")?)?,
+            stream_id: Uuid::from_proto(proto.stream_id.required("stream_id")?)?,
+        })
+    }
+}
 
 impl ProtoConv for IntermediatePipelineId {
     type ProtoType = rayexec_proto::generated::execution::IntermediatePipelineId;
@@ -45,7 +76,10 @@ pub enum PipelineSink {
         input_idx: usize,
     },
     /// Sink is a pipeline executing remotely.
-    OtherGroup { partitions: usize },
+    OtherGroup {
+        partitions: usize,
+        stream_id: StreamId,
+    },
 }
 
 impl ProtoConv for PipelineSink {
@@ -68,7 +102,11 @@ impl ProtoConv for PipelineSink {
                 operator_idx: *operator_idx as u32,
                 input_idx: *input_idx as u32,
             }),
-            Self::OtherGroup { partitions } => Value::OtherGroup(PipelineSinkOtherGroup {
+            Self::OtherGroup {
+                partitions,
+                stream_id,
+            } => Value::OtherGroup(PipelineSinkOtherGroup {
+                stream_id: Some(stream_id.to_proto()?),
                 partitions: *partitions as u32,
             }),
         };
@@ -93,7 +131,11 @@ impl ProtoConv for PipelineSink {
                 operator_idx: operator_idx as usize,
                 input_idx: input_idx as usize,
             },
-            Value::OtherGroup(PipelineSinkOtherGroup { partitions }) => Self::OtherGroup {
+            Value::OtherGroup(PipelineSinkOtherGroup {
+                stream_id,
+                partitions,
+            }) => Self::OtherGroup {
+                stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
                 partitions: partitions as usize,
             },
         })
@@ -114,7 +156,10 @@ pub enum PipelineSource {
     /// Source is some other pipeline in the same group as this pipeline.
     OtherPipeline { pipeline: IntermediatePipelineId },
     /// Source is remote, build an ipc source.
-    OtherGroup { partitions: usize },
+    OtherGroup {
+        stream_id: StreamId,
+        partitions: usize,
+    },
 }
 
 impl ProtoConv for PipelineSource {
@@ -130,7 +175,11 @@ impl ProtoConv for PipelineSource {
             Self::OtherPipeline { pipeline } => Value::OtherPipeline(PipelineSourceOtherPipeline {
                 id: Some(pipeline.to_proto()?),
             }),
-            Self::OtherGroup { partitions } => Value::OtherGroup(PipelineSourceOtherGroup {
+            Self::OtherGroup {
+                partitions,
+                stream_id,
+            } => Value::OtherGroup(PipelineSourceOtherGroup {
+                stream_id: Some(stream_id.to_proto()?),
                 partitions: *partitions as u32,
             }),
         };
@@ -148,7 +197,11 @@ impl ProtoConv for PipelineSource {
             Value::OtherPipeline(PipelineSourceOtherPipeline { id }) => Self::OtherPipeline {
                 pipeline: IntermediatePipelineId::from_proto(id.required("id")?)?,
             },
-            Value::OtherGroup(PipelineSourceOtherGroup { partitions }) => Self::OtherGroup {
+            Value::OtherGroup(PipelineSourceOtherGroup {
+                stream_id,
+                partitions,
+            }) => Self::OtherGroup {
+                stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
                 partitions: partitions as usize,
             },
         })

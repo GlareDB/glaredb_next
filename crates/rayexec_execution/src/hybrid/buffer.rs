@@ -13,17 +13,17 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use crate::{
-    execution::operators::{
-        sink::{PartitionSink, QuerySink},
-        source::{PartitionSource, QuerySource},
+    execution::{
+        intermediate::StreamId,
+        operators::{
+            sink::{PartitionSink, QuerySink},
+            source::{PartitionSource, QuerySource},
+        },
     },
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
-use super::{
-    client::{IpcBatch, PullStatus},
-    stream::StreamId,
-};
+use super::client::{IpcBatch, PullStatus};
 
 /// Holds streams used for hybrid execution.
 // TODO: Remove old streams.
@@ -36,6 +36,34 @@ pub struct ServerStreamBuffers {
 }
 
 impl ServerStreamBuffers {
+    pub fn create_incoming_stream(&self, stream_id: StreamId) -> IncomingStream {
+        let stream = IncomingStream {
+            state: Arc::new(Mutex::new(IncomingStreamState {
+                finished: false,
+                batches: VecDeque::new(),
+                pull_waker: None,
+            })),
+        };
+
+        self.incoming.insert(stream_id, stream.clone());
+
+        stream
+    }
+
+    pub fn create_outgoing_stream(&self, stream_id: StreamId) -> OutgoingStream {
+        let stream = OutgoingStream {
+            state: Arc::new(Mutex::new(OutgoingStreamState {
+                finished: false,
+                batch: None,
+                push_waker: None,
+            })),
+        };
+
+        self.outgoing.insert(stream_id, stream.clone());
+
+        stream
+    }
+
     pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
         let incoming = self.incoming.get(stream_id).ok_or_else(|| {
             RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
@@ -86,7 +114,7 @@ impl ServerStreamBuffers {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OutgoingStream {
     state: Arc<Mutex<OutgoingStreamState>>,
 }
@@ -175,7 +203,7 @@ impl Future for OutgoingFinalizeFuture {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IncomingStream {
     state: Arc<Mutex<IncomingStreamState>>,
 }

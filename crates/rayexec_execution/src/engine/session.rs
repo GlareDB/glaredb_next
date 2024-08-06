@@ -268,22 +268,23 @@ where
             }
         };
 
-        let mut planner = ExecutablePipelinePlanner::new(
-            &self.context,
-            ExecutionConfig {
-                target_partitions: VarAccessor::new(&self.vars).partitions(),
-            },
-            Some(Box::new(sink)),
-        );
+        unimplemented!()
+        // let mut planner = ExecutablePipelinePlanner::new(
+        //     &self.context,
+        //     ExecutionConfig {
+        //         target_partitions: VarAccessor::new(&self.vars).partitions(),
+        //     },
+        //     Some(Box::new(sink)),
+        // );
 
-        let pipelines = planner.plan_from_intermediate(pipelines)?;
-        let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
+        // let pipelines = planner.plan_from_intermediate(pipelines)?;
+        // let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
 
-        Ok(ExecutionResult {
-            output_schema,
-            stream,
-            handle,
-        })
+        // Ok(ExecutionResult {
+        //     output_schema,
+        //     stream,
+        //     handle,
+        // })
     }
 
     pub fn set_hybrid(&mut self, client: HybridClient<R::HttpClient>) {

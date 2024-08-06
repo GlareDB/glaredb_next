@@ -11,13 +11,12 @@ use crate::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
         intermediate::{
             planner::{IntermediateConfig, IntermediatePipelinePlanner},
-            IntermediatePipelineGroup,
+            IntermediatePipelineGroup, StreamId,
         },
     },
     hybrid::{
         buffer::ServerStreamBuffers,
         client::{HybridPlanResponse, PullStatus},
-        stream::StreamId,
     },
     logical::sql::{
         binder::{bind_data::BindData, hybrid::HybridResolver, BoundStatement},
@@ -125,22 +124,23 @@ where
             RayexecError::new(format!("Missing pending pipeline for id: {query_id}"))
         })?;
 
-        let mut planner = ExecutablePipelinePlanner::new(
-            &self.context,
-            ExecutionConfig {
-                target_partitions: num_cpus::get(),
-            },
-            None,
-        );
+        unimplemented!()
+        // let mut planner = ExecutablePipelinePlanner::new(
+        //     &self.context,
+        //     ExecutionConfig {
+        //         target_partitions: num_cpus::get(),
+        //     },
+        //     None,
+        // );
 
-        let pipelines = planner.plan_from_intermediate(group)?;
-        let handle = self
-            .executor
-            .spawn_pipelines(pipelines, Arc::new(NopErrorSink));
+        // let pipelines = planner.plan_from_intermediate(group)?;
+        // let handle = self
+        //     .executor
+        //     .spawn_pipelines(pipelines, Arc::new(NopErrorSink));
 
-        self.executing_pipelines.insert(query_id, handle);
+        // self.executing_pipelines.insert(query_id, handle);
 
-        Ok(())
+        // Ok(())
     }
 
     pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {

@@ -8,11 +8,6 @@ import "execution.proto";
 import "schema.proto";
 import "array.proto";
 
-message StreamId {
-    foreign.Uuid query_id  = 1;
-    foreign.Uuid stream_id = 2;
-}
-
 message PlanRequest {
     bytes           bound_statement_json = 1;  // Bytes encoded using serde_json, at some point maybe that all becomes proto.
     binder.BindData bind_data            = 2;
@@ -31,7 +26,7 @@ message ExecuteRequest {
 message ExecuteResponse {}
 
 message PushRequest {
-    StreamId             stream_id = 1;
+    execution.StreamId   stream_id = 1;
     uint32               partition = 2;
     array.IpcStreamBatch batch     = 3;
 }
@@ -39,15 +34,15 @@ message PushRequest {
 message PushResponse {}
 
 message FinalizeRequest {
-    StreamId stream_id = 1;
-    uint32   partition = 2;
+    execution.StreamId stream_id = 1;
+    uint32             partition = 2;
 }
 
 message FinalizeResponse {}
 
 message PullRequest {
-    StreamId stream_id = 1;
-    uint32   partition = 2;
+    execution.StreamId stream_id = 1;
+    uint32             partition = 2;
 }
 
 message PullResponse {

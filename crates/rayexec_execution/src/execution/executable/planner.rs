@@ -1,5 +1,6 @@
 use hashbrown::HashMap;
 use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_io::http::HttpClient;
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
@@ -15,6 +16,8 @@ use crate::{
             ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
     },
+    hybrid::{buffer::ServerStreamBuffers, client::HybridClient},
+    runtime::Runtime,
 };
 
 use super::pipeline::{ExecutablePipeline, PipelineId};
@@ -60,7 +63,28 @@ pub struct ExecutionConfig {
 }
 
 #[derive(Debug)]
-pub struct ExecutablePipelinePlanner<'a> {
+pub enum PlanLocationState<'a, C: HttpClient> {
+    /// State when planning on the server.
+    Server {
+        /// Stream buffers used for buffering incoming and outgoing batches for
+        /// distributed execution.
+        stream_buffers: &'a ServerStreamBuffers,
+    },
+    /// State when planning on the client side.
+    Client {
+        /// Output sink for a query.
+        output_sink: Arc<dyn QuerySink>,
+        /// Optional hybrid client if we're executing in hybrid mode.
+        ///
+        /// When providing, appropriate query sinks and sources will be inserted
+        /// to the plan which will work to move batches between the client an
+        /// server.
+        hybrid_client: Option<&'a Arc<HybridClient<C>>>,
+    },
+}
+
+#[derive(Debug)]
+pub struct ExecutablePipelinePlanner<'a, R: Runtime> {
     context: &'a DatabaseContext,
     config: ExecutionConfig,
     id_gen: PipelineIdGen,
@@ -71,20 +95,24 @@ pub struct ExecutablePipelinePlanner<'a> {
     ///
     /// Only single pipeline may use this.
     output_sink: Option<Box<dyn QuerySink>>,
+
+    /// Location specific state used during planning.
+    loc_state: PlanLocationState<'a, R::HttpClient>,
 }
 
-impl<'a> ExecutablePipelinePlanner<'a> {
+impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
     pub fn new(
         context: &'a DatabaseContext,
         config: ExecutionConfig,
         output_sink: Option<Box<dyn QuerySink>>,
     ) -> Self {
-        ExecutablePipelinePlanner {
-            context,
-            config,
-            id_gen: PipelineIdGen { gen: PipelineId(0) },
-            output_sink,
-        }
+        unimplemented!()
+        // ExecutablePipelinePlanner {
+        //     context,
+        //     config,
+        //     id_gen: PipelineIdGen { gen: PipelineId(0) },
+        //     output_sink,
+        // }
     }
 
     pub fn plan_from_intermediate(

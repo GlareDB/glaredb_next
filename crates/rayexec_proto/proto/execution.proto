@@ -3,6 +3,7 @@ syntax = "proto3";
 package rayexec.execution;
 
 import "schema.proto";
+import "foreign.proto";
 import "expr.proto";
 import "array.proto";
 
@@ -124,6 +125,11 @@ message PhysicalOperator {
     }
 }
 
+message StreamId {
+    foreign.Uuid query_id  = 1;
+    foreign.Uuid stream_id = 2;
+}
+
 message IntermediatePipelineId {
     uint32 id = 1;
 }
@@ -139,7 +145,8 @@ message PipelineSinkInGroup {
 }
 
 message PipelineSinkOtherGroup {
-    uint32 partitions = 1;
+    StreamId stream_id  = 1;
+    uint32   partitions = 2;
 }
 
 message PipelineSink {
@@ -158,7 +165,8 @@ message PipelineSourceOtherPipeline {
 }
 
 message PipelineSourceOtherGroup {
-    uint32 partitions = 1;
+    StreamId stream_id  = 1;
+    uint32   partitions = 2;
 }
 
 message PipelineSource {

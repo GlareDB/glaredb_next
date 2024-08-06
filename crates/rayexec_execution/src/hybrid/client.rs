@@ -1,5 +1,6 @@
 use crate::{
-    execution::intermediate::IntermediatePipelineGroup, logical::sql::binder::bind_data::BindData,
+    execution::intermediate::{IntermediatePipelineGroup, StreamId},
+    logical::sql::binder::bind_data::BindData,
     proto::DatabaseProtoConv,
 };
 use rayexec_bullet::{
@@ -27,8 +28,6 @@ use url::{Host, Url};
 use uuid::Uuid;
 
 use crate::{database::DatabaseContext, logical::sql::binder::BoundStatement};
-
-use super::stream::StreamId;
 
 pub const API_VERSION: usize = 0;
 
