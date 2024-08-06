@@ -4,8 +4,6 @@ use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{OptionExt, Result};
 use rayexec_io::http::HttpClient;
-use rayexec_proto::ProtoConv;
-use uuid::Uuid;
 
 use crate::{
     execution::{
@@ -24,6 +22,12 @@ use super::client::{HybridClient, PullStatus};
 pub struct ClientToServerStream<C: HttpClient> {
     stream_id: StreamId,
     client: Arc<HybridClient<C>>,
+}
+
+impl<C: HttpClient> ClientToServerStream<C> {
+    pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
+        ClientToServerStream { stream_id, client }
+    }
 }
 
 impl<C: HttpClient + 'static> QuerySink for ClientToServerStream<C> {

@@ -16,7 +16,7 @@ use crate::{
             ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
     },
-    hybrid::{buffer::ServerStreamBuffers, client::HybridClient},
+    hybrid::{buffer::ServerStreamBuffers, client::HybridClient, stream::ClientToServerStream},
     runtime::Runtime,
 };
 
@@ -195,7 +195,10 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
 
                 pipeline
             }
-            PipelineSource::OtherGroup { .. } => {
+            PipelineSource::OtherGroup {
+                stream_id,
+                partitions,
+            } => {
                 // Need to insert a remote ipc source.
                 unimplemented!()
             }
@@ -279,9 +282,44 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     partition_states,
                 )?;
             }
-            PipelineSink::OtherGroup { .. } => {
-                // Sink is a remote pipeline, push ipc sink.
-                unimplemented!()
+            PipelineSink::OtherGroup {
+                partitions,
+                stream_id,
+            } => {
+                // Sink is pipeline executing somewhere else.
+                let operator = match &self.loc_state {
+                    PlanLocationState::Server { stream_buffers } => {
+                        let sink = stream_buffers.create_outgoing_stream(stream_id);
+                        PhysicalQuerySink::new(Box::new(sink))
+                    }
+                    PlanLocationState::Client { hybrid_client, .. } => {
+                        // Missing hybrid client shouldn't happen. Means we've
+                        // incorrectly planned a hybrid query when we shouldn't
+                        // have.
+                        let hybrid_client = hybrid_client.ok_or_else(|| {
+                            RayexecError::new("Hybrid client missing, cannot create sink pipeline")
+                        })?;
+                        let sink = ClientToServerStream::new(stream_id, hybrid_client.clone());
+                        PhysicalQuerySink::new(Box::new(sink))
+                    }
+                };
+
+                let states = operator.create_states(&self.context, vec![partitions])?;
+                let partition_states = match states.partition_states {
+                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    _ => return Err(RayexecError::new("invalid partition states")),
+                };
+
+                if partition_states.len() != pipeline.num_partitions() {
+                    pipeline =
+                        self.push_repartition(pipeline, partition_states.len(), executables)?;
+                }
+
+                pipeline.push_operator(
+                    Arc::new(operator),
+                    states.operator_state,
+                    partition_states,
+                )?;
             }
         }
 
