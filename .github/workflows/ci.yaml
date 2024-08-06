@@ -17,6 +17,9 @@ jobs:
           ssh-key: ${{ secrets.SSH_KEY }}
           submodules: 'true'
 
+      - name: Install protoc
+        run: ./scripts/install_protoc_linux.sh
+
       - name: Tests
         env:
           AWS_KEY: ${{ secrets.AWS_KEY }}
@@ -58,6 +61,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install protoc
+        run: ./scripts/install_protoc_linux.sh
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
