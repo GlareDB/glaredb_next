@@ -8,7 +8,7 @@ use crate::{
     datasource::DataSourceRegistry,
     engine::vars::SessionVars,
     execution::{
-        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
+        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
         intermediate::{
             planner::{IntermediateConfig, IntermediatePipelinePlanner},
             IntermediatePipelineGroup, StreamId,
@@ -40,7 +40,7 @@ pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
     registry: Arc<DataSourceRegistry>,
 
     /// Hybrid execution streams.
-    streams: ServerStreamBuffers,
+    buffers: ServerStreamBuffers,
 
     pending_pipelines: DashMap<Uuid, IntermediatePipelineGroup>,
     executing_pipelines: DashMap<Uuid, Box<dyn QueryHandle>>,
@@ -63,7 +63,7 @@ where
         ServerSession {
             context,
             registry,
-            streams: ServerStreamBuffers::default(),
+            buffers: ServerStreamBuffers::default(),
             pending_pipelines: DashMap::new(),
             executing_pipelines: DashMap::new(),
             executor,
@@ -124,34 +124,35 @@ where
             RayexecError::new(format!("Missing pending pipeline for id: {query_id}"))
         })?;
 
-        unimplemented!()
-        // let mut planner = ExecutablePipelinePlanner::new(
-        //     &self.context,
-        //     ExecutionConfig {
-        //         target_partitions: num_cpus::get(),
-        //     },
-        //     None,
-        // );
+        let mut planner = ExecutablePipelinePlanner::<R>::new(
+            &self.context,
+            ExecutionConfig {
+                target_partitions: num_cpus::get(),
+            },
+            PlanLocationState::Server {
+                stream_buffers: &self.buffers,
+            },
+        );
 
-        // let pipelines = planner.plan_from_intermediate(group)?;
-        // let handle = self
-        //     .executor
-        //     .spawn_pipelines(pipelines, Arc::new(NopErrorSink));
+        let pipelines = planner.plan_from_intermediate(group)?;
+        let handle = self
+            .executor
+            .spawn_pipelines(pipelines, Arc::new(NopErrorSink));
 
-        // self.executing_pipelines.insert(query_id, handle);
+        self.executing_pipelines.insert(query_id, handle);
 
-        // Ok(())
+        Ok(())
     }
 
     pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {
-        self.streams.push_batch_for_stream(&stream_id, batch)
+        self.buffers.push_batch_for_stream(&stream_id, batch)
     }
 
     pub fn finalize_stream(&self, stream_id: StreamId) -> Result<()> {
-        self.streams.finalize_stream(&stream_id)
+        self.buffers.finalize_stream(&stream_id)
     }
 
     pub fn pull_batch_for_stream(&self, stream_id: StreamId) -> Result<PullStatus> {
-        self.streams.pull_batch_for_stream(&stream_id)
+        self.buffers.pull_batch_for_stream(&stream_id)
     }
 }

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
 
 use super::client::{HybridClient, PullStatus};
 
+/// Client-side stream for sending batches from the client to the server (push).
 #[derive(Debug)]
 pub struct ClientToServerStream<C: HttpClient> {
     stream_id: StreamId,
@@ -68,10 +69,18 @@ impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
     }
 }
 
+/// Client-side stream for receiving batches from the server to the client
+/// (pull).
 #[derive(Debug)]
 pub struct ServerToClientStream<C: HttpClient> {
     stream_id: StreamId,
     client: Arc<HybridClient<C>>,
+}
+
+impl<C: HttpClient> ServerToClientStream<C> {
+    pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
+        ServerToClientStream { stream_id, client }
+    }
 }
 
 impl<C: HttpClient + 'static> QuerySource for ServerToClientStream<C> {
@@ -104,7 +113,7 @@ pub struct ServerToClientPartitionSource<C: HttpClient> {
 impl<C: HttpClient> PartitionSource for ServerToClientPartitionSource<C> {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
         Box::pin(async {
-            // TODO
+            // TODO: Backoff + hint somehow
             loop {
                 let status = self.client.pull(self.stream_id, 0).await?;
                 match status {

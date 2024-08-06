@@ -53,6 +53,7 @@ use simple::SimpleOperator;
 use sink::{PhysicalQuerySink, QuerySinkPartitionState};
 use sort::local_sort::PhysicalLocalSort;
 use sort::merge_sorted::PhysicalMergeSortedInputs;
+use source::QuerySourcePartitionState;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::Context;
@@ -99,6 +100,7 @@ pub enum PartitionState {
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
     QuerySink(QuerySinkPartitionState),
+    QuerySource(QuerySourcePartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
     MergeSortedPush(MergeSortedPushPartitionState),

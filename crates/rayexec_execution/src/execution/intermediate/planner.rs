@@ -19,7 +19,6 @@ use crate::{
             project::ProjectOperation,
             scan::PhysicalScan,
             simple::SimpleOperator,
-            sink::{PhysicalQuerySink, QuerySink},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
@@ -446,13 +445,15 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             // Different locations, finalize in-progress and start a new one.
             let in_progress = self.take_in_progress_pipeline()?;
 
+            let stream_id = id_gen.new_stream_id();
+
             let new_in_progress = InProgressPipeline {
                 id: id_gen.next_pipeline_id(),
                 operators: vec![operator],
                 location,
                 // TODO: partitions? include other pipeline id
                 source: PipelineSource::OtherGroup {
-                    stream_id: id_gen.new_stream_id(),
+                    stream_id,
                     partitions: 1,
                 },
             };
@@ -461,7 +462,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 id: in_progress.id,
                 // TODO: partitions? include other pipeline id
                 sink: PipelineSink::OtherGroup {
-                    stream_id: id_gen.new_stream_id(),
+                    stream_id,
                     partitions: 1,
                 },
                 source: in_progress.source,
@@ -493,11 +494,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         if in_progress.location != LocationRequirement::ClientLocal {
+            let stream_id = id_gen.new_stream_id();
+
             let final_pipeline = IntermediatePipeline {
                 id: id_gen.next_pipeline_id(),
                 sink: PipelineSink::QueryOutput,
                 source: PipelineSource::OtherGroup {
-                    stream_id: id_gen.new_stream_id(),
+                    stream_id,
                     partitions: 1,
                 },
                 operators: Vec::new(),
@@ -506,7 +509,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             let pipeline = IntermediatePipeline {
                 id: in_progress.id,
                 sink: PipelineSink::OtherGroup {
-                    stream_id: id_gen.new_stream_id(),
+                    stream_id,
                     partitions: 1,
                 },
                 source: in_progress.source,

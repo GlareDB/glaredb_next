@@ -8,7 +8,7 @@ use url::Host;
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     execution::{
-        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
+        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
     },
     hybrid::client::{HybridClient, HybridConnectConfig},
@@ -268,23 +268,25 @@ where
             }
         };
 
-        unimplemented!()
-        // let mut planner = ExecutablePipelinePlanner::new(
-        //     &self.context,
-        //     ExecutionConfig {
-        //         target_partitions: VarAccessor::new(&self.vars).partitions(),
-        //     },
-        //     Some(Box::new(sink)),
-        // );
+        let mut planner = ExecutablePipelinePlanner::<R>::new(
+            &self.context,
+            ExecutionConfig {
+                target_partitions: VarAccessor::new(&self.vars).partitions(),
+            },
+            PlanLocationState::Client {
+                output_sink: Some(Box::new(sink)),
+                hybrid_client: self.hybrid_client.as_ref(),
+            },
+        );
 
-        // let pipelines = planner.plan_from_intermediate(pipelines)?;
-        // let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
+        let pipelines = planner.plan_from_intermediate(pipelines)?;
+        let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
 
-        // Ok(ExecutionResult {
-        //     output_schema,
-        //     stream,
-        //     handle,
-        // })
+        Ok(ExecutionResult {
+            output_schema,
+            stream,
+            handle,
+        })
     }
 
     pub fn set_hybrid(&mut self, client: HybridClient<R::HttpClient>) {
