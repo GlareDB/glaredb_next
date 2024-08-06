@@ -513,7 +513,7 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::UngroupedAggregate(op) => Value::UngroupedAggregate(op.to_proto_ctx(context)?),
             Self::Union(op) => Value::Union(op.to_proto_ctx(context)?),
             Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
-            _ => unimplemented!(),
+            other => unimplemented!("{other:?}"),
         };
 
         Ok(Self::ProtoType { value: Some(value) })
