@@ -1,5 +1,5 @@
 use dashmap::DashMap;
-use rayexec_bullet::field::Schema;
+use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
 use uuid::Uuid;
 
@@ -14,7 +14,11 @@ use crate::{
             IntermediatePipelineGroup,
         },
     },
-    hybrid::{buffer::ServerStreamBuffers, client::HybridPlanResponse},
+    hybrid::{
+        buffer::ServerStreamBuffers,
+        client::{HybridPlanResponse, PullStatus},
+        stream::StreamId,
+    },
     logical::sql::{
         binder::{bind_data::BindData, hybrid::HybridResolver, BoundStatement},
         planner::PlanContext,
@@ -66,6 +70,14 @@ where
             executor,
             runtime,
         }
+    }
+
+    // TODO: The only "unique" thing about this session is the context. This
+    // session should be renamed to something else as it's probably easiest to
+    // just have one of these per process, and instead the context should be
+    // passed in as an arg where needed.
+    pub fn context(&self) -> &DatabaseContext {
+        &self.context
     }
 
     /// Plans a partially bound query, preparing it for execution.
@@ -129,5 +141,17 @@ where
         self.executing_pipelines.insert(query_id, handle);
 
         Ok(())
+    }
+
+    pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {
+        self.streams.push_batch_for_stream(&stream_id, batch)
+    }
+
+    pub fn finalize_stream(&self, stream_id: StreamId) -> Result<()> {
+        self.streams.finalize_stream(&stream_id)
+    }
+
+    pub fn pull_batch_for_stream(&self, stream_id: StreamId) -> Result<PullStatus> {
+        self.streams.pull_batch_for_stream(&stream_id)
     }
 }

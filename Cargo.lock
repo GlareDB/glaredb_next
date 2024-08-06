@@ -2094,6 +2094,7 @@ dependencies = [
  "rayexec_execution",
  "rayexec_parquet",
  "rayexec_postgres",
+ "rayexec_proto",
  "rayexec_rt_native",
  "serde",
  "serde_json",

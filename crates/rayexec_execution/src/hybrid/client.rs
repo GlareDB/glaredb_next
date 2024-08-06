@@ -367,14 +367,14 @@ impl ProtoConv for IpcBatch {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RequestEnvelope {
     #[serde(with = "serde_bytes")]
-    encoded_msg: Vec<u8>,
+    pub encoded_msg: Vec<u8>,
 }
 
 // TODO: Borrowed bytes
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseEnvelope {
     #[serde(with = "serde_bytes")]
-    encoded_msg: Vec<u8>,
+    pub encoded_msg: Vec<u8>,
 }
 
 #[derive(Debug)]

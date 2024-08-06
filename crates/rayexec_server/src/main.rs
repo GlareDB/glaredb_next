@@ -11,7 +11,8 @@ use rayexec_delta::DeltaDataSource;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::{
     datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource},
-    engine::Engine,
+    engine::{server_session::ServerSession, Engine},
+    hybrid::client::REMOTE_ENDPOINTS,
     runtime::{PipelineExecutor, Runtime, TokioHandlerProvider},
 };
 use rayexec_parquet::ParquetDataSource;
@@ -60,15 +61,33 @@ async fn inner(
         .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
         .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
-    let engine = Engine::new_with_registry(sched, runtime.clone(), registry)?;
+    let engine = Engine::new_with_registry(sched.clone(), runtime.clone(), registry)?;
+    let session = engine.new_server_session()?;
 
-    let state = Arc::new(handlers::ServerState { engine });
+    let state = Arc::new(handlers::ServerState { engine, session });
 
     let app = Router::new()
-        // .route(ENDPOINTS.healthz, get(handlers::healthz))
-        // .route(ENDPOINTS.rpc_hybrid_run, post(handlers::hybrid_execute_rpc))
-        // .route(ENDPOINTS.rpc_hybrid_push, post(handlers::push_batch_rpc))
-        // .route(ENDPOINTS.rpc_hybrid_pull, post(handlers::pull_batch_rpc))
+        .route(REMOTE_ENDPOINTS.healthz, get(handlers::healthz))
+        .route(
+            REMOTE_ENDPOINTS.rpc_hybrid_plan,
+            post(handlers::remote_plan_rpc),
+        )
+        .route(
+            REMOTE_ENDPOINTS.rpc_hybrid_execute,
+            post(handlers::remote_execute_rpc),
+        )
+        .route(
+            REMOTE_ENDPOINTS.rpc_hybrid_push,
+            post(handlers::push_batch_rpc),
+        )
+        .route(
+            REMOTE_ENDPOINTS.rpc_hybrid_finalize,
+            post(handlers::finalize_rpc),
+        )
+        .route(
+            REMOTE_ENDPOINTS.rpc_hybrid_pull,
+            post(handlers::pull_batch_rpc),
+        )
         // TODO: Limit CORS to *.glaredb.com and localhost. And maybe make
         // localhost dev build only.
         .layer(CorsLayer::permissive())
