@@ -121,16 +121,16 @@ pub struct HybridExecuteRequest {
     pub query_id: Uuid,
 }
 
-impl DatabaseProtoConv for HybridExecuteRequest {
+impl ProtoConv for HybridExecuteRequest {
     type ProtoType = rayexec_proto::generated::hybrid::ExecuteRequest;
 
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
             query_id: Some(self.query_id.to_proto()?),
         })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(Self {
             query_id: Uuid::from_proto(proto.query_id.required("query_id")?)?,
         })
@@ -140,14 +140,14 @@ impl DatabaseProtoConv for HybridExecuteRequest {
 #[derive(Debug)]
 pub struct HybridExecuteResponse {}
 
-impl DatabaseProtoConv for HybridExecuteResponse {
+impl ProtoConv for HybridExecuteResponse {
     type ProtoType = rayexec_proto::generated::hybrid::ExecuteResponse;
 
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {})
     }
 
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
         Ok(Self {})
     }
 }
@@ -401,6 +401,66 @@ impl<C: HttpClient> HybridClient<C> {
                 resp.status().as_u16()
             )));
         }
+
+        Ok(())
+    }
+
+    // TODO: Is passing context here weird? Needed for properly encoding bind
+    // data, and decoding the pipelines we get back.
+    pub async fn remote_plan(
+        &self,
+        stmt: BoundStatement,
+        bind_data: BindData,
+        context: &DatabaseContext,
+    ) -> Result<HybridPlanResponse> {
+        let url = self
+            .url
+            .join(&REMOTE_ENDPOINTS.rpc_hybrid_plan)
+            .context("failed to parse plan endpoint")?;
+
+        let msg = HybridPlanRequest {
+            statement: stmt,
+            bind_data,
+        };
+
+        let encoded_msg = msg.to_proto_ctx(context)?.encode_to_vec();
+
+        let mut req = Request::new(Method::POST, url);
+        Self::put_json_body(&mut req, &RequestEnvelope { encoded_msg })?;
+
+        let resp = self
+            .client
+            .do_request(req)
+            .await
+            .context("failed to send request")?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(RayexecError::new(format!(
+                "Expected 200, got {}",
+                resp.status().as_u16()
+            )));
+        }
+
+        let resp: ResponseEnvelope = serde_json::from_slice(resp.bytes().await?.as_ref())
+            .context("failed to deserialize response")?;
+
+        let resp = HybridPlanResponse::from_proto_ctx(
+            Message::decode(resp.encoded_msg.as_slice()).context("failed to decode message")?,
+            context,
+        )?;
+
+        Ok(resp)
+    }
+
+    pub async fn remote_execute(&self, query_id: Uuid) -> Result<()> {
+        let url = self
+            .url
+            .join(&REMOTE_ENDPOINTS.rpc_hybrid_execute)
+            .context("failed to parse plan endpoint")?;
+
+        let msg = HybridExecuteRequest { query_id };
+
+        let _resp: HybridExecuteResponse = self.do_request(msg, url).await?;
 
         Ok(())
     }
