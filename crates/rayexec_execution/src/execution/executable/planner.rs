@@ -214,7 +214,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     }
                 };
 
-                let states = operator.create_states(&self.context, vec![partitions])?;
+                let states = operator.create_states(self.context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => {
@@ -276,7 +276,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                 }
 
                 let operator = Arc::new(PhysicalOperator::QuerySink(PhysicalQuerySink::new(sink)));
-                let states = operator.create_states(&self.context, vec![partitions])?;
+                let states = operator.create_states(self.context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states for query sink")),
@@ -333,7 +333,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     }
                 };
 
-                let states = operator.create_states(&self.context, vec![partitions])?;
+                let states = operator.create_states(self.context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states")),

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
-use url::Host;
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -11,7 +10,7 @@ use crate::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
     },
-    hybrid::client::{HybridClient, HybridConnectConfig},
+    hybrid::client::HybridClient,
     logical::{
         context::QueryContext,
         operator::{LogicalOperator, VariableOrAll},

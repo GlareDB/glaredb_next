@@ -4,7 +4,6 @@ pub mod util_types;
 
 pub use prost;
 
-use prost::Message;
 use rayexec_error::Result;
 
 /// Convert type to/from their protobuf representations.
@@ -51,7 +50,7 @@ pub mod foreign_impls {
         }
 
         fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-            Ok(Self::from_slice(&proto.value).context("not a uuid slice")?)
+            Self::from_slice(&proto.value).context("not a uuid slice")
         }
     }
 

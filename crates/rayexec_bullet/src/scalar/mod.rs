@@ -22,7 +22,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::{fmt, i128};
+use std::fmt;
 use timestamp::TimestampScalar;
 
 /// A single scalar value.
@@ -465,10 +465,10 @@ impl ProtoConv for OwnedScalarValue {
             Self::Date32(v) => Value::ScalarDate32(*v),
             Self::Date64(v) => Value::ScalarDate64(*v),
             Self::Interval(v) => Value::ScalarInterval(v.to_proto()?),
-            Self::Utf8(v) => Value::ScalarUtf8(v.to_owned().into()),
-            Self::LargeUtf8(v) => Value::ScalarLargeUtf8(v.to_owned().into()),
-            Self::Binary(v) => Value::ScalarBinary(v.to_owned().into()),
-            Self::LargeBinary(v) => Value::ScalarLargeBinary(v.to_owned().into()),
+            Self::Utf8(v) => Value::ScalarUtf8(v.clone().into()),
+            Self::LargeUtf8(v) => Value::ScalarLargeUtf8(v.clone().into()),
+            Self::Binary(v) => Value::ScalarBinary(v.clone().into()),
+            Self::LargeBinary(v) => Value::ScalarLargeBinary(v.clone().into()),
             Self::Struct(v) => {
                 let values = v.iter().map(|v| v.to_proto()).collect::<Result<Vec<_>>>()?;
                 Value::ScalarStruct(StructScalar { values })
@@ -519,7 +519,7 @@ impl ProtoConv for OwnedScalarValue {
                 let values = v
                     .values
                     .into_iter()
-                    .map(|v| OwnedScalarValue::from_proto(v))
+                    .map(OwnedScalarValue::from_proto)
                     .collect::<Result<Vec<_>>>()?;
                 Self::Struct(values)
             }
@@ -527,7 +527,7 @@ impl ProtoConv for OwnedScalarValue {
                 let values = v
                     .values
                     .into_iter()
-                    .map(|v| OwnedScalarValue::from_proto(v))
+                    .map(OwnedScalarValue::from_proto)
                     .collect::<Result<Vec<_>>>()?;
                 Self::List(values)
             }

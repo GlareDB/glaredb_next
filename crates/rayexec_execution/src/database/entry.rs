@@ -55,7 +55,7 @@ impl ProtoConv for TableEntry {
             columns: proto
                 .columns
                 .into_iter()
-                .map(|c| Field::from_proto(c))
+                .map(Field::from_proto)
                 .collect::<Result<Vec<_>>>()?,
         })
     }

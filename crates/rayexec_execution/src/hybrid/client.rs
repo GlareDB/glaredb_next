@@ -435,7 +435,7 @@ impl<C: HttpClient> HybridClient<C> {
     ) -> Result<HybridPlanResponse> {
         let url = self
             .url
-            .join(&REMOTE_ENDPOINTS.rpc_hybrid_plan)
+            .join(REMOTE_ENDPOINTS.rpc_hybrid_plan)
             .context("failed to parse plan endpoint")?;
 
         let msg = HybridPlanRequest {
@@ -475,7 +475,7 @@ impl<C: HttpClient> HybridClient<C> {
     pub async fn remote_execute(&self, query_id: Uuid) -> Result<()> {
         let url = self
             .url
-            .join(&REMOTE_ENDPOINTS.rpc_hybrid_execute)
+            .join(REMOTE_ENDPOINTS.rpc_hybrid_execute)
             .context("failed to parse plan endpoint")?;
 
         let msg = HybridExecuteRequest { query_id };
@@ -488,7 +488,7 @@ impl<C: HttpClient> HybridClient<C> {
     pub async fn push(&self, stream_id: StreamId, partition: usize, batch: Batch) -> Result<()> {
         let url = self
             .url
-            .join(&REMOTE_ENDPOINTS.rpc_hybrid_push)
+            .join(REMOTE_ENDPOINTS.rpc_hybrid_push)
             .context("failed to parse push endpoint")?;
 
         let msg = HybridPushRequest {
@@ -505,7 +505,7 @@ impl<C: HttpClient> HybridClient<C> {
     pub async fn finalize(&self, stream_id: StreamId, partition: usize) -> Result<()> {
         let url = self
             .url
-            .join(&REMOTE_ENDPOINTS.rpc_hybrid_finalize)
+            .join(REMOTE_ENDPOINTS.rpc_hybrid_finalize)
             .context("failed to parse finalize endpoint")?;
 
         let msg = HybridFinalizeRequest {
@@ -521,7 +521,7 @@ impl<C: HttpClient> HybridClient<C> {
     pub async fn pull(&self, stream_id: StreamId, partition: usize) -> Result<PullStatus> {
         let url = self
             .url
-            .join(&REMOTE_ENDPOINTS.rpc_hybrid_pull)
+            .join(REMOTE_ENDPOINTS.rpc_hybrid_pull)
             .context("failed to parse pull endpoint")?;
 
         let msg = HybridPullRequest {

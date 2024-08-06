@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    expr::scalar::{BinaryOperator, UnaryOperator},
+    expr::scalar::UnaryOperator,
     functions::table::TableFunctionArgs,
     logical::{operator::LocationRequirement, sql::expr::ExpressionContext},
 };

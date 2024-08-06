@@ -156,7 +156,7 @@ impl Explainable for PhysicalInsert {
 impl DatabaseProtoConv for PhysicalInsert {
     type ProtoType = rayexec_proto::generated::execution::PhysicalInsert;
 
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
             catalog: self.catalog.clone(),
             schema: self.schema.clone(),

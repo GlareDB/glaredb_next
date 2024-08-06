@@ -277,7 +277,7 @@ impl ProtoConv for StructTypeMeta {
         let fields = proto
             .fields
             .into_iter()
-            .map(|f| Field::from_proto(f))
+            .map(Field::from_proto)
             .collect::<Result<Vec<_>>>()?;
         Ok(Self { fields })
     }

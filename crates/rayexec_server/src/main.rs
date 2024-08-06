@@ -11,9 +11,9 @@ use rayexec_delta::DeltaDataSource;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::{
     datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource},
-    engine::{server_session::ServerSession, Engine},
+    engine::Engine,
     hybrid::client::REMOTE_ENDPOINTS,
-    runtime::{PipelineExecutor, Runtime, TokioHandlerProvider},
+    runtime::{Runtime, TokioHandlerProvider},
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
@@ -64,7 +64,10 @@ async fn inner(
     let engine = Engine::new_with_registry(sched.clone(), runtime.clone(), registry)?;
     let session = engine.new_server_session()?;
 
-    let state = Arc::new(handlers::ServerState { engine, session });
+    let state = Arc::new(handlers::ServerState {
+        _engine: engine,
+        session,
+    });
 
     let app = Router::new()
         .route(REMOTE_ENDPOINTS.healthz, get(handlers::healthz))

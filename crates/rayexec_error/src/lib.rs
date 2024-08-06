@@ -2,8 +2,6 @@ use std::backtrace::{Backtrace, BacktraceStatus};
 use std::error::Error;
 use std::fmt;
 
-use serde::{de, ser};
-
 pub type Result<T, E = RayexecError> = std::result::Result<T, E>;
 
 /// Helper macros for returning an error for currently unimplemented items.

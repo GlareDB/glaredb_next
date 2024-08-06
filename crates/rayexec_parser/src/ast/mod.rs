@@ -219,7 +219,7 @@ impl ProtoConv for ObjectReference {
             proto
                 .idents
                 .into_iter()
-                .map(|i| Ident::from_proto(i))
+                .map(Ident::from_proto)
                 .collect::<Result<Vec<_>>>()?,
         ))
     }

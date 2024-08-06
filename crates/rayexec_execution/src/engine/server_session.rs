@@ -1,5 +1,5 @@
 use dashmap::DashMap;
-use rayexec_bullet::{batch::Batch, field::Schema};
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use uuid::Uuid;
 
@@ -37,7 +37,7 @@ pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
     context: DatabaseContext,
 
     /// Registered data source implementations.
-    registry: Arc<DataSourceRegistry>,
+    _registry: Arc<DataSourceRegistry>,
 
     /// Hybrid execution streams.
     buffers: ServerStreamBuffers,
@@ -46,7 +46,7 @@ pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
     executing_pipelines: DashMap<Uuid, Box<dyn QueryHandle>>,
 
     executor: P,
-    runtime: R,
+    _runtime: R,
 }
 
 impl<P, R> ServerSession<P, R>
@@ -62,12 +62,12 @@ where
     ) -> Self {
         ServerSession {
             context,
-            registry,
+            _registry: registry,
             buffers: ServerStreamBuffers::default(),
             pending_pipelines: DashMap::new(),
             executing_pipelines: DashMap::new(),
             executor,
-            runtime,
+            _runtime: runtime,
         }
     }
 

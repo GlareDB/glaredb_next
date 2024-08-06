@@ -5,7 +5,7 @@ use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
     executor::scalar::UniformExecutor,
 };
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};

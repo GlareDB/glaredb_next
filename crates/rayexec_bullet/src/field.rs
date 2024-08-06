@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
@@ -113,7 +111,7 @@ impl ProtoConv for Schema {
         let fields = proto
             .fields
             .into_iter()
-            .map(|f| Field::from_proto(f))
+            .map(Field::from_proto)
             .collect::<Result<Vec<_>>>()?;
         Ok(Self { fields })
     }
@@ -160,7 +158,7 @@ impl ProtoConv for TypeSchema {
         let types = proto
             .types
             .into_iter()
-            .map(|t| DataType::from_proto(t))
+            .map(DataType::from_proto)
             .collect::<Result<Vec<_>>>()?;
         Ok(Self { types })
     }

@@ -137,7 +137,7 @@ impl DatabaseProtoConv for PhysicalValues {
         })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         let ipc = proto.batches.required("batches")?.ipc;
 
         let mut reader = StreamReader::try_new(Cursor::new(ipc), IpcConfig {})?;

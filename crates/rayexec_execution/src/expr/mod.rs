@@ -10,7 +10,7 @@ use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use std::fmt::{self, Debug};
 use std::sync::Arc;

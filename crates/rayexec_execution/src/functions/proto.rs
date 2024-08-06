@@ -14,7 +14,7 @@ use super::{
     table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
 };
 
-const LOOKUP_CATALOG: &'static str = "glare_catalog";
+const LOOKUP_CATALOG: &str = "glare_catalog";
 
 impl DatabaseProtoConv for Box<dyn ScalarFunction> {
     type ProtoType = rayexec_proto::generated::expr::ScalarFunction;
@@ -184,7 +184,7 @@ impl ProtoConv for TableFunctionArgs {
             positional: proto
                 .positional
                 .into_iter()
-                .map(|v| OwnedScalarValue::from_proto(v))
+                .map(OwnedScalarValue::from_proto)
                 .collect::<Result<Vec<_>>>()?,
         })
     }

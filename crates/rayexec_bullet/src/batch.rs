@@ -1,6 +1,5 @@
 use crate::{array::Array, row::ScalarRow};
 use rayexec_error::{RayexecError, Result};
-use rayexec_proto::ProtoConv;
 use std::sync::Arc;
 
 /// A batch of same-length arrays.

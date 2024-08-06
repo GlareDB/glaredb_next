@@ -8,9 +8,7 @@ use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::expr::scalar::{
-    BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator, UnaryOperator,
-};
+use crate::expr::scalar::{BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator};
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::list::{ListExtract, ListValues};
 use crate::functions::scalar::{like, ScalarFunction};

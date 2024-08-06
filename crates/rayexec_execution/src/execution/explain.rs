@@ -69,6 +69,7 @@ struct ExplainNode {
 }
 
 impl ExplainNode {
+    #[allow(dead_code)]
     fn walk_intermediate_pipeline(
         _intermediate: &IntermediatePipeline,
         _conf: ExplainConfig,

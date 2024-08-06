@@ -20,7 +20,7 @@ use crate::errors::ServerResult;
 #[derive(Debug)]
 pub struct ServerState {
     /// Engine responsible for planning and executing queries.
-    pub engine: Engine<ThreadedNativeExecutor, NativeRuntime>,
+    pub _engine: Engine<ThreadedNativeExecutor, NativeRuntime>,
 
     // TODO: Don't have just one.
     // TODO: Why not?

@@ -2,11 +2,10 @@ use futures::TryStreamExt;
 use rayexec_bullet::format::pretty::table::PrettyTable;
 use rayexec_execution::hybrid::client::{HybridClient, HybridConnectConfig};
 use std::sync::Arc;
-use url::{Host, Url};
 
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
-use rayexec_error::{Result, ResultExt};
+use rayexec_error::Result;
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::{session::Session, Engine};
 use rayexec_execution::runtime::{PipelineExecutor, Runtime};
