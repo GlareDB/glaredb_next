@@ -20,7 +20,10 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
-use super::{client::PullStatus, stream::StreamId};
+use super::{
+    client::{IpcBatch, PullStatus},
+    stream::StreamId,
+};
 
 /// Holds streams used for hybrid execution.
 // TODO: Remove old streams.
@@ -70,7 +73,7 @@ impl ServerStreamBuffers {
 
         let mut state = outgoing.state.lock();
         let status = match state.batch.take() {
-            Some(batch) => PullStatus::Batch(batch),
+            Some(batch) => PullStatus::Batch(IpcBatch(batch)),
             None if state.finished => PullStatus::Finished,
             None => PullStatus::Pending,
         };

@@ -2,7 +2,14 @@ use crate::{
     execution::intermediate::IntermediatePipelineGroup, logical::sql::binder::bind_data::BindData,
     proto::DatabaseProtoConv,
 };
-use rayexec_bullet::{batch::Batch, field::Schema};
+use rayexec_bullet::{
+    batch::Batch,
+    field::{Field, Schema},
+    ipc::{
+        stream::{StreamReader, StreamWriter},
+        IpcConfig,
+    },
+};
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::{
     reqwest::{Method, Request, StatusCode},
@@ -11,6 +18,7 @@ use rayexec_io::http::{
 use rayexec_proto::{prost::Message, ProtoConv};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
+use std::io::Cursor;
 use url::Url;
 use uuid::Uuid;
 
@@ -135,9 +143,48 @@ impl DatabaseProtoConv for HybridExecuteResponse {
         Ok(Self::ProtoType {})
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         Ok(Self {})
     }
+}
+
+#[derive(Debug)]
+pub struct HybridPushRequest {
+    pub stream_id: StreamId,
+    pub partition: usize,
+    pub batch: Batch,
+}
+
+#[derive(Debug)]
+pub struct HybridPushResponse {}
+
+impl DatabaseProtoConv for HybridPushResponse {
+    type ProtoType = rayexec_proto::generated::hybrid::PushResponse;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {})
+    }
+
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {})
+    }
+}
+
+#[derive(Debug)]
+pub struct HybridFinalizeRequest {
+    pub stream_id: StreamId,
+    pub partition: usize,
+}
+
+#[derive(Debug)]
+pub struct HybridPullRequest {
+    pub stream_id: StreamId,
+    pub partition: usize,
+}
+
+#[derive(Debug)]
+pub struct HybridPullResponse {
+    pub batch: IpcBatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,9 +194,52 @@ pub struct HybridConnectConfig {
 
 #[derive(Debug)]
 pub enum PullStatus {
-    Batch(Batch),
+    Batch(IpcBatch),
     Pending,
     Finished,
+}
+
+/// Wrapper around a batch that implements IPC encoding/decoding when converting
+/// to protobuf.
+#[derive(Debug)]
+pub struct IpcBatch(pub Batch);
+
+// TODO: Don't allocate vectors in this.
+impl ProtoConv for IpcBatch {
+    type ProtoType = rayexec_proto::generated::array::IpcStreamBatch;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        let buf = Vec::new();
+
+        // Field names don't matter. A full schema is included just for
+        // compatability with arrow ipc, but we only care about the data types.
+        let schema = Schema::new(
+            self.0
+                .columns()
+                .iter()
+                .map(|c| Field::new("", c.datatype(), true)),
+        );
+
+        let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;
+        writer.write_batch(&self.0)?;
+
+        let buf = writer.into_writer();
+
+        Ok(Self::ProtoType { ipc: buf })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        let mut reader = StreamReader::try_new(Cursor::new(proto.ipc), IpcConfig {})?;
+        let batch = reader
+            .try_next_batch()?
+            .ok_or_else(|| RayexecError::new("Missing IPC batch"))?;
+
+        if reader.try_next_batch()?.is_some() {
+            return Err(RayexecError::new("Received too many IPC batches"));
+        }
+
+        Ok(Self(batch))
+    }
 }
 
 #[derive(Debug)]

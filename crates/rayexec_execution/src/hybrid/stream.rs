@@ -4,6 +4,7 @@ use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
+use rayexec_proto::ProtoConv;
 use uuid::Uuid;
 
 use crate::{
@@ -44,7 +45,7 @@ impl<C: HttpClient + 'static> QuerySink for ClientToServerStream<C> {
 }
 
 impl<C: HttpClient> Explainable for ClientToServerStream<C> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ClientToServerStream")
     }
 }
@@ -106,7 +107,7 @@ impl<C: HttpClient> PartitionSource for ServerToClientPartitionSource<C> {
             loop {
                 let status = self.client.pull(&self.stream_id, 0).await?;
                 match status {
-                    PullStatus::Batch(batch) => return Ok(Some(batch)),
+                    PullStatus::Batch(batch) => return Ok(Some(batch.0)),
                     PullStatus::Pending => continue,
                     PullStatus::Finished => return Ok(None),
                 }
