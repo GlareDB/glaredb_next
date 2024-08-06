@@ -77,11 +77,11 @@ pub struct ClientToServerPartitionSink<C: HttpClient> {
 impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
     fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         // TODO: Figure out backpressure
-        Box::pin(async { self.client.push(&self.stream_id, 0, batch).await })
+        Box::pin(async { self.client.push(self.stream_id, 0, batch).await })
     }
 
     fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async { self.client.finalize(&self.stream_id, 0).await })
+        Box::pin(async { self.client.finalize(self.stream_id, 0).await })
     }
 }
 
@@ -123,7 +123,7 @@ impl<C: HttpClient> PartitionSource for ServerToClientPartitionSource<C> {
         Box::pin(async {
             // TODO
             loop {
-                let status = self.client.pull(&self.stream_id, 0).await?;
+                let status = self.client.pull(self.stream_id, 0).await?;
                 match status {
                     PullStatus::Batch(batch) => return Ok(Some(batch.0)),
                     PullStatus::Pending => continue,

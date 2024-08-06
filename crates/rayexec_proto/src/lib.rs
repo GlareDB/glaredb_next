@@ -4,6 +4,7 @@ pub mod util_types;
 
 pub use prost;
 
+use prost::Message;
 use rayexec_error::Result;
 
 /// Convert type to/from their protobuf representations.

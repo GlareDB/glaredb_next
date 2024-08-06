@@ -12,10 +12,15 @@ use rayexec_bullet::{
 };
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::{
-    reqwest::{Method, Request, StatusCode},
+    reqwest::{
+        header::{HeaderValue, CONTENT_TYPE},
+        Method, Request, StatusCode,
+    },
     HttpClient, HttpResponse,
 };
+use rayexec_proto::prost::Message;
 use rayexec_proto::ProtoConv;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::io::Cursor;
 use url::Url;
@@ -151,20 +156,40 @@ impl DatabaseProtoConv for HybridExecuteResponse {
 pub struct HybridPushRequest {
     pub stream_id: StreamId,
     pub partition: usize,
-    pub batch: Batch,
+    pub batch: IpcBatch,
+}
+
+impl ProtoConv for HybridPushRequest {
+    type ProtoType = rayexec_proto::generated::hybrid::PushRequest;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            stream_id: Some(self.stream_id.to_proto()?),
+            partition: self.partition as u32,
+            batch: Some(self.batch.to_proto()?),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
+            partition: proto.partition as usize,
+            batch: IpcBatch::from_proto(proto.batch.required("batch")?)?,
+        })
+    }
 }
 
 #[derive(Debug)]
 pub struct HybridPushResponse {}
 
-impl DatabaseProtoConv for HybridPushResponse {
+impl ProtoConv for HybridPushResponse {
     type ProtoType = rayexec_proto::generated::hybrid::PushResponse;
 
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {})
     }
 
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
         Ok(Self {})
     }
 }
@@ -190,6 +215,21 @@ impl ProtoConv for HybridFinalizeRequest {
             stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
             partition: proto.partition as usize,
         })
+    }
+}
+
+#[derive(Debug)]
+pub struct HybridFinalizeResponse {}
+
+impl ProtoConv for HybridFinalizeResponse {
+    type ProtoType = rayexec_proto::generated::hybrid::FinalizeResponse;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {})
+    }
+
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {})
     }
 }
 
@@ -323,6 +363,20 @@ impl ProtoConv for IpcBatch {
     }
 }
 
+// TODO: Borrowed bytes
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RequestEnvelope {
+    #[serde(with = "serde_bytes")]
+    encoded_msg: Vec<u8>,
+}
+
+// TODO: Borrowed bytes
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseEnvelope {
+    #[serde(with = "serde_bytes")]
+    encoded_msg: Vec<u8>,
+}
+
 #[derive(Debug)]
 pub struct HybridClient<C: HttpClient> {
     url: Url,
@@ -351,15 +405,96 @@ impl<C: HttpClient> HybridClient<C> {
         Ok(())
     }
 
-    pub async fn push(&self, stream_id: &StreamId, partition: usize, batch: Batch) -> Result<()> {
-        unimplemented!()
+    pub async fn push(&self, stream_id: StreamId, partition: usize, batch: Batch) -> Result<()> {
+        let url = self
+            .url
+            .join(&REMOTE_ENDPOINTS.rpc_hybrid_push)
+            .context("failed to parse push endpoint")?;
+
+        let msg = HybridPushRequest {
+            stream_id,
+            partition,
+            batch: IpcBatch(batch),
+        };
+
+        let _resp: HybridPushResponse = self.do_request(msg, url).await?;
+
+        Ok(())
     }
 
-    pub async fn finalize(&self, stream_id: &StreamId, partition: usize) -> Result<()> {
-        unimplemented!()
+    pub async fn finalize(&self, stream_id: StreamId, partition: usize) -> Result<()> {
+        let url = self
+            .url
+            .join(&REMOTE_ENDPOINTS.rpc_hybrid_finalize)
+            .context("failed to parse finalize endpoint")?;
+
+        let msg = HybridFinalizeRequest {
+            stream_id,
+            partition,
+        };
+
+        let _resp: HybridFinalizeResponse = self.do_request(msg, url).await?;
+
+        Ok(())
     }
 
-    pub async fn pull(&self, stream_id: &StreamId, partition: usize) -> Result<PullStatus> {
-        unimplemented!()
+    pub async fn pull(&self, stream_id: StreamId, partition: usize) -> Result<PullStatus> {
+        let url = self
+            .url
+            .join(&REMOTE_ENDPOINTS.rpc_hybrid_pull)
+            .context("failed to parse pull endpoint")?;
+
+        let msg = HybridPullRequest {
+            stream_id,
+            partition,
+        };
+
+        let resp: HybridPullResponse = self.do_request(msg, url).await?;
+
+        Ok(resp.status)
+    }
+
+    async fn do_request<M, R>(&self, msg: M, url: Url) -> Result<R>
+    where
+        M: ProtoConv,
+        M::ProtoType: Message,
+        R: ProtoConv,
+        R::ProtoType: Message + Default,
+    {
+        let encoded_msg = msg.to_proto()?.encode_to_vec();
+
+        let mut req = Request::new(Method::POST, url);
+        Self::put_json_body(&mut req, &RequestEnvelope { encoded_msg })?;
+
+        let resp = self
+            .client
+            .do_request(req)
+            .await
+            .context("failed to send request")?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(RayexecError::new(format!(
+                "Expected 200, got {}",
+                resp.status().as_u16()
+            )));
+        }
+
+        let resp: ResponseEnvelope = serde_json::from_slice(resp.bytes().await?.as_ref())
+            .context("failed to deserialize response")?;
+
+        let resp = R::from_proto(
+            Message::decode(resp.encoded_msg.as_slice()).context("failed to decode message")?,
+        )?;
+
+        Ok(resp)
+    }
+
+    fn put_json_body(req: &mut Request, body: &impl Serialize) -> Result<()> {
+        let body = serde_json::to_vec(body).context("failed to serialize body")?;
+        *req.body_mut() = Some(body.into());
+        req.headers_mut()
+            .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+        Ok(())
     }
 }
