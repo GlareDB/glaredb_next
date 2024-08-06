@@ -515,6 +515,8 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::UngroupedAggregate(op) => Value::UngroupedAggregate(op.to_proto_ctx(context)?),
             Self::Union(op) => Value::Union(op.to_proto_ctx(context)?),
             Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
+            Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
+            Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
             other => unimplemented!("{other:?}"),
         };
 
@@ -560,8 +562,12 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::Values(op) => {
                 PhysicalOperator::Values(PhysicalValues::from_proto_ctx(op, context)?)
             }
-
-            _ => unimplemented!(),
+            Value::TableFunction(op) => {
+                PhysicalOperator::TableFunction(PhysicalTableFunction::from_proto_ctx(op, context)?)
+            }
+            Value::NlJoin(op) => PhysicalOperator::NestedLoopJoin(
+                PhysicalNestedLoopJoin::from_proto_ctx(op, context)?,
+            ),
         })
     }
 }

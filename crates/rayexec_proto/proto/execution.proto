@@ -107,6 +107,14 @@ message PhysicalValues {
     array.IpcStreamBatch batches = 1;
 }
 
+message PhysicalTableFunction {
+    expr.PlannedTableFunction function = 1;
+}
+
+message PhysicalNestedLoopJoin {
+    optional expr.PhysicalScalarExpression filter = 1;
+}
+
 message PhysicalOperator {
     oneof value {
         PhysicalCreateSchema       create_schema       = 1;
@@ -121,7 +129,9 @@ message PhysicalOperator {
         PhysicalScan               scan                = 10;
         PhysicalUngroupedAggregate ungrouped_aggregate = 11;
         PhysicalUnion union                            = 12;
-        PhysicalValues values                          = 13;
+        PhysicalValues         values                  = 13;
+        PhysicalTableFunction  table_function          = 14;
+        PhysicalNestedLoopJoin nl_join                 = 15;
     }
 }
 

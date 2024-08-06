@@ -19,7 +19,7 @@ use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 
 #[derive(Parser)]
@@ -91,6 +91,7 @@ async fn inner(
         // TODO: Limit CORS to *.glaredb.com and localhost. And maybe make
         // localhost dev build only.
         .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", args.port))

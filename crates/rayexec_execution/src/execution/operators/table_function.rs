@@ -2,10 +2,11 @@ use crate::{
     database::{table::DataTableScan, DatabaseContext},
     functions::table::PlannedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use std::{fmt, task::Poll};
 use std::{sync::Arc, task::Context};
 
@@ -142,5 +143,24 @@ impl ExecutableOperator for PhysicalTableFunction {
 impl Explainable for PhysicalTableFunction {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("TableFunction")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalTableFunction {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalTableFunction;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            function: Some(self.function.to_proto_ctx(context)?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            function: DatabaseProtoConv::from_proto_ctx(
+                proto.function.required("function")?,
+                context,
+            )?,
+        })
     }
 }

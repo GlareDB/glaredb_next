@@ -484,7 +484,7 @@ impl ProtoConv for OwnedScalarValue {
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         use rayexec_proto::generated::expr::owned_scalar_value::Value;
 
-        Ok(match proto.value.required("value")? {
+        Ok(match proto.value.required("owned scalar value enum")? {
             Value::ScalarNull(_) => Self::Null,
             Value::ScalarBoolean(v) => Self::Boolean(v),
             Value::ScalarInt8(v) => Self::Int8(v.try_into()?),

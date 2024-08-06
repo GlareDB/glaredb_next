@@ -15,6 +15,7 @@ use crate::execution::operators::{
 };
 use crate::expr::PhysicalScalarExpression;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 /// Partition-local state on the build side.
 #[derive(Debug, Default)]
@@ -431,5 +432,28 @@ fn cross_join(
 impl Explainable for PhysicalNestedLoopJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("NestedLoopJoin")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalNestedLoopJoin {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalNestedLoopJoin;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            filter: self
+                .filter
+                .as_ref()
+                .map(|f| f.to_proto_ctx(context))
+                .transpose()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            filter: proto
+                .filter
+                .map(|f| PhysicalScalarExpression::from_proto_ctx(f, context))
+                .transpose()?,
+        })
     }
 }
