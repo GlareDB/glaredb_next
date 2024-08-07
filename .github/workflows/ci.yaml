@@ -99,7 +99,7 @@ jobs:
         uses: 'google-github-actions/get-gke-credentials@v2'
         with:
           cluster_name: 'glaredb-gke-public'
-          location: 'us-central1-a'
+          location: 'us-central1'
 
       - name: Rollout
         run: kubectl rollout restart deployment/rayexec-dev-deployment
