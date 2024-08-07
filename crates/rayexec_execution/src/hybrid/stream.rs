@@ -19,6 +19,13 @@ use crate::{
 use super::client::{HybridClient, PullStatus};
 
 /// Client-side stream for sending batches from the client to the server (push).
+///
+/// All the ipc client/server streams have a partitioning requirement of one.
+/// However it should be pretty easy to extend to support multiple partition
+/// with very little change. The remote side (server) could just set it to its
+/// target partitioning value, and the for clients, we can just send that
+/// information over along with the plan+bind data. Then the remote side would
+/// have everything it needs for wiring up the streams for correct partitioning.
 #[derive(Debug)]
 pub struct ClientToServerStream<C: HttpClient> {
     stream_id: StreamId,
