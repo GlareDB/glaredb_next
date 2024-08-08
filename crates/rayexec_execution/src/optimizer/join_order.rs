@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use crate::{
+    execution::operators::hash_aggregate::aggregate_hash_table::PartitionAggregateHashTable,
     expr::scalar::{BinaryOperator, PlannedBinaryOperator},
     logical::{
         consteval::ConstEval,
@@ -6,7 +9,7 @@ use crate::{
         operator::{EqualityJoin, LogicalNode, LogicalOperator, Projection},
     },
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use super::OptimizeRule;
 
@@ -152,6 +155,161 @@ impl JoinOrderRule {
     }
 }
 
+#[derive(Debug, PartialEq)]
+struct InputPreprojections {
+    /// The new ON expression to use.
+    on_expr: LogicalExpression,
+
+    /// _Additional_ projections that should be added to the left input. If no
+    /// projection is needed, this will be empty.
+    left_projections: Vec<LogicalExpression>,
+
+    /// _Additional_ projections that should be added to the right input. If no
+    /// projection is needed, this will be empty.
+    right_projections: Vec<LogicalExpression>,
+}
+
+impl InputPreprojections {
+    /// Try to compute input pre-projections from an ON expression from a join.
+    ///
+    /// This accepts `left_len` and `right_len` which should correspond to the
+    /// size of the left and right inputs. These values are used computing the
+    /// new column references.
+    fn try_compute_from_on_expr(
+        left_len: usize,
+        right_len: usize,
+        mut on_expr: LogicalExpression,
+    ) -> Result<Self> {
+        // 1. Walks the expression, moves pre-projections into essentially a
+        //    third input.
+        // 2. Compute the number pre-projections for left and right.
+        // 3. Walks expression again and updates the column references
+        //    to point to the correct columns.
+
+        #[derive(Debug, PartialEq)]
+        enum InputSide {
+            Left,
+            Right,
+        }
+
+        let mut preprojections: HashMap<usize, (LogicalExpression, InputSide)> = HashMap::new();
+
+        let maybe_swap_projection = &mut |expr: &mut LogicalExpression| {
+            let idx = left_len + right_len + preprojections.len();
+
+            // No need to change column references.
+            if matches!(expr, LogicalExpression::ColumnRef(_)) {
+                return Ok::<_, RayexecError>(false);
+            }
+
+            // Maybe left.
+            if expr_within_relation_bound(expr, 0, left_len - 1) {
+                let new_expr = LogicalExpression::new_column(idx);
+                let orig = std::mem::replace(expr, new_expr);
+                preprojections.insert(idx, (orig, InputSide::Left));
+                return Ok(true);
+            }
+
+            // Maybe right.
+            if expr_within_relation_bound(expr, left_len, left_len + right_len - 1) {
+                let new_expr = LogicalExpression::new_column(idx);
+                let mut orig = std::mem::replace(expr, new_expr);
+
+                // Update original expression to be relative to the projection.
+                orig.walk_mut_post(&mut |expr| match expr {
+                    LogicalExpression::ColumnRef(column) => {
+                        if column.scope_level != 0 {
+                            return Err(RayexecError::new("unhandled scope level"));
+                        }
+                        column.item_idx -= left_len;
+                        Ok(())
+                    }
+                    _ => Ok(()),
+                })?;
+
+                preprojections.insert(idx, (orig, InputSide::Right));
+                return Ok(true);
+            }
+
+            // All constants go to right.
+            if expr.is_constant() {
+                let new_expr = LogicalExpression::new_column(idx);
+                let orig = std::mem::replace(expr, new_expr);
+                preprojections.insert(idx, (orig, InputSide::Right));
+                return Ok(true);
+            }
+
+            Ok(false)
+        };
+
+        on_expr.walk_mut_pre(&mut |expr| {
+            maybe_swap_projection(expr)?;
+            Ok(())
+        })?;
+
+        let left_projection_count = preprojections
+            .values()
+            .filter(|(_, side)| matches!(side, InputSide::Left))
+            .count();
+
+        let right_projection_count = preprojections
+            .values()
+            .filter(|(_, side)| matches!(side, InputSide::Right))
+            .count();
+
+        let mut left_projections = Vec::with_capacity(left_projection_count);
+        let mut right_projections = Vec::with_capacity(right_projection_count);
+
+        on_expr.walk_mut_post(&mut |expr| {
+            match expr {
+                LogicalExpression::ColumnRef(column_ref) => {
+                    if column_ref.scope_level != 0 {
+                        // TODO: Unsure.
+                        return Ok(());
+                    }
+
+                    match preprojections.remove(&column_ref.item_idx) {
+                        Some((expr, InputSide::Left)) => {
+                            column_ref.item_idx = left_len + left_projections.len();
+                            left_projections.push(expr);
+                        }
+                        Some((expr, InputSide::Right)) => {
+                            column_ref.item_idx = left_len
+                                + left_projection_count
+                                + right_len
+                                + right_projections.len();
+                            right_projections.push(expr);
+                        }
+                        None => {
+                            // Column references that were in the original
+                            // expression.
+                            //
+                            // - Left references remain valid.
+                            // - Right references need to be updated to account
+                            //   for added left projections. This can be done by
+                            //   just adding the number of additional left
+                            //   projection to the original reference.
+                            if column_ref.item_idx >= left_len
+                                && column_ref.item_idx < (left_len + right_len)
+                            {
+                                column_ref.item_idx += left_projection_count;
+                            }
+                        }
+                    }
+                }
+                _ => (),
+            }
+            Ok(())
+        })?;
+
+        Ok(InputPreprojections {
+            on_expr,
+            left_projections,
+            right_projections,
+        })
+    }
+}
+
 /// Split a logical expression on AND conditions, appending
 /// them to the provided vector.
 fn split_conjunctive(expr: LogicalExpression, outputs: &mut Vec<LogicalExpression>) {
@@ -169,5 +327,174 @@ fn split_conjunctive(expr: LogicalExpression, outputs: &mut Vec<LogicalExpressio
             split_conjunctive(*right, outputs);
         }
         other => outputs.push(other),
+    }
+}
+
+fn expr_within_relation_bound(expr: &LogicalExpression, min: usize, max: usize) -> bool {
+    match expr {
+        LogicalExpression::ColumnRef(col) => {
+            if col.scope_level != 0 {
+                return false;
+            }
+            col.item_idx >= min && col.item_idx <= max
+        }
+        LogicalExpression::Literal(_) => false,
+        LogicalExpression::ScalarFunction { inputs, .. } => inputs
+            .iter()
+            .all(|expr| expr_within_relation_bound(expr, min, max)),
+        LogicalExpression::Cast { to, expr } => expr_within_relation_bound(expr.as_ref(), min, max),
+        LogicalExpression::Unary { op, expr } => {
+            expr_within_relation_bound(expr.as_ref(), min, max)
+        }
+        LogicalExpression::Binary { op, left, right } => {
+            expr_within_relation_bound(left.as_ref(), min, max)
+                && expr_within_relation_bound(right.as_ref(), min, max)
+        }
+        LogicalExpression::Variadic { op, exprs } => exprs
+            .iter()
+            .all(|expr| expr_within_relation_bound(expr, min, max)),
+        LogicalExpression::Aggregate { inputs, .. } => inputs
+            .iter()
+            .all(|expr| expr_within_relation_bound(expr, min, max)),
+        LogicalExpression::Subquery(_) => false,
+        LogicalExpression::Case { .. } => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::datatype::DataType;
+
+    use crate::functions::scalar::comparison::EqImpl;
+
+    use similar_asserts::assert_eq;
+
+    use super::*;
+
+    fn new_binary_eq() -> PlannedBinaryOperator {
+        PlannedBinaryOperator {
+            op: BinaryOperator::Eq,
+            scalar: Box::new(EqImpl),
+        }
+    }
+
+    #[test]
+    fn input_preprojections_no_update_needed() {
+        let on_expr = LogicalExpression::Binary {
+            op: new_binary_eq(),
+            left: Box::new(LogicalExpression::new_column(2)),
+            right: Box::new(LogicalExpression::new_column(3)),
+        };
+
+        let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
+
+        let expected = InputPreprojections {
+            on_expr: LogicalExpression::Binary {
+                op: new_binary_eq(),
+                left: Box::new(LogicalExpression::new_column(2)),
+                right: Box::new(LogicalExpression::new_column(3)),
+            },
+            left_projections: Vec::new(),
+            right_projections: Vec::new(),
+        };
+
+        assert_eq!(expected, preprojections)
+    }
+
+    #[test]
+    fn input_preprojections_cast_left_input_unchanged_right() {
+        let on_expr = LogicalExpression::Binary {
+            op: new_binary_eq(),
+            left: Box::new(LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(2)),
+            }),
+            right: Box::new(LogicalExpression::new_column(3)),
+        };
+
+        let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
+
+        let expected = InputPreprojections {
+            on_expr: LogicalExpression::Binary {
+                op: new_binary_eq(),
+                // Additional left projection added to end (3 + 1)
+                left: Box::new(LogicalExpression::new_column(4)),
+                // Right needs to account for additional left (3 + 1 + 1)
+                right: Box::new(LogicalExpression::new_column(5)),
+            },
+            left_projections: vec![LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(2)),
+            }],
+            right_projections: Vec::new(),
+        };
+
+        assert_eq!(expected, preprojections)
+    }
+
+    #[test]
+    fn input_preprojections_cast_right_input_unchanged_left() {
+        let on_expr = LogicalExpression::Binary {
+            op: new_binary_eq(),
+            left: Box::new(LogicalExpression::new_column(2)),
+            right: Box::new(LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(3)),
+            }),
+        };
+
+        let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
+
+        let expected = InputPreprojections {
+            on_expr: LogicalExpression::Binary {
+                op: new_binary_eq(),
+                // No change needed.
+                left: Box::new(LogicalExpression::new_column(2)),
+                // Righ now points to the appended column on the right side.
+                right: Box::new(LogicalExpression::new_column(5)),
+            },
+            left_projections: Vec::new(),
+            right_projections: vec![LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(0)), // Relative to the right input.
+            }],
+        };
+
+        assert_eq!(expected, preprojections)
+    }
+
+    #[test]
+    fn input_preprojections_cast_left_and_right() {
+        let on_expr = LogicalExpression::Binary {
+            op: new_binary_eq(),
+            left: Box::new(LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(2)),
+            }),
+            right: Box::new(LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(3)),
+            }),
+        };
+
+        let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
+
+        let expected = InputPreprojections {
+            on_expr: LogicalExpression::Binary {
+                op: new_binary_eq(),
+                left: Box::new(LogicalExpression::new_column(4)),
+                right: Box::new(LogicalExpression::new_column(6)),
+            },
+            left_projections: vec![LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(2)),
+            }],
+            right_projections: vec![LogicalExpression::Cast {
+                to: DataType::Float64,
+                expr: Box::new(LogicalExpression::new_column(0)),
+            }],
+        };
+
+        assert_eq!(expected, preprojections)
     }
 }
