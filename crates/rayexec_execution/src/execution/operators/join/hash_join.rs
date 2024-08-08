@@ -6,7 +6,7 @@ use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
 use crate::database::DatabaseContext;
-use crate::execution::operators::util::hash::hash_arrays;
+use crate::execution::operators::util::hash::{AhashHasher, ArrayHasher};
 use crate::execution::operators::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
@@ -196,7 +196,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 // Compute hashes on input batch
                 state.hash_buf.clear();
                 state.hash_buf.resize(batch.num_rows(), 0);
-                let hashes = hash_arrays(&left_columns, &mut state.hash_buf)?;
+                let hashes = AhashHasher::hash_arrays(&left_columns, &mut state.hash_buf)?;
 
                 state.local_hashtable.insert_batch(
                     &batch,
@@ -259,7 +259,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 state.hash_buf.clear();
                 state.hash_buf.resize(batch.num_rows(), 0);
-                let hashes = hash_arrays(&right_input_cols, &mut state.hash_buf)?;
+                let hashes = AhashHasher::hash_arrays(&right_input_cols, &mut state.hash_buf)?;
 
                 // TODO: Handle everything else.
                 //
