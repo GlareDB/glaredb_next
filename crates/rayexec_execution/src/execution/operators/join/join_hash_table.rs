@@ -18,6 +18,30 @@ struct RowKey {
     row_idx: usize,
 }
 
+/// Bitmaps corresponding to rows in the batches collected on the left side of
+/// the join.
+///
+/// During probing, bitmaps will be updated to mark rows as having been visited.
+///
+/// Each partition (thread) will have its own set of bitmaps that will then be
+/// merged at the end to produce a final set of bitmaps. This final set of
+/// bitmaps will be used to determine which rows we need to emit in the case of
+/// LEFT joins.
+#[derive(Debug)]
+pub struct LeftBatchVisitBitmaps {
+    bitmaps: Vec<Bitmap>,
+}
+
+impl LeftBatchVisitBitmaps {
+    fn mark_rows_as_visited(&mut self, batch_idx: usize, rows: &[usize]) {
+        let bitmap = self.bitmaps.get_mut(batch_idx).expect("bitmap to exist");
+
+        for row in rows {
+            bitmap.set(*row, true);
+        }
+    }
+}
+
 /// Hash table for storing batches for a single partition.
 pub struct PartitionJoinHashTable {
     /// Collected batches so far.
@@ -99,10 +123,21 @@ impl PartitionJoinHashTable {
         Ok(())
     }
 
+    pub fn new_left_visit_bitmaps(&self) -> LeftBatchVisitBitmaps {
+        let bitmaps = self
+            .batches
+            .iter()
+            .map(|b| Bitmap::all_false(b.num_rows()))
+            .collect();
+
+        LeftBatchVisitBitmaps { bitmaps }
+    }
+
     // inner
     pub fn probe(
         &self,
         right: &Batch,
+        mut left_visit_bitmaps: Option<&mut LeftBatchVisitBitmaps>,
         hashes: &[u64],
         right_col_indices: &[usize],
     ) -> Result<Batch> {
@@ -145,6 +180,14 @@ impl PartitionJoinHashTable {
         let mut batches = Vec::with_capacity(row_indices.len());
         for (batch_idx, row_indices) in row_indices {
             let (left_rows, right_rows): (Vec<_>, Vec<_>) = row_indices.into_iter().unzip();
+
+            // Update left visit bitmaps with rows we're visiting from batches
+            // in the hash table.
+            //
+            // May be None if we're not doing a LEFT JOIN.
+            if let Some(left_visit_bitmaps) = left_visit_bitmaps.as_mut() {
+                left_visit_bitmaps.mark_rows_as_visited(batch_idx, &left_rows);
+            }
 
             let left_batch = self.batches.get(batch_idx).expect("batch to exist");
             let left_cols = left_batch
