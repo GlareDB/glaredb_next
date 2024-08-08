@@ -285,7 +285,13 @@ impl ExecutableOperator for PhysicalHashJoin {
                 // - Inverse of left/right
                 match self.join_type {
                     JoinType::Inner => {
-                        let joined = hashtable.probe(&batch, None, hashes, &self.right_on)?;
+                        let joined =
+                            hashtable.probe(&batch, None, hashes, &self.right_on, false)?;
+                        state.buffered_output = Some(joined);
+                        Ok(PollPush::Pushed)
+                    }
+                    JoinType::Right => {
+                        let joined = hashtable.probe(&batch, None, hashes, &self.right_on, true)?;
                         state.buffered_output = Some(joined);
                         Ok(PollPush::Pushed)
                     }

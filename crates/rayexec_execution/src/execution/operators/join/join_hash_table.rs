@@ -1,11 +1,11 @@
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::BooleanArray,
+    array::{Array, BooleanArray},
     batch::Batch,
     bitmap::Bitmap,
-    compute::{concat::concat, filter::filter, take::take},
+    compute::{self, concat::concat, filter::filter, take::take},
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use std::{collections::HashMap, fmt};
 
 /// Points to a row in the hash table.
@@ -140,6 +140,7 @@ impl PartitionJoinHashTable {
         mut left_visit_bitmaps: Option<&mut LeftBatchVisitBitmaps>,
         hashes: &[u64],
         right_col_indices: &[usize],
+        right_outer: bool,
     ) -> Result<Batch> {
         // Track per-batch row indices that match the input columns.
         //
@@ -173,6 +174,13 @@ impl PartitionJoinHashTable {
             }
         }
 
+        // Bitmap for tracking rows we visited on the right side.
+        let mut right_unvisited = if right_outer {
+            Some(Bitmap::all_true(right.num_rows()))
+        } else {
+            None
+        };
+
         // Get all rows from the left and right batches.
         //
         // The final batch will be a batch containing all columns from the left
@@ -187,6 +195,14 @@ impl PartitionJoinHashTable {
             // May be None if we're not doing a LEFT JOIN.
             if let Some(left_visit_bitmaps) = left_visit_bitmaps.as_mut() {
                 left_visit_bitmaps.mark_rows_as_visited(batch_idx, &left_rows);
+            }
+
+            // Update right unvisited bitmap. May be None if we're not doing a
+            // RIGHT JOIN.
+            if let Some(right_unvisited) = right_unvisited.as_mut() {
+                for row_idx in &right_rows {
+                    right_unvisited.set(*row_idx, false);
+                }
             }
 
             let left_batch = self.batches.get(batch_idx).expect("batch to exist");
@@ -205,6 +221,30 @@ impl PartitionJoinHashTable {
             let all_cols = left_cols.into_iter().chain(right_cols.into_iter());
 
             let batch = Batch::try_new(all_cols)?;
+            batches.push(batch);
+        }
+
+        // Append batch representing unvisited right rows.
+        if let Some(right_unvisited) = right_unvisited {
+            let left_types: Vec<_> = match self.batches.first() {
+                Some(batch) => batch.columns().iter().map(|a| a.datatype()).collect(),
+                None => not_implemented!("empty left"), // TODO: Include left/right types on hash join instead
+            };
+
+            let unvisited_count = right_unvisited.popcnt();
+
+            let selection = BooleanArray::new(right_unvisited, None);
+            let right_unvisited = right
+                .columns()
+                .iter()
+                .map(|a| compute::filter::filter(a, &selection))
+                .collect::<Result<Vec<_>>>()?;
+
+            let left_null_cols = left_types
+                .iter()
+                .map(|t| Array::new_nulls(t, unvisited_count));
+
+            let batch = Batch::try_new(left_null_cols.chain(right_unvisited.into_iter()))?;
             batches.push(batch);
         }
 
