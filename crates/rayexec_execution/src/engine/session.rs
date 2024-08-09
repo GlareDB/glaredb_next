@@ -15,7 +15,7 @@ use crate::{
         binder::{BindMode, Binder},
         context::QueryContext,
         operator::{LogicalOperator, VariableOrAll},
-        planner::statement_planner::PlanContext,
+        planner::plan_statement::PlanContext,
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},

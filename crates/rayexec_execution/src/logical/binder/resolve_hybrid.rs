@@ -7,7 +7,7 @@ use rayexec_error::Result;
 
 use super::{
     bind_data::{BoundTableFunctionReference, MaybeBound},
-    local_resolver::Resolver,
+    resolve_normal::Resolver,
     BindData, Binder,
 };
 

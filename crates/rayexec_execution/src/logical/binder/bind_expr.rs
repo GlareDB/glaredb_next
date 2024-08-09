@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     expr::scalar::UnaryOperator,
     functions::table::TableFunctionArgs,
-    logical::{operator::LocationRequirement, planner::expr_planner::ExpressionContext},
+    logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::{

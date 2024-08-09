@@ -19,7 +19,7 @@ use crate::{
             Explain, ExplainFormat, Insert, LogicalNode, LogicalOperator, Projection, ResetVar,
             Scan, SetVar, ShowVar, VariableOrAll,
         },
-        planner::{expr_planner::ExpressionContext, query_planner::QueryNodePlanner},
+        planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
     },
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};

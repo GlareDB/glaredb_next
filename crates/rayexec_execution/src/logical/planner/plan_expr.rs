@@ -18,7 +18,7 @@ use crate::logical::binder::Bound;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
-use super::query_planner::QueryNodePlanner;
+use super::plan_query::QueryNodePlanner;
 use super::scope::{Scope, TableReference};
 
 /// An expanded select expression.

@@ -21,11 +21,11 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
 
 use super::{
-    aggregate_planner::AggregatePlanner,
-    expr_planner::{ExpandedSelectExpr, ExpressionContext},
+    plan_aggregate::AggregatePlanner,
+    plan_expr::{ExpandedSelectExpr, ExpressionContext},
+    plan_statement::LogicalQuery,
+    plan_subquery::SubqueryPlanner,
     scope::{ColumnRef, Scope, TableReference},
-    statement_planner::LogicalQuery,
-    subquery_planner::SubqueryPlanner,
 };
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();

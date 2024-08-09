@@ -28,11 +28,11 @@
 //!   as it can. Once the statement is returned, we can send it off to an
 //!   instance (the cloud) this is able to complete the binding process. This is
 //!   for hybrid exec.
-pub mod expr_planner;
+pub mod plan_expr;
+pub mod plan_statement;
 pub mod scope;
-pub mod statement_planner;
 
-mod aggregate_planner;
 mod decorrelate;
-mod query_planner;
-mod subquery_planner;
+mod plan_aggregate;
+mod plan_query;
+mod plan_subquery;

@@ -19,8 +19,8 @@ use crate::{
         client::{HybridPlanResponse, PullStatus},
     },
     logical::{
-        binder::{bind_data::BindData, hybrid_resolver::HybridResolver, BoundStatement},
-        planner::statement_planner::PlanContext,
+        binder::{bind_data::BindData, resolve_hybrid::HybridResolver, BoundStatement},
+        planner::plan_statement::PlanContext,
     },
     optimizer::Optimizer,
     runtime::{NopErrorSink, PipelineExecutor, QueryHandle, Runtime},
