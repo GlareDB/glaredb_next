@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::logical::{
     binder::{
-        bind_data::{BindData, BoundTableOrCteReference, CteReference},
+        bind_data::BindData,
+        bound_table::{BoundTableOrCteReference, CteIndex},
         Bound,
     },
     context::QueryContext,
@@ -363,8 +364,8 @@ impl<'a> QueryNodePlanner<'a> {
                             scope,
                         }
                     }
-                    (BoundTableOrCteReference::Cte(bound), _) => {
-                        self.plan_cte_body(context, *bound, current_schema, current_scope)?
+                    (BoundTableOrCteReference::Cte { cte_idx }, _) => {
+                        self.plan_cte_body(context, *cte_idx, current_schema, current_scope)?
                     }
                 }
             }
@@ -491,18 +492,19 @@ impl<'a> QueryNodePlanner<'a> {
     fn plan_cte_body(
         &self,
         context: &mut QueryContext,
-        bound: CteReference,
+        bound: CteIndex,
         current_schema: TypeSchema,
         current_scope: Scope,
     ) -> Result<LogicalQuery> {
-        let cte = self.bind_data.ctes.get(bound.idx).ok_or_else(|| {
-            RayexecError::new(format!("Missing bound CTE at index {}", bound.idx))
-        })?;
+        let cte =
+            self.bind_data.ctes.get(bound.0).ok_or_else(|| {
+                RayexecError::new(format!("Missing bound CTE at index {}", bound.0))
+            })?;
 
         if cte.materialized {
             // Check if we already have a materialized plan for
             // this CTE.
-            if let Some(reference) = context.get_materialized_cte_reference(&bound).cloned() {
+            if let Some(reference) = context.get_materialized_cte_reference(bound).cloned() {
                 // We do, use it.
                 // TODO: Zero clue what to use for outer.
                 let scan = context.generate_scan_for_idx(reference.materialized_idx, &[])?;

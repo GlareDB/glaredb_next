@@ -6,9 +6,8 @@ use crate::{
 use rayexec_error::Result;
 
 use super::{
-    bind_data::{BoundTableFunctionReference, MaybeBound},
-    resolve_normal::Resolver,
-    BindData, Binder,
+    bind_data::MaybeBound, bound_table_function::BoundTableFunctionReference,
+    resolve_normal::Resolver, BindData, Binder,
 };
 
 /// Resolver for resolving partially bound statements.

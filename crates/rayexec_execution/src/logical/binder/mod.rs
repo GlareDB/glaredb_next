@@ -1,15 +1,19 @@
 pub mod bind_data;
-pub mod bind_expr;
+pub mod binder_expr;
+pub mod bound_cte;
+pub mod bound_function;
+pub mod bound_table;
+pub mod bound_table_function;
 pub mod resolve_hybrid;
 pub mod resolve_normal;
 
 use std::collections::HashMap;
 
-use bind_data::{
-    BindData, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference, ItemReference,
-    MaybeBound, UnboundTableFunctionReference,
-};
-use bind_expr::ExpressionBinder;
+use bind_data::{BindData, BindListIdx, ItemReference, MaybeBound};
+use binder_expr::ExpressionBinder;
+use bound_cte::BoundCte;
+use bound_table::CteIndex;
+use bound_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference};
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
@@ -52,7 +56,7 @@ impl AstMeta for Bound {
     // clone them, and the args that go back into the ast don't actually do
     // anything, they're never referenced again.
     type TableFunctionArgs = TableFunctionArgs;
-    type CteReference = CteReference;
+    type CteReference = CteIndex;
     type FunctionReference = BindListIdx;
     type ColumnReference = String;
     type DataType = DataType;

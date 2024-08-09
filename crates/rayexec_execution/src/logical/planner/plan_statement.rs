@@ -8,10 +8,7 @@ use crate::{
     },
     engine::vars::SessionVars,
     logical::{
-        binder::{
-            bind_data::{BindData, BoundTableOrCteReference},
-            Bound,
-        },
+        binder::{bind_data::BindData, bound_table::BoundTableOrCteReference, Bound},
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
@@ -265,7 +262,7 @@ impl<'a> PlanContext<'a> {
                         },
                         _,
                     ) => (catalog, schema, entry),
-                    (BoundTableOrCteReference::Cte(_), _) => {
+                    (BoundTableOrCteReference::Cte { .. }, _) => {
                         // Shouldn't be possible.
                         return Err(RayexecError::new("Cannot COPY from CTE"));
                     }
@@ -308,7 +305,7 @@ impl<'a> PlanContext<'a> {
 
         let entry = match self.bind_data.tables.try_get_bound(insert.table)? {
             (BoundTableOrCteReference::Table { entry, .. }, _) => entry,
-            (BoundTableOrCteReference::Cte(_), _) => {
+            (BoundTableOrCteReference::Cte { .. }, _) => {
                 return Err(RayexecError::new("Cannot insert into CTE"))
             } // Shouldn't be possible.
         };
