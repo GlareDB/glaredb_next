@@ -1,17 +1,10 @@
 use std::collections::HashMap;
 
-use super::{
-    aggregate::AggregatePlanner,
+use crate::logical::{
     binder::{
         bind_data::{BindData, BoundTableOrCteReference, CteReference},
         Bound,
     },
-    expr::{ExpandedSelectExpr, ExpressionContext},
-    planner::LogicalQuery,
-    scope::{ColumnRef, Scope, TableReference},
-    subquery::SubqueryPlanner,
-};
-use crate::logical::{
     context::QueryContext,
     expr::LogicalExpression,
     operator::{LogicalNode, SetOpKind, SetOperation},
@@ -26,6 +19,14 @@ use crate::{
 use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
+
+use super::{
+    aggregate_planner::AggregatePlanner,
+    expr_planner::{ExpandedSelectExpr, ExpressionContext},
+    scope::{ColumnRef, Scope, TableReference},
+    statement_planner::LogicalQuery,
+    subquery_planner::SubqueryPlanner,
+};
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();
 const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();

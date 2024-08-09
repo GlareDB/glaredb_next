@@ -12,12 +12,10 @@ use crate::{
     },
     hybrid::client::HybridClient,
     logical::{
+        binder::{BindMode, Binder},
         context::QueryContext,
         operator::{LogicalOperator, VariableOrAll},
-        sql::{
-            binder::{BindMode, Binder},
-            planner::PlanContext,
-        },
+        planner::statement_planner::PlanContext,
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},

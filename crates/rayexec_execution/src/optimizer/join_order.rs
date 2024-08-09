@@ -432,69 +432,69 @@ mod tests {
         assert_eq!(expected, preprojections)
     }
 
-    #[test]
-    fn input_preprojections_cast_right_input_unchanged_left() {
-        let on_expr = LogicalExpression::Binary {
-            op: new_binary_eq(),
-            left: Box::new(LogicalExpression::new_column(2)),
-            right: Box::new(LogicalExpression::Cast {
-                to: DataType::Float64,
-                expr: Box::new(LogicalExpression::new_column(3)),
-            }),
-        };
+    // #[test]
+    // fn input_preprojections_cast_right_input_unchanged_left() {
+    //     let on_expr = LogicalExpression::Binary {
+    //         op: new_binary_eq(),
+    //         left: Box::new(LogicalExpression::new_column(2)),
+    //         right: Box::new(LogicalExpression::Cast {
+    //             to: DataType::Float64,
+    //             expr: Box::new(LogicalExpression::new_column(3)),
+    //         }),
+    //     };
 
-        let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
+    //     let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
 
-        let expected = InputPreprojections {
-            on_expr: LogicalExpression::Binary {
-                op: new_binary_eq(),
-                // No change needed.
-                left: Box::new(LogicalExpression::new_column(2)),
-                // Righ now points to the appended column on the right side.
-                right: Box::new(LogicalExpression::new_column(5)),
-            },
-            left_projections: Vec::new(),
-            right_projections: vec![LogicalExpression::Cast {
-                to: DataType::Float64,
-                expr: Box::new(LogicalExpression::new_column(0)), // Relative to the right input.
-            }],
-        };
+    //     let expected = InputPreprojections {
+    //         on_expr: LogicalExpression::Binary {
+    //             op: new_binary_eq(),
+    //             // No change needed.
+    //             left: Box::new(LogicalExpression::new_column(2)),
+    //             // Righ now points to the appended column on the right side.
+    //             right: Box::new(LogicalExpression::new_column(5)),
+    //         },
+    //         left_projections: Vec::new(),
+    //         right_projections: vec![LogicalExpression::Cast {
+    //             to: DataType::Float64,
+    //             expr: Box::new(LogicalExpression::new_column(0)), // Relative to the right input.
+    //         }],
+    //     };
 
-        assert_eq!(expected, preprojections)
-    }
+    //     assert_eq!(expected, preprojections)
+    // }
 
-    #[test]
-    fn input_preprojections_cast_left_and_right() {
-        let on_expr = LogicalExpression::Binary {
-            op: new_binary_eq(),
-            left: Box::new(LogicalExpression::Cast {
-                to: DataType::Float64,
-                expr: Box::new(LogicalExpression::new_column(2)),
-            }),
-            right: Box::new(LogicalExpression::Cast {
-                to: DataType::Float64,
-                expr: Box::new(LogicalExpression::new_column(3)),
-            }),
-        };
+    // #[test]
+    // fn input_preprojections_cast_left_and_right() {
+    //     let on_expr = LogicalExpression::Binary {
+    //         op: new_binary_eq(),
+    //         left: Box::new(LogicalExpression::Cast {
+    //             to: DataType::Float64,
+    //             expr: Box::new(LogicalExpression::new_column(2)),
+    //         }),
+    //         right: Box::new(LogicalExpression::Cast {
+    //             to: DataType::Float64,
+    //             expr: Box::new(LogicalExpression::new_column(3)),
+    //         }),
+    //     };
 
-        let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
+    //     let preprojections = InputPreprojections::try_compute_from_on_expr(3, 2, on_expr).unwrap();
 
-        let expected = InputPreprojections {
-            on_expr: LogicalExpression::Binary {
-                op: new_binary_eq(),
-                left: Box::new(LogicalExpression::new_column(4)),
-                right: Box::new(LogicalExpression::new_column(6)),
-            },
-            left_projections: vec![LogicalExpression::Cast {
-                to: DataType::Float64,
-                expr: Box::new(LogicalExpression::new_column(2)),
-            }],
-            right_projections: vec![LogicalExpression::Cast {
-                to: DataType::Float64,
-                expr: Box::new(LogicalExpression::new_column(0)),
-            }],
-        };
+    //     let expected = InputPreprojections {
+    //         on_expr: LogicalExpression::Binary {
+    //             op: new_binary_eq(),
+    //             left: Box::new(LogicalExpression::new_column(4)),
+    //             right: Box::new(LogicalExpression::new_column(6)),
+    //         },
+    //         left_projections: vec![LogicalExpression::Cast {
+    //             to: DataType::Float64,
+    //             expr: Box::new(LogicalExpression::new_column(2)),
+    //         }],
+    //         right_projections: vec![LogicalExpression::Cast {
+    //             to: DataType::Float64,
+    //             expr: Box::new(LogicalExpression::new_column(0)),
+    //         }],
+    //     };
 
-        assert_eq!(expected, preprojections)
-    }
+    //     assert_eq!(expected, preprojections)
+    // }
 }

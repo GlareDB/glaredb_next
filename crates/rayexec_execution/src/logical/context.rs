@@ -4,8 +4,9 @@ use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
+    binder::bind_data::CteReference,
     operator::{LogicalOperator, MaterializedScan},
-    sql::{binder::bind_data::CteReference, scope::Scope},
+    planner::scope::Scope,
 };
 
 #[derive(Debug, Clone, PartialEq)]

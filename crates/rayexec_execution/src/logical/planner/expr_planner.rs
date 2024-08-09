@@ -13,12 +13,12 @@ use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::list::{ListExtract, ListValues};
 use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
+use crate::logical::binder::bind_data::BoundFunctionReference;
+use crate::logical::binder::Bound;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
-use super::binder::bind_data::BoundFunctionReference;
-use super::binder::Bound;
-use super::query::QueryNodePlanner;
+use super::query_planner::QueryNodePlanner;
 use super::scope::{Scope, TableReference};
 
 /// An expanded select expression.

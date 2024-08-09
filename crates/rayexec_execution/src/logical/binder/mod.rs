@@ -1,8 +1,7 @@
 pub mod bind_data;
-pub mod hybrid;
-
-mod expr_binder;
-mod resolver;
+pub mod expr_binder;
+pub mod hybrid_resolver;
+pub mod local_resolver;
 
 use std::collections::HashMap;
 
@@ -11,6 +10,7 @@ use bind_data::{
     MaybeBound, UnboundTableFunctionReference,
 };
 use expr_binder::ExpressionBinder;
+use local_resolver::Resolver;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
@@ -25,7 +25,6 @@ use rayexec_parser::{
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
-use resolver::Resolver;
 use serde::{Deserialize, Serialize};
 
 use crate::{

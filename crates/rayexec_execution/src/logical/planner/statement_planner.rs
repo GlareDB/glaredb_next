@@ -1,13 +1,6 @@
 use std::collections::HashMap;
 
-use super::{
-    binder::{
-        bind_data::{BindData, BoundTableOrCteReference},
-        Bound,
-    },
-    expr::ExpressionContext,
-    scope::Scope,
-};
+use super::scope::Scope;
 use crate::{
     database::{
         create::OnConflict,
@@ -15,6 +8,10 @@ use crate::{
     },
     engine::vars::SessionVars,
     logical::{
+        binder::{
+            bind_data::{BindData, BoundTableOrCteReference},
+            Bound,
+        },
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
@@ -22,7 +19,7 @@ use crate::{
             Explain, ExplainFormat, Insert, LogicalNode, LogicalOperator, Projection, ResetVar,
             Scan, SetVar, ShowVar, VariableOrAll,
         },
-        sql::query::QueryNodePlanner,
+        planner::{expr_planner::ExpressionContext, query_planner::QueryNodePlanner},
     },
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};

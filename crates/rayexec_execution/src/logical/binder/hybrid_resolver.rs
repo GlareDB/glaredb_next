@@ -1,13 +1,13 @@
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
-    logical::{operator::LocationRequirement, sql::binder::BindMode},
+    logical::{binder::BindMode, operator::LocationRequirement},
 };
 use rayexec_error::Result;
 
 use super::{
     bind_data::{BoundTableFunctionReference, MaybeBound},
-    resolver::Resolver,
+    local_resolver::Resolver,
     BindData, Binder,
 };
 

@@ -18,9 +18,9 @@ use crate::{
         buffer::ServerStreamBuffers,
         client::{HybridPlanResponse, PullStatus},
     },
-    logical::sql::{
-        binder::{bind_data::BindData, hybrid::HybridResolver, BoundStatement},
-        planner::PlanContext,
+    logical::{
+        binder::{bind_data::BindData, hybrid_resolver::HybridResolver, BoundStatement},
+        planner::statement_planner::PlanContext,
     },
     optimizer::Optimizer,
     runtime::{NopErrorSink, PipelineExecutor, QueryHandle, Runtime},
