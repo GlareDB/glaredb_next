@@ -4,8 +4,9 @@ use rayexec_bullet::{
     batch::Batch,
     bitmap::Bitmap,
     compute::{self, concat::concat, filter::filter, take::take},
+    field::TypeSchema,
 };
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use std::{collections::HashMap, fmt};
 
 /// Points to a row in the hash table.
@@ -27,12 +28,24 @@ struct RowKey {
 /// merged at the end to produce a final set of bitmaps. This final set of
 /// bitmaps will be used to determine which rows we need to emit in the case of
 /// LEFT joins.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LeftBatchVisitBitmaps {
     bitmaps: Vec<Bitmap>,
 }
 
 impl LeftBatchVisitBitmaps {
+    pub fn num_batches(&self) -> usize {
+        self.bitmaps.len()
+    }
+
+    pub fn merge_from(&mut self, other: &LeftBatchVisitBitmaps) {
+        debug_assert_eq!(self.bitmaps.len(), other.bitmaps.len());
+
+        for (a, b) in self.bitmaps.iter_mut().zip(other.bitmaps.iter()) {
+            a.bit_or_mut(b).expect("both bitmaps to be the same length");
+        }
+    }
+
     fn mark_rows_as_visited(&mut self, batch_idx: usize, rows: &[usize]) {
         let bitmap = self.bitmaps.get_mut(batch_idx).expect("bitmap to exist");
 
@@ -51,19 +64,18 @@ pub struct PartitionJoinHashTable {
 
     /// Hash table pointing to a row.
     hash_table: RawTable<(u64, RowKey)>,
-}
 
-impl Default for PartitionJoinHashTable {
-    fn default() -> Self {
-        Self::new()
-    }
+    left_types: TypeSchema,
+    right_types: TypeSchema,
 }
 
 impl PartitionJoinHashTable {
-    pub fn new() -> Self {
+    pub fn new(left_types: TypeSchema, right_types: TypeSchema) -> Self {
         PartitionJoinHashTable {
             batches: Vec::new(),
             hash_table: RawTable::new(),
+            left_types,
+            right_types,
         }
     }
 
@@ -133,7 +145,58 @@ impl PartitionJoinHashTable {
         LeftBatchVisitBitmaps { bitmaps }
     }
 
-    // inner
+    pub fn drain_left_using_bitmap(
+        &self,
+        visit: &LeftBatchVisitBitmaps,
+        batch_idx: usize,
+    ) -> Result<Batch> {
+        let bitmap = visit
+            .bitmaps
+            .get(batch_idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing visit bitmap at idx {batch_idx}")))?;
+
+        let num_rows = bitmap.len() - bitmap.popcnt();
+
+        // TODO: Don't clone. Also might make sense to have the bitmap logic
+        // flipped to avoid the negate here (we're already doing that for RIGHT
+        // joins).
+        let mut bitmap = bitmap.clone();
+        bitmap.bit_negate();
+
+        if num_rows == 0 {
+            let cols = self
+                .left_types
+                .types
+                .iter()
+                .chain(self.right_types.types.iter())
+                .map(|t| Array::new_nulls(t, 0));
+            let batch = Batch::try_new(cols)?;
+
+            return Ok(batch);
+        }
+
+        let selection = BooleanArray::new(bitmap, None);
+
+        let left_cols = self
+            .batches
+            .get(batch_idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing batch at idx {batch_idx}")))?
+            .columns()
+            .iter()
+            .map(|c| filter(c, &selection))
+            .collect::<Result<Vec<_>>>()?;
+
+        let right_cols = self
+            .right_types
+            .types
+            .iter()
+            .map(|t| Array::new_nulls(t, num_rows));
+
+        let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+
+        Ok(batch)
+    }
+
     pub fn probe(
         &self,
         right: &Batch,
@@ -226,11 +289,6 @@ impl PartitionJoinHashTable {
 
         // Append batch representing unvisited right rows.
         if let Some(right_unvisited) = right_unvisited {
-            let left_types: Vec<_> = match self.batches.first() {
-                Some(batch) => batch.columns().iter().map(|a| a.datatype()).collect(),
-                None => not_implemented!("empty left"), // TODO: Include left/right types on hash join instead
-            };
-
             let unvisited_count = right_unvisited.popcnt();
 
             let selection = BooleanArray::new(right_unvisited, None);
@@ -240,7 +298,9 @@ impl PartitionJoinHashTable {
                 .map(|a| compute::filter::filter(a, &selection))
                 .collect::<Result<Vec<_>>>()?;
 
-            let left_null_cols = left_types
+            let left_null_cols = self
+                .left_types
+                .types
                 .iter()
                 .map(|t| Array::new_nulls(t, unvisited_count));
 

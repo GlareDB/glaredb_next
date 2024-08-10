@@ -54,6 +54,8 @@ impl Bitmap {
         self.data.len()
     }
 
+    // TODO: This can easily be misused since it also counts trailing bits that
+    // aren't inside the logical bitmap.
     pub fn popcnt(&self) -> usize {
         self.data
             .iter()
@@ -133,6 +135,12 @@ impl Bitmap {
         }
 
         Ok(())
+    }
+
+    pub fn bit_negate(&mut self) {
+        for b in self.data.iter_mut() {
+            *b = !*b;
+        }
     }
 }
 
@@ -368,6 +376,16 @@ mod tests {
 
         let expected = [false, true, true, true, true, false, false, false];
         let got: Vec<_> = left_bm.iter().collect();
+        assert_eq!(expected.as_slice(), got);
+    }
+
+    #[test]
+    fn bit_negate() {
+        let mut bm = Bitmap::from_iter([false, true, true, true, true, false, false, false]);
+        bm.bit_negate();
+
+        let expected = [true, false, false, false, false, true, true, true];
+        let got: Vec<_> = bm.iter().collect();
         assert_eq!(expected.as_slice(), got);
     }
 

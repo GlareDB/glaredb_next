@@ -1232,6 +1232,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = join.location;
         let join = join.into_inner();
 
+        let left_types = join.left.output_schema(&[])?;
+        let right_types = join.right.output_schema(&[])?;
+
         // Build up all inputs on the right (probe) side. This is going to
         // continue with the the current pipeline.
         self.walk(materializations, id_gen, *join.right)?;
@@ -1258,6 +1261,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 join.join_type,
                 join.left_on,
                 join.right_on,
+                left_types,
+                right_types,
             ))),
             partitioning_requirement: None,
         };
