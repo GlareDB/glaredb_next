@@ -54,13 +54,24 @@ impl Bitmap {
         self.data.len()
     }
 
-    // TODO: This can easily be misused since it also counts trailing bits that
-    // aren't inside the logical bitmap.
     pub fn popcnt(&self) -> usize {
-        self.data
+        let mut count = self
+            .data
             .iter()
             .map(|&b| b.count_ones())
-            .fold(0, |acc, v| acc + (v as usize))
+            .fold(0, |acc, v| acc + (v as usize));
+
+        // Make sure we're only counting the bits that make up the "logical"
+        // portion of the bitmap.
+        let rem = self.len % 8;
+        if rem != 0 {
+            let last = self.data.last().unwrap();
+            count -= last.count_ones() as usize;
+            let mask = (255 << (8 - rem)) >> (8 - rem);
+            count += (mask & last).count_ones() as usize;
+        }
+
+        count
     }
 
     /// Push a value onto the end of the bitmap.
@@ -401,8 +412,14 @@ mod tests {
 
     #[test]
     fn popcnt_simple() {
-        let bm = Bitmap::from_iter([true, false, false, true, false]);
+        let mut bm = Bitmap::from_iter([true, false, false, true, false]);
         assert_eq!(2, bm.popcnt());
+
+        bm.bit_negate();
+        assert_eq!(3, bm.popcnt());
+
+        let bm = Bitmap::from_iter([true, false, false, true, false, true, false, false]);
+        assert_eq!(3, bm.popcnt());
     }
 
     #[test]

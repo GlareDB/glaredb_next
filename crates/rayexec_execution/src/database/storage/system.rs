@@ -1,7 +1,6 @@
 use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::database::catalog::{Catalog, CatalogTx};
 use crate::database::ddl::CatalogModifier;
@@ -13,9 +12,9 @@ use crate::functions::scalar::{ScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
 use crate::functions::table::{TableFunction, BUILTIN_TABLE_FUNCTIONS};
 
 /// Read-only system catalog that cannot be modified once constructed.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SystemCatalog {
-    schemas: Arc<HashMap<&'static str, HashMap<&'static str, CatalogEntry>>>,
+    schemas: HashMap<&'static str, HashMap<&'static str, CatalogEntry>>,
 }
 
 impl SystemCatalog {
@@ -101,9 +100,7 @@ impl SystemCatalog {
         .into_iter()
         .collect();
 
-        SystemCatalog {
-            schemas: Arc::new(schemas),
-        }
+        SystemCatalog { schemas }
     }
 
     fn get_scalar_fn_inner(

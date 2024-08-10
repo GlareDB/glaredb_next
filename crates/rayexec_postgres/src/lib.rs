@@ -44,7 +44,7 @@ impl<R: Runtime> DataSource for PostgresDataSource<R> {
     fn create_catalog(
         &self,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Box<dyn Catalog>>> {
+    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
         Box::pin(self.create_catalog_inner(options))
     }
 
@@ -59,7 +59,7 @@ impl<R: Runtime> PostgresDataSource<R> {
     async fn create_catalog_inner(
         &self,
         mut options: HashMap<String, OwnedScalarValue>,
-    ) -> Result<Box<dyn Catalog>> {
+    ) -> Result<Arc<dyn Catalog>> {
         let conn_str = take_option("connection_string", &mut options)?.try_into_string()?;
         check_options_empty(&options)?;
 
@@ -72,7 +72,7 @@ impl<R: Runtime> PostgresDataSource<R> {
             .await
             .context("Failed to send test query")?;
 
-        Ok(Box::new(PostgresCatalog {
+        Ok(Arc::new(PostgresCatalog {
             runtime: self.runtime.clone(),
             conn_str,
         }))

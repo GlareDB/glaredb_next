@@ -100,7 +100,9 @@ impl<'a> HybridResolver<'a> {
                     .require_resolve_table_function(&unbound.reference)?;
 
                 let name = table_fn.name().to_string();
-                let func = table_fn.plan_and_initialize(unbound.args.clone()).await?;
+                let func = table_fn
+                    .plan_and_initialize(self.binder.context, unbound.args.clone())
+                    .await?;
 
                 // TODO: Marker indicating this needs to be executing remotely.
                 *item = MaybeBound::Bound(

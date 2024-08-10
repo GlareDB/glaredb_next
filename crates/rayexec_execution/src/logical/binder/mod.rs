@@ -677,7 +677,10 @@ impl<'a> Binder<'a> {
                         };
 
                         let name = handler.table_func.name().to_string();
-                        let func = handler.table_func.plan_and_initialize(args.clone()).await?;
+                        let func = handler
+                            .table_func
+                            .plan_and_initialize(self.context, args.clone())
+                            .await?;
 
                         let bind_idx = bind_data.table_functions.push_bound(
                             BoundTableFunctionReference { name, func },
@@ -706,7 +709,9 @@ impl<'a> Binder<'a> {
                     BindMode::Normal => {
                         let function = Resolver::new(self.tx, self.context)
                             .require_resolve_table_function(&reference)?;
-                        let function = function.plan_and_initialize(args.clone()).await?;
+                        let function = function
+                            .plan_and_initialize(self.context, args.clone())
+                            .await?;
 
                         MaybeBound::Bound(
                             BoundTableFunctionReference {
@@ -721,7 +726,9 @@ impl<'a> Binder<'a> {
                             .resolve_table_function(&reference)?
                         {
                             Some(function) => {
-                                let function = function.plan_and_initialize(args.clone()).await?;
+                                let function = function
+                                    .plan_and_initialize(self.context, args.clone())
+                                    .await?;
                                 MaybeBound::Bound(
                                     BoundTableFunctionReference {
                                         name: function.table_function().name().to_string(),
