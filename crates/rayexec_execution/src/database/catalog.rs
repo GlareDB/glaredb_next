@@ -1,12 +1,16 @@
 use futures::future::BoxFuture;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use std::fmt::Debug;
 
 use crate::functions::{
     aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction,
 };
 
-use super::{ddl::CatalogModifier, entry::TableEntry, table::DataTable};
+use super::{
+    ddl::CatalogModifier,
+    entry::{CatalogEntry, TableEntry},
+    table::DataTable,
+};
 
 #[derive(Debug, Default)]
 pub struct CatalogTx {}
@@ -88,6 +92,11 @@ pub trait Catalog: Debug + Sync + Send {
     /// Defaults to erroring.
     fn catalog_modifier(&self, _tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>> {
         Err(RayexecError::new("Cannot modify catalog"))
+    }
+
+    // TODO: Definitely not vec
+    fn entries(&self) -> Option<Vec<CatalogEntry>> {
+        None
     }
 }
 

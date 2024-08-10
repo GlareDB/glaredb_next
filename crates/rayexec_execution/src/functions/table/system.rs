@@ -5,6 +5,7 @@ use std::{
 
 use crate::database::{
     catalog::Catalog,
+    entry::{CatalogEntry, FunctionEntry},
     table::{DataTable, DataTableScan, EmptyTableScan},
     DatabaseContext,
 };
@@ -97,6 +98,92 @@ impl SystemFunctionScan for ListCatalogsImpl {
             let batch = Batch::try_new([
                 Array::Utf8(Utf8Array::new(catalog_names, None)),
                 Array::Boolean(BooleanArray::new(builtin, None)),
+            ])?;
+
+            Ok(Some(batch))
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListTables;
+
+impl TableFunction for ListTables {
+    fn name(&self) -> &'static str {
+        "list_tables"
+    }
+
+    fn plan_and_initialize(
+        &self,
+        context: &DatabaseContext,
+        _args: TableFunctionArgs,
+    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
+        let func = ListTablesImpl {
+            catalogs: context
+                .iter_catalogs()
+                .map(|(n, c)| (n.clone(), c.clone()))
+                .collect(),
+        };
+        Box::pin(async move { Ok(Box::new(func) as _) })
+    }
+
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+        not_implemented!("decoding system table functions")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListTablesImpl {
+    catalogs: VecDeque<(String, Arc<dyn Catalog>)>,
+}
+
+impl PlannedTableFunction for ListTablesImpl {
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        not_implemented!("encoding system table functions")
+    }
+
+    fn table_function(&self) -> &dyn TableFunction {
+        &ListTables
+    }
+
+    fn schema(&self) -> Schema {
+        Schema::new([
+            Field::new("catalog_name", DataType::Utf8, false),
+            Field::new("table_name", DataType::Utf8, false),
+        ])
+    }
+
+    fn datatable(&self) -> Result<Box<dyn DataTable>> {
+        Ok(Box::new(SystemDataTable::new(self.clone())))
+    }
+}
+
+impl SystemFunctionScan for ListTablesImpl {
+    fn next_batch(&mut self) -> impl Future<Output = Result<Option<Batch>>> + Send + '_ {
+        async {
+            let (catalog_name, catalog) = match self.catalogs.pop_front() {
+                Some(v) => v,
+                None => return Ok(None),
+            };
+
+            let mut catalog_names = VarlenValuesBuffer::default();
+            let mut table_names = VarlenValuesBuffer::default();
+
+            let entries = match catalog.entries() {
+                Some(entries) => entries,
+                None => return Ok(None), // TODO: This will be removed. `entries` will be returning something better.
+            };
+
+            for entry in entries {
+                if let CatalogEntry::Table(ent) = entry {
+                    catalog_names.push_value(&catalog_name);
+                    table_names.push_value(ent.name);
+                }
+            }
+
+            let batch = Batch::try_new([
+                Array::Utf8(Utf8Array::new(catalog_names, None)),
+                Array::Utf8(Utf8Array::new(table_names, None)),
             ])?;
 
             Ok(Some(batch))
