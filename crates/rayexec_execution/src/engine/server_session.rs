@@ -23,7 +23,7 @@ use crate::{
         planner::plan_statement::PlanContext,
     },
     optimizer::Optimizer,
-    runtime::{NopErrorSink, PipelineExecutor, QueryHandle, Runtime},
+    runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;
 
@@ -135,9 +135,8 @@ where
         );
 
         let pipelines = planner.plan_from_intermediate(group)?;
-        let handle = self
-            .executor
-            .spawn_pipelines(pipelines, Arc::new(NopErrorSink));
+        let error_sink = self.buffers.error_sink_for_query(&query_id)?;
+        let handle = self.executor.spawn_pipelines(pipelines, error_sink);
 
         self.executing_pipelines.insert(query_id, handle);
 

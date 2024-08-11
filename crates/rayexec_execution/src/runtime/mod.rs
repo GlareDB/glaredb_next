@@ -96,13 +96,3 @@ pub trait ErrorSink: Debug + Sync + Send {
     /// Push an error.
     fn push_error(&self, error: RayexecError);
 }
-
-// Temp
-#[derive(Debug)]
-pub struct NopErrorSink;
-
-impl ErrorSink for NopErrorSink {
-    fn push_error(&self, error: RayexecError) {
-        error!(%error, "execution error (nop sink)")
-    }
-}

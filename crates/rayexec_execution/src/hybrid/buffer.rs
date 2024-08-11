@@ -8,9 +8,10 @@ use std::{
 
 use dashmap::DashMap;
 use futures::future::BoxFuture;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
+use uuid::Uuid;
 
 use crate::{
     execution::{
@@ -21,6 +22,7 @@ use crate::{
         },
     },
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    runtime::ErrorSink,
 };
 
 use super::client::{IpcBatch, PullStatus};
@@ -29,6 +31,8 @@ use super::client::{IpcBatch, PullStatus};
 // TODO: Remove old streams.
 #[derive(Debug, Default)]
 pub struct ServerStreamBuffers {
+    /// Error sinks keyed by query id.
+    error_sinks: DashMap<Uuid, Arc<SharedErrorSink>>,
     /// Streams that are sending batches to the server.
     incoming: DashMap<StreamId, IncomingStream>,
     /// Streams that are sending batches to the client.
@@ -51,17 +55,44 @@ impl ServerStreamBuffers {
     }
 
     pub fn create_outgoing_stream(&self, stream_id: StreamId) -> OutgoingStream {
+        // Exectuable pipeline planning is all synchronous, no chance of this
+        // overwriting an existing error sink.
+        let error_sink = self.ensure_error_sink_for_query(stream_id.query_id);
+
         let stream = OutgoingStream {
             state: Arc::new(Mutex::new(OutgoingStreamState {
                 finished: false,
                 batch: None,
                 push_waker: None,
+                error_sink,
             })),
         };
 
         self.outgoing.insert(stream_id, stream.clone());
 
         stream
+    }
+
+    pub fn error_sink_for_query(&self, query_id: &Uuid) -> Result<Arc<SharedErrorSink>> {
+        let error_sink = self
+            .error_sinks
+            .get(query_id)
+            .ok_or_else(|| RayexecError::new(format!("Missing error sink for query {query_id}")))?;
+
+        Ok(error_sink.value().clone())
+    }
+
+    /// Ensures that we have an error sink for a query by checking if it's
+    /// already in the map and returning it, or by creating a new one.
+    fn ensure_error_sink_for_query(&self, query_id: Uuid) -> Arc<SharedErrorSink> {
+        match self.error_sinks.entry(query_id) {
+            dashmap::Entry::Occupied(ent) => ent.get().clone(),
+            dashmap::Entry::Vacant(ent) => {
+                let error_sink = Arc::new(SharedErrorSink::default());
+                ent.insert(error_sink.clone());
+                error_sink
+            }
+        }
     }
 
     pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
@@ -164,6 +195,7 @@ struct OutgoingStreamState {
     finished: bool,
     batch: Option<Batch>,
     push_waker: Option<Waker>,
+    error_sink: Arc<SharedErrorSink>,
 }
 
 struct OutgoingPushFuture {
@@ -177,6 +209,19 @@ impl Future for OutgoingPushFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         let mut state = this.state.lock();
+
+        // Check if the query errored before doing anything with the batch. This
+        // is how we get the error back to the client.
+        //
+        // This may race between the read/write of the lock, but I don't think
+        // that actually matters. The error is getting back to the client
+        // somehow, either via this stream or some other stream.
+        if state.error_sink.inner.read().is_some() {
+            let error = state.error_sink.inner.write().take();
+            return Poll::Ready(Err(
+                error.unwrap_or_else(|| RayexecError::new("Error already pulled"))
+            ));
+        }
 
         if state.batch.is_some() {
             state.push_waker = Some(cx.waker().clone());
@@ -266,5 +311,23 @@ impl Future for IncomingPullFuture {
                 Poll::Pending
             }
         }
+    }
+}
+
+/// Error sink shared across all stream buffers for a particular query.
+#[derive(Debug, Default)]
+pub struct SharedErrorSink {
+    inner: RwLock<Option<RayexecError>>,
+}
+
+impl ErrorSink for SharedErrorSink {
+    fn push_error(&self, error: RayexecError) {
+        let mut inner = self.inner.write();
+        if inner.is_some() {
+            // Prefer the existing error.
+            return;
+        }
+
+        *inner = Some(error);
     }
 }
