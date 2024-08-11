@@ -11,7 +11,7 @@ use futures::future::BoxFuture;
 use parking_lot::{Mutex, RwLock};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use tracing::trace;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -42,7 +42,7 @@ pub struct ServerStreamBuffers {
 
 impl ServerStreamBuffers {
     pub fn create_incoming_stream(&self, stream_id: StreamId) -> IncomingStream {
-        trace!(?stream_id, "creating incoming stream");
+        debug!(?stream_id, "creating incoming stream");
 
         let stream = IncomingStream {
             state: Arc::new(Mutex::new(IncomingStreamState {
@@ -58,7 +58,7 @@ impl ServerStreamBuffers {
     }
 
     pub fn create_outgoing_stream(&self, stream_id: StreamId) -> OutgoingStream {
-        trace!(?stream_id, "creating outgoing stream");
+        debug!(?stream_id, "creating outgoing stream");
 
         // Exectuable pipeline planning is all synchronous, no chance of this
         // overwriting an existing error sink.
@@ -79,7 +79,7 @@ impl ServerStreamBuffers {
     }
 
     pub fn error_sink_for_query(&self, query_id: &Uuid) -> Result<Arc<SharedErrorSink>> {
-        trace!(%query_id, "retrieving error sink for query");
+        debug!(%query_id, "retrieving error sink for query");
 
         let error_sink = self
             .error_sinks
@@ -92,7 +92,7 @@ impl ServerStreamBuffers {
     /// Ensures that we have an error sink for a query by checking if it's
     /// already in the map and returning it, or by creating a new one.
     fn ensure_error_sink_for_query(&self, query_id: Uuid) -> Arc<SharedErrorSink> {
-        trace!(%query_id, "ensuring error sink for query");
+        debug!(%query_id, "ensuring error sink for query");
 
         match self.error_sinks.entry(query_id) {
             dashmap::Entry::Occupied(ent) => ent.get().clone(),
