@@ -2,7 +2,7 @@
 use std::collections::VecDeque;
 
 use crate::{
-    array::{Array, PrimitiveArray},
+    array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
     batch::Batch,
     bitmap::Bitmap,
     bitutil::byte_ceil,
@@ -119,6 +119,39 @@ fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Resu
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
+        DataType::Utf8 => Ok(Array::Utf8(ipc_buffers_to_varlen(
+            buffers.try_next_node()?,
+            [
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+            ],
+        )?)),
+        DataType::LargeUtf8 => Ok(Array::Utf8(ipc_buffers_to_varlen(
+            buffers.try_next_node()?,
+            [
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+            ],
+        )?)),
+        DataType::Binary => Ok(Array::Utf8(ipc_buffers_to_varlen(
+            buffers.try_next_node()?,
+            [
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+            ],
+        )?)),
+        DataType::LargeBinary => Ok(Array::Utf8(ipc_buffers_to_varlen(
+            buffers.try_next_node()?,
+            [
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+                buffers.try_next_buf()?,
+            ],
+        )?)),
+
         other => not_implemented!("ipc to array {other}"),
     }
 }
@@ -137,6 +170,27 @@ fn ipc_buffers_to_primitive<T: Default + Copy>(
     let values = PrimitiveStorage::<T>::copy_from_bytes(buffers[1])?;
 
     Ok(PrimitiveArray::new(values, validity))
+}
+
+fn ipc_buffers_to_varlen<T, O>(
+    node: &IpcFieldNode,
+    buffers: [&[u8]; 3],
+) -> Result<VarlenArray<T, O>>
+where
+    T: VarlenType + ?Sized,
+    O: OffsetIndex,
+{
+    let validity = if node.null_count() > 0 {
+        let bitmap = Bitmap::try_new(buffers[0].to_vec(), node.length() as usize)?;
+        Some(bitmap)
+    } else {
+        None
+    };
+
+    let offsets = PrimitiveStorage::<O>::copy_from_bytes(buffers[1])?;
+    let data = PrimitiveStorage::<u8>::copy_from_bytes(buffers[2])?;
+
+    VarlenArray::try_from_buffers(data, offsets, validity)
 }
 
 /// Encode a batch into `data`, returning the message header.
@@ -192,6 +246,10 @@ fn encode_array(
     fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
 ) -> Result<()> {
+    // TODO: These encoding methods aren't entirely IPC compliant. We'll need to
+    // optionally compress the buffers, include the compressed length, and
+    // ensure they're padded out to 8 bytes.
+
     match array {
         Array::Int8(arr) => {
             encode_primitive(arr, data, fields, buffers);
@@ -217,11 +275,69 @@ fn encode_array(
         Array::UInt64(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-
+        Array::Utf8(arr) => {
+            encode_varlen(arr, data, fields, buffers);
+        }
+        Array::LargeUtf8(arr) => {
+            encode_varlen(arr, data, fields, buffers);
+        }
+        Array::Binary(arr) => {
+            encode_varlen(arr, data, fields, buffers);
+        }
+        Array::LargeBinary(arr) => {
+            encode_varlen(arr, data, fields, buffers);
+        }
         other => not_implemented!("array type to field and buffers: {}", other.datatype()),
     }
 
     Ok(())
+}
+
+fn encode_varlen<T, O>(
+    array: &VarlenArray<T, O>,
+    data: &mut Vec<u8>,
+    fields: &mut Vec<IpcFieldNode>,
+    buffers: &mut Vec<IpcBuffer>,
+) where
+    T: VarlenType + ?Sized,
+    O: OffsetIndex,
+{
+    let valid_count = array.validity().map(|v| v.popcnt()).unwrap_or(array.len());
+    let null_count = array.len() - valid_count;
+    let field = IpcFieldNode::new(array.len() as i64, null_count as i64);
+
+    fields.push(field);
+
+    let offset = data.len();
+    match array.validity() {
+        Some(validity) => {
+            data.extend_from_slice(validity.data());
+        }
+        None => {
+            data.extend(std::iter::repeat(255).take(byte_ceil(array.len())));
+        }
+    }
+
+    // Buffer order:
+    // 1. Validity
+    // 2. Offsets
+    // 3. Data
+
+    let validity_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
+    buffers.push(validity_buffer);
+
+    let offsets_offset = data.len();
+    data.extend_from_slice(array.offsets().as_bytes());
+
+    let offsets_buffer =
+        IpcBuffer::new(offsets_offset as i64, (data[offsets_offset..]).len() as i64);
+    buffers.push(offsets_buffer);
+
+    let values_offset = data.len();
+    data.extend_from_slice(array.data().as_bytes());
+
+    let values_buffer = IpcBuffer::new(values_offset as i64, (data[values_offset..]).len() as i64);
+    buffers.push(values_buffer);
 }
 
 fn encode_primitive<T>(
@@ -258,7 +374,7 @@ fn encode_primitive<T>(
 
 #[cfg(test)]
 mod tests {
-    use crate::field::Field;
+    use crate::{array::Utf8Array, field::Field};
 
     use super::*;
 
@@ -281,6 +397,28 @@ mod tests {
             Field::new("f1", DataType::Int32, true),
             Field::new("f2", DataType::UInt64, true),
         ]);
+
+        let ipc = flatbuffers::root::<IpcRecordBatch>(buf).unwrap();
+        let got = ipc_to_batch(ipc, &data_buf, &schema, &IpcConfig::default()).unwrap();
+
+        assert_eq!(batch, got);
+    }
+
+    #[test]
+    fn utf8_roundtrip() {
+        let mut builder = FlatBufferBuilder::new();
+        let mut data_buf = Vec::new();
+
+        let batch = Batch::try_new([Array::Utf8(Utf8Array::from_iter([
+            "mario", "peach", "yoshi",
+        ]))])
+        .unwrap();
+        let ipc = batch_to_ipc(&batch, &mut data_buf, &mut builder).unwrap();
+        builder.finish(ipc, None);
+
+        let buf = builder.finished_data();
+
+        let schema = Schema::new([Field::new("f1", DataType::Utf8, true)]);
 
         let ipc = flatbuffers::root::<IpcRecordBatch>(buf).unwrap();
         let got = ipc_to_batch(ipc, &data_buf, &schema, &IpcConfig::default()).unwrap();
