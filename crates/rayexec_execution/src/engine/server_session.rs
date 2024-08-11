@@ -134,8 +134,11 @@ where
             },
         );
 
-        let pipelines = planner.plan_from_intermediate(group)?;
+        // TODO: Spooky action, this needs to happen before the planning so that
+        // planning can get the appropriate error sink when creating streams.
         let error_sink = self.buffers.create_error_sink(query_id)?;
+
+        let pipelines = planner.plan_from_intermediate(group)?;
         let handle = self.executor.spawn_pipelines(pipelines, error_sink);
 
         self.executing_pipelines.insert(query_id, handle);
