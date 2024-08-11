@@ -2,7 +2,7 @@ pub mod read_postgres;
 
 use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
-    array::{Array, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array},
+    array::{Array, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array, Utf8Array},
     batch::Batch,
     datatype::DataType,
     field::Field,
@@ -373,9 +373,13 @@ impl PostgresClient {
                 DataType::Int16 => Array::Int16(Int16Array::from_iter(row_iter::<i16>(&rows, idx))),
                 DataType::Int32 => Array::Int32(Int32Array::from_iter(row_iter::<i32>(&rows, idx))),
                 DataType::Int64 => Array::Int64(Int64Array::from_iter(row_iter::<i64>(&rows, idx))),
+                DataType::Utf8 => Array::Utf8(Utf8Array::from_iter(
+                    rows.iter()
+                        .map(|row| -> Option<&str> { row.try_get(idx).ok() }),
+                )),
                 other => {
                     return Err(RayexecError::new(format!(
-                        "Unimplemented data type conversion: {other:?}"
+                        "Unimplemented data type conversion: {other:?} (postgres)"
                     )))
                 }
             };
