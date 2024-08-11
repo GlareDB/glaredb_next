@@ -2,7 +2,10 @@
 use std::collections::VecDeque;
 
 use crate::{
-    array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
+    array::{
+        Array, Decimal128Array, Decimal64Array, OffsetIndex, PrimitiveArray, VarlenArray,
+        VarlenType,
+    },
     batch::Batch,
     bitmap::Bitmap,
     bitutil::byte_ceil,
@@ -119,6 +122,28 @@ fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Resu
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
+        DataType::Decimal64(m) => {
+            let primitive = ipc_buffers_to_primitive(
+                buffers.try_next_node()?,
+                [buffers.try_next_buf()?, buffers.try_next_buf()?],
+            )?;
+            Ok(Array::Decimal64(Decimal64Array::new(
+                m.precision,
+                m.scale,
+                primitive,
+            )))
+        }
+        DataType::Decimal128(m) => {
+            let primitive = ipc_buffers_to_primitive(
+                buffers.try_next_node()?,
+                [buffers.try_next_buf()?, buffers.try_next_buf()?],
+            )?;
+            Ok(Array::Decimal128(Decimal128Array::new(
+                m.precision,
+                m.scale,
+                primitive,
+            )))
+        }
         DataType::Utf8 => Ok(Array::Utf8(ipc_buffers_to_varlen(
             buffers.try_next_node()?,
             [
@@ -275,6 +300,8 @@ fn encode_array(
         Array::UInt64(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
+        Array::Decimal64(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
+        Array::Decimal128(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
         Array::Utf8(arr) => {
             encode_varlen(arr, data, fields, buffers);
         }
@@ -374,29 +401,18 @@ fn encode_primitive<T>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{array::Utf8Array, field::Field};
+    use crate::{array::Utf8Array, datatype::DecimalTypeMeta, field::Field};
 
     use super::*;
 
-    #[test]
-    fn simple_batch_roundtrip() {
+    fn roundtrip(schema: Schema, batch: Batch) {
         let mut builder = FlatBufferBuilder::new();
         let mut data_buf = Vec::new();
 
-        let batch = Batch::try_new([
-            Array::Int32(vec![3, 2, 1].into()),
-            Array::UInt64(vec![9, 8, 7].into()),
-        ])
-        .unwrap();
         let ipc = batch_to_ipc(&batch, &mut data_buf, &mut builder).unwrap();
         builder.finish(ipc, None);
         // Note that this doesn't include the 'data_buf'.
         let buf = builder.finished_data();
-
-        let schema = Schema::new([
-            Field::new("f1", DataType::Int32, true),
-            Field::new("f2", DataType::UInt64, true),
-        ]);
 
         let ipc = flatbuffers::root::<IpcRecordBatch>(buf).unwrap();
         let got = ipc_to_batch(ipc, &data_buf, &schema, &IpcConfig::default()).unwrap();
@@ -405,24 +421,48 @@ mod tests {
     }
 
     #[test]
-    fn utf8_roundtrip() {
-        let mut builder = FlatBufferBuilder::new();
-        let mut data_buf = Vec::new();
+    fn simple_batch_roundtrip() {
+        let batch = Batch::try_new([
+            Array::Int32(vec![3, 2, 1].into()),
+            Array::UInt64(vec![9, 8, 7].into()),
+        ])
+        .unwrap();
 
+        let schema = Schema::new([
+            Field::new("f1", DataType::Int32, true),
+            Field::new("f2", DataType::UInt64, true),
+        ]);
+
+        roundtrip(schema, batch);
+    }
+
+    #[test]
+    fn utf8_roundtrip() {
         let batch = Batch::try_new([Array::Utf8(Utf8Array::from_iter([
             "mario", "peach", "yoshi",
         ]))])
         .unwrap();
-        let ipc = batch_to_ipc(&batch, &mut data_buf, &mut builder).unwrap();
-        builder.finish(ipc, None);
-
-        let buf = builder.finished_data();
 
         let schema = Schema::new([Field::new("f1", DataType::Utf8, true)]);
 
-        let ipc = flatbuffers::root::<IpcRecordBatch>(buf).unwrap();
-        let got = ipc_to_batch(ipc, &data_buf, &schema, &IpcConfig::default()).unwrap();
+        roundtrip(schema, batch);
+    }
 
-        assert_eq!(batch, got);
+    #[test]
+    fn decimal128_roundtrip() {
+        let batch = Batch::try_new([Array::Decimal128(Decimal128Array::new(
+            4,
+            2,
+            PrimitiveArray::from_iter([1000, 1200, 1250]),
+        ))])
+        .unwrap();
+
+        let schema = Schema::new([Field::new(
+            "f1",
+            DataType::Decimal128(DecimalTypeMeta::new(4, 2)),
+            true,
+        )]);
+
+        roundtrip(schema, batch)
     }
 }
