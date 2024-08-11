@@ -41,7 +41,7 @@ pub struct ServerStreamBuffers {
 }
 
 impl ServerStreamBuffers {
-    pub fn create_incoming_stream(&self, stream_id: StreamId) -> IncomingStream {
+    pub fn create_incoming_stream(&self, stream_id: StreamId) -> Result<IncomingStream> {
         debug!(?stream_id, "creating incoming stream");
 
         let stream = IncomingStream {
@@ -54,15 +54,13 @@ impl ServerStreamBuffers {
 
         self.incoming.insert(stream_id, stream.clone());
 
-        stream
+        Ok(stream)
     }
 
-    pub fn create_outgoing_stream(&self, stream_id: StreamId) -> OutgoingStream {
+    pub fn create_outgoing_stream(&self, stream_id: StreamId) -> Result<OutgoingStream> {
         debug!(?stream_id, "creating outgoing stream");
 
-        // Exectuable pipeline planning is all synchronous, no chance of this
-        // overwriting an existing error sink.
-        let error_sink = self.ensure_error_sink_for_query(stream_id.query_id);
+        let error_sink = self.get_sink_for_query(&stream_id.query_id)?;
 
         let stream = OutgoingStream {
             state: Arc::new(Mutex::new(OutgoingStreamState {
@@ -75,10 +73,26 @@ impl ServerStreamBuffers {
 
         self.outgoing.insert(stream_id, stream.clone());
 
-        stream
+        Ok(stream)
     }
 
-    pub fn error_sink_for_query(&self, query_id: &Uuid) -> Result<Arc<SharedErrorSink>> {
+    /// Creates an stores an error sink for a query.
+    pub fn create_error_sink(&self, query_id: Uuid) -> Result<Arc<SharedErrorSink>> {
+        debug!(%query_id, "create error sink for query");
+
+        match self.error_sinks.entry(query_id) {
+            dashmap::Entry::Occupied(_ent) => Err(RayexecError::new(format!(
+                "Error sink already exists for query {query_id}"
+            ))),
+            dashmap::Entry::Vacant(ent) => {
+                let error_sink = Arc::new(SharedErrorSink::default());
+                ent.insert(error_sink.clone());
+                Ok(error_sink)
+            }
+        }
+    }
+
+    pub fn get_sink_for_query(&self, query_id: &Uuid) -> Result<Arc<SharedErrorSink>> {
         debug!(%query_id, "retrieving error sink for query");
 
         let error_sink = self
@@ -87,21 +101,6 @@ impl ServerStreamBuffers {
             .ok_or_else(|| RayexecError::new(format!("Missing error sink for query {query_id}")))?;
 
         Ok(error_sink.value().clone())
-    }
-
-    /// Ensures that we have an error sink for a query by checking if it's
-    /// already in the map and returning it, or by creating a new one.
-    fn ensure_error_sink_for_query(&self, query_id: Uuid) -> Arc<SharedErrorSink> {
-        debug!(%query_id, "ensuring error sink for query");
-
-        match self.error_sinks.entry(query_id) {
-            dashmap::Entry::Occupied(ent) => ent.get().clone(),
-            dashmap::Entry::Vacant(ent) => {
-                let error_sink = Arc::new(SharedErrorSink::default());
-                ent.insert(error_sink.clone());
-                error_sink
-            }
-        }
     }
 
     pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
@@ -140,6 +139,18 @@ impl ServerStreamBuffers {
         })?;
 
         let mut state = outgoing.state.lock();
+
+        // Check if the query errored before doing anything with the batch. This
+        // is how we get the error back to the client.
+        //
+        // This may race between the read/write of the lock, but I don't think
+        // that actually matters. The error is getting back to the client
+        // somehow, either via this stream or some other stream.
+        if state.error_sink.inner.read().is_some() {
+            let error = state.error_sink.inner.write().take();
+            return Err(error.unwrap_or_else(|| RayexecError::new("Error already pulled")));
+        }
+
         let status = match state.batch.take() {
             Some(batch) => PullStatus::Batch(IpcBatch(batch)),
             None if state.finished => PullStatus::Finished,
@@ -218,19 +229,6 @@ impl Future for OutgoingPushFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         let mut state = this.state.lock();
-
-        // Check if the query errored before doing anything with the batch. This
-        // is how we get the error back to the client.
-        //
-        // This may race between the read/write of the lock, but I don't think
-        // that actually matters. The error is getting back to the client
-        // somehow, either via this stream or some other stream.
-        if state.error_sink.inner.read().is_some() {
-            let error = state.error_sink.inner.write().take();
-            return Poll::Ready(Err(
-                error.unwrap_or_else(|| RayexecError::new("Error already pulled"))
-            ));
-        }
 
         if state.batch.is_some() {
             state.push_waker = Some(cx.waker().clone());

@@ -135,7 +135,7 @@ where
         );
 
         let pipelines = planner.plan_from_intermediate(group)?;
-        let error_sink = self.buffers.error_sink_for_query(&query_id)?;
+        let error_sink = self.buffers.create_error_sink(query_id)?;
         let handle = self.executor.spawn_pipelines(pipelines, error_sink);
 
         self.executing_pipelines.insert(query_id, handle);
