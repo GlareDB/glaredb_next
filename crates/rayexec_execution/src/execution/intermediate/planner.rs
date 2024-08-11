@@ -82,11 +82,12 @@ pub struct PlannedPipelineGroups {
 #[derive(Debug)]
 pub struct IntermediatePipelinePlanner {
     config: IntermediateConfig,
+    query_id: Uuid,
 }
 
 impl IntermediatePipelinePlanner {
-    pub fn new(config: IntermediateConfig) -> Self {
-        IntermediatePipelinePlanner { config }
+    pub fn new(config: IntermediateConfig, query_id: Uuid) -> Self {
+        IntermediatePipelinePlanner { config, query_id }
     }
 
     /// Plan the intermediate pipelines.
@@ -96,7 +97,7 @@ impl IntermediatePipelinePlanner {
         context: QueryContext,
     ) -> Result<PlannedPipelineGroups> {
         let mut state = IntermediatePipelineBuildState::new(&self.config);
-        let mut id_gen = PipelineIdGen::new(Uuid::new_v4());
+        let mut id_gen = PipelineIdGen::new(self.query_id);
 
         let mut materializations = state.plan_materializations(context, &mut id_gen)?;
         state.walk(&mut materializations, &mut id_gen, root)?;

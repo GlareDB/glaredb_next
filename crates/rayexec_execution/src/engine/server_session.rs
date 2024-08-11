@@ -105,10 +105,10 @@ where
         logical.root = optimizer.optimize(logical.root)?;
         let schema = logical.schema()?;
 
-        let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default());
-        let pipelines = planner.plan_pipelines(logical.root, context)?;
-
         let query_id = Uuid::new_v4();
+
+        let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default(), query_id);
+        let pipelines = planner.plan_pipelines(logical.root, context)?;
 
         self.pending_pipelines.insert(query_id, pipelines.remote);
 
