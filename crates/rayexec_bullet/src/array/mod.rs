@@ -92,6 +92,8 @@ impl Array {
             DataType::Binary => Array::Binary(VarlenArray::new_nulls(len)),
             DataType::LargeBinary => Array::LargeBinary(VarlenArray::new_nulls(len)),
             DataType::Struct(m) => Array::Struct(StructArray::new_nulls(&m.fields, len)),
+            // TODO: Revisit this to ensure the list actually doesn't need any
+            // type info.
             DataType::List(_m) => Array::List(ListArray::new_nulls(len)),
         }
     }

@@ -133,7 +133,12 @@ pub struct PhysicalHashJoin {
     /// Column indices on the right (probe) side we're joining on.
     right_on: Vec<usize>,
 
+    /// Types for the batches we'll be receiving from the left side. Used during
+    /// RIGHT joins to produce null columns on the left side.
     left_types: TypeSchema,
+
+    /// Types for the batches we'll be receiving from the right side. Used
+    /// during LEFT joins to produce null columns on the right side.
     right_types: TypeSchema,
 }
 
