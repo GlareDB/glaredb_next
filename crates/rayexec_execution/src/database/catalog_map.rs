@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use rayexec_error::Result;
-use std::collections::HashMap;
+use scc::ebr::Guard;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -10,7 +10,7 @@ use super::{catalog::CatalogTx, catalog_entry::CatalogEntry};
 /// Maps a name to some catalog entry.
 #[derive(Debug)]
 pub struct CatalogMap {
-    entries: DashMap<String, Arc<CatalogEntry>>,
+    entries: scc::HashIndex<String, Arc<CatalogEntry>>,
 }
 
 impl CatalogMap {
@@ -30,6 +30,10 @@ impl CatalogMap {
     where
         F: FnMut(&String, &CatalogEntry) -> Result<()>,
     {
-        unimplemented!()
+        let guard = Guard::new();
+        for (name, ent) in self.entries.iter(&guard) {
+            func(name, ent.as_ref())?;
+        }
+        Ok(())
     }
 }

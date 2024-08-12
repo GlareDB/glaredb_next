@@ -7,10 +7,11 @@ use super::{
 };
 use dashmap::DashMap;
 use rayexec_error::Result;
+use scc::ebr::Guard;
 
 #[derive(Debug)]
 pub struct MemoryCatalog {
-    schemas: DashMap<String, Arc<MemorySchema>>,
+    schemas: scc::HashIndex<String, Arc<MemorySchema>>,
 }
 
 impl MemoryCatalog {
@@ -18,8 +19,10 @@ impl MemoryCatalog {
     where
         F: FnMut(&String, &CatalogEntry) -> Result<()>,
     {
-        for schema_ref in self.schemas.iter() {
-            func(schema_ref.key(), &schema_ref.value().schema)?;
+        let guard = Guard::new();
+        for (name, schema) in self.schemas.iter(&guard) {
+            func(name, &schema.schema)?;
+            schema.for_each_entry(tx, func)?;
         }
         Ok(())
     }
