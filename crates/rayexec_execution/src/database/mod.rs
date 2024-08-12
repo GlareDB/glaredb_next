@@ -1,10 +1,15 @@
 pub mod catalog;
+pub mod catalog_entry;
 pub mod create;
 pub mod ddl;
 pub mod drop;
 pub mod entry;
+pub mod entry_map;
+pub mod memory_catalog;
 pub mod storage;
 pub mod table;
+
+mod catalog_map;
 
 use catalog::Catalog;
 use rayexec_error::{RayexecError, Result};
