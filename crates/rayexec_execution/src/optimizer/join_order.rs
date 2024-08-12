@@ -1,10 +1,10 @@
+#![allow(clippy::single_match)] // Easier to read for this rule.
+
 use std::collections::HashMap;
 
 use crate::{
-    execution::operators::hash_aggregate::aggregate_hash_table::PartitionAggregateHashTable,
     expr::scalar::{BinaryOperator, PlannedBinaryOperator},
     logical::{
-        consteval::ConstEval,
         expr::LogicalExpression,
         operator::{EqualityJoin, LogicalNode, LogicalOperator, Projection},
     },
@@ -60,7 +60,7 @@ impl JoinOrderRule {
                     // pre-projection is still valid.
                     if !constants.is_empty() {
                         let exprs = (0..right_len)
-                            .map(|idx| LogicalExpression::new_column(idx))
+                            .map(LogicalExpression::new_column)
                             .chain(constants.into_iter())
                             .collect();
 
@@ -155,6 +155,7 @@ impl JoinOrderRule {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, PartialEq)]
 struct InputPreprojections {
     /// The new ON expression to use.
@@ -169,6 +170,7 @@ struct InputPreprojections {
     right_projections: Vec<LogicalExpression>,
 }
 
+#[allow(dead_code)]
 impl InputPreprojections {
     /// Try to compute input pre-projections from an ON expression from a join.
     ///
@@ -342,15 +344,15 @@ fn expr_within_relation_bound(expr: &LogicalExpression, min: usize, max: usize) 
         LogicalExpression::ScalarFunction { inputs, .. } => inputs
             .iter()
             .all(|expr| expr_within_relation_bound(expr, min, max)),
-        LogicalExpression::Cast { to, expr } => expr_within_relation_bound(expr.as_ref(), min, max),
-        LogicalExpression::Unary { op, expr } => {
+        LogicalExpression::Cast { expr, .. } => expr_within_relation_bound(expr.as_ref(), min, max),
+        LogicalExpression::Unary { expr, .. } => {
             expr_within_relation_bound(expr.as_ref(), min, max)
         }
-        LogicalExpression::Binary { op, left, right } => {
+        LogicalExpression::Binary { left, right, .. } => {
             expr_within_relation_bound(left.as_ref(), min, max)
                 && expr_within_relation_bound(right.as_ref(), min, max)
         }
-        LogicalExpression::Variadic { op, exprs } => exprs
+        LogicalExpression::Variadic { exprs, .. } => exprs
             .iter()
             .all(|expr| expr_within_relation_bound(expr, min, max)),
         LogicalExpression::Aggregate { inputs, .. } => inputs

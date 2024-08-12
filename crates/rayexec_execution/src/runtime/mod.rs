@@ -8,7 +8,6 @@ use dump::QueryDump;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
-use tracing::error;
 
 /// How pipelines get executed on a single node.
 ///

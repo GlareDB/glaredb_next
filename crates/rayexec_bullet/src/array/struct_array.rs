@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::{bitmap::Bitmap, datatype::DataType, field::Field, scalar::ScalarValue};
 
-use super::{validity, Array};
+use super::Array;
 use std::sync::Arc;
 
 #[derive(Debug, PartialEq)]

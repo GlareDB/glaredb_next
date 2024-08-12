@@ -1,15 +1,12 @@
-use std::{
-    cell::RefCell, collections::VecDeque, fmt::Debug, future::Future, marker::PhantomData,
-    sync::Arc,
-};
+use std::{collections::VecDeque, fmt::Debug, future::Future, sync::Arc};
 
 use crate::database::{
     catalog::Catalog,
-    entry::{CatalogEntry, FunctionEntry},
+    entry::CatalogEntry,
     table::{DataTable, DataTableScan, EmptyTableScan},
     DatabaseContext,
 };
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
 use rayexec_bullet::{
     array::{
@@ -81,27 +78,25 @@ impl PlannedTableFunction for ListCatalogsImpl {
 }
 
 impl SystemFunctionScan for ListCatalogsImpl {
-    fn next_batch(&mut self) -> impl Future<Output = Result<Option<Batch>>> + Send + '_ {
-        async {
-            if self.catalogs.is_empty() {
-                return Ok(None);
-            }
-
-            let mut catalog_names = VarlenValuesBuffer::default();
-            let mut builtin = BooleanValuesBuffer::default();
-
-            while let Some((name, _catalog)) = self.catalogs.pop_front() {
-                catalog_names.push_value(name);
-                builtin.push_value(false);
-            }
-
-            let batch = Batch::try_new([
-                Array::Utf8(Utf8Array::new(catalog_names, None)),
-                Array::Boolean(BooleanArray::new(builtin, None)),
-            ])?;
-
-            Ok(Some(batch))
+    async fn next_batch(&mut self) -> Result<Option<Batch>> {
+        if self.catalogs.is_empty() {
+            return Ok(None);
         }
+
+        let mut catalog_names = VarlenValuesBuffer::default();
+        let mut builtin = BooleanValuesBuffer::default();
+
+        while let Some((name, _catalog)) = self.catalogs.pop_front() {
+            catalog_names.push_value(name);
+            builtin.push_value(false);
+        }
+
+        let batch = Batch::try_new([
+            Array::Utf8(Utf8Array::new(catalog_names, None)),
+            Array::Boolean(BooleanArray::new(builtin, None)),
+        ])?;
+
+        Ok(Some(batch))
     }
 }
 
@@ -159,35 +154,33 @@ impl PlannedTableFunction for ListTablesImpl {
 }
 
 impl SystemFunctionScan for ListTablesImpl {
-    fn next_batch(&mut self) -> impl Future<Output = Result<Option<Batch>>> + Send + '_ {
-        async {
-            let (catalog_name, catalog) = match self.catalogs.pop_front() {
-                Some(v) => v,
-                None => return Ok(None),
-            };
+    async fn next_batch(&mut self) -> Result<Option<Batch>> {
+        let (catalog_name, catalog) = match self.catalogs.pop_front() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
 
-            let mut catalog_names = VarlenValuesBuffer::default();
-            let mut table_names = VarlenValuesBuffer::default();
+        let mut catalog_names = VarlenValuesBuffer::default();
+        let mut table_names = VarlenValuesBuffer::default();
 
-            let entries = match catalog.entries() {
-                Some(entries) => entries,
-                None => return Ok(None), // TODO: This will be removed. `entries` will be returning something better.
-            };
+        let entries = match catalog.entries() {
+            Some(entries) => entries,
+            None => return Ok(None), // TODO: This will be removed. `entries` will be returning something better.
+        };
 
-            for entry in entries {
-                if let CatalogEntry::Table(ent) = entry {
-                    catalog_names.push_value(&catalog_name);
-                    table_names.push_value(ent.name);
-                }
+        for entry in entries {
+            if let CatalogEntry::Table(ent) = entry {
+                catalog_names.push_value(&catalog_name);
+                table_names.push_value(ent.name);
             }
-
-            let batch = Batch::try_new([
-                Array::Utf8(Utf8Array::new(catalog_names, None)),
-                Array::Utf8(Utf8Array::new(table_names, None)),
-            ])?;
-
-            Ok(Some(batch))
         }
+
+        let batch = Batch::try_new([
+            Array::Utf8(Utf8Array::new(catalog_names, None)),
+            Array::Utf8(Utf8Array::new(table_names, None)),
+        ])?;
+
+        Ok(Some(batch))
     }
 }
 
@@ -228,6 +221,6 @@ struct SystemDataTableScan<S: SystemFunctionScan> {
 
 impl<S: SystemFunctionScan> DataTableScan for SystemDataTableScan<S> {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
-        Box::pin(async { self.scan.next_batch().await })
+        self.scan.next_batch().boxed()
     }
 }

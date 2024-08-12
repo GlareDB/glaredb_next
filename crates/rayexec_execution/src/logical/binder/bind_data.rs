@@ -1,13 +1,11 @@
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
-use rayexec_parser::ast::{self, QueryNode};
+use rayexec_parser::ast::{self};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::{
-    database::{entry::TableEntry, DatabaseContext},
-    logical::operator::LocationRequirement,
-    proto::DatabaseProtoConv,
+    database::DatabaseContext, logical::operator::LocationRequirement, proto::DatabaseProtoConv,
 };
 
 use super::{
@@ -15,7 +13,6 @@ use super::{
     bound_function::BoundFunction,
     bound_table::{BoundTableOrCteReference, CteIndex},
     bound_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference},
-    Bound,
 };
 
 /// Data that's collected during binding, including resolved tables, functions,

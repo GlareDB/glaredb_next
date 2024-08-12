@@ -1,5 +1,5 @@
 use futures::future::BoxFuture;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
 use crate::functions::{
