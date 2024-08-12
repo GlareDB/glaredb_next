@@ -5,9 +5,38 @@ use super::{
     catalog_entry::{CatalogEntry, CatalogEntryInner, SchemaEntry, TableEntry},
     catalog_map::CatalogMap,
 };
-use dashmap::DashMap;
 use rayexec_error::Result;
 use scc::ebr::Guard;
+
+// Using `scc` package for concurrent datastructures.
+//
+// Concurrency is needed since we're wrapping everything in arcs to allow lifetimes
+// of entries to not rely on the database context (e.g. if we have entries on certain
+// pipeline operators).
+//
+// `scc` has a neat property where hashmaps can be read without acquiring locks.
+// This is beneficial for:
+//
+// - Having a single "memory" catalog implementation for real catalogs and
+//   system catalogs. Function lookups don't need to acquire any locks. This is
+//   good because we want to share a single read-only system catalog across all
+//   sessions.
+//
+// However these methods require a Guard for EBR, but these don't actually
+// matter for us. Any synchronization for data removal that's required for our
+// use case will go through more typical transaction semantics with timestamps.
+//
+// I (Sean) opted for `scc` over DashMap primarily for the lock-free read-only
+// properties. DashMap has a fixed number of shards, and any read will acquire a
+// lock for that shard. `evmap` was an alternative with nice lock-free read
+// properties, but `scc` seems more active.
+//
+// ---
+//
+// The memory catalog will be treated as an in-memory cache for external
+// databases/catalogs with entries getting loaded in during binding. This lets
+// us have consistent types for catalog/table access without requiring data
+// sources implement that logic.
 
 #[derive(Debug)]
 pub struct MemoryCatalog {

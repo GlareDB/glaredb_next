@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 
@@ -10,6 +12,7 @@ pub struct CatalogEntry {
     pub oid: u32,
     pub name: String,
     pub entry: CatalogEntryInner,
+    pub child: Option<Arc<CatalogEntry>>,
 }
 
 #[derive(Debug)]

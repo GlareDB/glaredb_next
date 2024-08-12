@@ -1,9 +1,6 @@
-use dashmap::DashMap;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use scc::ebr::Guard;
 use std::sync::Arc;
-
-use parking_lot::RwLock;
 
 use super::{catalog::CatalogTx, catalog_entry::CatalogEntry};
 
@@ -14,19 +11,33 @@ pub struct CatalogMap {
 }
 
 impl CatalogMap {
-    pub fn create_entry(&self, tx: &CatalogTx, name: String, entry: CatalogEntry) -> Result<()> {
-        unimplemented!()
+    pub fn create_entry(&self, _tx: &CatalogTx, entry: CatalogEntry) -> Result<()> {
+        match self.entries.entry(entry.name.clone()) {
+            scc::hash_index::Entry::Occupied(ent) => Err(RayexecError::new(format!(
+                "Duplicate entry name '{}'",
+                ent.name
+            ))),
+            scc::hash_index::Entry::Vacant(ent) => {
+                ent.insert_entry(Arc::new(entry));
+                Ok(())
+            }
+        }
     }
 
-    pub fn drop_entry(&self, tx: &CatalogTx, name: &str, cascade: bool) -> Result<()> {
-        unimplemented!()
+    pub fn drop_entry(&self, _tx: &CatalogTx, entry: &CatalogEntry) -> Result<()> {
+        if !self.entries.remove(&entry.name) {
+            return Err(RayexecError::new(format!("Missing entry '{}'", entry.name)));
+        }
+        Ok(())
     }
 
-    pub fn get_entry(&self, tx: &CatalogTx, name: &str) -> Result<Option<Arc<CatalogEntry>>> {
-        unimplemented!()
+    pub fn get_entry(&self, _tx: &CatalogTx, name: &str) -> Result<Option<Arc<CatalogEntry>>> {
+        let guard = Guard::new();
+        let ent = self.entries.peek(name, &guard).cloned();
+        Ok(ent)
     }
 
-    pub fn for_each_entry<F>(&self, tx: &CatalogTx, func: &mut F) -> Result<()>
+    pub fn for_each_entry<F>(&self, _tx: &CatalogTx, func: &mut F) -> Result<()>
     where
         F: FnMut(&String, &CatalogEntry) -> Result<()>,
     {
