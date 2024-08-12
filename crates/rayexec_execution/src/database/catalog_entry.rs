@@ -7,6 +7,15 @@ use crate::functions::{
     aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CatalogEntryType {
+    Table,
+    Schema,
+    ScalarFunction,
+    AggregateFunction,
+    TableFunction,
+}
+
 #[derive(Debug)]
 pub struct CatalogEntry {
     pub oid: u32,
@@ -49,6 +58,16 @@ pub struct TableEntry {
 pub struct SchemaEntry {}
 
 impl CatalogEntry {
+    pub fn entry_type(&self) -> CatalogEntryType {
+        match &self.entry {
+            CatalogEntryInner::Table(_) => CatalogEntryType::Table,
+            CatalogEntryInner::Schema(_) => CatalogEntryType::Schema,
+            CatalogEntryInner::ScalarFunction(_) => CatalogEntryType::ScalarFunction,
+            CatalogEntryInner::AggregateFunction(_) => CatalogEntryType::AggregateFunction,
+            CatalogEntryInner::TableFunction(_) => CatalogEntryType::TableFunction,
+        }
+    }
+
     pub fn try_as_table_entry(&self) -> Result<&TableEntry> {
         match &self.entry {
             CatalogEntryInner::Table(ent) => Ok(ent),

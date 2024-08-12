@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use super::{
     catalog::CatalogTx,
-    catalog_entry::{CatalogEntry, CatalogEntryInner, SchemaEntry, TableEntry},
+    catalog_entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType, SchemaEntry, TableEntry},
     catalog_map::CatalogMap,
 };
 use rayexec_error::Result;
@@ -44,9 +44,14 @@ pub struct MemoryCatalog {
 }
 
 impl MemoryCatalog {
+    pub fn get_schema(&self, tx: &CatalogTx, name: &str) -> Result<Option<Arc<MemorySchema>>> {
+        let guard = Guard::new();
+        Ok(self.schemas.peek(name, &guard).cloned())
+    }
+
     pub fn for_each_entry<F>(&self, tx: &CatalogTx, func: &mut F) -> Result<()>
     where
-        F: FnMut(&String, &CatalogEntry) -> Result<()>,
+        F: FnMut(&String, &Arc<CatalogEntry>) -> Result<()>,
     {
         let guard = Guard::new();
         for (name, schema) in self.schemas.iter(&guard) {
@@ -60,7 +65,7 @@ impl MemoryCatalog {
 #[derive(Debug)]
 pub struct MemorySchema {
     /// Catalog entry representing this schema.
-    schema: CatalogEntry,
+    schema: Arc<CatalogEntry>,
     /// All tables in the schema.
     tables: CatalogMap,
     /// All table functions in the schema.
@@ -120,11 +125,82 @@ impl MemorySchema {
 
     pub fn for_each_entry<F>(&self, tx: &CatalogTx, func: &mut F) -> Result<()>
     where
-        F: FnMut(&String, &CatalogEntry) -> Result<()>,
+        F: FnMut(&String, &Arc<CatalogEntry>) -> Result<()>,
     {
         self.tables.for_each_entry(tx, func)?;
         self.table_functions.for_each_entry(tx, func)?;
         self.functions.for_each_entry(tx, func)?;
         Ok(())
+    }
+
+    pub fn find_similar_entry(
+        &self,
+        tx: &CatalogTx,
+        typ: CatalogEntryType,
+        name: &str,
+    ) -> Result<Option<SimilarEntry>> {
+        let mut similar: Option<SimilarEntry> = None;
+
+        match typ {
+            CatalogEntryType::Table => self.tables.for_each_entry(tx, &mut |_, ent| {
+                SimilarEntry::maybe_update(&mut similar, ent, name);
+                Ok(())
+            })?,
+            CatalogEntryType::ScalarFunction => {
+                self.functions.for_each_entry(tx, &mut |_, ent| {
+                    SimilarEntry::maybe_update(&mut similar, ent, name);
+                    Ok(())
+                })?
+            }
+            CatalogEntryType::AggregateFunction => {
+                self.functions.for_each_entry(tx, &mut |_, ent| {
+                    SimilarEntry::maybe_update(&mut similar, ent, name);
+                    Ok(())
+                })?
+            }
+            CatalogEntryType::TableFunction => {
+                self.table_functions.for_each_entry(tx, &mut |_, ent| {
+                    SimilarEntry::maybe_update(&mut similar, ent, name);
+                    Ok(())
+                })?
+            }
+            _ => (),
+        }
+
+        Ok(similar)
+    }
+}
+
+#[derive(Debug)]
+pub struct SimilarEntry {
+    pub score: f64,
+    pub entry: Arc<CatalogEntry>,
+}
+
+impl SimilarEntry {
+    /// Maybe updates `current` with a new entry if the new entry scores higher
+    /// in similarity with `name`.
+    fn maybe_update(current: &mut Option<Self>, entry: &Arc<CatalogEntry>, name: &str) {
+        const SIMILARITY_THRESHOLD: f64 = 0.7;
+
+        let score = strsim::jaro(&entry.name, name);
+        if score > SIMILARITY_THRESHOLD {
+            match current {
+                Some(existing) => {
+                    if score > existing.score {
+                        *current = Some(SimilarEntry {
+                            score,
+                            entry: entry.clone(),
+                        })
+                    }
+                }
+                None => {
+                    *current = Some(SimilarEntry {
+                        score,
+                        entry: entry.clone(),
+                    })
+                }
+            }
+        }
     }
 }

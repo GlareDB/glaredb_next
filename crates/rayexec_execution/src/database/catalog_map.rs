@@ -39,11 +39,11 @@ impl CatalogMap {
 
     pub fn for_each_entry<F>(&self, _tx: &CatalogTx, func: &mut F) -> Result<()>
     where
-        F: FnMut(&String, &CatalogEntry) -> Result<()>,
+        F: FnMut(&String, &Arc<CatalogEntry>) -> Result<()>,
     {
         let guard = Guard::new();
         for (name, ent) in self.entries.iter(&guard) {
-            func(name, ent.as_ref())?;
+            func(name, ent)?;
         }
         Ok(())
     }
