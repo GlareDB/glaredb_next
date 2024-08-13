@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::database::create::OnConflict;
 
@@ -52,7 +52,7 @@ pub struct MemoryCatalog {
 }
 
 impl MemoryCatalog {
-    pub fn get_schema(&self, tx: &CatalogTx, name: &str) -> Result<Option<Arc<MemorySchema>>> {
+    pub fn get_schema(&self, _tx: &CatalogTx, name: &str) -> Result<Option<Arc<MemorySchema>>> {
         let guard = Guard::new();
         Ok(self.schemas.peek(name, &guard).cloned())
     }
@@ -90,21 +90,20 @@ impl MemoryCatalog {
                 ent.update(schema.clone());
                 Ok(schema)
             }
-            (Entry::Occupied(ent), OnConflict::Error) => Err(RayexecError::new(format!(
+            (Entry::Occupied(_), OnConflict::Error) => Err(RayexecError::new(format!(
                 "Duplicate schema name: '{}'",
                 create.name,
             ))),
         }
     }
 
-    pub fn for_each_entry<F>(&self, tx: &CatalogTx, func: &mut F) -> Result<()>
+    pub fn for_each_schema<F>(&self, _tx: &CatalogTx, func: &mut F) -> Result<()>
     where
-        F: FnMut(&String, &Arc<CatalogEntry>) -> Result<()>,
+        F: FnMut(&String, &Arc<MemorySchema>) -> Result<()>,
     {
         let guard = Guard::new();
         for (name, schema) in self.schemas.iter(&guard) {
-            func(name, &schema.schema)?;
-            schema.for_each_entry(tx, func)?;
+            func(name, schema)?;
         }
         Ok(())
     }

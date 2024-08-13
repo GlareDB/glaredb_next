@@ -4,7 +4,6 @@ pub mod create;
 pub mod ddl;
 pub mod drop;
 pub mod entry;
-pub mod entry_map;
 pub mod memory_catalog;
 pub mod storage;
 pub mod table;
@@ -18,6 +17,16 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use storage::memory::MemoryCatalog;
 use storage::system::SystemCatalog;
+
+use crate::storage::catalog_storage::CatalogStorage;
+use crate::storage::table_storage::TableStorage;
+
+#[derive(Debug)]
+pub struct Database {
+    pub catalog: Arc<MemoryCatalog>,
+    pub catalog_storage: Option<Arc<dyn CatalogStorage>>,
+    pub table_storage: Arc<dyn TableStorage>,
+}
 
 /// Root of all accessible catalogs.
 #[derive(Debug)]
