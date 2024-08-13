@@ -11,6 +11,8 @@ use crate::database::storage::memory::MemoryCatalog;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
 use crate::runtime::Runtime;
+use crate::storage::catalog_storage::CatalogStorage;
+use crate::storage::table_storage::TableStorage;
 
 /// Trait for constructing data sources.
 ///
@@ -24,6 +26,12 @@ pub trait DataSourceBuilder<R: Runtime>: Sync + Send + Debug + Sized {
     /// anything (table function, catalog) requires something that's provided by
     /// the runtime, like a tokio handle or http client.
     fn initialize(runtime: R) -> Box<dyn DataSource>;
+}
+
+#[derive(Debug)]
+pub struct DataSourceConnection {
+    pub catalog_storage: Option<Arc<dyn CatalogStorage>>,
+    pub table_storage: Arc<dyn TableStorage>,
 }
 
 /// An implementation of `DataSource` describes a data source type that we can
@@ -47,6 +55,13 @@ pub trait DataSourceBuilder<R: Runtime>: Sync + Send + Debug + Sized {
 ///   runtime, but them move the actual streaming of data to the
 ///   ComputeScheduler.
 pub trait DataSource: Sync + Send + Debug {
+    fn connect(
+        &self,
+        options: HashMap<String, OwnedScalarValue>,
+    ) -> BoxFuture<'_, Result<DataSourceConnection>> {
+        Box::pin(async { Err(RayexecError::new("No connect")) })
+    }
+
     /// Create a new catalog using the provided options.
     fn create_catalog(
         &self,

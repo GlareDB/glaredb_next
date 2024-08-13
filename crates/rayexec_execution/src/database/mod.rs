@@ -12,13 +12,12 @@ pub mod table;
 mod catalog_map;
 
 use catalog::Catalog;
+use memory_catalog::MemoryCatalog;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use storage::memory::MemoryCatalog;
-use storage::system::SystemCatalog;
 
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::table_storage::TableStorage;
@@ -39,7 +38,7 @@ pub struct Database {
     pub catalog: Arc<MemoryCatalog>,
     pub catalog_storage: Option<Arc<dyn CatalogStorage>>,
     pub table_storage: Option<Arc<dyn TableStorage>>,
-    pub attach_info: AttachInfo,
+    pub attach_info: Option<AttachInfo>,
 }
 
 /// Root of all accessible catalogs.
@@ -55,57 +54,66 @@ impl DatabaseContext {
     ///
     /// By itself, this context cannot be used to persist data. Additional
     /// catalogs need to be attached via `attach_catalog`.
-    pub fn new(system_catalog: Arc<SystemCatalog>) -> Self {
-        let catalogs = [
-            ("system".to_string(), system_catalog as _),
-            (
-                "temp".to_string(),
-                Arc::new(MemoryCatalog::new_with_schema("temp")) as _,
-            ),
-        ]
-        .into_iter()
-        .collect();
+    pub fn new(system_catalog: Arc<MemoryCatalog>) -> Self {
+        // TODO: Make system catalog actually read-only.
+        let mut databases = HashMap::new();
+
+        databases.insert(
+            "system".to_string(),
+            Database {
+                catalog: system_catalog,
+                catalog_storage: None,
+                table_storage: None,
+                attach_info: None,
+            },
+        );
+
+        databases.insert(
+            "temp".to_string(),
+            Database {
+                catalog: Arc::new(MemoryCatalog::default()),
+                catalog_storage: None,
+                table_storage: None, // TODO
+                attach_info: None,
+            },
+        );
 
         DatabaseContext {
-            catalogs,
-            databases: HashMap::new(),
+            catalogs: HashMap::new(),
+            databases,
         }
     }
 
-    pub fn system_catalog(&self) -> Result<&dyn Catalog> {
-        self.catalogs
+    pub fn system_catalog(&self) -> Result<&MemoryCatalog> {
+        self.databases
             .get("system")
-            .map(|c| c.as_ref())
+            .map(|d| d.catalog.as_ref())
             .ok_or_else(|| RayexecError::new("Missing system catalog"))
     }
 
-    pub fn attach_catalog(
-        &mut self,
-        name: impl Into<String>,
-        catalog: Arc<dyn Catalog>,
-    ) -> Result<()> {
+    pub fn attach_database(&mut self, name: impl Into<String>, database: Database) -> Result<()> {
         let name = name.into();
         if self.catalogs.contains_key(&name) {
             return Err(RayexecError::new(format!(
                 "Catalog with name '{name}' already attached"
             )));
         }
-        self.catalogs.insert(name, catalog);
+        self.databases.insert(name, database);
 
         Ok(())
     }
 
-    pub fn detach_catalog(&mut self, name: &str) -> Result<()> {
-        if self.catalogs.remove(name).is_none() {
+    pub fn detach_database(&mut self, name: &str) -> Result<()> {
+        if self.databases.remove(name).is_none() {
             return Err(RayexecError::new(format!(
-                "Catalog with name '{name}' doesn't exist"
+                "Database with name '{name}' doesn't exist"
             )));
         }
         Ok(())
     }
 
-    pub fn catalog_exists(&self, name: &str) -> bool {
-        self.catalogs.contains_key(name)
+    pub fn database_exists(&self, name: &str) -> bool {
+        self.databases.contains_key(name)
     }
 
     pub fn get_catalog(&self, name: &str) -> Result<&dyn Catalog> {

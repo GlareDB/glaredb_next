@@ -9,7 +9,10 @@ use session::Session;
 use std::sync::Arc;
 
 use crate::{
-    database::{storage::system::SystemCatalog, DatabaseContext},
+    database::{
+        memory_catalog::MemoryCatalog, storage::system::SystemCatalog, system::new_system_catalog,
+        DatabaseContext,
+    },
     datasource::{DataSourceRegistry, MemoryDataSource},
     runtime::{PipelineExecutor, Runtime},
 };
@@ -17,7 +20,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Engine<P: PipelineExecutor, R: Runtime> {
     registry: Arc<DataSourceRegistry>,
-    system_catalog: Arc<SystemCatalog>,
+    system_catalog: Arc<MemoryCatalog>,
     executor: P,
     runtime: R,
 }
@@ -38,7 +41,7 @@ where
         runtime: R,
         registry: DataSourceRegistry,
     ) -> Result<Self> {
-        let system_catalog = Arc::new(SystemCatalog::new(&registry));
+        let system_catalog = Arc::new(new_system_catalog(&registry)?);
 
         Ok(Engine {
             registry: Arc::new(registry),
