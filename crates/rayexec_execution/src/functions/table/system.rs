@@ -37,13 +37,14 @@ impl TableFunction for ListCatalogs {
         context: &DatabaseContext,
         _args: TableFunctionArgs,
     ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
-        let func = ListCatalogsImpl {
-            catalogs: context
-                .iter_catalogs()
-                .map(|(n, c)| (n.clone(), c.clone()))
-                .collect(),
-        };
-        Box::pin(async move { Ok(Box::new(func) as _) })
+        unimplemented!()
+        // let func = ListCatalogsImpl {
+        //     catalogs: context
+        //         .iter_catalogs()
+        //         .map(|(n, c)| (n.clone(), c.clone()))
+        //         .collect(),
+        // };
+        // Box::pin(async move { Ok(Box::new(func) as _) })
     }
 
     fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
@@ -113,13 +114,14 @@ impl TableFunction for ListTables {
         context: &DatabaseContext,
         _args: TableFunctionArgs,
     ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
-        let func = ListTablesImpl {
-            catalogs: context
-                .iter_catalogs()
-                .map(|(n, c)| (n.clone(), c.clone()))
-                .collect(),
-        };
-        Box::pin(async move { Ok(Box::new(func) as _) })
+        unimplemented!()
+        // let func = ListTablesImpl {
+        //     catalogs: context
+        //         .iter_catalogs()
+        //         .map(|(n, c)| (n.clone(), c.clone()))
+        //         .collect(),
+        // };
+        // Box::pin(async move { Ok(Box::new(func) as _) })
     }
 
     fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {

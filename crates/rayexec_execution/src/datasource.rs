@@ -12,6 +12,7 @@ use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
 use crate::runtime::Runtime;
 use crate::storage::catalog_storage::CatalogStorage;
+use crate::storage::memory::MemoryTableStorage;
 use crate::storage::table_storage::TableStorage;
 
 /// Trait for constructing data sources.
@@ -207,6 +208,22 @@ pub fn check_options_empty(options: &HashMap<String, OwnedScalarValue>) -> Resul
 pub struct MemoryDataSource;
 
 impl DataSource for MemoryDataSource {
+    fn connect(
+        &self,
+        options: HashMap<String, OwnedScalarValue>,
+    ) -> BoxFuture<'_, Result<DataSourceConnection>> {
+        Box::pin(async move {
+            if !options.is_empty() {
+                return Err(RayexecError::new("Memory data source takes no options"));
+            }
+
+            Ok(DataSourceConnection {
+                catalog_storage: None,
+                table_storage: Arc::new(MemoryTableStorage::default()),
+            })
+        })
+    }
+
     fn create_catalog(
         &self,
         options: HashMap<String, OwnedScalarValue>,

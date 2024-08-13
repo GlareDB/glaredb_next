@@ -46,7 +46,6 @@ pub struct Database {
 /// Root of all accessible catalogs.
 #[derive(Debug)]
 pub struct DatabaseContext {
-    catalogs: HashMap<String, Arc<dyn Catalog>>,
     databases: HashMap<String, Database>,
 }
 
@@ -89,10 +88,7 @@ impl DatabaseContext {
             },
         );
 
-        Ok(DatabaseContext {
-            catalogs: HashMap::new(),
-            databases,
-        })
+        Ok(DatabaseContext { databases })
     }
 
     pub fn system_catalog(&self) -> Result<&MemoryCatalog> {
@@ -104,7 +100,7 @@ impl DatabaseContext {
 
     pub fn attach_database(&mut self, name: impl Into<String>, database: Database) -> Result<()> {
         let name = name.into();
-        if self.catalogs.contains_key(&name) {
+        if self.databases.contains_key(&name) {
             return Err(RayexecError::new(format!(
                 "Catalog with name '{name}' already attached"
             )));
@@ -131,9 +127,5 @@ impl DatabaseContext {
         self.databases
             .get(name)
             .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
-    }
-
-    pub(crate) fn iter_catalogs(&self) -> impl Iterator<Item = (&String, &Arc<dyn Catalog>)> {
-        self.catalogs.iter()
     }
 }
