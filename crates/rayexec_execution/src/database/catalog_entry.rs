@@ -16,7 +16,7 @@ pub enum CatalogEntryType {
     TableFunction,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct CatalogEntry {
     pub oid: u32,
     pub name: String,
@@ -24,7 +24,7 @@ pub struct CatalogEntry {
     pub child: Option<Arc<CatalogEntry>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CatalogEntryInner {
     Table(TableEntry),
     Schema(SchemaEntry),
@@ -34,17 +34,17 @@ pub enum CatalogEntryInner {
     // TODO: COPY TO function
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ScalarFunctionEntry {
     pub function: Box<dyn ScalarFunction>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct AggregateFunctionEntry {
     pub function: Box<dyn AggregateFunction>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TableFunctionEntry {
     pub function: Box<dyn TableFunction>,
 }
@@ -54,7 +54,7 @@ pub struct TableEntry {
     pub columns: Vec<Field>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SchemaEntry {}
 
 impl CatalogEntry {

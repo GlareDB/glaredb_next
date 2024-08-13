@@ -5,7 +5,7 @@ use std::sync::Arc;
 use super::{catalog::CatalogTx, catalog_entry::CatalogEntry};
 
 /// Maps a name to some catalog entry.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CatalogMap {
     entries: scc::HashIndex<String, Arc<CatalogEntry>>,
 }

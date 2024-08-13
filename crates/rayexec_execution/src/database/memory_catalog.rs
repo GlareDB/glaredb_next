@@ -1,11 +1,19 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::database::create::OnConflict;
+
 use super::{
     catalog::CatalogTx,
-    catalog_entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType, SchemaEntry, TableEntry},
+    catalog_entry::{
+        AggregateFunctionEntry, CatalogEntry, CatalogEntryInner, CatalogEntryType,
+        ScalarFunctionEntry, SchemaEntry, TableEntry,
+    },
     catalog_map::CatalogMap,
+    create::{
+        CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo, CreateTableInfo,
+    },
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use scc::ebr::Guard;
 
 // Using `scc` package for concurrent datastructures.
@@ -38,7 +46,7 @@ use scc::ebr::Guard;
 // us have consistent types for catalog/table access without requiring data
 // sources implement that logic.
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MemoryCatalog {
     schemas: scc::HashIndex<String, Arc<MemorySchema>>,
 }
@@ -47,6 +55,46 @@ impl MemoryCatalog {
     pub fn get_schema(&self, tx: &CatalogTx, name: &str) -> Result<Option<Arc<MemorySchema>>> {
         let guard = Guard::new();
         Ok(self.schemas.peek(name, &guard).cloned())
+    }
+
+    pub fn create_schema(
+        &self,
+        _tx: &CatalogTx,
+        create: &CreateSchemaInfo,
+    ) -> Result<Arc<MemorySchema>> {
+        let schema = Arc::new(MemorySchema {
+            schema: Arc::new(CatalogEntry {
+                oid: 0,
+                name: create.name.clone(),
+                entry: CatalogEntryInner::Schema(SchemaEntry {}),
+                child: None,
+            }),
+            tables: CatalogMap::default(),
+            table_functions: CatalogMap::default(),
+            functions: CatalogMap::default(),
+        });
+
+        use scc::hash_index::Entry;
+
+        match (self.schemas.entry(create.name.clone()), create.on_conflict) {
+            (Entry::Vacant(ent), _) => {
+                ent.insert_entry(schema.clone());
+                Ok(schema)
+            }
+            (Entry::Occupied(ent), OnConflict::Ignore) => {
+                // Return existing entry.
+                Ok(ent.get().clone())
+            }
+            (Entry::Occupied(ent), OnConflict::Replace) => {
+                // TODO: Drop then replace.
+                ent.update(schema.clone());
+                Ok(schema)
+            }
+            (Entry::Occupied(ent), OnConflict::Error) => Err(RayexecError::new(format!(
+                "Duplicate schema name: '{}'",
+                create.name,
+            ))),
+        }
     }
 
     pub fn for_each_entry<F>(&self, tx: &CatalogTx, func: &mut F) -> Result<()>
@@ -75,6 +123,94 @@ pub struct MemorySchema {
 }
 
 impl MemorySchema {
+    pub fn create_table(
+        &self,
+        tx: &CatalogTx,
+        create: &CreateTableInfo,
+    ) -> Result<Arc<CatalogEntry>> {
+        let table = CatalogEntry {
+            oid: 0,
+            name: create.name.clone(),
+            entry: CatalogEntryInner::Table(TableEntry {
+                columns: create.columns.clone(),
+            }),
+            child: None,
+        };
+
+        Self::create_entry(tx, &self.tables, table, create.on_conflict)
+    }
+
+    pub fn create_scalar_function(
+        &self,
+        tx: &CatalogTx,
+        create: &CreateScalarFunctionInfo,
+    ) -> Result<Arc<CatalogEntry>> {
+        let ent = CatalogEntry {
+            oid: 0,
+            name: create.name.clone(),
+            entry: CatalogEntryInner::ScalarFunction(ScalarFunctionEntry {
+                function: create.implementation.clone(),
+            }),
+            child: None,
+        };
+
+        Self::create_entry(tx, &self.functions, ent, create.on_conflict)
+    }
+
+    pub fn create_aggregate_function(
+        &self,
+        tx: &CatalogTx,
+        create: &CreateAggregateFunctionInfo,
+    ) -> Result<Arc<CatalogEntry>> {
+        let ent = CatalogEntry {
+            oid: 0,
+            name: create.name.clone(),
+            entry: CatalogEntryInner::AggregateFunction(AggregateFunctionEntry {
+                function: create.implementation.clone(),
+            }),
+            child: None,
+        };
+
+        Self::create_entry(tx, &self.functions, ent, create.on_conflict)
+    }
+
+    /// Internal helper for inserting entries into the schema while obeying
+    /// conflict rules.
+    fn create_entry(
+        tx: &CatalogTx,
+        map: &CatalogMap,
+        entry: CatalogEntry,
+        on_conflict: OnConflict,
+    ) -> Result<Arc<CatalogEntry>> {
+        let name = entry.name.clone();
+
+        match (on_conflict, map.get_entry(tx, &name)?) {
+            (OnConflict::Ignore, Some(ent)) => {
+                // Return existing entry.
+                return Ok(ent.clone());
+            }
+            (OnConflict::Replace, _) => {
+                // TODO: Drop
+                map.create_entry(tx, entry)?;
+            }
+            (OnConflict::Error, Some(_)) => {
+                return Err(RayexecError::new(format!(
+                    "Duplicate entry: {}",
+                    entry.name
+                )))
+            }
+            (OnConflict::Error, None) | (OnConflict::Ignore, None) => {
+                map.create_entry(tx, entry)?;
+            }
+        }
+
+        let ent = map
+            .get_entry(tx, &name)?
+            .ok_or_else(|| RayexecError::new("Missing entry after create"))?;
+
+        Ok(ent)
+    }
+
     pub fn get_table(&self, tx: &CatalogTx, name: &str) -> Result<Option<Arc<CatalogEntry>>> {
         self.tables.get_entry(tx, name)
     }
@@ -171,7 +307,7 @@ impl MemorySchema {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SimilarEntry {
     pub score: f64,
     pub entry: Arc<CatalogEntry>,
@@ -202,5 +338,61 @@ impl SimilarEntry {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{database::create::CreateAggregateFunctionInfo, functions::aggregate::sum::Sum};
+
+    use super::*;
+
+    fn create_test_catalog() -> MemoryCatalog {
+        let catalog = MemoryCatalog::default();
+        let _schema = catalog
+            .create_schema(
+                &CatalogTx {},
+                &CreateSchemaInfo {
+                    name: "test".to_string(),
+                    on_conflict: OnConflict::Error,
+                },
+            )
+            .unwrap();
+
+        catalog
+    }
+
+    #[test]
+    fn similarity_function_name() {
+        let catalog = create_test_catalog();
+        let schema = catalog.get_schema(&CatalogTx {}, "test").unwrap().unwrap();
+
+        schema
+            .create_aggregate_function(
+                &CatalogTx {},
+                &CreateAggregateFunctionInfo {
+                    name: "sum".to_string(),
+                    implementation: Box::new(Sum),
+                    on_conflict: OnConflict::Error,
+                },
+            )
+            .unwrap();
+
+        let similar = schema
+            .find_similar_entry(&CatalogTx {}, CatalogEntryType::AggregateFunction, "summ")
+            .unwrap()
+            .unwrap();
+        assert_eq!("sum", similar.entry.name);
+
+        let similar = schema
+            .find_similar_entry(&CatalogTx {}, CatalogEntryType::AggregateFunction, "sim")
+            .unwrap()
+            .unwrap();
+        assert_eq!("sum", similar.entry.name);
+
+        let similar = schema
+            .find_similar_entry(&CatalogTx {}, CatalogEntryType::AggregateFunction, "ham")
+            .unwrap();
+        assert_eq!(None, similar);
     }
 }
