@@ -6,11 +6,12 @@ use super::{
     catalog::CatalogTx,
     catalog_entry::{
         AggregateFunctionEntry, CatalogEntry, CatalogEntryInner, CatalogEntryType,
-        ScalarFunctionEntry, SchemaEntry, TableEntry,
+        ScalarFunctionEntry, SchemaEntry, TableEntry, TableFunctionEntry,
     },
     catalog_map::CatalogMap,
     create::{
-        CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo, CreateTableInfo,
+        CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
+        CreateTableFunctionInfo, CreateTableInfo,
     },
 };
 use rayexec_error::{RayexecError, Result};
@@ -171,6 +172,23 @@ impl MemorySchema {
         };
 
         Self::create_entry(tx, &self.functions, ent, create.on_conflict)
+    }
+
+    pub fn create_table_function(
+        &self,
+        tx: &CatalogTx,
+        create: &CreateTableFunctionInfo,
+    ) -> Result<Arc<CatalogEntry>> {
+        let ent = CatalogEntry {
+            oid: 0,
+            name: create.name.clone(),
+            entry: CatalogEntryInner::TableFunction(TableFunctionEntry {
+                function: create.implementation.clone(),
+            }),
+            child: None,
+        };
+
+        Self::create_entry(tx, &self.table_functions, ent, create.on_conflict)
     }
 
     /// Internal helper for inserting entries into the schema while obeying
