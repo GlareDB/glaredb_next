@@ -52,7 +52,7 @@ where
     }
 
     pub fn new_session(&self) -> Result<Session<P, R>> {
-        let context = DatabaseContext::new(self.system_catalog.clone());
+        let context = DatabaseContext::new(self.system_catalog.clone())?;
         Ok(Session::new(
             context,
             self.executor.clone(),
@@ -62,7 +62,7 @@ where
     }
 
     pub fn new_server_session(&self) -> Result<ServerSession<P, R>> {
-        let context = DatabaseContext::new(self.system_catalog.clone());
+        let context = DatabaseContext::new(self.system_catalog.clone())?;
         Ok(ServerSession::new(
             context,
             self.executor.clone(),

@@ -1,5 +1,7 @@
 # list_catalogs system function
 
+halt
+
 query TB
 select * from list_catalogs() where catalog_name = 'temp';
 ----

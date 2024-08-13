@@ -11,7 +11,8 @@ pub mod table;
 
 mod catalog_map;
 
-use catalog::Catalog;
+use catalog::{Catalog, CatalogTx};
+use create::{CreateSchemaInfo, OnConflict};
 use memory_catalog::MemoryCatalog;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
@@ -55,7 +56,7 @@ impl DatabaseContext {
     ///
     /// By itself, this context cannot be used to persist data. Additional
     /// catalogs need to be attached via `attach_catalog`.
-    pub fn new(system_catalog: Arc<MemoryCatalog>) -> Self {
+    pub fn new(system_catalog: Arc<MemoryCatalog>) -> Result<Self> {
         // TODO: Make system catalog actually read-only.
         let mut databases = HashMap::new();
 
@@ -69,20 +70,29 @@ impl DatabaseContext {
             },
         );
 
+        let temp = MemoryCatalog::default();
+        temp.create_schema(
+            &CatalogTx {},
+            &CreateSchemaInfo {
+                name: "temp".to_string(),
+                on_conflict: OnConflict::Error,
+            },
+        )?;
+
         databases.insert(
             "temp".to_string(),
             Database {
-                catalog: Arc::new(MemoryCatalog::default()),
+                catalog: Arc::new(temp),
                 catalog_storage: None,
                 table_storage: Some(Arc::new(MemoryTableStorage::default())),
                 attach_info: None,
             },
         );
 
-        DatabaseContext {
+        Ok(DatabaseContext {
             catalogs: HashMap::new(),
             databases,
-        }
+        })
     }
 
     pub fn system_catalog(&self) -> Result<&MemoryCatalog> {

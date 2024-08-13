@@ -21,6 +21,7 @@ pub fn test_database_context() -> DatabaseContext {
     DatabaseContext::new(Arc::new(
         new_system_catalog(&DataSourceRegistry::default()).unwrap(),
     ))
+    .unwrap()
 }
 
 /// Test context containg a waker implementation that counts the number of times

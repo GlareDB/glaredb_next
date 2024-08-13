@@ -101,6 +101,10 @@ impl MemoryCatalog {
 
     pub fn drop_entry(&self, tx: &CatalogTx, drop: &DropInfo) -> Result<()> {
         if drop.object == DropObject::Schema {
+            if drop.cascade {
+                return Err(RayexecError::new("CASCADE not yet supported"));
+            }
+
             // TODO: Schemas should be implemented as a CatalogMap.
             if !self.schemas.remove(&drop.schema) && !drop.if_exists {
                 return Err(RayexecError::new(format!(
@@ -108,6 +112,8 @@ impl MemoryCatalog {
                     drop.schema
                 )));
             }
+
+            return Ok(());
         }
 
         let schema = self
