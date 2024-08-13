@@ -13,6 +13,7 @@ use super::{
         CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
         CreateTableFunctionInfo, CreateTableInfo,
     },
+    drop::{DropInfo, DropObject},
 };
 use rayexec_error::{RayexecError, Result};
 use scc::ebr::Guard;
@@ -98,6 +99,27 @@ impl MemoryCatalog {
         }
     }
 
+    pub fn drop_entry(&self, tx: &CatalogTx, drop: &DropInfo) -> Result<()> {
+        if drop.object == DropObject::Schema {
+            // TODO: Schemas should be implemented as a CatalogMap.
+            if !self.schemas.remove(&drop.schema) && !drop.if_exists {
+                return Err(RayexecError::new(format!(
+                    "Missing schema: {}",
+                    drop.schema
+                )));
+            }
+        }
+
+        let schema = self
+            .schemas
+            .get(&drop.schema)
+            .ok_or_else(|| RayexecError::new(format!("Missing schema: {}", drop.schema)))?;
+
+        schema.drop_entry(tx, drop)?;
+
+        Ok(())
+    }
+
     pub fn for_each_schema<F>(&self, _tx: &CatalogTx, func: &mut F) -> Result<()>
     where
         F: FnMut(&String, &Arc<MemorySchema>) -> Result<()>,
@@ -123,6 +145,10 @@ pub struct MemorySchema {
 }
 
 impl MemorySchema {
+    pub fn entry(&self) -> &Arc<CatalogEntry> {
+        &self.schema
+    }
+
     pub fn create_table(
         &self,
         tx: &CatalogTx,
@@ -274,6 +300,45 @@ impl MemorySchema {
             .flatten();
 
         Ok(ent)
+    }
+
+    pub fn drop_entry(&self, tx: &CatalogTx, drop: &DropInfo) -> Result<()> {
+        match &drop.object {
+            DropObject::Index(_) => Err(RayexecError::new("Dropping indexes not yet supported")),
+            DropObject::Function(_) => {
+                Err(RayexecError::new("Dropping functions not yet supported"))
+            }
+            DropObject::Table(name) => {
+                Self::drop_entry_inner(tx, &self.tables, name, drop.if_exists, drop.cascade)
+            }
+            DropObject::View(name) => {
+                Self::drop_entry_inner(tx, &self.tables, name, drop.if_exists, drop.cascade)
+            }
+            DropObject::Schema => Err(RayexecError::new("Cannot drop schema from inside schema")),
+        }
+    }
+
+    fn drop_entry_inner(
+        tx: &CatalogTx,
+        map: &CatalogMap,
+        name: &str,
+        if_exists: bool,
+        cascade: bool,
+    ) -> Result<()> {
+        if cascade {
+            return Err(RayexecError::new("CASCADE not yet supported"));
+        }
+
+        let ent = map.get_entry(tx, name)?;
+
+        match (ent, if_exists) {
+            (Some(ent), _) => {
+                map.drop_entry(tx, ent.as_ref())?;
+                Ok(())
+            }
+            (None, true) => Ok(()),
+            (None, false) => return Err(RayexecError::new("Missing entry, cannot drop")),
+        }
     }
 
     pub fn for_each_entry<F>(&self, tx: &CatalogTx, func: &mut F) -> Result<()>

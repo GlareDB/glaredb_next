@@ -323,18 +323,25 @@ impl<'a> ExpressionBinder<'a> {
                     args.push(func_arg);
                 }
 
+                let schema_ent = self
+                    .binder
+                    .context
+                    .get_database(catalog)?
+                    .catalog
+                    .get_schema(self.binder.tx, &schema)?
+                    .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+
                 // Check scalars first.
-                if let Some(scalar) = self.binder.context.get_catalog(catalog)?.get_scalar_fn(
-                    self.binder.tx,
-                    schema,
-                    func_name,
-                )? {
+                if let Some(scalar) = schema_ent.get_scalar_function(self.binder.tx, func_name)? {
                     // TODO: Allow unbound scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
-                    let bind_idx = bind_data
-                        .functions
-                        .push_bound(BoundFunction::Scalar(scalar), LocationRequirement::Any);
+                    let bind_idx = bind_data.functions.push_bound(
+                        BoundFunction::Scalar(
+                            scalar.try_as_scalar_function_entry()?.function.clone(),
+                        ),
+                        LocationRequirement::Any,
+                    );
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: bind_idx,
                         args,
@@ -343,15 +350,17 @@ impl<'a> ExpressionBinder<'a> {
                 }
 
                 // Now check aggregates.
-                if let Some(aggregate) = self
-                    .binder
-                    .context
-                    .get_catalog(catalog)?
-                    .get_aggregate_fn(self.binder.tx, schema, func_name)?
+                if let Some(aggregate) =
+                    schema_ent.get_aggregate_function(self.binder.tx, func_name)?
                 {
                     // TODO: Allow unbound aggregates?
                     let bind_idx = bind_data.functions.push_bound(
-                        BoundFunction::Aggregate(aggregate),
+                        BoundFunction::Aggregate(
+                            aggregate
+                                .try_as_aggregate_function_entry()?
+                                .function
+                                .clone(),
+                        ),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {

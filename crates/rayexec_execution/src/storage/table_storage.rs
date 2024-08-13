@@ -5,27 +5,20 @@ use std::fmt::Debug;
 use std::task::Context;
 
 use crate::{
-    database::{catalog_entry::TableEntry, create::CreateTableInfo, drop::DropInfo},
+    database::catalog_entry::{CatalogEntry, TableEntry},
     execution::operators::{PollFinalize, PollPush},
 };
 
 pub trait TableStorage: Debug + Sync + Send {
-    fn data_table(
-        &self,
-        catalog: &str,
-        schema: &str,
-        ent: &TableEntry,
-    ) -> Result<Box<dyn DataTable>>;
+    fn data_table(&self, schema: &str, ent: &CatalogEntry) -> Result<Box<dyn DataTable>>;
 
-    fn create_table(
+    fn create_physical_table(
         &self,
-        catalog: &str,
         schema: &str,
-        create: &CreateTableInfo,
+        ent: &CatalogEntry,
     ) -> BoxFuture<'_, Result<Box<dyn DataTable>>>;
 
-    fn drop_table(&self, catalog: &str, schema: &str, drop: &DropInfo)
-        -> BoxFuture<'_, Result<()>>;
+    fn drop_physical_table(&self, schema: &str, ent: &CatalogEntry) -> BoxFuture<'_, Result<()>>;
 }
 
 pub trait DataTable: Debug + Sync + Send {

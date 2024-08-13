@@ -1,5 +1,9 @@
 use crate::{
-    database::{catalog::CatalogTx, DatabaseContext},
+    database::{
+        catalog::CatalogTx,
+        create::{CreateTableInfo, OnConflict},
+        DatabaseContext,
+    },
     functions::table::TableFunction,
 };
 use rayexec_error::{RayexecError, Result};
@@ -49,12 +53,18 @@ impl<'a> Resolver<'a> {
             }
         };
 
-        if let Some(entry) = self
+        let schema_ent = match self
             .context
-            .get_catalog(&catalog)?
-            .get_table_fn(self.tx, &schema, &name)?
+            .get_database(&catalog)?
+            .catalog
+            .get_schema(self.tx, &schema)?
         {
-            Ok(Some(entry))
+            Some(ent) => ent,
+            None => return Ok(None),
+        };
+
+        if let Some(entry) = schema_ent.get_table_function(self.tx, &name)? {
+            Ok(Some(entry.try_as_table_function_entry()?.function.clone()))
         } else {
             Ok(None)
         }
@@ -109,12 +119,49 @@ impl<'a> Resolver<'a> {
             }
         };
 
-        if let Some(entry) = self
-            .context
-            .get_catalog(&catalog)?
-            .get_table_entry(self.tx, &schema, &table)
-            .await?
-        {
+        let database = self.context.get_database(&catalog)?;
+
+        let schema_ent = match database.catalog.get_schema(self.tx, &schema)? {
+            Some(ent) => ent,
+            None => return Ok(None),
+        };
+
+        // Try reading from in-memory catalog first.
+        if let Some(entry) = schema_ent.get_table(self.tx, &table)? {
+            return Ok(Some(BoundTableOrCteReference::Table {
+                catalog,
+                schema,
+                entry,
+            }));
+        }
+
+        // If we don't have it, try loading from external catalog.
+        match database.catalog_storage.as_ref() {
+            Some(storage) => {
+                let ent = match storage.load_table(&catalog, &schema, &table).await? {
+                    Some(ent) => ent,
+                    None => return Ok(None),
+                };
+
+                schema_ent.create_table(
+                    self.tx,
+                    &CreateTableInfo {
+                        name: table.clone(),
+                        columns: ent.columns,
+                        on_conflict: OnConflict::Error,
+                    },
+                )?;
+            }
+            None => {
+                // Nothing to load from. Return None instead of an error to the
+                // remote side in hybrid execution to potentially load from
+                // external source.
+                return Ok(None);
+            }
+        }
+
+        // Read from catalog again.
+        if let Some(entry) = schema_ent.get_table(self.tx, &table)? {
             Ok(Some(BoundTableOrCteReference::Table {
                 catalog,
                 schema,

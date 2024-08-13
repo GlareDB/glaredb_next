@@ -20,9 +20,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::storage::catalog_storage::CatalogStorage;
+use crate::storage::memory::MemoryTableStorage;
 use crate::storage::table_storage::TableStorage;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AttachInfo {
     /// Name of the data source this attached database is for.
     pub datasource: String,
@@ -33,7 +34,7 @@ pub struct AttachInfo {
     pub options: HashMap<String, OwnedScalarValue>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Database {
     pub catalog: Arc<MemoryCatalog>,
     pub catalog_storage: Option<Arc<dyn CatalogStorage>>,
@@ -73,7 +74,7 @@ impl DatabaseContext {
             Database {
                 catalog: Arc::new(MemoryCatalog::default()),
                 catalog_storage: None,
-                table_storage: None, // TODO
+                table_storage: Some(Arc::new(MemoryTableStorage::default())),
                 attach_info: None,
             },
         );
@@ -116,10 +117,9 @@ impl DatabaseContext {
         self.databases.contains_key(name)
     }
 
-    pub fn get_catalog(&self, name: &str) -> Result<&dyn Catalog> {
-        self.catalogs
+    pub fn get_database(&self, name: &str) -> Result<&Database> {
+        self.databases
             .get(name)
-            .map(|c| c.as_ref())
             .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
     }
 

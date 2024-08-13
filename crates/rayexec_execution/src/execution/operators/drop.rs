@@ -27,12 +27,13 @@ impl fmt::Debug for DropPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalDrop {
+    catalog: String,
     info: DropInfo,
 }
 
 impl PhysicalDrop {
-    pub fn new(info: DropInfo) -> Self {
-        PhysicalDrop { info }
+    pub fn new(catalog: String, info: DropInfo) -> Self {
+        PhysicalDrop { catalog, info }
     }
 }
 
@@ -49,10 +50,14 @@ impl ExecutableOperator for PhysicalDrop {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
-        let catalog = context
-            .get_catalog(&self.info.catalog)?
-            .catalog_modifier(&tx)?;
-        let drop = catalog.drop_entry(self.info.clone());
+        let catalog = context.get_database(&self.catalog)?.catalog.clone();
+        let info = self.info.clone();
+        let drop = Box::pin(async move {
+            catalog.drop_entry(&tx, &info)?;
+            // TODO: Log drop, enqueue physical table drop.
+            // TODO: Probably doesn't even need to be async...
+            Ok(())
+        });
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
@@ -108,14 +113,16 @@ impl DatabaseProtoConv for PhysicalDrop {
     type ProtoType = rayexec_proto::generated::execution::PhysicalDrop;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            info: Some(self.info.to_proto()?),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     info: Some(self.info.to_proto()?),
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            info: DropInfo::from_proto(proto.info.required("info")?)?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     info: DropInfo::from_proto(proto.info.required("info")?)?,
+        // })
     }
 }
