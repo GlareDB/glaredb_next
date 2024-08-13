@@ -136,7 +136,7 @@ impl DatabaseProtoConv for Box<dyn TableFunction> {
             .get_schema(tx, LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_table_function(tx, &proto.name)?
-            .required("scalar function")?;
+            .required("table function")?;
         let ent = ent.try_as_table_function_entry()?;
 
         Ok(ent.function.clone())
@@ -163,7 +163,7 @@ impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
             .get_schema(tx, LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_table_function(tx, &proto.name)?
-            .required("scalar function")?;
+            .required("table function")?;
         let ent = ent.try_as_table_function_entry()?;
 
         let planned = ent.function.decode_state(&proto.state)?;
