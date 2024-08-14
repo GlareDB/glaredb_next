@@ -31,11 +31,20 @@ pub struct AttachInfo {
     pub options: HashMap<String, OwnedScalarValue>,
 }
 
+/// An attached database.
 #[derive(Debug, Clone)]
 pub struct Database {
+    /// In-memory catalog for the database.
     pub catalog: Arc<MemoryCatalog>,
+    /// Storage for the catalog.
+    ///
+    /// If not provided, catalog changes won't be persisted (e.g. systema and
+    /// temp catalogs).
     pub catalog_storage: Option<Arc<dyn CatalogStorage>>,
+    /// Storage for tables.
+    // TODO: Should probably never be None. Right now, only 'system' is None.
     pub table_storage: Option<Arc<dyn TableStorage>>,
+    /// How we attached the catalog (for remote execution).
     pub attach_info: Option<AttachInfo>,
 }
 

@@ -3,16 +3,57 @@ use std::sync::Arc;
 use crate::{
     database::{
         catalog::CatalogTx,
-        catalog_entry::CatalogEntry,
+        catalog_entry::{CatalogEntry, CatalogEntryType},
         create::{CreateSchemaInfo, CreateTableInfo, OnConflict},
+        memory_catalog::MemorySchema,
         Database, DatabaseContext,
     },
     functions::table::TableFunction,
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
+use tracing::error;
 
 use super::{bound_table::BoundTableOrCteReference, BindData};
+
+pub fn create_user_facing_resolve_err(
+    tx: &CatalogTx,
+    schema_ent: Option<&MemorySchema>,
+    object_types: &[CatalogEntryType],
+    name: &str,
+) -> RayexecError {
+    // Find similar function to include in error message.
+    let similar = match schema_ent {
+        Some(schema_ent) => match schema_ent.find_similar_entry(tx, object_types, name) {
+            Ok(maybe_similar) => maybe_similar,
+            Err(e) => {
+                // Error shouldn't happen, but if it does, it shouldn't be user-facing.
+                error!(%e, %name, "failed to find similar entry to include in error message");
+                None
+            }
+        },
+        None => None,
+    };
+
+    // "table"
+    // "scalar function or aggregate function"
+    let formatted_object_types = object_types
+        .iter()
+        .map(|t| t.to_string())
+        .collect::<Vec<_>>()
+        .join(" or ");
+
+    match similar {
+        Some(similar) => RayexecError::new(format!(
+            "Cannot resolve {} with name '{}', did you mean '{}'?",
+            formatted_object_types, name, similar.entry.name,
+        )),
+        None => RayexecError::new(format!(
+            "Cannot resolve {} with name '{}'",
+            formatted_object_types, name
+        )),
+    }
+}
 
 // TODO: Search path
 #[derive(Debug)]

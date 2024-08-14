@@ -357,35 +357,37 @@ impl MemorySchema {
     pub fn find_similar_entry(
         &self,
         tx: &CatalogTx,
-        typ: CatalogEntryType,
+        typs: &[CatalogEntryType],
         name: &str,
     ) -> Result<Option<SimilarEntry>> {
         let mut similar: Option<SimilarEntry> = None;
 
-        match typ {
-            CatalogEntryType::Table => self.tables.for_each_entry(tx, &mut |_, ent| {
-                SimilarEntry::maybe_update(&mut similar, ent, name);
-                Ok(())
-            })?,
-            CatalogEntryType::ScalarFunction => {
-                self.functions.for_each_entry(tx, &mut |_, ent| {
+        for typ in typs {
+            match typ {
+                CatalogEntryType::Table => self.tables.for_each_entry(tx, &mut |_, ent| {
                     SimilarEntry::maybe_update(&mut similar, ent, name);
                     Ok(())
-                })?
+                })?,
+                CatalogEntryType::ScalarFunction => {
+                    self.functions.for_each_entry(tx, &mut |_, ent| {
+                        SimilarEntry::maybe_update(&mut similar, ent, name);
+                        Ok(())
+                    })?
+                }
+                CatalogEntryType::AggregateFunction => {
+                    self.functions.for_each_entry(tx, &mut |_, ent| {
+                        SimilarEntry::maybe_update(&mut similar, ent, name);
+                        Ok(())
+                    })?
+                }
+                CatalogEntryType::TableFunction => {
+                    self.table_functions.for_each_entry(tx, &mut |_, ent| {
+                        SimilarEntry::maybe_update(&mut similar, ent, name);
+                        Ok(())
+                    })?
+                }
+                _ => (),
             }
-            CatalogEntryType::AggregateFunction => {
-                self.functions.for_each_entry(tx, &mut |_, ent| {
-                    SimilarEntry::maybe_update(&mut similar, ent, name);
-                    Ok(())
-                })?
-            }
-            CatalogEntryType::TableFunction => {
-                self.table_functions.for_each_entry(tx, &mut |_, ent| {
-                    SimilarEntry::maybe_update(&mut similar, ent, name);
-                    Ok(())
-                })?
-            }
-            _ => (),
         }
 
         Ok(similar)
@@ -464,19 +466,23 @@ mod tests {
             .unwrap();
 
         let similar = schema
-            .find_similar_entry(&CatalogTx {}, CatalogEntryType::AggregateFunction, "summ")
+            .find_similar_entry(
+                &CatalogTx {},
+                &[CatalogEntryType::AggregateFunction],
+                "summ",
+            )
             .unwrap()
             .unwrap();
         assert_eq!("sum", similar.entry.name);
 
         let similar = schema
-            .find_similar_entry(&CatalogTx {}, CatalogEntryType::AggregateFunction, "sim")
+            .find_similar_entry(&CatalogTx {}, &[CatalogEntryType::AggregateFunction], "sim")
             .unwrap()
             .unwrap();
         assert_eq!("sum", similar.entry.name);
 
         let similar = schema
-            .find_similar_entry(&CatalogTx {}, CatalogEntryType::AggregateFunction, "ham")
+            .find_similar_entry(&CatalogTx {}, &[CatalogEntryType::AggregateFunction], "ham")
             .unwrap();
         assert_eq!(None, similar);
     }

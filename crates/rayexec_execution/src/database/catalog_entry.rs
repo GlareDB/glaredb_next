@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::field::Field;
@@ -14,6 +15,18 @@ pub enum CatalogEntryType {
     ScalarFunction,
     AggregateFunction,
     TableFunction,
+}
+
+impl fmt::Display for CatalogEntryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Table => write!(f, "table"),
+            Self::Schema => write!(f, "schema"),
+            Self::ScalarFunction => write!(f, "scalar function"),
+            Self::AggregateFunction => write!(f, "aggregate function"),
+            Self::TableFunction => write!(f, "table function"),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
