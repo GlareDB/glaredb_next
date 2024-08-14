@@ -24,7 +24,7 @@ use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::memory::MemoryTableStorage;
 use crate::storage::table_storage::TableStorage;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AttachInfo {
     /// Name of the data source this attached database is for.
     pub datasource: String,
@@ -127,5 +127,9 @@ impl DatabaseContext {
         self.databases
             .get(name)
             .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
+    }
+
+    pub fn iter_databases(&self) -> impl Iterator<Item = (&String, &Database)> {
+        self.databases.iter()
     }
 }
