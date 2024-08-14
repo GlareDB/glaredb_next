@@ -110,6 +110,44 @@ impl SystemFunctionImpl for ListTablesImpl {
     }
 }
 
+pub type ListSchemas = SystemFunction<ListSchemasImpl>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListSchemasImpl;
+
+impl SystemFunctionImpl for ListSchemasImpl {
+    const NAME: &'static str = "list_schemas";
+
+    fn schema() -> Schema {
+        Schema::new([
+            Field::new("database_name", DataType::Utf8, false),
+            Field::new("schema_name", DataType::Utf8, false),
+        ])
+    }
+
+    fn new_batch(
+        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    ) -> Result<Batch> {
+        let mut database_names = VarlenValuesBuffer::default();
+        let mut schema_names = VarlenValuesBuffer::default();
+
+        let database = databases.pop_front().required("database")?;
+
+        let tx = &CatalogTx {};
+
+        database.1.for_each_schema(tx, &mut |schema_name, _| {
+            database_names.push_value(&database.0);
+            schema_names.push_value(schema_name);
+            Ok(())
+        })?;
+
+        Batch::try_new([
+            Array::Utf8(Utf8Array::new(database_names, None)),
+            Array::Utf8(Utf8Array::new(schema_names, None)),
+        ])
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SystemFunction<F: SystemFunctionImpl> {
     _ty: PhantomData<F>,

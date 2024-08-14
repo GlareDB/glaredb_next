@@ -14,7 +14,7 @@ use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
 use std::{collections::HashMap, fmt::Debug};
-use system::{ListDatabases, ListTables};
+use system::{ListDatabases, ListSchemas, ListTables};
 
 use crate::database::table::DataTable;
 use crate::database::DatabaseContext;
@@ -24,6 +24,7 @@ pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> = Lazy::ne
         Box::new(GenerateSeries),
         // Various list system object functions.
         Box::new(ListDatabases::new()),
+        Box::new(ListSchemas::new()),
         Box::new(ListTables::new()),
     ]
 });
