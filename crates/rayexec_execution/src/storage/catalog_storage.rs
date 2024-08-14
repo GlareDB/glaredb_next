@@ -9,10 +9,5 @@ pub trait CatalogStorage: Debug + Sync + Send {
 
     fn persist(&self, catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>>;
 
-    fn load_table(
-        &self,
-        catalog: &str,
-        schema: &str,
-        name: &str,
-    ) -> BoxFuture<'_, Result<Option<TableEntry>>>;
+    fn load_table(&self, schema: &str, name: &str) -> BoxFuture<'_, Result<Option<TableEntry>>>;
 }

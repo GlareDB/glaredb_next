@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use crate::{
     database::{
         catalog::CatalogTx,
-        create::{CreateTableInfo, OnConflict},
-        DatabaseContext,
+        catalog_entry::CatalogEntry,
+        create::{CreateSchemaInfo, CreateTableInfo, OnConflict},
+        Database, DatabaseContext,
     },
     functions::table::TableFunction,
 };
@@ -121,13 +124,8 @@ impl<'a> Resolver<'a> {
 
         let database = self.context.get_database(&catalog)?;
 
-        let schema_ent = match database.catalog.get_schema(self.tx, &schema)? {
-            Some(ent) => ent,
-            None => return Ok(None),
-        };
-
         // Try reading from in-memory catalog first.
-        if let Some(entry) = schema_ent.get_table(self.tx, &table)? {
+        if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
             return Ok(Some(BoundTableOrCteReference::Table {
                 catalog,
                 schema,
@@ -138,9 +136,22 @@ impl<'a> Resolver<'a> {
         // If we don't have it, try loading from external catalog.
         match database.catalog_storage.as_ref() {
             Some(storage) => {
-                let ent = match storage.load_table(&catalog, &schema, &table).await? {
+                let ent = match storage.load_table(&schema, &table).await? {
                     Some(ent) => ent,
                     None => return Ok(None),
+                };
+
+                // We may need to create a schema in memory as well if we've
+                // successfully loaded the table.
+                let schema_ent = match database.catalog.get_schema(self.tx, &schema)? {
+                    Some(schema) => schema,
+                    None => database.catalog.create_schema(
+                        self.tx,
+                        &CreateSchemaInfo {
+                            name: schema.clone(),
+                            on_conflict: OnConflict::Error,
+                        },
+                    )?,
                 };
 
                 schema_ent.create_table(
@@ -161,7 +172,7 @@ impl<'a> Resolver<'a> {
         }
 
         // Read from catalog again.
-        if let Some(entry) = schema_ent.get_table(self.tx, &table)? {
+        if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
             Ok(Some(BoundTableOrCteReference::Table {
                 catalog,
                 schema,
@@ -170,6 +181,20 @@ impl<'a> Resolver<'a> {
         } else {
             Ok(None)
         }
+    }
+
+    fn resolve_from_memory_catalog(
+        &self,
+        database: &Database,
+        schema: &str,
+        table: &str,
+    ) -> Result<Option<Arc<CatalogEntry>>> {
+        let schema_ent = match database.catalog.get_schema(self.tx, &schema)? {
+            Some(ent) => ent,
+            None => return Ok(None),
+        };
+
+        schema_ent.get_table(self.tx, &table)
     }
 
     pub async fn require_resolve_table_or_cte(

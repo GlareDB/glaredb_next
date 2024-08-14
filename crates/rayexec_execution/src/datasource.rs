@@ -56,9 +56,13 @@ pub struct DataSourceConnection {
 pub trait DataSource: Sync + Send + Debug {
     fn connect(
         &self,
-        options: HashMap<String, OwnedScalarValue>,
+        _options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<'_, Result<DataSourceConnection>> {
-        Box::pin(async { Err(RayexecError::new("No connect")) })
+        Box::pin(async {
+            Err(RayexecError::new(
+                "Connect not implemented for this data source",
+            ))
+        })
     }
 
     /// Initialize a list of table functions that this data source provides.

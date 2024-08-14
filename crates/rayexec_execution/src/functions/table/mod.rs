@@ -16,8 +16,8 @@ use series::GenerateSeries;
 use std::{collections::HashMap, fmt::Debug};
 use system::{ListDatabases, ListSchemas, ListTables};
 
-use crate::database::table::DataTable;
 use crate::database::DatabaseContext;
+use crate::storage::table_storage::DataTable;
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> = Lazy::new(|| {
     vec![

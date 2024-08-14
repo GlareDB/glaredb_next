@@ -1,11 +1,11 @@
 use std::{collections::VecDeque, fmt::Debug, marker::PhantomData, sync::Arc};
 
-use crate::database::{
-    catalog::CatalogTx,
-    catalog_entry::CatalogEntryType,
-    memory_catalog::MemoryCatalog,
-    table::{DataTable, DataTableScan, EmptyTableScan},
-    AttachInfo, DatabaseContext,
+use crate::{
+    database::{
+        catalog::CatalogTx, catalog_entry::CatalogEntryType, memory_catalog::MemoryCatalog,
+        AttachInfo, DatabaseContext,
+    },
+    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan},
 };
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
