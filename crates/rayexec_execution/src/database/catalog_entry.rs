@@ -71,35 +71,35 @@ impl CatalogEntry {
     pub fn try_as_table_entry(&self) -> Result<&TableEntry> {
         match &self.entry {
             CatalogEntryInner::Table(ent) => Ok(ent),
-            _ => return Err(RayexecError::new("Entry not a table")),
+            _ => Err(RayexecError::new("Entry not a table")),
         }
     }
 
     pub fn try_as_schema_entry(&self) -> Result<&SchemaEntry> {
         match &self.entry {
             CatalogEntryInner::Schema(ent) => Ok(ent),
-            _ => return Err(RayexecError::new("Entry not a schema")),
+            _ => Err(RayexecError::new("Entry not a schema")),
         }
     }
 
     pub fn try_as_scalar_function_entry(&self) -> Result<&ScalarFunctionEntry> {
         match &self.entry {
             CatalogEntryInner::ScalarFunction(ent) => Ok(ent),
-            _ => return Err(RayexecError::new("Entry not a scalar function")),
+            _ => Err(RayexecError::new("Entry not a scalar function")),
         }
     }
 
     pub fn try_as_aggregate_function_entry(&self) -> Result<&AggregateFunctionEntry> {
         match &self.entry {
             CatalogEntryInner::AggregateFunction(ent) => Ok(ent),
-            _ => return Err(RayexecError::new("Entry not an aggregate function")),
+            _ => Err(RayexecError::new("Entry not an aggregate function")),
         }
     }
 
     pub fn try_as_table_function_entry(&self) -> Result<&TableFunctionEntry> {
         match &self.entry {
             CatalogEntryInner::TableFunction(ent) => Ok(ent),
-            _ => return Err(RayexecError::new("Entry not a table function")),
+            _ => Err(RayexecError::new("Entry not a table function")),
         }
     }
 }

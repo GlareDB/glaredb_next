@@ -426,14 +426,12 @@ impl ExecutableOperator for PhysicalHashJoin {
                         // initialized the bitmaps before finalizing in that case.
                         //
                         // This is valid.
-                        ()
                     }
                     (None, None) => {
                         // May happen if:
                         //
                         // - Not a left join
                         // - Is a left join but no right partitions have finalized yet.
-                        ()
                     }
                 }
 
@@ -474,7 +472,6 @@ impl ExecutableOperator for PhysicalHashJoin {
                         }
                         None => {
                             // Nothing to do.
-                            ()
                         }
                     }
                 }

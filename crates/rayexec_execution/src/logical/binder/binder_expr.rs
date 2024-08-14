@@ -328,7 +328,7 @@ impl<'a> ExpressionBinder<'a> {
                     .context
                     .get_database(catalog)?
                     .catalog
-                    .get_schema(self.binder.tx, &schema)?
+                    .get_schema(self.binder.tx, schema)?
                     .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
                 // Check scalars first.

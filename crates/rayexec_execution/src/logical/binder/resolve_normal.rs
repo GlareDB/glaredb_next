@@ -189,12 +189,12 @@ impl<'a> Resolver<'a> {
         schema: &str,
         table: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        let schema_ent = match database.catalog.get_schema(self.tx, &schema)? {
+        let schema_ent = match database.catalog.get_schema(self.tx, schema)? {
             Some(ent) => ent,
             None => return Ok(None),
         };
 
-        schema_ent.get_table(self.tx, &table)
+        schema_ent.get_table(self.tx, table)
     }
 
     pub async fn require_resolve_table_or_cte(

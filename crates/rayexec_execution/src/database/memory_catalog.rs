@@ -282,12 +282,11 @@ impl MemorySchema {
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
         let ent = self.functions.get_entry(tx, name)?;
-        let ent = ent
-            .map(|ent| match &ent.entry {
-                CatalogEntryInner::ScalarFunction(_) => Some(ent),
-                _ => None,
-            })
-            .flatten();
+
+        let ent = ent.and_then(|ent| match &ent.entry {
+            CatalogEntryInner::ScalarFunction(_) => Some(ent),
+            _ => None,
+        });
 
         Ok(ent)
     }
@@ -298,12 +297,10 @@ impl MemorySchema {
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
         let ent = self.functions.get_entry(tx, name)?;
-        let ent = ent
-            .map(|ent| match &ent.entry {
-                CatalogEntryInner::AggregateFunction(_) => Some(ent),
-                _ => None,
-            })
-            .flatten();
+        let ent = ent.and_then(|ent| match &ent.entry {
+            CatalogEntryInner::AggregateFunction(_) => Some(ent),
+            _ => None,
+        });
 
         Ok(ent)
     }
@@ -343,7 +340,7 @@ impl MemorySchema {
                 Ok(())
             }
             (None, true) => Ok(()),
-            (None, false) => return Err(RayexecError::new("Missing entry, cannot drop")),
+            (None, false) => Err(RayexecError::new("Missing entry, cannot drop")),
         }
     }
 

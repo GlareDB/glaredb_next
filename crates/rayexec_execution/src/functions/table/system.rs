@@ -148,7 +148,7 @@ impl SystemFunctionImpl for ListSchemasImpl {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
 pub struct SystemFunction<F: SystemFunctionImpl> {
     _ty: PhantomData<F>,
 }
@@ -227,6 +227,7 @@ impl<F: SystemFunctionImpl> PlannedTableFunction for PlannedSystemFunction<F> {
 
 #[derive(Debug)]
 struct SystemDataTable<F: SystemFunctionImpl> {
+    #[allow(clippy::type_complexity)] // Temp
     databases: Mutex<Option<VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>>>,
     function: SystemFunction<F>,
 }
