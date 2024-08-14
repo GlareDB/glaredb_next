@@ -401,8 +401,6 @@ impl ExecutableOperator for PhysicalHashJoin {
                 Ok(PollFinalize::Finalized)
             }
             PartitionState::HashJoinProbe(state) => {
-                state.input_finished = true;
-
                 // Ensure we've finished building the left side before
                 // continuing with the finalize.
                 //
@@ -413,6 +411,8 @@ impl ExecutableOperator for PhysicalHashJoin {
                     shared.probe_push_wakers[state.partition_idx] = Some(cx.waker().clone());
                     return Ok(PollFinalize::Pending);
                 }
+
+                state.input_finished = true;
 
                 // Merge local left visit bitmaps into global if we have it.
                 match (
