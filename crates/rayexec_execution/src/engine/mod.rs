@@ -9,10 +9,7 @@ use session::Session;
 use std::sync::Arc;
 
 use crate::{
-    database::{
-        memory_catalog::MemoryCatalog, storage::system::SystemCatalog, system::new_system_catalog,
-        DatabaseContext,
-    },
+    database::{memory_catalog::MemoryCatalog, system::new_system_catalog, DatabaseContext},
     datasource::{DataSourceRegistry, MemoryDataSource},
     runtime::{PipelineExecutor, Runtime},
 };

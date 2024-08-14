@@ -6,8 +6,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::database::catalog::Catalog;
-use crate::database::storage::memory::MemoryCatalog;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
 use crate::runtime::Runtime;
@@ -62,12 +60,6 @@ pub trait DataSource: Sync + Send + Debug {
     ) -> BoxFuture<'_, Result<DataSourceConnection>> {
         Box::pin(async { Err(RayexecError::new("No connect")) })
     }
-
-    /// Create a new catalog using the provided options.
-    fn create_catalog(
-        &self,
-        options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>>;
 
     /// Initialize a list of table functions that this data source provides.
     ///
@@ -221,19 +213,6 @@ impl DataSource for MemoryDataSource {
                 catalog_storage: None,
                 table_storage: Arc::new(MemoryTableStorage::default()),
             })
-        })
-    }
-
-    fn create_catalog(
-        &self,
-        options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
-        Box::pin(async move {
-            if !options.is_empty() {
-                return Err(RayexecError::new("Memory data source takes no options"));
-            }
-
-            Ok(Arc::new(MemoryCatalog::new_with_schema("public")) as _)
         })
     }
 

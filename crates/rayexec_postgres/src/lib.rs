@@ -17,7 +17,7 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     database::{
-        catalog::{Catalog, CatalogTx},
+        catalog::CatalogTx,
         entry::TableEntry,
         table::{DataTable, DataTableScan, EmptyTableScan},
     },
@@ -47,13 +47,6 @@ impl<R: Runtime> DataSourceBuilder<R> for PostgresDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for PostgresDataSource<R> {
-    fn create_catalog(
-        &self,
-        options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
-        Box::pin(self.create_catalog_inner(options))
-    }
-
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadPostgres {
             runtime: self.runtime.clone(),
@@ -65,7 +58,7 @@ impl<R: Runtime> PostgresDataSource<R> {
     async fn create_catalog_inner(
         &self,
         mut options: HashMap<String, OwnedScalarValue>,
-    ) -> Result<Arc<dyn Catalog>> {
+    ) -> Result<Arc<PostgresCatalog<R>>> {
         let conn_str = take_option("connection_string", &mut options)?.try_into_string()?;
         check_options_empty(&options)?;
 
@@ -92,7 +85,7 @@ pub struct PostgresCatalog<R: Runtime> {
     conn_str: String,
 }
 
-impl<R> Catalog for PostgresCatalog<R>
+impl<R> PostgresCatalog<R>
 where
     R: Runtime,
 {

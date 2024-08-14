@@ -5,13 +5,12 @@ pub mod ddl;
 pub mod drop;
 pub mod entry;
 pub mod memory_catalog;
-pub mod storage;
 pub mod system;
 pub mod table;
 
 mod catalog_map;
 
-use catalog::{Catalog, CatalogTx};
+use catalog::CatalogTx;
 use create::{CreateSchemaInfo, OnConflict};
 use memory_catalog::MemoryCatalog;
 use rayexec_bullet::scalar::OwnedScalarValue;

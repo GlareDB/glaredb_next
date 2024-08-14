@@ -10,7 +10,6 @@ use std::{
 use rayexec_bullet::array::{Array, Int32Array};
 use rayexec_bullet::batch::Batch;
 
-use crate::database::storage::system::SystemCatalog;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
