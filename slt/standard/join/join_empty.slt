@@ -45,7 +45,6 @@ query II
 select * from t1 right join t2 on t1.a = t2.a;
 ----
 
-
 # Right input has rows (t1 and t2 flipped)
 
 query II
@@ -60,3 +59,4 @@ query II
 select * from t2 right join t1 on t2.a = t1.a;
 ----
 NULL  2
+
