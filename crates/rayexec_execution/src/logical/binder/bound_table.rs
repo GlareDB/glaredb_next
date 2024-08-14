@@ -1,9 +1,9 @@
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::Result;
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::database::catalog_entry::{CatalogEntry, TableEntry};
+use crate::database::catalog_entry::CatalogEntry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CteIndex(pub usize);
@@ -28,9 +28,9 @@ impl ProtoConv for BoundTableOrCteReference {
     type ProtoType = rayexec_proto::generated::binder::BoundTableOrCteReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::{
-            bound_table_or_cte_reference::Value, BoundCteReference, BoundTableReference,
-        };
+        // use rayexec_proto::generated::binder::{
+        //     bound_table_or_cte_reference::Value, BoundCteReference, BoundTableReference,
+        // };
 
         // let value = match self {
         //     Self::Table {
@@ -51,8 +51,8 @@ impl ProtoConv for BoundTableOrCteReference {
         unimplemented!()
     }
 
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::binder::bound_table_or_cte_reference::Value;
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
+        // use rayexec_proto::generated::binder::bound_table_or_cte_reference::Value;
 
         unimplemented!()
         // Ok(match proto.value.required("value")? {

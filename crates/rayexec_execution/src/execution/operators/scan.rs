@@ -6,8 +6,7 @@ use crate::{
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, RayexecError, Result};
-use rayexec_proto::ProtoConv;
+use rayexec_error::{RayexecError, Result};
 use std::{fmt, task::Poll};
 use std::{sync::Arc, task::Context};
 
@@ -57,7 +56,7 @@ impl ExecutableOperator for PhysicalScan {
     ) -> Result<ExecutionStates> {
         // TODO: Placeholder for now. Transaction info should probably go on the
         // operator.
-        let tx = CatalogTx::new();
+        let _tx = CatalogTx::new();
 
         let database = context.get_database(&self.catalog)?;
         let data_table = database
@@ -158,7 +157,7 @@ impl DatabaseProtoConv for PhysicalScan {
         // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         unimplemented!()
         // Ok(Self {
         //     catalog: proto.catalog,

@@ -62,7 +62,8 @@ message PhysicalCreateTable {
 }
 
 message PhysicalDrop {
-    DropInfo info = 1;
+    string   catalog = 1;
+    DropInfo info    = 2;
 }
 
 message PhysicalEmpty {}

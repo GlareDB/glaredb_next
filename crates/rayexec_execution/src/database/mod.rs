@@ -2,7 +2,6 @@ pub mod catalog;
 pub mod catalog_entry;
 pub mod create;
 pub mod drop;
-pub mod entry;
 pub mod memory_catalog;
 pub mod system;
 

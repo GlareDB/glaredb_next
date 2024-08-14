@@ -1,5 +1,5 @@
 use futures::future::BoxFuture;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use std::fmt::Debug;
 
 use crate::database::{catalog_entry::TableEntry, memory_catalog::MemoryCatalog};

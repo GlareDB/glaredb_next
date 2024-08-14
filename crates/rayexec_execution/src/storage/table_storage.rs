@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::task::Context;
 
 use crate::{
-    database::catalog_entry::{CatalogEntry, TableEntry},
+    database::catalog_entry::CatalogEntry,
     execution::operators::{PollFinalize, PollPush},
 };
 

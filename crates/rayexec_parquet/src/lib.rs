@@ -8,16 +8,12 @@ mod schema;
 
 use copy_to::ParquetCopyToFunction;
 use functions::read_parquet::ReadParquet;
-use futures::future::BoxFuture;
-use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
     runtime::Runtime,
 };
 use regex::{Regex, RegexBuilder};
-use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParquetDataSource<R> {

@@ -5,8 +5,7 @@ use crate::{
     storage::table_storage::DataTableInsert,
 };
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, RayexecError, Result};
-use rayexec_proto::ProtoConv;
+use rayexec_error::{RayexecError, Result};
 use std::{
     sync::Arc,
     task::{Context, Waker},
@@ -172,7 +171,7 @@ impl DatabaseProtoConv for PhysicalInsert {
         // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         unimplemented!()
         // Ok(Self {
         //     catalog: proto.catalog,

@@ -113,16 +113,16 @@ impl DatabaseProtoConv for PhysicalDrop {
     type ProtoType = rayexec_proto::generated::execution::PhysicalDrop;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // Ok(Self::ProtoType {
-        //     info: Some(self.info.to_proto()?),
-        // })
+        Ok(Self::ProtoType {
+            catalog: self.catalog.clone(),
+            info: Some(self.info.to_proto()?),
+        })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // Ok(Self {
-        //     info: DropInfo::from_proto(proto.info.required("info")?)?,
-        // })
+        Ok(Self {
+            catalog: proto.catalog,
+            info: DropInfo::from_proto(proto.info.required("info")?)?,
+        })
     }
 }

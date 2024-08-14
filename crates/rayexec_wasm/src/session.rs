@@ -6,7 +6,6 @@ use crate::{
 };
 use rayexec_bullet::{
     array::Array,
-    batch,
     format::{FormatOptions, Formatter},
 };
 use rayexec_csv::CsvDataSource;
