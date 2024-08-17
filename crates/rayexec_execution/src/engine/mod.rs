@@ -66,10 +66,8 @@ where
         ))
     }
 
-    pub fn new_server_session(&self) -> Result<ServerState<P, R>> {
-        let context = DatabaseContext::new(self.system_catalog.clone())?;
+    pub fn new_server_state(&self) -> Result<ServerState<P, R>> {
         Ok(ServerState::new(
-            context,
             self.executor.clone(),
             self.runtime.clone(),
             self.registry.clone(),

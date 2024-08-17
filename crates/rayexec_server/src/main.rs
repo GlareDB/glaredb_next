@@ -62,9 +62,12 @@ async fn inner(
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
         .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
     let engine = Engine::new_with_registry(sched.clone(), runtime.clone(), registry)?;
-    let session = engine.new_server_session()?;
+    let server_state = engine.new_server_state()?;
 
-    let state = Arc::new(handlers::HandlerState { engine, session });
+    let state = Arc::new(handlers::HandlerState {
+        engine,
+        server_state,
+    });
 
     let app = Router::new()
         .route(REMOTE_ENDPOINTS.healthz, get(handlers::healthz))
