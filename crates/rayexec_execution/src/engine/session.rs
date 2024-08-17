@@ -18,7 +18,7 @@ use crate::{
         binder::{BindMode, Binder},
         context::QueryContext,
         operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
-        planner::plan_statement::{LogicalQuery, PlanContext},
+        planner::plan_statement::PlanContext,
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},

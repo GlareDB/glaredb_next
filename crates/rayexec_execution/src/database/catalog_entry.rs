@@ -240,7 +240,7 @@ impl ProtoConv for TableEntry {
             columns: proto
                 .columns
                 .into_iter()
-                .map(|c| ProtoConv::from_proto(c))
+                .map(ProtoConv::from_proto)
                 .collect::<Result<_>>()?,
         })
     }

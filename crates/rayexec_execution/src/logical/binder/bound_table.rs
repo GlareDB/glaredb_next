@@ -107,10 +107,7 @@ impl ProtoConv for UnboundTableReference {
         Ok(Self {
             reference: ProtoConv::from_proto(proto.reference.required("reference")?)?,
             catalog: proto.catalog,
-            attach_info: proto
-                .attach_info
-                .map(|i| ProtoConv::from_proto(i))
-                .transpose()?,
+            attach_info: proto.attach_info.map(ProtoConv::from_proto).transpose()?,
         })
     }
 }
