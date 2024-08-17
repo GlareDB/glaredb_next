@@ -64,10 +64,7 @@ async fn inner(
     let engine = Engine::new_with_registry(sched.clone(), runtime.clone(), registry)?;
     let session = engine.new_server_session()?;
 
-    let state = Arc::new(handlers::ServerState {
-        _engine: engine,
-        session,
-    });
+    let state = Arc::new(handlers::HandlerState { engine, session });
 
     let app = Router::new()
         .route(REMOTE_ENDPOINTS.healthz, get(handlers::healthz))

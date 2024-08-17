@@ -27,12 +27,12 @@ use crate::{
 };
 use std::sync::Arc;
 
-/// A "server" session for doing remote planning and remote execution.
+/// Server state for planning and executing user queries on a remote server.
 ///
 /// Keeps no state and very cheap to create. Essentially just encapsulates logic
 /// for what should happen on the remote side for hybrid/distributed execution.
 #[derive(Debug)]
-pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
+pub struct ServerState<P: PipelineExecutor, R: Runtime> {
     /// Context this session has access to.
     context: DatabaseContext,
 
@@ -49,7 +49,7 @@ pub struct ServerSession<P: PipelineExecutor, R: Runtime> {
     _runtime: R,
 }
 
-impl<P, R> ServerSession<P, R>
+impl<P, R> ServerState<P, R>
 where
     P: PipelineExecutor,
     R: Runtime,
@@ -60,7 +60,7 @@ where
         runtime: R,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
-        ServerSession {
+        ServerState {
             context,
             _registry: registry,
             buffers: ServerStreamBuffers::default(),
@@ -69,14 +69,6 @@ where
             executor,
             _runtime: runtime,
         }
-    }
-
-    // TODO: The only "unique" thing about this session is the context. This
-    // session should be renamed to something else as it's probably easiest to
-    // just have one of these per process, and instead the context should be
-    // passed in as an arg where needed.
-    pub fn context(&self) -> &DatabaseContext {
-        &self.context
     }
 
     /// Plans a partially bound query, preparing it for execution.

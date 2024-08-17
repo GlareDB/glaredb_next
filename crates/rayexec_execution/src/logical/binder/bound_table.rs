@@ -80,6 +80,11 @@ pub struct UnboundTableReference {
     /// Name of the catalog this table is in.
     pub catalog: String,
     /// How we attach the catalog.
+    ///
+    /// Currently it's expected that this is always Some (we get attach info
+    /// from the client), but there's a path where this can be None, and attach
+    /// info gets injected on the server-side. Right now, the server will error
+    /// if this is None.
     pub attach_info: Option<AttachInfo>,
 }
 
