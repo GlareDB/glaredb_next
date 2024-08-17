@@ -6,6 +6,7 @@ use crate::{
     logical::{binder::BindMode, operator::LocationRequirement},
 };
 use rayexec_error::{RayexecError, Result};
+use tracing::debug;
 
 use super::{
     bind_data::MaybeBound, bound_table_function::BoundTableFunctionReference,
@@ -152,6 +153,8 @@ impl<'a> HybridResolver<'a> {
     async fn resolve_unbound_tables(&self, bind_data: &mut BindData) -> Result<()> {
         for item in bind_data.tables.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
+                debug!(%unbound.reference, "(hybrid) resolving unbound table");
+
                 // Pass in empty bind data to resolver since it's only used for
                 // CTE lookup, which shouldn't be possible here.
                 let empty = BindData::default();
@@ -159,6 +162,8 @@ impl<'a> HybridResolver<'a> {
                 let table = Resolver::new(self.binder.tx, self.binder.context)
                     .require_resolve_table_or_cte(&unbound.reference, &empty)
                     .await?;
+
+                debug!(%unbound.reference, "(hybrid) resolved unbound table");
 
                 *item = MaybeBound::Bound(table, LocationRequirement::Remote)
             }
