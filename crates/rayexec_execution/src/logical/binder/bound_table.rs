@@ -1,9 +1,10 @@
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
+use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::database::catalog_entry::CatalogEntry;
+use crate::database::{catalog_entry::CatalogEntry, AttachInfo};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CteIndex(pub usize);
@@ -65,5 +66,64 @@ impl ProtoConv for BoundTableOrCteReference {
         //         cte_idx: CteIndex(cte.idx as usize),
         //     },
         // })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnboundTableReference {
+    /// The raw ast reference.
+    pub reference: ast::ObjectReference,
+    /// Name of the catalog this table is in.
+    pub catalog: String,
+    /// How we attach the catalog.
+    pub attach_info: Option<AttachInfo>,
+}
+
+impl ProtoConv for UnboundTableReference {
+    type ProtoType = rayexec_proto::generated::binder::UnboundTableReference;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            reference: Some(self.reference.to_proto()?),
+            catalog: self.catalog.clone(),
+            attach_info: self
+                .attach_info
+                .as_ref()
+                .map(|i| i.to_proto())
+                .transpose()?,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            reference: ProtoConv::from_proto(proto.reference.required("reference")?)?,
+            catalog: proto.catalog,
+            attach_info: proto
+                .attach_info
+                .map(|i| ProtoConv::from_proto(i))
+                .transpose()?,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::scalar::OwnedScalarValue;
+    use rayexec_proto::testutil::assert_proto_roundtrip;
+
+    use super::*;
+
+    #[test]
+    fn roundtrip_unbound_table_reference() {
+        let reference = UnboundTableReference {
+            reference: ast::ObjectReference::from_strings(["my", "table"]),
+            catalog: "catalog".to_string(),
+            attach_info: Some(AttachInfo {
+                datasource: "snowbricks".to_string(),
+                options: [("key".to_string(), OwnedScalarValue::Float32(3.5))].into(),
+            }),
+        };
+
+        assert_proto_roundtrip(reference);
     }
 }

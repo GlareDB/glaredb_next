@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package rayexec.catalog;
+
+import "expr.proto";
+
+message AttachInfo {
+    string                             datasource = 1;
+    map<string, expr.OwnedScalarValue> options    = 2;
+}

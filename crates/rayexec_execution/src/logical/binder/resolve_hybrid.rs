@@ -82,8 +82,10 @@ impl<'a> HybridResolver<'a> {
                 // CTE lookup, which shouldn't be possible here.
                 let empty = BindData::default();
 
+                // TODO: Attach catalog to context.
+
                 let table = Resolver::new(self.binder.tx, self.binder.context)
-                    .require_resolve_table_or_cte(unbound, &empty)
+                    .require_resolve_table_or_cte(&unbound.reference, &empty)
                     .await?;
 
                 *item = MaybeBound::Bound(table, LocationRequirement::Remote)

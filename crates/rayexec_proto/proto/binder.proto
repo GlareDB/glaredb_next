@@ -6,6 +6,7 @@ import "expr.proto";
 import "logical.proto";
 import "ast/raw.proto";
 import "execution.proto"; // TODO: Probably move catalog stuff out of this.
+import "catalog.proto";
 
 message BoundFunctionReference {
     oneof value {
@@ -41,6 +42,12 @@ message BoundTableOrCteReference {
     }
 }
 
+message UnboundTableReference {
+    ast.raw.ObjectReference reference       = 1;
+    string                  catalog         = 2;
+    optional catalog.AttachInfo attach_info = 3;
+}
+
 message ItemReference {
     repeated string idents = 1;
 }
@@ -63,7 +70,7 @@ message BoundTableFunctionReferenceWithLocation {
 message MaybeBoundTable {
     oneof value {
         BoundTableOrCteReferenceWithLocation bound   = 1;
-        ast.raw.ObjectReference              unbound = 2;
+        UnboundTableReference                unbound = 2;
     }
 }
 
