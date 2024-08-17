@@ -207,7 +207,7 @@ impl<B, U> Default for BindList<B, U> {
 impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableReference> {
     type ProtoType = rayexec_proto::generated::binder::TablesBindList;
 
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         use rayexec_proto::generated::binder::{
             maybe_bound_table::Value, BoundTableOrCteReferenceWithLocation, MaybeBoundTable,
         };
@@ -217,7 +217,7 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableRefere
             let table = match table {
                 MaybeBound::Bound(bound, loc) => MaybeBoundTable {
                     value: Some(Value::Bound(BoundTableOrCteReferenceWithLocation {
-                        bound: Some(bound.to_proto()?),
+                        bound: Some(bound.to_proto_ctx(context)?),
                         location: loc.to_proto()? as i32,
                     })),
                 },
@@ -231,7 +231,7 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableRefere
         Ok(Self::ProtoType { tables })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         use rayexec_proto::generated::binder::maybe_bound_table::Value;
 
         let tables = proto
@@ -240,8 +240,10 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableRefere
             .map(|t| match t.value.required("value")? {
                 Value::Bound(bound) => {
                     let location = LocationRequirement::from_proto(bound.location())?;
-                    let bound =
-                        BoundTableOrCteReference::from_proto(bound.bound.required("bound")?)?;
+                    let bound = BoundTableOrCteReference::from_proto_ctx(
+                        bound.bound.required("bound")?,
+                        context,
+                    )?;
                     Ok(MaybeBound::Bound(bound, location))
                 }
                 Value::Unbound(unbound) => Ok(MaybeBound::Unbound(ProtoConv::from_proto(unbound)?)),

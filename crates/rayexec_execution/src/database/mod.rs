@@ -78,7 +78,7 @@ pub struct Database {
 /// Root of all accessible catalogs.
 ///
 /// Attaching external databases falls outside the normal catalog flow, and so
-/// will follow any transactional semantics.
+/// will not follow the same transactional semantics.
 #[derive(Debug)]
 pub struct DatabaseContext {
     databases: HashMap<String, Database>,
