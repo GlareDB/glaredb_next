@@ -30,7 +30,7 @@ struct Arguments {
     port: u16,
 
     /// Log format.
-    #[arg(long, value_parser)]
+    #[arg(value_enum, long, value_parser, default_value_t = LogFormat::Json)]
     log_format: LogFormat,
 }
 
