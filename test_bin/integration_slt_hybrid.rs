@@ -1,3 +1,5 @@
+use rayexec_bullet::{datatype::DataType, field::Field};
+use rayexec_debug::{DebugDataSource, TablePreload};
 use rayexec_error::Result;
 use rayexec_execution::{
     datasource::{DataSourceRegistry, MemoryDataSource},
@@ -20,8 +22,30 @@ pub fn main() -> Result<()> {
 
         // TODO: Debug data source with configurable tables, table functions,
         // errors, etc.
-        let datasources = DataSourceRegistry::default()
-            .with_datasource("remote_memory", Box::new(MemoryDataSource))?;
+        let datasources = DataSourceRegistry::default().with_datasource(
+            "remote_debug1",
+            Box::new(DebugDataSource::new(
+                [
+                    TablePreload {
+                        schema: "schema1".to_string(),
+                        name: "table1".to_string(),
+                        columns: vec![
+                            Field::new("c1", DataType::Int64, false),
+                            Field::new("c2", DataType::Utf8, false),
+                        ],
+                    },
+                    TablePreload {
+                        schema: "schema1".to_string(),
+                        name: "table2".to_string(),
+                        columns: vec![
+                            Field::new("c1", DataType::Float32, false),
+                            Field::new("c2", DataType::Float64, false),
+                        ],
+                    },
+                ],
+                [],
+            )),
+        )?;
         let engine =
             Engine::new_with_registry(ThreadedNativeExecutor::try_new()?, rt.clone(), datasources)?;
 

@@ -1952,6 +1952,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_debug"
+version = "0.0.33"
+dependencies = [
+ "bytes",
+ "futures",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_io",
+ "rayexec_proto",
+ "regex",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "rayexec_delta"
 version = "0.0.33"
 dependencies = [
@@ -2755,6 +2771,7 @@ version = "0.0.33"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_debug",
  "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",

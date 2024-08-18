@@ -16,6 +16,7 @@ rayexec_postgres = { path = '../crates/rayexec_postgres' }
 rayexec_parquet = { path = '../crates/rayexec_parquet' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
+rayexec_debug = { path = '../crates/rayexec_debug' }
 
 [[test]]
 harness = false
