@@ -25,7 +25,10 @@ jobs:
         uses: arduino/setup-protoc@v3
 
       - name: Standard tests
-        run: cargo test -- --skip slt_datasource_  --skip slt_tpch
+        run: cargo test -- --skip slt_datasource_  --skip slt_tpch --skip slt_hybrid
+
+      - name: SLTs Hybrid
+        run: cargo test slt_hybrid
 
       - name: SLTs Parquet
         env:

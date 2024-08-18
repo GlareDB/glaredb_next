@@ -2,7 +2,7 @@ use rayexec_bullet::{datatype::DataType, field::Field};
 use rayexec_debug::{DebugDataSource, TablePreload};
 use rayexec_error::Result;
 use rayexec_execution::{
-    datasource::{DataSourceRegistry, MemoryDataSource},
+    datasource::DataSourceRegistry,
     engine::Engine,
     hybrid::client::{HybridClient, HybridConnectConfig},
     runtime::{Runtime, TokioHandlerProvider},
