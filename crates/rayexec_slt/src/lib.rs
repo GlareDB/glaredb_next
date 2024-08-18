@@ -1,11 +1,12 @@
-mod convert;
 mod vars;
+pub use vars::*;
+
+mod convert;
 
 use async_trait::async_trait;
 use convert::{batch_to_rows, schema_to_types};
 use futures::StreamExt;
 use libtest_mimic::{Arguments, Trial};
-use rand::{distributions::Alphanumeric, Rng};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     engine::{session::Session, Engine},
@@ -13,15 +14,13 @@ use rayexec_execution::{
 };
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use sqllogictest::DefaultColumnType;
-use std::{collections::HashMap, fs};
+use std::fs;
 use std::{
-    fmt,
     path::{Path, PathBuf},
     time::Duration,
 };
 use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-use vars::ReplacementVars;
 
 #[derive(Debug, Clone, Default)]
 pub struct RunConfig {
