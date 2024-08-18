@@ -69,7 +69,13 @@ pub trait DataSource: Sync + Send + Debug {
     ///
     /// Note that these functions should be stateless, as they are registered
     /// into the system catalog at startup.
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>>;
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+        Vec::new()
+    }
+
+    fn initialize_copy_to_functions(&self) -> Vec<Box<dyn CopyToFunction>> {
+        Vec::new()
+    }
 
     /// Return file handlers that this data souce can handle.
     ///
