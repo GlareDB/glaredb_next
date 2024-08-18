@@ -1,5 +1,6 @@
 use rayexec_error::Result;
 use rayexec_execution::{
+    datasource::{DataSourceRegistry, MemoryDataSource},
     engine::Engine,
     hybrid::client::{HybridClient, HybridConnectConfig},
     runtime::{Runtime, TokioHandlerProvider},
@@ -16,7 +17,13 @@ pub fn main() -> Result<()> {
         // Server engine.
         let rt = NativeRuntime::with_default_tokio()?;
         let tokio_handle = rt.tokio_handle().handle().expect("tokio to be configured");
-        let engine = Engine::new(ThreadedNativeExecutor::try_new()?, rt.clone())?;
+
+        // TODO: Debug data source with configurable tables, table functions,
+        // errors, etc.
+        let datasources = DataSourceRegistry::default()
+            .with_datasource("remote_memory", Box::new(MemoryDataSource))?;
+        let engine =
+            Engine::new_with_registry(ThreadedNativeExecutor::try_new()?, rt.clone(), datasources)?;
 
         tokio_handle.spawn(async move { serve_with_engine(engine, PORT).await });
     }
