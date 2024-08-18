@@ -305,6 +305,21 @@ impl MemorySchema {
         Ok(ent)
     }
 
+    pub fn get_copy_to_function(
+        &self,
+        tx: &CatalogTx,
+        name: &str,
+    ) -> Result<Option<Arc<CatalogEntry>>> {
+        // TODO: Should these be in a different name space?
+        let ent = self.functions.get_entry(tx, name)?;
+        let ent = ent.and_then(|ent| match &ent.entry {
+            CatalogEntryInner::CopyToFunction(_) => Some(ent),
+            _ => None,
+        });
+
+        Ok(ent)
+    }
+
     pub fn drop_entry(&self, tx: &CatalogTx, drop: &DropInfo) -> Result<()> {
         match &drop.object {
             DropObject::Index(_) => Err(RayexecError::new("Dropping indexes not yet supported")),
