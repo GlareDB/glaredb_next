@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 use bind_data::{BindData, BindListIdx, ItemReference, MaybeBound};
 use binder_expr::ExpressionBinder;
+use bound_copy_to::BoundCopyTo;
 use bound_cte::BoundCte;
 use bound_table::CteIndex;
 use bound_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference};
@@ -36,7 +37,7 @@ use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     expr::scalar::{BinaryOperator, UnaryOperator},
-    functions::{copy::CopyToFunction, table::TableFunctionArgs},
+    functions::table::TableFunctionArgs,
     logical::operator::LocationRequirement,
 };
 
@@ -65,18 +66,9 @@ impl AstMeta for Bound {
     type FunctionReference = BindListIdx;
     type ColumnReference = String;
     type DataType = DataType;
-    type CopyToDestination = BoundCopyTo; // TODO: Move this here.
+    type CopyToDestination = FileLocation;
     type BinaryOperator = BinaryOperator;
     type UnaryOperator = UnaryOperator;
-}
-
-// TODO: Move func to bind data
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BoundCopyTo {
-    pub location: FileLocation,
-    // TODO: Remote skip and Option when serializing is figured out.
-    #[serde(skip)]
-    pub func: Option<Box<dyn CopyToFunction>>,
 }
 
 /// Determines the logic taken when encountering an unknown object in a query.
@@ -270,10 +262,9 @@ impl<'a> Binder<'a> {
                     .ok_or_else(|| RayexecError::new("No registered COPY TO function"))?
                     .clone();
 
-                BoundCopyTo {
-                    location: FileLocation::parse(&file_name),
-                    func: Some(func),
-                }
+                bind_data.copy_to = Some(BoundCopyTo { func });
+
+                FileLocation::parse(&file_name)
             }
         };
 
