@@ -3,12 +3,9 @@ use rayexec_bullet::{field::Field, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::{catalog_entry::TableEntry, memory_catalog::MemoryCatalog},
-    datasource::{DataSource, DataSourceBuilder, DataSourceConnection, FileHandler},
+    datasource::{DataSource, DataSourceConnection},
     functions::table::TableFunction,
-    storage::{
-        catalog_storage::CatalogStorage,
-        memory::{MemoryDataTable, MemoryTableStorage},
-    },
+    storage::{catalog_storage::CatalogStorage, memory::MemoryTableStorage},
 };
 use std::{collections::HashMap, sync::Arc};
 
