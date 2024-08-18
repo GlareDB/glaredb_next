@@ -2761,6 +2761,7 @@ dependencies = [
  "rayexec_parquet",
  "rayexec_postgres",
  "rayexec_rt_native",
+ "rayexec_server",
  "rayexec_slt",
 ]
 
