@@ -43,8 +43,8 @@ pub struct RunConfig {
 /// This sets up tracing to log only at the ERROR level. RUST_LOG can be used to
 /// print out logs at a lower level.
 ///
-/// For each path, `engine_fn` will be called to create an engine (and
-/// associated session) for just the file. An engine runtime will be provided.
+/// For each path, `session_fn` will be called to create a session (and
+/// associated configuration) for just the file.
 ///
 /// `kind` should be used to group these SLTs together.
 pub fn run<F>(paths: impl IntoIterator<Item = PathBuf>, session_fn: F, kind: &str) -> Result<()>
