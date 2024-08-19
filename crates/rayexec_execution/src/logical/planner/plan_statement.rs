@@ -277,7 +277,6 @@ impl<'a> PlanContext<'a> {
                         .map(|f| f.name.clone()),
                 );
 
-                // TODO: Loc
                 LogicalQuery {
                     root: LogicalOperator::Scan(LogicalNode::with_location(
                         Scan {
