@@ -3,13 +3,13 @@ pub mod table_storage;
 
 use discard::DiscardCopyToFunction;
 use futures::future::BoxFuture;
-use rayexec_bullet::{field::Field, scalar::OwnedScalarValue};
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::{catalog_entry::TableEntry, memory_catalog::MemoryCatalog},
     datasource::{DataSource, DataSourceConnection, DataSourceCopyTo},
     functions::table::TableFunction,
-    storage::{catalog_storage::CatalogStorage, memory::MemoryTableStorage},
+    storage::catalog_storage::CatalogStorage,
 };
 use std::{collections::HashMap, sync::Arc};
 use table_storage::{DebugTableStorage, TablePreload};
