@@ -1,15 +1,13 @@
-use std::collections::HashMap;
-
 use crate::{
     keywords::Keyword,
     meta::{AstMeta, Raw},
     parser::Parser,
     tokens::Token,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{AstParseable, Expr, Ident, Literal, ObjectReference, QueryNode};
+use super::{AstParseable, Expr, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CopyToSource<T: AstMeta> {

@@ -9,7 +9,7 @@ mod read_csv;
 use copy_to::CsvCopyToFunction;
 use rayexec_execution::{
     datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler},
-    functions::{copy::CopyToFunction, table::TableFunction},
+    functions::table::TableFunction,
     runtime::Runtime,
 };
 use read_csv::ReadCsv;
