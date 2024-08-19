@@ -45,6 +45,11 @@ temp
 # COPY TO from remote table to local
 
 query I
+COPY remote1.schema1.table1 TO 'myfile' (FORMAT discard_local);
+----
+2
+
+query I
 COPY (SELECT * FROM remote1.schema1.table1) TO 'myfile' (FORMAT discard_local);
 ----
 2
