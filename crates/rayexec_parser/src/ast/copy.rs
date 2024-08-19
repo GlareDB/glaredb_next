@@ -42,7 +42,7 @@ impl AstParseable for CopyOption<Raw> {
 pub struct CopyTo<T: AstMeta> {
     pub source: CopyToSource<T>,
     pub target: T::CopyToDestination,
-    pub options: Vec<CopyOption<T>>,
+    pub options: T::CopyToOptions,
 }
 
 impl AstParseable for CopyTo<Raw> {
