@@ -8,7 +8,7 @@ mod read_csv;
 
 use copy_to::CsvCopyToFunction;
 use rayexec_execution::{
-    datasource::{DataSource, DataSourceBuilder, FileHandler},
+    datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler},
     functions::{copy::CopyToFunction, table::TableFunction},
     runtime::Runtime,
 };
@@ -33,10 +33,13 @@ impl<R: Runtime> DataSource for CsvDataSource<R> {
         })]
     }
 
-    fn initialize_copy_to_functions(&self) -> Vec<Box<dyn CopyToFunction>> {
-        vec![Box::new(CsvCopyToFunction {
-            runtime: self.runtime.clone(),
-        })]
+    fn initialize_copy_to_functions(&self) -> Vec<DataSourceCopyTo> {
+        vec![DataSourceCopyTo {
+            format: "csv".to_string(),
+            copy_to: Box::new(CsvCopyToFunction {
+                runtime: self.runtime.clone(),
+            }),
+        }]
     }
 
     fn file_handlers(&self) -> Vec<FileHandler> {

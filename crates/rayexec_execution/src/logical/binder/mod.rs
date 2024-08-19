@@ -23,7 +23,7 @@ use rayexec_bullet::{
         OwnedScalarValue, ScalarValue,
     },
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::{
     ast::{self, ColumnDef, ObjectReference},
@@ -37,7 +37,7 @@ use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     expr::scalar::{BinaryOperator, UnaryOperator},
-    functions::{copy::CopyToArgs, table::TableFunctionArgs},
+    functions::{copy::CopyToArgs, proto::FUNCTION_LOOKUP_CATALOG, table::TableFunctionArgs},
     logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
 };
 
@@ -263,7 +263,7 @@ impl<'a> Binder<'a> {
                 ast::Expr::Literal(lit) => {
                     ExpressionContext::plan_literal(lit)?.try_into_scalar()?
                 }
-                // Ident allows for exampel `(FORMAT parquet)`, the user doesn't need to quote parqet.
+                // Ident allows for example `(FORMAT parquet)`, the user doesn't need to quote parquet.
                 ast::Expr::Ident(ident) => {
                     OwnedScalarValue::Utf8(ident.into_normalized_string().into())
                 }
@@ -283,8 +283,22 @@ impl<'a> Binder<'a> {
             ast::CopyToTarget::File(file_name) => {
                 let func = match options.try_remove_format() {
                     Some(ScalarValue::Utf8(format)) => {
-                        // Lookup
-                        unimplemented!()
+                        // User specified a format, lookup in system catalog.
+                        let ent = self
+                            .context
+                            .system_catalog()?
+                            .get_schema(self.tx, FUNCTION_LOOKUP_CATALOG)?
+                            .required("function lookup schema")?
+                            .get_copy_to_function_for_format(self.tx, &format)?;
+
+                        match ent {
+                            Some(ent) => ent.try_as_copy_to_function_entry()?.function.clone(),
+                            None => {
+                                return Err(RayexecError::new(format!(
+                                    "No registered COPY TO function for format '{format}'"
+                                )))
+                            }
+                        }
                     }
                     Some(other) => {
                         return Err(RayexecError::new(format!(

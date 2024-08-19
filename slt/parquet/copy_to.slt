@@ -67,4 +67,10 @@ Daniels
 # FORMAT specifier
 
 statement ok
-COPY (SELECT 1) TO 'myfile' (FORMAT parquet);
+COPY (SELECT 4) TO '__SLT_TMP__/myfile' (FORMAT parquet);
+
+query I
+select * from read_parquet('__SLT_TMP__/myfile');
+----
+4
+
