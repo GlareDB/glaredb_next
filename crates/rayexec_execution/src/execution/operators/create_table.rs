@@ -2,7 +2,7 @@ use crate::{
     database::{catalog::CatalogTx, create::CreateTableInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
-    storage::table_storage::{DataTable, DataTableInsert},
+    storage::table_storage::DataTable,
 };
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
@@ -16,9 +16,19 @@ use std::{
 };
 
 use super::{
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    sink::PartitionSink, ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState,
+    PartitionState, PollFinalize, PollPull, PollPush,
 };
+
+#[derive(Debug)]
+pub struct CreateTableSinkOperation {
+    pub catalog: String,
+    pub schema: String,
+    pub info: CreateTableInfo,
+    pub is_ctas: bool,
+}
+
+struct CreateTablePartitionSink {}
 
 pub enum CreateTablePartitionState {
     /// State when we're creating the table.
@@ -40,7 +50,7 @@ pub enum CreateTablePartitionState {
         /// Insert into the new table.
         ///
         /// If None, global state should be checked.
-        insert: Option<Box<dyn DataTableInsert>>,
+        insert: Option<Box<dyn PartitionSink>>,
 
         /// Index of this partition.
         partition_idx: usize,
@@ -65,7 +75,7 @@ pub struct CreateTableOperatorState {
 
 #[derive(Debug)]
 struct SharedState {
-    inserts: Vec<Option<Box<dyn DataTableInsert>>>,
+    inserts: Vec<Option<Box<dyn PartitionSink>>>,
     push_wakers: Vec<Option<Waker>>,
 }
 
@@ -249,7 +259,8 @@ impl ExecutableOperator for PhysicalCreateTable {
 
                 let insert = insert.as_mut().expect("insert to be Some");
                 // Insert will store the context if it returns pending.
-                insert.poll_push(cx, batch)
+                // insert.poll_push(cx, batch)
+                unimplemented!()
             }
             other => panic!("invalid partition state: {other:?}"),
         }
@@ -269,9 +280,9 @@ impl ExecutableOperator for PhysicalCreateTable {
                 ..
             }) => {
                 if let Some(insert) = insert {
-                    if let PollFinalize::Pending = insert.poll_finalize_push(cx)? {
-                        return Ok(PollFinalize::Pending);
-                    }
+                    // if let PollFinalize::Pending = insert.poll_finalize_push(cx)? {
+                    //     return Ok(PollFinalize::Pending);
+                    // }
                 }
 
                 *finished = true;

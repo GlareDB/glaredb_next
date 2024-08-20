@@ -12,7 +12,7 @@ use crate::{
             empty::PhysicalEmpty,
             filter::FilterOperation,
             hash_aggregate::PhysicalHashAggregate,
-            insert::PhysicalInsert,
+            insert::{InsertOperation, PhysicalInsert},
             join::{hash_join::PhysicalHashJoin, nl_join::PhysicalNestedLoopJoin},
             limit::PhysicalLimit,
             materialize::PhysicalMaterialize,
@@ -669,10 +669,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.walk(materializations, id_gen, *insert.input)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Insert(PhysicalInsert::new(
-                insert.catalog,
-                insert.schema,
-                insert.table,
+            operator: Arc::new(PhysicalOperator::Insert(PhysicalQuerySink::new(
+                InsertOperation {
+                    catalog: insert.catalog,
+                    schema: insert.schema,
+                    table: insert.table,
+                },
             ))),
             partitioning_requirement: None,
         };

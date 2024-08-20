@@ -35,7 +35,7 @@ use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
 use filter::{FilterOperation, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
-use insert::{InsertPartitionState, PhysicalInsert};
+use insert::PhysicalInsert;
 use join::hash_join::PhysicalHashJoin;
 use join::nl_join::PhysicalNestedLoopJoin;
 use limit::PhysicalLimit;
@@ -114,7 +114,6 @@ pub enum PartitionState {
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
-    Insert(InsertPartitionState),
     CreateTable(CreateTablePartitionState),
     CreateSchema(CreateSchemaPartitionState),
     Drop(DropPartitionState),

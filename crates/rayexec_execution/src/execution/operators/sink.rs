@@ -102,7 +102,7 @@ impl fmt::Debug for QuerySinkPartitionState {
 pub struct QuerySinkInnerPartitionState {
     sink: Box<dyn PartitionSink>,
     pull_waker: Option<Waker>,
-    row_count: usize,
+    row_count: usize, // TODO: Global sync
 }
 
 #[derive(Debug)]
@@ -180,7 +180,10 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
                         return Ok(PollPush::NeedsMore);
                     }
 
-                    let mut push_future = inner.as_mut().unwrap().sink.push(batch);
+                    let inner = inner.as_mut().unwrap();
+                    inner.row_count += batch.num_rows();
+
+                    let mut push_future = inner.sink.push(batch);
                     match push_future.poll_unpin(cx) {
                         Poll::Ready(Ok(_)) => {
                             // Future completed, need more batches.
