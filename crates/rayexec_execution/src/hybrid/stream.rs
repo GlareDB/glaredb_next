@@ -44,13 +44,13 @@ impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
         &self,
         _context: &DatabaseContext,
         num_sinks: usize,
-    ) -> Vec<Box<dyn PartitionSink>> {
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
         assert_eq!(1, num_sinks);
 
-        vec![Box::new(ClientToServerPartitionSink {
+        Ok(vec![Box::new(ClientToServerPartitionSink {
             stream_id: self.stream_id,
             client: self.client.clone(),
-        })]
+        })])
     }
 
     fn partition_requirement(&self) -> Option<usize> {

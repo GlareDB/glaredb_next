@@ -87,14 +87,16 @@ impl SinkOperation for ResultSink {
         &self,
         _context: &DatabaseContext,
         num_sinks: usize,
-    ) -> Vec<Box<dyn PartitionSink>> {
-        (0..num_sinks)
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
+        let sinks = (0..num_sinks)
             .map(|_| {
                 Box::new(ResultPartitionSink {
                     inner: self.inner.clone(),
                 }) as _
             })
-            .collect()
+            .collect();
+
+        Ok(sinks)
     }
 
     fn partition_requirement(&self) -> Option<usize> {

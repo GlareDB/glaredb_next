@@ -176,12 +176,12 @@ impl SinkOperation for OutgoingStream {
         &self,
         _context: &DatabaseContext,
         num_sinks: usize,
-    ) -> Vec<Box<dyn PartitionSink>> {
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
         assert_eq!(1, num_sinks);
 
-        vec![Box::new(OutgoingPartitionStream {
+        Ok(vec![Box::new(OutgoingPartitionStream {
             state: self.state.clone(),
-        })]
+        })])
     }
 
     fn partition_requirement(&self) -> Option<usize> {

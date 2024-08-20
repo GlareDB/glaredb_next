@@ -3,7 +3,10 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use futures::{future::BoxFuture, FutureExt};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::{
+    array::{Array, PrimitiveArray},
+    batch::Batch,
+};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Waker};
@@ -25,7 +28,7 @@ pub trait SinkOperation: Debug + Send + Sync + Explainable {
         &self,
         context: &DatabaseContext,
         num_sinks: usize,
-    ) -> Vec<Box<dyn PartitionSink>>;
+    ) -> Result<Vec<Box<dyn PartitionSink>>>;
 
     /// Return an optional partitioning requirement for this sink.
     ///
@@ -38,7 +41,7 @@ impl SinkOperation for Box<dyn SinkOperation> {
         &self,
         context: &DatabaseContext,
         num_sinks: usize,
-    ) -> Vec<Box<dyn PartitionSink>> {
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
         self.as_ref().create_partition_sinks(context, num_sinks)
     }
 
@@ -80,7 +83,12 @@ pub enum QuerySinkPartitionState {
         /// `Finished`.
         future: BoxFuture<'static, Result<()>>,
     },
-    Finished,
+    Finished {
+        /// Number of rows that went through this operator.
+        row_count: usize,
+        /// If we've already returned the row count at the end.
+        row_count_returned: bool,
+    },
 }
 
 impl fmt::Debug for QuerySinkPartitionState {
@@ -94,11 +102,12 @@ impl fmt::Debug for QuerySinkPartitionState {
 pub struct QuerySinkInnerPartitionState {
     sink: Box<dyn PartitionSink>,
     pull_waker: Option<Waker>,
+    row_count: usize,
 }
 
 #[derive(Debug)]
 pub struct PhysicalQuerySink<S: SinkOperation> {
-    sink: S,
+    pub(crate) sink: S,
 }
 
 impl<S: SinkOperation> PhysicalQuerySink<S> {
@@ -117,13 +126,14 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
 
         let states: Vec<_> = self
             .sink
-            .create_partition_sinks(context, partitions)
+            .create_partition_sinks(context, partitions)?
             .into_iter()
             .map(|sink| {
                 PartitionState::QuerySink(QuerySinkPartitionState::Writing {
                     inner: Some(QuerySinkInnerPartitionState {
                         sink,
                         pull_waker: None,
+                        row_count: 0,
                     }),
                     future: None,
                 })
@@ -231,7 +241,10 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
                             if let Some(waker) = inner.pull_waker.take() {
                                 waker.wake();
                             }
-                            *state = QuerySinkPartitionState::Finished;
+                            *state = QuerySinkPartitionState::Finished {
+                                row_count: inner.row_count,
+                                row_count_returned: false,
+                            };
 
                             Ok(PollFinalize::Finalized)
                         }
@@ -259,7 +272,11 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
                                 waker.wake();
                             }
 
-                            *state = QuerySinkPartitionState::Finished;
+                            *state = QuerySinkPartitionState::Finished {
+                                row_count: inner.as_ref().unwrap().row_count,
+                                row_count_returned: false,
+                            };
+
                             Ok(PollFinalize::Finalized)
                         }
                         Poll::Ready(Err(e)) => Err(e),
@@ -289,7 +306,22 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
                     }
                     Ok(PollPull::Pending)
                 }
-                QuerySinkPartitionState::Finished => Ok(PollPull::Exhausted),
+                QuerySinkPartitionState::Finished {
+                    row_count,
+                    row_count_returned,
+                } => {
+                    if *row_count_returned {
+                        Ok(PollPull::Exhausted)
+                    } else {
+                        let row_count_batch =
+                            Batch::try_new([Array::UInt64(PrimitiveArray::from_iter([
+                                *row_count as u64,
+                            ]))])?;
+                        *row_count_returned = true;
+
+                        Ok(PollPull::Batch(row_count_batch))
+                    }
+                }
             },
             other => panic!("invalid partition state: {other:?}"),
         }

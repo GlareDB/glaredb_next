@@ -5,7 +5,7 @@ use crate::{
         explain::format_logical_plan_for_explain,
         intermediate::PipelineSink,
         operators::{
-            copy_to::PhysicalCopyTo,
+            copy_to::{CopyToOperation, PhysicalCopyTo},
             create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
             drop::PhysicalDrop,
@@ -19,6 +19,7 @@ use crate::{
             project::ProjectOperation,
             scan::PhysicalScan,
             simple::SimpleOperator,
+            sink::PhysicalQuerySink,
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
@@ -547,10 +548,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.walk(materializations, id_gen, *copy_to.source)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CopyTo(PhysicalCopyTo::new(
-                copy_to.copy_to,
-                copy_to.source_schema,
-                copy_to.location,
+            operator: Arc::new(PhysicalOperator::CopyTo(PhysicalQuerySink::new(
+                CopyToOperation {
+                    copy_to: copy_to.copy_to,
+                    location: copy_to.location,
+                    schema: copy_to.source_schema,
+                },
             ))),
             // This should be temporary until there's a better understanding of
             // how we want to handle parallel writes.
