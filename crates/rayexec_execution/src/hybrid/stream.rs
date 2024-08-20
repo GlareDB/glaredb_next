@@ -37,10 +37,6 @@ impl<C: HttpClient + 'static> ClientToServerStream<C> {
     pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
         ClientToServerStream { stream_id, client }
     }
-
-    pub fn boxed(self) -> BoxedClientToServerStream {
-        BoxedClientToServerStream(Box::new(self) as _)
-    }
 }
 
 impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
@@ -82,30 +78,6 @@ impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
 
     fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
         Box::pin(async { self.client.finalize(self.stream_id, 0).await })
-    }
-}
-
-/// Wrapper around the stream to hide http client generic.
-#[derive(Debug)]
-pub struct BoxedClientToServerStream(Box<dyn SinkOperation>);
-
-impl SinkOperation for BoxedClientToServerStream {
-    fn create_partition_sinks(
-        &self,
-        context: &DatabaseContext,
-        num_sinks: usize,
-    ) -> Vec<Box<dyn PartitionSink>> {
-        self.0.create_partition_sinks(context, num_sinks)
-    }
-
-    fn partition_requirement(&self) -> Option<usize> {
-        self.0.partition_requirement()
-    }
-}
-
-impl Explainable for BoxedClientToServerStream {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.0.explain_entry(conf)
     }
 }
 

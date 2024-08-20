@@ -33,6 +33,26 @@ pub trait SinkOperation: Debug + Send + Sync + Explainable {
     fn partition_requirement(&self) -> Option<usize>;
 }
 
+impl SinkOperation for Box<dyn SinkOperation> {
+    fn create_partition_sinks(
+        &self,
+        context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Vec<Box<dyn PartitionSink>> {
+        self.as_ref().create_partition_sinks(context, num_sinks)
+    }
+
+    fn partition_requirement(&self) -> Option<usize> {
+        self.as_ref().partition_requirement()
+    }
+}
+
+impl Explainable for Box<dyn SinkOperation> {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.as_ref().explain_entry(conf)
+    }
+}
+
 pub trait PartitionSink: Debug + Send {
     /// Push a batch to the sink.
     ///
