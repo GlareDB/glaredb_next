@@ -16,8 +16,10 @@ use std::{
 };
 
 use super::{
-    sink::PartitionSink, ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState,
-    PartitionState, PollFinalize, PollPull, PollPush,
+    sink::{PartitionSink, SinkOperation},
+    util::barrier::PartitionBarrier,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
+    PollFinalize, PollPull, PollPush,
 };
 
 #[derive(Debug)]
@@ -28,7 +30,112 @@ pub struct CreateTableSinkOperation {
     pub is_ctas: bool,
 }
 
-struct CreateTablePartitionSink {}
+impl SinkOperation for CreateTableSinkOperation {
+    fn create_partition_sinks(
+        &self,
+        context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
+        unimplemented!()
+    }
+
+    fn partition_requirement(&self) -> Option<usize> {
+        None
+    }
+}
+
+impl Explainable for CreateTableSinkOperation {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateTable").with_value("table", &self.info.name)
+    }
+}
+
+struct CreateTablePartitionSink {
+    is_ctas: bool,
+    num_partitions: usize,
+    partition_idx: usize,
+
+    /// Optional future for creating the table.
+    ///
+    /// This will only be set for one partition. If None, shared state should be
+    /// checked to get the appropriate sinks if needed.
+    create_table_fut: Option<BoxFuture<'static, Result<Box<dyn DataTable>>>>,
+
+    /// Barrier stopping partitions from trying to insert prior to creating the
+    /// table.
+    insert_barrier: PartitionBarrier<Box<dyn PartitionSink>>,
+
+    sink: Option<Box<dyn PartitionSink>>,
+}
+
+impl PartitionSink for CreateTablePartitionSink {
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            self.create_table_if_has_fut().await?;
+            self.wait_for_sink_if_none().await;
+
+            if let Some(sink) = &mut self.sink {
+                sink.push(batch).await?;
+            }
+
+            Ok(())
+        })
+    }
+
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            self.create_table_if_has_fut().await?;
+            self.wait_for_sink_if_none().await;
+
+            if let Some(sink) = &mut self.sink {
+                sink.finalize().await?;
+            }
+
+            Ok(())
+        })
+    }
+}
+
+impl CreateTablePartitionSink {
+    async fn create_table_if_has_fut(&mut self) -> Result<()> {
+        if let Some(create_fut) = self.create_table_fut.take() {
+            let table = create_fut.await?;
+
+            if self.is_ctas {
+                let sinks = table.insert(self.num_partitions)?;
+                self.insert_barrier
+                    .unblock(sinks.into_iter().map(Some).collect());
+            }
+        }
+        Ok(())
+    }
+
+    async fn wait_for_sink_if_none(&mut self) {
+        if self.sink.is_none() {
+            self.sink = self
+                .insert_barrier
+                .item_for_partition(self.partition_idx)
+                .await;
+        }
+    }
+}
+
+impl fmt::Debug for CreateTablePartitionSink {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CreateTablePartitionSink")
+            .finish_non_exhaustive()
+    }
+}
+
+/// Shared state across all partition sinks.
+#[derive(Debug)]
+struct SharedState {
+    /// Determines if a partitions should be trying to insert data. If false,
+    /// nothing to do.
+    is_ctas: bool,
+    /// Pending sinks taken by each partition.
+    inserts: Vec<Option<Box<dyn PartitionSink>>>,
+}
 
 pub enum CreateTablePartitionState {
     /// State when we're creating the table.
@@ -71,12 +178,6 @@ impl fmt::Debug for CreateTablePartitionState {
 #[derive(Debug)]
 pub struct CreateTableOperatorState {
     shared: Mutex<SharedState>,
-}
-
-#[derive(Debug)]
-struct SharedState {
-    inserts: Vec<Option<Box<dyn PartitionSink>>>,
-    push_wakers: Vec<Option<Waker>>,
 }
 
 #[derive(Debug)]
@@ -162,22 +263,23 @@ impl ExecutableOperator for PhysicalCreateTable {
             }),
         );
 
-        let operator_state = CreateTableOperatorState {
-            shared: Mutex::new(SharedState {
-                inserts: (0..insert_partitions).map(|_| None).collect(),
-                push_wakers: vec![None; insert_partitions],
-            }),
-        };
+        unimplemented!()
+        // let operator_state = CreateTableOperatorState {
+        //     shared: Mutex::new(SharedState {
+        //         inserts: (0..insert_partitions).map(|_| None).collect(),
+        //         push_wakers: vec![None; insert_partitions],
+        //     }),
+        // };
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::CreateTable(operator_state)),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: states
-                    .into_iter()
-                    .map(PartitionState::CreateTable)
-                    .collect(),
-            },
-        })
+        // Ok(ExecutionStates {
+        //     operator_state: Arc::new(OperatorState::CreateTable(operator_state)),
+        //     partition_states: InputOutputStates::OneToOne {
+        //         partition_states: states
+        //             .into_iter()
+        //             .map(PartitionState::CreateTable)
+        //             .collect(),
+        //     },
+        // })
     }
 
     fn poll_push(
@@ -222,11 +324,12 @@ impl ExecutableOperator for PhysicalCreateTable {
 
                     shared.inserts = inserts;
 
-                    for waker in shared.push_wakers.iter_mut() {
-                        if let Some(waker) = waker.take() {
-                            waker.wake();
-                        }
-                    }
+                    unimplemented!()
+                    // for waker in shared.push_wakers.iter_mut() {
+                    //     if let Some(waker) = waker.take() {
+                    //         waker.wake();
+                    //     }
+                    // }
 
                     // Continue on, we'll be doing the insert in the below match.
                 }
@@ -249,12 +352,13 @@ impl ExecutableOperator for PhysicalCreateTable {
                         other => panic!("invalid operator state: {other:?}"),
                     };
 
-                    if shared.inserts[*partition_idx].is_none() {
-                        shared.push_wakers[*partition_idx] = Some(cx.waker().clone());
-                        return Ok(PollPush::Pending(batch));
-                    }
+                    unimplemented!()
+                    // if shared.inserts[*partition_idx].is_none() {
+                    //     shared.push_wakers[*partition_idx] = Some(cx.waker().clone());
+                    //     return Ok(PollPush::Pending(batch));
+                    // }
 
-                    *insert = shared.inserts[*partition_idx].take();
+                    // *insert = shared.inserts[*partition_idx].take();
                 }
 
                 let insert = insert.as_mut().expect("insert to be Some");
