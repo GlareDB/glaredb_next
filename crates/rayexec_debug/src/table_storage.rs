@@ -1,4 +1,4 @@
-use std::{sync::Arc, task::Context};
+use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
@@ -6,7 +6,7 @@ use rayexec_bullet::{batch::Batch, field::Field};
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog_entry::CatalogEntry,
-    execution::operators::{sink::PartitionSink, PollFinalize, PollPush},
+    execution::operators::sink::PartitionSink,
     storage::table_storage::{DataTable, DataTableScan, TableStorage},
 };
 

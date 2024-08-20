@@ -3,12 +3,9 @@ use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
-use std::task::Context;
 
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::operators::sink::PartitionSink;
-use crate::execution::operators::PollFinalize;
-use crate::execution::operators::PollPush;
 
 use super::table_storage::DataTable;
 use super::table_storage::DataTableScan;

@@ -6,9 +6,9 @@ use crate::{
 use rayexec_error::{OptionExt, RayexecError, Result};
 use std::sync::Arc;
 
-use super::sink::{PartitionSink, PhysicalQuerySink, SinkOperation};
+use super::sink::{PartitionSink, SinkOperation, SinkOperator};
 
-pub type PhysicalInsert = PhysicalQuerySink<InsertOperation>;
+pub type PhysicalInsert = SinkOperator<InsertOperation>;
 
 #[derive(Debug)]
 pub struct InsertOperation {
@@ -62,7 +62,7 @@ impl DatabaseProtoConv for PhysicalInsert {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(PhysicalQuerySink::new(InsertOperation {
+        Ok(SinkOperator::new(InsertOperation {
             catalog: proto.catalog,
             schema: proto.schema,
             table: Arc::new(DatabaseProtoConv::from_proto_ctx(

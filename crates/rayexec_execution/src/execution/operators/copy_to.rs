@@ -9,9 +9,9 @@ use rayexec_error::{OptionExt, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_proto::ProtoConv;
 
-use super::sink::{PartitionSink, PhysicalQuerySink, SinkOperation};
+use super::sink::{PartitionSink, SinkOperation, SinkOperator};
 
-pub type PhysicalCopyTo = PhysicalQuerySink<CopyToOperation>;
+pub type PhysicalCopyTo = SinkOperator<CopyToOperation>;
 
 #[derive(Debug)]
 pub struct CopyToOperation {
@@ -54,7 +54,7 @@ impl DatabaseProtoConv for PhysicalCopyTo {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(PhysicalQuerySink::new(CopyToOperation {
+        Ok(SinkOperator::new(CopyToOperation {
             copy_to: DatabaseProtoConv::from_proto_ctx(
                 proto.copy_to.required("copy_to")?,
                 context,

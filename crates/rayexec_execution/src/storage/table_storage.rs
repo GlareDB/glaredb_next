@@ -2,12 +2,8 @@ use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
-use std::task::Context;
 
-use crate::{
-    database::catalog_entry::CatalogEntry,
-    execution::operators::{sink::PartitionSink, PollFinalize, PollPush},
-};
+use crate::{database::catalog_entry::CatalogEntry, execution::operators::sink::PartitionSink};
 
 pub trait TableStorage: Debug + Sync + Send {
     fn data_table(&self, schema: &str, ent: &CatalogEntry) -> Result<Box<dyn DataTable>>;

@@ -11,11 +11,11 @@ use rayexec_proto::ProtoConv;
 use std::fmt;
 
 use super::{
-    sink::{PartitionSink, PhysicalQuerySink, SinkOperation},
+    sink::{PartitionSink, SinkOperation, SinkOperator},
     util::barrier::PartitionBarrier,
 };
 
-pub type PhysicalCreateTable = PhysicalQuerySink<CreateTableSinkOperation>;
+pub type PhysicalCreateTable = SinkOperator<CreateTableSinkOperation>;
 
 #[derive(Debug)]
 pub struct CreateTableSinkOperation {
@@ -148,6 +148,16 @@ impl PartitionSink for CreateTablePartitionSink {
 }
 
 impl CreateTablePartitionSink {
+    /// Creates the table using the stored create table future if this partition
+    /// has it.
+    ///
+    /// If this partition has the future, it will generate the appropriate
+    /// partition sinks for all partitions, and unblock the `insert_barrier`
+    /// allow other partitions to start inserting into the table (CTAS only).
+    ///
+    /// If the partition is not responsible for creating the table, it will be
+    /// blocked until the `insert_barrier` is unblocked (for both CTAS and
+    /// non-CTAS).
     async fn create_table_if_has_fut(&mut self) -> Result<()> {
         if let Some(create_fut) = self.create_table_fut.take() {
             let table = create_fut.await?;
@@ -194,7 +204,7 @@ impl DatabaseProtoConv for PhysicalCreateTable {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        Ok(PhysicalQuerySink::new(CreateTableSinkOperation {
+        Ok(SinkOperator::new(CreateTableSinkOperation {
             catalog: proto.catalog,
             schema: proto.schema,
             info: CreateTableInfo::from_proto(proto.info.required("info")?)?,

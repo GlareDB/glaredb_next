@@ -105,18 +105,25 @@ pub struct QuerySinkInnerPartitionState {
     row_count: usize, // TODO: Global sync
 }
 
+/// An operator that writes batches to a partition sink.
+///
+/// The output batch for this operator is a single column containing the number
+/// of rows passed through this operator.
+///
+/// Insert, CopyTo, CreateTable all use this. CreateTable uses this to enable
+/// CTAS semantics easily.
 #[derive(Debug)]
-pub struct PhysicalQuerySink<S: SinkOperation> {
+pub struct SinkOperator<S: SinkOperation> {
     pub(crate) sink: S,
 }
 
-impl<S: SinkOperation> PhysicalQuerySink<S> {
+impl<S: SinkOperation> SinkOperator<S> {
     pub fn new(sink: S) -> Self {
-        PhysicalQuerySink { sink }
+        SinkOperator { sink }
     }
 }
 
-impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
+impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
     fn create_states(
         &self,
         context: &DatabaseContext,
@@ -331,7 +338,7 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
     }
 }
 
-impl<S: SinkOperation> Explainable for PhysicalQuerySink<S> {
+impl<S: SinkOperation> Explainable for SinkOperator<S> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         self.sink.explain_entry(conf)
     }

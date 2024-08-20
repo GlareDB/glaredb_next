@@ -1,6 +1,4 @@
 use dyn_clone::DynClone;
-use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};

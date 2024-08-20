@@ -5,21 +5,21 @@ use crate::{
         explain::format_logical_plan_for_explain,
         intermediate::PipelineSink,
         operators::{
-            copy_to::{CopyToOperation, PhysicalCopyTo},
+            copy_to::CopyToOperation,
             create_schema::PhysicalCreateSchema,
-            create_table::{CreateTableSinkOperation, PhysicalCreateTable},
+            create_table::CreateTableSinkOperation,
             drop::PhysicalDrop,
             empty::PhysicalEmpty,
             filter::FilterOperation,
             hash_aggregate::PhysicalHashAggregate,
-            insert::{InsertOperation, PhysicalInsert},
+            insert::InsertOperation,
             join::{hash_join::PhysicalHashJoin, nl_join::PhysicalNestedLoopJoin},
             limit::PhysicalLimit,
             materialize::PhysicalMaterialize,
             project::ProjectOperation,
             scan::PhysicalScan,
             simple::SimpleOperator,
-            sink::PhysicalQuerySink,
+            sink::SinkOperator,
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
@@ -548,7 +548,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.walk(materializations, id_gen, *copy_to.source)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CopyTo(PhysicalQuerySink::new(
+            operator: Arc::new(PhysicalOperator::CopyTo(SinkOperator::new(
                 CopyToOperation {
                     copy_to: copy_to.copy_to,
                     location: copy_to.location,
@@ -669,7 +669,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.walk(materializations, id_gen, *insert.input)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Insert(PhysicalQuerySink::new(
+            operator: Arc::new(PhysicalOperator::Insert(SinkOperator::new(
                 InsertOperation {
                     catalog: insert.catalog,
                     schema: insert.schema,
@@ -857,7 +857,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CreateTable(PhysicalQuerySink::new(
+            operator: Arc::new(PhysicalOperator::CreateTable(SinkOperator::new(
                 CreateTableSinkOperation {
                     catalog: create.catalog,
                     schema: create.schema,

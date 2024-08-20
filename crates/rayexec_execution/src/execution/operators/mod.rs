@@ -49,7 +49,7 @@ use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use simple::SimpleOperator;
-use sink::{PhysicalQuerySink, QuerySinkPartitionState, SinkOperation};
+use sink::{QuerySinkPartitionState, SinkOperation, SinkOperator};
 use sort::local_sort::PhysicalLocalSort;
 use sort::merge_sorted::PhysicalMergeSortedInputs;
 use source::QuerySourcePartitionState;
@@ -309,8 +309,8 @@ pub enum PhysicalOperator {
     NestedLoopJoin(PhysicalNestedLoopJoin),
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
-    ResultSink(PhysicalQuerySink<ResultSink>),
-    HybridSink(PhysicalQuerySink<Box<dyn SinkOperation>>),
+    ResultSink(SinkOperator<ResultSink>),
+    HybridSink(SinkOperator<Box<dyn SinkOperation>>),
     RoundRobin(PhysicalRoundRobinRepartition),
     MergeSorted(PhysicalMergeSortedInputs),
     LocalSort(PhysicalLocalSort),
