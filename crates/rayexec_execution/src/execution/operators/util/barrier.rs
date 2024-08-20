@@ -16,6 +16,14 @@ pub struct PartitionBarrier<T> {
     inner: Arc<Mutex<BarrierInner<T>>>,
 }
 
+impl<T> Clone for PartitionBarrier<T> {
+    fn clone(&self) -> Self {
+        PartitionBarrier {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct BarrierInner<T> {
     unblocked: bool,
@@ -24,6 +32,7 @@ struct BarrierInner<T> {
 }
 
 impl<T> PartitionBarrier<T> {
+    /// Create a new barrier corresponding to some number of partitions.
     pub fn new(num_partitions: usize) -> Self {
         PartitionBarrier {
             inner: Arc::new(Mutex::new(BarrierInner {
@@ -34,6 +43,10 @@ impl<T> PartitionBarrier<T> {
         }
     }
 
+    /// Try to take an item for a partitions.
+    ///
+    /// Returns a future which only resolves once the barrier is unblocked by
+    /// calling the `unblock` method.
     pub fn item_for_partition(&self, idx: usize) -> PartitionBarrierFut<T> {
         PartitionBarrierFut {
             idx,
@@ -41,6 +54,9 @@ impl<T> PartitionBarrier<T> {
         }
     }
 
+    /// Unblocks the barrier, emplacing `items` which futures will resolve to.
+    ///
+    /// `items` length much equal the number of partitions.
     pub fn unblock(&self, items: Vec<Option<T>>) {
         let mut inner = self.inner.lock();
         inner.unblocked = true;

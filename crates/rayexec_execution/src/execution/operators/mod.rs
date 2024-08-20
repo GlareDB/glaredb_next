@@ -30,7 +30,7 @@ mod test_util;
 
 use copy_to::PhysicalCopyTo;
 use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
-use create_table::{CreateTableOperatorState, CreateTablePartitionState, PhysicalCreateTable};
+use create_table::PhysicalCreateTable;
 use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
 use filter::{FilterOperation, PhysicalFilter};
@@ -114,7 +114,6 @@ pub enum PartitionState {
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
-    CreateTable(CreateTablePartitionState),
     CreateSchema(CreateSchemaPartitionState),
     Drop(DropPartitionState),
     Empty(EmptyPartitionState),
@@ -133,7 +132,6 @@ pub enum OperatorState {
     MergeSorted(MergeSortedOperatorState),
     Materialize(MaterializeOperatorState),
     Union(UnionOperatorState),
-    CreateTable(CreateTableOperatorState),
     None,
 }
 

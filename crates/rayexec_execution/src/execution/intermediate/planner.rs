@@ -7,7 +7,7 @@ use crate::{
         operators::{
             copy_to::{CopyToOperation, PhysicalCopyTo},
             create_schema::PhysicalCreateSchema,
-            create_table::PhysicalCreateTable,
+            create_table::{CreateTableSinkOperation, PhysicalCreateTable},
             drop::PhysicalDrop,
             empty::PhysicalEmpty,
             filter::FilterOperation,
@@ -857,15 +857,17 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CreateTable(PhysicalCreateTable::new(
-                create.catalog,
-                create.schema,
-                CreateTableInfo {
-                    name: create.name,
-                    columns: create.columns,
-                    on_conflict: create.on_conflict,
+            operator: Arc::new(PhysicalOperator::CreateTable(PhysicalQuerySink::new(
+                CreateTableSinkOperation {
+                    catalog: create.catalog,
+                    schema: create.schema,
+                    info: CreateTableInfo {
+                        name: create.name,
+                        columns: create.columns,
+                        on_conflict: create.on_conflict,
+                    },
+                    is_ctas,
                 },
-                is_ctas,
             ))),
             partitioning_requirement: None,
         };
