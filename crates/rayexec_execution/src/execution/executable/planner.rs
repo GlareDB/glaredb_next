@@ -12,7 +12,7 @@ use crate::{
         },
         operators::{
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
-            sink::{PhysicalQuerySink, QuerySink},
+            sink::{PhysicalQuerySink, SinkOperation},
             source::PhysicalQuerySource,
             ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
@@ -81,7 +81,7 @@ pub enum PlanLocationState<'a, C: HttpClient> {
         ///
         /// Should only be used once per query. The option helps us enforce that
         /// (and also allows us to avoid needing to wrap in an Arc).
-        output_sink: Option<Box<dyn QuerySink>>,
+        output_sink: Option<Box<dyn SinkOperation>>,
         /// Optional hybrid client if we're executing in hybrid mode.
         ///
         /// When providing, appropriate query sinks and sources will be inserted

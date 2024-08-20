@@ -17,12 +17,19 @@ use super::{
     OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
 };
 
-pub trait QuerySink: Debug + Send + Sync + Explainable {
+pub trait SinkOperation: Debug + Send + Sync + Explainable {
     /// Create an exact number of partition sinks for the query.
     ///
     /// This is guaranteed to only be called once during pipeline execution.
-    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>>;
+    fn create_partition_sinks(
+        &self,
+        context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Vec<Box<dyn PartitionSink>>;
 
+    /// Return an optional partitioning requirement for this sink.
+    ///
+    /// Called during executable pipeline planning.
     fn partition_requirement(&self) -> Option<usize>;
 }
 
@@ -70,27 +77,27 @@ pub struct QuerySinkInnerPartitionState {
 }
 
 #[derive(Debug)]
-pub struct PhysicalQuerySink {
-    sink: Box<dyn QuerySink>,
+pub struct PhysicalQuerySink<S: SinkOperation> {
+    sink: S,
 }
 
-impl PhysicalQuerySink {
-    pub fn new(sink: Box<dyn QuerySink>) -> Self {
+impl<S: SinkOperation> PhysicalQuerySink<S> {
+    pub fn new(sink: S) -> Self {
         PhysicalQuerySink { sink }
     }
 }
 
-impl ExecutableOperator for PhysicalQuerySink {
+impl<S: SinkOperation> ExecutableOperator for PhysicalQuerySink<S> {
     fn create_states(
         &self,
-        _context: &DatabaseContext,
+        context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         let partitions = partitions[0];
 
         let states: Vec<_> = self
             .sink
-            .create_partition_sinks(partitions)
+            .create_partition_sinks(context, partitions)
             .into_iter()
             .map(|sink| {
                 PartitionState::QuerySink(QuerySinkPartitionState::Writing {
@@ -269,7 +276,7 @@ impl ExecutableOperator for PhysicalQuerySink {
     }
 }
 
-impl Explainable for PhysicalQuerySink {
+impl<S: SinkOperation> Explainable for PhysicalQuerySink<S> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         self.sink.explain_entry(conf)
     }

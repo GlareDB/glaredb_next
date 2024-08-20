@@ -8,7 +8,6 @@ pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod insert;
-pub mod ipc;
 pub mod join;
 pub mod limit;
 pub mod materialize;
@@ -65,6 +64,8 @@ use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionT
 use values::PhysicalValues;
 
 use crate::database::DatabaseContext;
+use crate::engine::result::ResultSink;
+use crate::hybrid::buffer::OutgoingStream;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
@@ -314,6 +315,8 @@ pub enum PhysicalOperator {
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
     QuerySink(PhysicalQuerySink),
+    ResultSink(PhysicalQuerySink<ResultSink>),
+    ServerToClientSink(PhysicalQuerySink<OutgoingStream>),
     RoundRobin(PhysicalRoundRobinRepartition),
     MergeSorted(PhysicalMergeSortedInputs),
     LocalSort(PhysicalLocalSort),
@@ -345,6 +348,8 @@ impl ExecutableOperator for PhysicalOperator {
             Self::HashJoin(op) => op.create_states(context, partitions),
             Self::Values(op) => op.create_states(context, partitions),
             Self::QuerySink(op) => op.create_states(context, partitions),
+            Self::ResultSink(op) => op.create_states(context, partitions),
+            Self::ServerToClientSink(op) => op.create_states(context, partitions),
             Self::RoundRobin(op) => op.create_states(context, partitions),
             Self::MergeSorted(op) => op.create_states(context, partitions),
             Self::LocalSort(op) => op.create_states(context, partitions),
@@ -380,6 +385,10 @@ impl ExecutableOperator for PhysicalOperator {
             Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Values(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::QuerySink(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::ResultSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::ServerToClientSink(op) => {
+                op.poll_push(cx, partition_state, operator_state, batch)
+            }
             Self::RoundRobin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -414,6 +423,10 @@ impl ExecutableOperator for PhysicalOperator {
             Self::HashJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::QuerySink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::ResultSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::ServerToClientSink(op) => {
+                op.poll_finalize_push(cx, partition_state, operator_state)
+            }
             Self::RoundRobin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::MergeSorted(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::LocalSort(op) => op.poll_finalize_push(cx, partition_state, operator_state),
@@ -446,6 +459,8 @@ impl ExecutableOperator for PhysicalOperator {
             Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::QuerySink(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::ResultSink(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::ServerToClientSink(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::RoundRobin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -475,6 +490,8 @@ impl Explainable for PhysicalOperator {
             Self::HashJoin(op) => op.explain_entry(conf),
             Self::Values(op) => op.explain_entry(conf),
             Self::QuerySink(op) => op.explain_entry(conf),
+            Self::ResultSink(op) => op.explain_entry(conf),
+            Self::ServerToClientSink(op) => op.explain_entry(conf),
             Self::RoundRobin(op) => op.explain_entry(conf),
             Self::MergeSorted(op) => op.explain_entry(conf),
             Self::LocalSort(op) => op.explain_entry(conf),

@@ -6,10 +6,11 @@ use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
 use crate::{
+    database::DatabaseContext,
     execution::{
         intermediate::StreamId,
         operators::{
-            sink::{PartitionSink, QuerySink},
+            sink::{PartitionSink, SinkOperation},
             source::{PartitionSource, QuerySource},
         },
     },
@@ -32,14 +33,22 @@ pub struct ClientToServerStream<C: HttpClient> {
     client: Arc<HybridClient<C>>,
 }
 
-impl<C: HttpClient> ClientToServerStream<C> {
+impl<C: HttpClient + 'static> ClientToServerStream<C> {
     pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
         ClientToServerStream { stream_id, client }
     }
+
+    pub fn boxed(self) -> BoxedClientToServerStream {
+        BoxedClientToServerStream(Box::new(self) as _)
+    }
 }
 
-impl<C: HttpClient + 'static> QuerySink for ClientToServerStream<C> {
-    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>> {
+impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
+    fn create_partition_sinks(
+        &self,
+        _context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Vec<Box<dyn PartitionSink>> {
         assert_eq!(1, num_sinks);
 
         vec![Box::new(ClientToServerPartitionSink {
@@ -73,6 +82,30 @@ impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
 
     fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
         Box::pin(async { self.client.finalize(self.stream_id, 0).await })
+    }
+}
+
+/// Wrapper around the stream to hide http client generic.
+#[derive(Debug)]
+pub struct BoxedClientToServerStream(Box<dyn SinkOperation>);
+
+impl SinkOperation for BoxedClientToServerStream {
+    fn create_partition_sinks(
+        &self,
+        context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Vec<Box<dyn PartitionSink>> {
+        self.0.create_partition_sinks(context, num_sinks)
+    }
+
+    fn partition_requirement(&self) -> Option<usize> {
+        self.0.partition_requirement()
+    }
+}
+
+impl Explainable for BoxedClientToServerStream {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.0.explain_entry(conf)
     }
 }
 

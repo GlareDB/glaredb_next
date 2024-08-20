@@ -11,7 +11,8 @@ use rayexec_error::{RayexecError, Result};
 use tracing::warn;
 
 use crate::{
-    execution::operators::sink::{PartitionSink, QuerySink},
+    database::DatabaseContext,
+    execution::operators::sink::{PartitionSink, SinkOperation},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::{ErrorSink, QueryHandle},
 };
@@ -81,8 +82,12 @@ pub struct ResultSink {
     inner: Arc<Mutex<InnerState>>,
 }
 
-impl QuerySink for ResultSink {
-    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>> {
+impl SinkOperation for ResultSink {
+    fn create_partition_sinks(
+        &self,
+        _context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Vec<Box<dyn PartitionSink>> {
         (0..num_sinks)
             .map(|_| {
                 Box::new(ResultPartitionSink {

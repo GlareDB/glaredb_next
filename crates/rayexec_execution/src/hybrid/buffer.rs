@@ -15,10 +15,11 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
+    database::DatabaseContext,
     execution::{
         intermediate::StreamId,
         operators::{
-            sink::{PartitionSink, QuerySink},
+            sink::{PartitionSink, SinkOperation},
             source::{PartitionSource, QuerySource},
         },
     },
@@ -170,8 +171,12 @@ pub struct OutgoingStream {
     state: Arc<Mutex<OutgoingStreamState>>,
 }
 
-impl QuerySink for OutgoingStream {
-    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>> {
+impl SinkOperation for OutgoingStream {
+    fn create_partition_sinks(
+        &self,
+        _context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Vec<Box<dyn PartitionSink>> {
         assert_eq!(1, num_sinks);
 
         vec![Box::new(OutgoingPartitionStream {
