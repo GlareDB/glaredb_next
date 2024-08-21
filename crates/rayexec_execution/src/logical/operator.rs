@@ -869,7 +869,7 @@ impl Explainable for TableFunction {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExpressionList {
     pub rows: Vec<Vec<LogicalExpression>>,
-    // TODO: Table index.
+    // TODO: Table index. What?
 }
 
 impl SchemaNode for ExpressionList {

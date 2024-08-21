@@ -7,3 +7,5 @@ pub mod operator;
 
 pub mod binder;
 pub mod planner;
+
+pub mod logical_scan;
