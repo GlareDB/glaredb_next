@@ -9,6 +9,9 @@ use super::{
     planner::scope::Scope,
 };
 
+#[derive(Debug, PartialEq)]
+pub struct PlanContext {}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterializedPlan {
     /// Index within the query context.

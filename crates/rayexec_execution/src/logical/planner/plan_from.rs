@@ -1,0 +1,21 @@
+use rayexec_error::Result;
+use rayexec_parser::ast;
+
+use crate::logical::binder::{bind_data::BindData, Bound};
+
+use super::{plan_statement::LogicalQuery, planning_context::PlanningContext};
+
+#[derive(Debug)]
+pub struct FromPlanner<'a> {
+    pub bind_data: &'a BindData,
+}
+
+impl<'a> FromPlanner<'a> {
+    pub fn plan_from(
+        &self,
+        context: &mut PlanningContext,
+        from: ast::FromNode<Bound>,
+    ) -> Result<LogicalQuery> {
+        unimplemented!()
+    }
+}

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::scope::Scope;
+use super::{planning_context::ScopeIdx, scope::Scope};
 use crate::{
     database::{
         create::OnConflict,
@@ -29,13 +29,19 @@ const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 
 #[derive(Debug)]
 pub struct LogicalQuery {
+    pub root: LogicalOperator,
+    pub output_scope: ScopeIdx,
+}
+
+#[derive(Debug)]
+pub struct LogicalQuery2 {
     /// Root of the query.
     pub root: LogicalOperator,
     /// The final scope of the query.
     pub scope: Scope,
 }
 
-impl LogicalQuery {
+impl LogicalQuery2 {
     pub fn schema(&self) -> Result<Schema> {
         let type_schema = self.root.output_schema(&[])?;
         debug_assert_eq!(self.scope.num_columns(), type_schema.types.len());
@@ -53,21 +59,21 @@ impl LogicalQuery {
 }
 
 #[derive(Debug, Clone)]
-pub struct PlanContext<'a> {
+pub struct StatementPlanner<'a> {
     /// Session variables.
     pub vars: &'a SessionVars,
     pub bind_data: &'a BindData,
 }
 
-impl<'a> PlanContext<'a> {
+impl<'a> StatementPlanner<'a> {
     pub fn new(vars: &'a SessionVars, bind_data: &'a BindData) -> Self {
-        PlanContext { vars, bind_data }
+        StatementPlanner { vars, bind_data }
     }
 
     pub fn plan_statement(
         mut self,
         stmt: Statement<Bound>,
-    ) -> Result<(LogicalQuery, QueryContext)> {
+    ) -> Result<(LogicalQuery2, QueryContext)> {
         trace!("planning statement");
         let mut context = QueryContext::new();
         let query = match stmt {
@@ -81,7 +87,7 @@ impl<'a> PlanContext<'a> {
                     Some(ast::ExplainOutput::Json) => ExplainFormat::Json,
                     None => ExplainFormat::Text,
                 };
-                LogicalQuery {
+                LogicalQuery2 {
                     root: LogicalOperator::Explain(LogicalNode::new(Explain {
                         analyze: explain.analyze,
                         verbose: explain.verbose,
@@ -107,7 +113,7 @@ impl<'a> PlanContext<'a> {
                 let planner = QueryNodePlanner::new(self.bind_data);
                 let expr_ctx = ExpressionContext::new(&planner, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(&mut context, value)?;
-                LogicalQuery {
+                LogicalQuery2 {
                     root: LogicalOperator::SetVar(LogicalNode::new(SetVar {
                         name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
@@ -119,7 +125,7 @@ impl<'a> PlanContext<'a> {
                 let name = reference.pop()?; // TODO: Allow compound references?
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
-                LogicalQuery {
+                LogicalQuery2 {
                     root: LogicalOperator::ShowVar(LogicalNode::new(ShowVar { var: var.clone() })),
                     scope,
                 }
@@ -133,7 +139,7 @@ impl<'a> PlanContext<'a> {
                     }
                     ast::VariableOrAll::All => VariableOrAll::All,
                 };
-                LogicalQuery {
+                LogicalQuery2 {
                     root: LogicalOperator::ResetVar(LogicalNode::new(ResetVar { var })),
                     scope: Scope::empty(),
                 }
@@ -163,7 +169,7 @@ impl<'a> PlanContext<'a> {
                         .map(|(item, typ)| Field::new(item.column, typ, true)),
                 );
 
-                LogicalQuery {
+                LogicalQuery2 {
                     root: LogicalOperator::Describe(LogicalNode::new(Describe { schema })),
                     scope: Scope::with_columns(None, ["column_name", "datatype"]),
                 }
@@ -173,7 +179,7 @@ impl<'a> PlanContext<'a> {
         Ok((query, context))
     }
 
-    fn plan_attach(&mut self, mut attach: ast::Attach<Bound>) -> Result<LogicalQuery> {
+    fn plan_attach(&mut self, mut attach: ast::Attach<Bound>) -> Result<LogicalQuery2> {
         match attach.attach_type {
             ast::AttachType::Database => {
                 let mut options = HashMap::new();
@@ -207,7 +213,7 @@ impl<'a> PlanContext<'a> {
                 let name = attach.alias.pop()?;
                 let datasource = attach.datasource_name;
 
-                Ok(LogicalQuery {
+                Ok(LogicalQuery2 {
                     root: LogicalOperator::AttachDatabase(LogicalNode::new(AttachDatabase {
                         datasource,
                         name,
@@ -220,7 +226,7 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_detach(&mut self, mut detach: ast::Detach<Bound>) -> Result<LogicalQuery> {
+    fn plan_detach(&mut self, mut detach: ast::Detach<Bound>) -> Result<LogicalQuery2> {
         match detach.attach_type {
             ast::AttachType::Database => {
                 if detach.alias.0.len() != 1 {
@@ -231,7 +237,7 @@ impl<'a> PlanContext<'a> {
                 }
                 let name = detach.alias.pop()?;
 
-                Ok(LogicalQuery {
+                Ok(LogicalQuery2 {
                     root: LogicalOperator::DetachDatabase(LogicalNode::new(DetachDatabase {
                         name,
                     })),
@@ -246,7 +252,7 @@ impl<'a> PlanContext<'a> {
         &mut self,
         context: &mut QueryContext,
         copy_to: ast::CopyTo<Bound>,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         let source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
@@ -271,7 +277,7 @@ impl<'a> PlanContext<'a> {
                         .map(|f| f.name.clone()),
                 );
 
-                LogicalQuery {
+                LogicalQuery2 {
                     root: LogicalOperator::Scan(LogicalNode::with_location(
                         Scan {
                             catalog: reference.catalog.clone(),
@@ -293,7 +299,7 @@ impl<'a> PlanContext<'a> {
             .ok_or_else(|| RayexecError::new("Missing COPY TO function"))?
             .clone();
 
-        Ok(LogicalQuery {
+        Ok(LogicalQuery2 {
             root: LogicalOperator::CopyTo(LogicalNode::with_location(
                 CopyTo {
                     source: Box::new(source.root),
@@ -311,7 +317,7 @@ impl<'a> PlanContext<'a> {
         &mut self,
         context: &mut QueryContext,
         insert: ast::Insert<Bound>,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
         let source = planner.plan_query(context, insert.source)?;
 
@@ -338,7 +344,7 @@ impl<'a> PlanContext<'a> {
         // TODO: Handle specified columns. If provided, insert a projection that
         // maps the columns to the right position.
 
-        Ok(LogicalQuery {
+        Ok(LogicalQuery2 {
             root: LogicalOperator::Insert(LogicalNode::with_location(
                 Insert {
                     catalog: reference.catalog.clone(),
@@ -352,7 +358,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_drop(&mut self, mut drop: ast::DropStatement<Bound>) -> Result<LogicalQuery> {
+    fn plan_drop(&mut self, mut drop: ast::DropStatement<Bound>) -> Result<LogicalQuery2> {
         match drop.drop_type {
             ast::DropType::Schema => {
                 let [catalog, schema] = drop.name.pop_2()?;
@@ -370,7 +376,7 @@ impl<'a> PlanContext<'a> {
                     },
                 }));
 
-                Ok(LogicalQuery {
+                Ok(LogicalQuery2 {
                     root: plan,
                     scope: Scope::empty(),
                 })
@@ -379,7 +385,10 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_create_schema(&mut self, mut create: ast::CreateSchema<Bound>) -> Result<LogicalQuery> {
+    fn plan_create_schema(
+        &mut self,
+        mut create: ast::CreateSchema<Bound>,
+    ) -> Result<LogicalQuery2> {
         let on_conflict = if create.if_not_exists {
             OnConflict::Ignore
         } else {
@@ -388,7 +397,7 @@ impl<'a> PlanContext<'a> {
 
         let [catalog, schema] = create.name.pop_2()?;
 
-        Ok(LogicalQuery {
+        Ok(LogicalQuery2 {
             root: LogicalOperator::CreateSchema(LogicalNode::new(CreateSchema {
                 catalog,
                 name: schema,
@@ -402,7 +411,7 @@ impl<'a> PlanContext<'a> {
         &mut self,
         context: &mut QueryContext,
         mut create: ast::CreateTable<Bound>,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         let on_conflict = match (create.or_replace, create.if_not_exists) {
             (true, false) => OnConflict::Replace,
             (false, true) => OnConflict::Ignore,
@@ -469,7 +478,7 @@ impl<'a> PlanContext<'a> {
         // additional data about the catalog (specifically if the catalog we're
         // referencing is a "stub", and hybrid execution is required).
 
-        Ok(LogicalQuery {
+        Ok(LogicalQuery2 {
             root: LogicalOperator::CreateTable(LogicalNode::with_location(
                 CreateTable {
                     catalog,

@@ -18,7 +18,7 @@ use crate::{
         binder::{BindMode, Binder},
         context::QueryContext,
         operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
-        planner::plan_statement::PlanContext,
+        planner::plan_statement::StatementPlanner,
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},
@@ -199,7 +199,7 @@ where
                 // Normal all-local planning.
 
                 let (mut logical, context) =
-                    PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
+                    StatementPlanner::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
 
                 let optimizer = Optimizer::new();
                 logical.root = optimizer.optimize(logical.root)?;

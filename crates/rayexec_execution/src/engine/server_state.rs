@@ -24,7 +24,7 @@ use crate::{
             resolve_hybrid::{HybridContextExtender, HybridResolver},
             BoundStatement,
         },
-        planner::plan_statement::PlanContext,
+        planner::plan_statement::StatementPlanner,
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, QueryHandle, Runtime},
@@ -102,7 +102,7 @@ where
         let vars = SessionVars::new_local();
 
         let (mut logical, query_context) =
-            PlanContext::new(&vars, &bind_data).plan_statement(stmt)?;
+            StatementPlanner::new(&vars, &bind_data).plan_statement(stmt)?;
 
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;

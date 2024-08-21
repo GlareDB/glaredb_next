@@ -24,7 +24,7 @@ use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
 use super::{
     plan_aggregate::AggregatePlanner,
     plan_expr::{ExpandedSelectExpr, ExpressionContext},
-    plan_statement::LogicalQuery,
+    plan_statement::LogicalQuery2,
     plan_subquery::SubqueryPlanner,
     scope::{ColumnRef, Scope, TableReference},
 };
@@ -71,7 +71,7 @@ impl<'a> QueryNodePlanner<'a> {
         &mut self,
         context: &mut QueryContext,
         query: ast::QueryNode<Bound>,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         let mut planned = self.plan_query_body(context, query.body, query.order_by)?;
 
         // Handle LIMIT/OFFSET
@@ -105,7 +105,7 @@ impl<'a> QueryNodePlanner<'a> {
         context: &mut QueryContext,
         body: ast::QueryNodeBody<Bound>,
         order_by: Vec<ast::OrderByNode<Bound>>,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => self.plan_select(context, *select, order_by)?,
             ast::QueryNodeBody::Nested(nested) => self.plan_query(context, *nested)?,
@@ -144,7 +144,7 @@ impl<'a> QueryNodePlanner<'a> {
                     not_implemented!("order by on set ops");
                 }
 
-                LogicalQuery { root: plan, scope }
+                LogicalQuery2 { root: plan, scope }
             }
             ast::QueryNodeBody::Values(values) => self.plan_values(context, values)?,
         })
@@ -155,13 +155,13 @@ impl<'a> QueryNodePlanner<'a> {
         context: &mut QueryContext,
         select: ast::SelectNode<Bound>,
         order_by: Vec<ast::OrderByNode<Bound>>,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         // Handle FROM
         let mut plan = match select.from {
             Some(from) => {
                 self.plan_from_node(context, from, TypeSchema::empty(), Scope::empty())?
             }
-            None => LogicalQuery {
+            None => LogicalQuery2 {
                 root: LogicalOperator::EMPTY,
                 scope: Scope::empty(),
             },
@@ -268,7 +268,7 @@ impl<'a> QueryNodePlanner<'a> {
         )?;
 
         // Project the full select list.
-        plan = LogicalQuery {
+        plan = LogicalQuery2 {
             root: LogicalOperator::Projection(LogicalNode::new(Projection {
                 exprs: select_exprs.clone(),
                 input: Box::new(plan.root),
@@ -278,7 +278,7 @@ impl<'a> QueryNodePlanner<'a> {
 
         // Add filter for HAVING.
         if let Some(expr) = having_expr {
-            plan = LogicalQuery {
+            plan = LogicalQuery2 {
                 root: LogicalOperator::Filter(LogicalNode::new(Filter {
                     predicate: expr,
                     input: Box::new(plan.root),
@@ -289,7 +289,7 @@ impl<'a> QueryNodePlanner<'a> {
 
         // Add order by node.
         if !order_by_exprs.is_empty() {
-            plan = LogicalQuery {
+            plan = LogicalQuery2 {
                 root: LogicalOperator::Order(LogicalNode::new(Order {
                     exprs: order_by_exprs,
                     input: Box::new(plan.root),
@@ -305,7 +305,7 @@ impl<'a> QueryNodePlanner<'a> {
 
             let projections = (0..output_len).map(LogicalExpression::new_column).collect();
 
-            plan = LogicalQuery {
+            plan = LogicalQuery2 {
                 root: LogicalOperator::Projection(LogicalNode::new(Projection {
                     exprs: projections,
                     input: Box::new(plan.root),
@@ -329,7 +329,7 @@ impl<'a> QueryNodePlanner<'a> {
         from: ast::FromNode<Bound>,
         current_schema: TypeSchema,
         current_scope: Scope,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
@@ -359,7 +359,7 @@ impl<'a> QueryNodePlanner<'a> {
                                 .iter()
                                 .map(|f| f.name.clone()),
                         );
-                        LogicalQuery {
+                        LogicalQuery2 {
                             root: LogicalOperator::Scan(LogicalNode::with_location(
                                 Scan {
                                     catalog: catalog.clone(),
@@ -399,7 +399,7 @@ impl<'a> QueryNodePlanner<'a> {
                     location,
                 ));
 
-                LogicalQuery {
+                LogicalQuery2 {
                     root: operator,
                     scope,
                 }
@@ -453,7 +453,7 @@ impl<'a> QueryNodePlanner<'a> {
                             other => not_implemented!("plan join type: {other:?}"),
                         };
 
-                        LogicalQuery {
+                        LogicalQuery2 {
                             root: LogicalOperator::AnyJoin(LogicalNode::new(AnyJoin {
                                 left: Box::new(left_plan.root),
                                 right: Box::new(right_plan.root),
@@ -467,7 +467,7 @@ impl<'a> QueryNodePlanner<'a> {
                         ast::JoinType::Cross => {
                             let merged = left_plan.scope.merge(right_plan.scope)?;
 
-                            LogicalQuery {
+                            LogicalQuery2 {
                                 root: LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
                                     left: Box::new(left_plan.root),
                                     right: Box::new(right_plan.root),
@@ -588,7 +588,7 @@ impl<'a> QueryNodePlanner<'a> {
                             other => not_implemented!("plan join type: {other:?}"),
                         };
 
-                        LogicalQuery {
+                        LogicalQuery2 {
                             root: LogicalOperator::Projection(LogicalNode::new(Projection {
                                 exprs: projections,
                                 input: Box::new(LogicalOperator::EqualityJoin(LogicalNode::new(
@@ -616,7 +616,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Apply aliases if provided.
         let aliased_scope = Self::apply_alias(body.scope, from.alias)?;
 
-        Ok(LogicalQuery {
+        Ok(LogicalQuery2 {
             root: body.root,
             scope: aliased_scope,
         })
@@ -629,7 +629,7 @@ impl<'a> QueryNodePlanner<'a> {
         bound: CteIndex,
         current_schema: TypeSchema,
         current_scope: Scope,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         let cte =
             self.bind_data.ctes.get(bound.0).ok_or_else(|| {
                 RayexecError::new(format!("Missing bound CTE at index {}", bound.0))
@@ -644,7 +644,7 @@ impl<'a> QueryNodePlanner<'a> {
                 let scan = context.generate_scan_for_idx(reference.materialized_idx, &[])?;
                 // TODO: I _think_ "any" location is fine for this, but
                 // definitely needs to be double checked.
-                return Ok(LogicalQuery {
+                return Ok(LogicalQuery2 {
                     root: LogicalOperator::MaterializedScan(LogicalNode::new(scan)),
                     scope: reference.scope,
                 });
@@ -690,7 +690,7 @@ impl<'a> QueryNodePlanner<'a> {
         if cte.materialized {
             let idx = context.push_materialized_cte(bound, query.root, query.scope.clone());
             let scan = context.generate_scan_for_idx(idx, &[])?; // TODO: Again not sure about outer.
-            return Ok(LogicalQuery {
+            return Ok(LogicalQuery2 {
                 root: LogicalOperator::MaterializedScan(LogicalNode::new(scan)),
                 scope: query.scope,
             });
@@ -748,7 +748,7 @@ impl<'a> QueryNodePlanner<'a> {
         &self,
         context: &mut QueryContext,
         values: ast::Values<Bound>,
-    ) -> Result<LogicalQuery> {
+    ) -> Result<LogicalQuery2> {
         if values.rows.is_empty() {
             return Err(RayexecError::new("Empty VALUES expression"));
         }
@@ -774,7 +774,7 @@ impl<'a> QueryNodePlanner<'a> {
         let mut scope = Scope::empty();
         scope.add_columns(None, (0..num_cols).map(|i| format!("column{}", i + 1)));
 
-        Ok(LogicalQuery {
+        Ok(LogicalQuery2 {
             root: operator,
             scope,
         })
