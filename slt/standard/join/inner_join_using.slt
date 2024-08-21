@@ -48,10 +48,22 @@ SELECT t1.* FROM t1 INNER JOIN t2 USING (a);
 # 1  2  3
 # 1  2  4
 
+query TT
+DESCRIBE SELECT * FROM t1 INNER JOIN t2 USING (a, b, c);
+----
+a  Int32
+b  Int32
+c  Int32
+
 query III
 SELECT * FROM t1 INNER JOIN t2 USING (a, b, c);
 ----
 1  2  3
+
+query I
+SELECT b FROM t1 INNER JOIN t2 USING (a, b, c);
+----
+2
 
 statement error Missing column for reference: d
 SELECT * FROM t1 INNER JOIN t2 USING (a, b, c, d);
