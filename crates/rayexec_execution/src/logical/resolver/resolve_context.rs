@@ -9,11 +9,11 @@ use crate::{
 };
 
 use super::{
-    bound_copy_to::BoundCopyTo,
-    bound_cte::BoundCte,
-    bound_function::BoundFunction,
-    bound_table::{BoundTableOrCteReference, CteIndex, UnboundTableReference},
-    bound_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference},
+    resolved_copy_to::BoundCopyTo,
+    resolved_cte::BoundCte,
+    resolved_function::BoundFunction,
+    resolved_table::{BoundTableOrCteReference, CteIndex, UnboundTableReference},
+    resolved_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference},
 };
 
 /// Data that's collected during binding, including resolved tables, functions,

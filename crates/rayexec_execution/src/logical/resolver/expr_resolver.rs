@@ -13,7 +13,7 @@ use rayexec_parser::{
 };
 
 use super::{
-    bound_function::BoundFunction, resolve_normal::create_user_facing_resolve_err, BindContext,
+    resolve_normal::create_user_facing_resolve_err, resolved_function::BoundFunction, BindContext,
     Binder, Bound,
 };
 

@@ -15,7 +15,7 @@ use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
-use crate::logical::resolver::bound_function::BoundFunction;
+use crate::logical::resolver::resolved_function::BoundFunction;
 use crate::logical::resolver::Bound;
 
 use super::plan_query::QueryNodePlanner;

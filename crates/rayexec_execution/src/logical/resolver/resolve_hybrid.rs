@@ -9,8 +9,8 @@ use rayexec_error::{RayexecError, Result};
 use tracing::debug;
 
 use super::{
-    bind_context::MaybeBound, bound_table_function::BoundTableFunctionReference,
-    resolve_normal::Resolver, BindContext, Binder,
+    resolve_context::MaybeBound, resolve_normal::Resolver,
+    resolved_table_function::BoundTableFunctionReference, BindContext, Binder,
 };
 
 /// Extends a context by attaching additional databases using information

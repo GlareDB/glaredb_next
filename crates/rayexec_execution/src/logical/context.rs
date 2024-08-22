@@ -6,7 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use super::{
     operator::{LogicalOperator, MaterializedScan},
     planner::scope::Scope,
-    resolver::bound_table::CteIndex,
+    resolver::resolved_table::CteIndex,
 };
 
 #[derive(Debug, PartialEq)]

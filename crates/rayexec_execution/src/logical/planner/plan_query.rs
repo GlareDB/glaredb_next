@@ -5,8 +5,8 @@ use crate::logical::{
     expr::LogicalExpression,
     operator::{EqualityJoin, LogicalNode, SetOpKind, SetOperation},
     resolver::{
-        bind_context::BindContext,
-        bound_table::{BoundTableOrCteReference, BoundTableReference, CteIndex},
+        resolve_context::BindContext,
+        resolved_table::{BoundTableOrCteReference, BoundTableReference, CteIndex},
         Bound,
     },
 };

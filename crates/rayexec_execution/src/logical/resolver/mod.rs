@@ -1,21 +1,16 @@
-pub mod bind_context;
-pub mod binder_expr;
-pub mod bound_copy_to;
-pub mod bound_cte;
-pub mod bound_function;
-pub mod bound_table;
-pub mod bound_table_function;
+pub mod expr_resolver;
+pub mod resolve_context;
 pub mod resolve_hybrid;
 pub mod resolve_normal;
+pub mod resolved_copy_to;
+pub mod resolved_cte;
+pub mod resolved_function;
+pub mod resolved_table;
+pub mod resolved_table_function;
 
 use std::collections::HashMap;
 
-use bind_context::{BindContext, BindListIdx, ItemReference, MaybeBound};
-use binder_expr::ExpressionBinder;
-use bound_copy_to::BoundCopyTo;
-use bound_cte::BoundCte;
-use bound_table::CteIndex;
-use bound_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference};
+use expr_resolver::ExpressionBinder;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
@@ -30,7 +25,12 @@ use rayexec_parser::{
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
+use resolve_context::{BindContext, BindListIdx, ItemReference, MaybeBound};
 use resolve_normal::{MaybeResolvedTable, Resolver};
+use resolved_copy_to::BoundCopyTo;
+use resolved_cte::BoundCte;
+use resolved_table::CteIndex;
+use resolved_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
 use crate::{

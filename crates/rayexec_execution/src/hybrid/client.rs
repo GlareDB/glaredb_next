@@ -1,6 +1,6 @@
 use crate::{
     execution::intermediate::{IntermediatePipelineGroup, StreamId},
-    logical::resolver::bind_context::BindContext,
+    logical::resolver::resolve_context::BindContext,
     proto::DatabaseProtoConv,
 };
 use rayexec_bullet::{

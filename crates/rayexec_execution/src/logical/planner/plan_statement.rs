@@ -16,7 +16,7 @@ use crate::{
             Projection, ResetVar, Scan, SetVar, ShowVar, VariableOrAll,
         },
         planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
-        resolver::{bind_context::BindContext, bound_table::BoundTableOrCteReference, Bound},
+        resolver::{resolve_context::BindContext, resolved_table::BoundTableOrCteReference, Bound},
     },
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};

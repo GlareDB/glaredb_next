@@ -21,7 +21,7 @@ use crate::{
     logical::{
         planner::plan_statement::StatementPlanner,
         resolver::{
-            bind_context::BindContext,
+            resolve_context::BindContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},
             BoundStatement,
         },

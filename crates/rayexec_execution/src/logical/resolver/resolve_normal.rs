@@ -15,7 +15,7 @@ use rayexec_parser::ast;
 use tracing::error;
 
 use super::{
-    bound_table::{BoundTableOrCteReference, BoundTableReference, UnboundTableReference},
+    resolved_table::{BoundTableOrCteReference, BoundTableReference, UnboundTableReference},
     BindContext,
 };
 
