@@ -107,7 +107,7 @@ message TableFunctionsBindList {
     repeated MaybeBoundTableFunction functions = 1;
 }
 
-message BindData {
+message BindContext {
     TablesBindList         tables          = 1;
     FunctionsBindList      functions       = 2;
     TableFunctionsBindList table_functions = 3;

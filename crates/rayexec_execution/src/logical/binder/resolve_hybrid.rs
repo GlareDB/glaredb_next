@@ -9,8 +9,8 @@ use rayexec_error::{RayexecError, Result};
 use tracing::debug;
 
 use super::{
-    bind_data::MaybeBound, bound_table_function::BoundTableFunctionReference,
-    resolve_normal::Resolver, BindData, Binder,
+    bind_context::MaybeBound, bound_table_function::BoundTableFunctionReference,
+    resolve_normal::Resolver, BindContext, Binder,
 };
 
 /// Extends a context by attaching additional databases using information
@@ -30,7 +30,7 @@ impl<'a> HybridContextExtender<'a> {
 
     /// Iterates the provided bind data and attaches databases to the context as
     /// necessary.
-    pub async fn attach_unknown_databases(&mut self, bind_data: &BindData) -> Result<()> {
+    pub async fn attach_unknown_databases(&mut self, bind_data: &BindContext) -> Result<()> {
         for item in bind_data.tables.inner.iter() {
             if let MaybeBound::Unbound(unbound) = item {
                 // We might have already attached a database. E.g. by already
@@ -142,7 +142,7 @@ impl<'a> HybridResolver<'a> {
     /// fails to resolve.
     ///
     /// Bound items should not be checked.
-    pub async fn resolve_all_unbound(&self, mut bind_data: BindData) -> Result<BindData> {
+    pub async fn resolve_all_unbound(&self, mut bind_data: BindContext) -> Result<BindContext> {
         self.resolve_unbound_table_fns(&mut bind_data).await?;
         self.resolve_unbound_tables(&mut bind_data).await?;
         // TODO: Might be worth doing these in parallel since we have the
@@ -150,14 +150,14 @@ impl<'a> HybridResolver<'a> {
         Ok(bind_data)
     }
 
-    async fn resolve_unbound_tables(&self, bind_data: &mut BindData) -> Result<()> {
+    async fn resolve_unbound_tables(&self, bind_data: &mut BindContext) -> Result<()> {
         for item in bind_data.tables.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
                 debug!(%unbound.reference, "(hybrid) resolving unbound table");
 
                 // Pass in empty bind data to resolver since it's only used for
                 // CTE lookup, which shouldn't be possible here.
-                let empty = BindData::default();
+                let empty = BindContext::default();
 
                 let table = Resolver::new(self.binder.tx, self.binder.context)
                     .require_resolve_table_or_cte(&unbound.reference, &empty)
@@ -172,7 +172,7 @@ impl<'a> HybridResolver<'a> {
         Ok(())
     }
 
-    async fn resolve_unbound_table_fns(&self, bind_data: &mut BindData) -> Result<()> {
+    async fn resolve_unbound_table_fns(&self, bind_data: &mut BindContext) -> Result<()> {
         for item in bind_data.table_functions.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
                 let table_fn = Resolver::new(self.binder.tx, self.binder.context)

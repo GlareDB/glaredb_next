@@ -13,7 +13,7 @@ use rayexec_parser::{
 };
 
 use super::{
-    bound_function::BoundFunction, resolve_normal::create_user_facing_resolve_err, BindData,
+    bound_function::BoundFunction, resolve_normal::create_user_facing_resolve_err, BindContext,
     Binder, Bound,
 };
 
@@ -29,7 +29,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_select_expr(
         &self,
         select_expr: ast::SelectExpr<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::SelectExpr<Bound>> {
         match select_expr {
             ast::SelectExpr::Expr(expr) => Ok(ast::SelectExpr::Expr(
@@ -54,7 +54,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_wildcard(
         &self,
         wildcard: ast::Wildcard<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::Wildcard<Bound>> {
         let mut replace_cols = Vec::with_capacity(wildcard.replace_cols.len());
         for replace in wildcard.replace_cols {
@@ -73,7 +73,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_group_by_expr(
         &self,
         expr: ast::GroupByExpr<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::GroupByExpr<Bound>> {
         Ok(match expr {
             ast::GroupByExpr::Expr(exprs) => {
@@ -103,7 +103,7 @@ impl<'a> ExpressionBinder<'a> {
         &self,
         args: Vec<FunctionArg<Raw>>,
     ) -> Result<TableFunctionArgs> {
-        let bind_data = &mut BindData::default(); // Empty bind data since we don't allow complex expressions.
+        let bind_data = &mut BindContext::default(); // Empty bind data since we don't allow complex expressions.
 
         let mut named = HashMap::new();
         let mut positional = Vec::new();
@@ -168,7 +168,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_expressions(
         &self,
         exprs: impl IntoIterator<Item = ast::Expr<Raw>>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<Vec<ast::Expr<Bound>>> {
         let mut bound = Vec::new();
         for expr in exprs {
@@ -181,7 +181,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_expression(
         &self,
         expr: ast::Expr<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::Expr<Bound>> {
         match expr {
             ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),

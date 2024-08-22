@@ -8,7 +8,7 @@ use crate::{
     },
     engine::vars::SessionVars,
     logical::{
-        binder::{bind_data::BindData, bound_table::BoundTableOrCteReference, Bound},
+        binder::{bind_context::BindContext, bound_table::BoundTableOrCteReference, Bound},
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
@@ -62,11 +62,11 @@ impl LogicalQuery2 {
 pub struct StatementPlanner<'a> {
     /// Session variables.
     pub vars: &'a SessionVars,
-    pub bind_data: &'a BindData,
+    pub bind_data: &'a BindContext,
 }
 
 impl<'a> StatementPlanner<'a> {
-    pub fn new(vars: &'a SessionVars, bind_data: &'a BindData) -> Self {
+    pub fn new(vars: &'a SessionVars, bind_data: &'a BindContext) -> Self {
         StatementPlanner { vars, bind_data }
     }
 

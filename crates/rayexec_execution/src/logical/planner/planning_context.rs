@@ -16,8 +16,6 @@ pub struct PlanningContext {
 }
 
 impl PlanningContext {
-    pub fn put_table(&mut self)
-
     pub fn get_scope(&self, idx: ScopeIdx) -> Option<&PlanningScope> {
         self.scopes.get(idx.0)
     }

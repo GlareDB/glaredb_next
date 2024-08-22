@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::logical::{
     binder::{
-        bind_data::BindData,
+        bind_context::BindContext,
         bound_table::{BoundTableOrCteReference, BoundTableReference, CteIndex},
         Bound,
     },
@@ -42,11 +42,11 @@ pub struct QueryNodePlanner<'a> {
     pub outer_scopes: Vec<Scope>,
 
     /// Data collected during binding (table references, functions, etc).
-    pub bind_data: &'a BindData,
+    pub bind_data: &'a BindContext,
 }
 
 impl<'a> QueryNodePlanner<'a> {
-    pub fn new(bind_data: &'a BindData) -> Self {
+    pub fn new(bind_data: &'a BindContext) -> Self {
         QueryNodePlanner {
             outer_schemas: Vec::new(),
             outer_scopes: Vec::new(),

@@ -1,6 +1,6 @@
 use crate::{
     execution::intermediate::{IntermediatePipelineGroup, StreamId},
-    logical::binder::bind_data::BindData,
+    logical::binder::bind_context::BindContext,
     proto::DatabaseProtoConv,
 };
 use rayexec_bullet::{
@@ -13,10 +13,12 @@ use rayexec_bullet::{
 };
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::{
-    read_text, reqwest::{
+    read_text,
+    reqwest::{
         header::{HeaderValue, CONTENT_TYPE},
         Method, Request, StatusCode,
-    }, HttpClient, HttpResponse
+    },
+    HttpClient, HttpResponse,
 };
 use rayexec_proto::prost::Message;
 use rayexec_proto::ProtoConv;
@@ -56,7 +58,7 @@ pub struct HybridPlanRequest {
     /// This includes partially bound items that reference the things in the
     /// bind data.
     pub statement: BoundStatement,
-    pub bind_data: BindData,
+    pub bind_data: BindContext,
 }
 
 impl DatabaseProtoConv for HybridPlanRequest {
@@ -67,7 +69,7 @@ impl DatabaseProtoConv for HybridPlanRequest {
             serde_json::to_vec(&self.statement).context("failed to encode statement")?;
         Ok(Self::ProtoType {
             bound_statement_json: statement,
-            bind_data: Some(self.bind_data.to_proto_ctx(context)?),
+            bind_context: Some(self.bind_data.to_proto_ctx(context)?),
         })
     }
 
@@ -76,7 +78,10 @@ impl DatabaseProtoConv for HybridPlanRequest {
             .context("failed to decode statement")?;
         Ok(Self {
             statement,
-            bind_data: BindData::from_proto_ctx(proto.bind_data.required("bind_data")?, context)?,
+            bind_data: BindContext::from_proto_ctx(
+                proto.bind_context.required("bind_data")?,
+                context,
+            )?,
         })
     }
 }
@@ -429,7 +434,7 @@ impl<C: HttpClient> HybridClient<C> {
     pub async fn remote_plan(
         &self,
         stmt: BoundStatement,
-        bind_data: BindData,
+        bind_data: BindContext,
         context: &DatabaseContext,
     ) -> Result<HybridPlanResponse> {
         let url = self

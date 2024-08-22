@@ -1,4 +1,4 @@
-pub mod bind_data;
+pub mod bind_context;
 pub mod binder_expr;
 pub mod bound_copy_to;
 pub mod bound_cte;
@@ -10,7 +10,7 @@ pub mod resolve_normal;
 
 use std::collections::HashMap;
 
-use bind_data::{BindData, BindListIdx, ItemReference, MaybeBound};
+use bind_context::{BindContext, BindListIdx, ItemReference, MaybeBound};
 use binder_expr::ExpressionBinder;
 use bound_copy_to::BoundCopyTo;
 use bound_cte::BoundCte;
@@ -112,8 +112,8 @@ impl<'a> Binder<'a> {
         }
     }
 
-    pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindData)> {
-        let mut bind_data = BindData::default();
+    pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindContext)> {
+        let mut bind_data = BindContext::default();
         let bound = match stmt {
             Statement::Explain(explain) => {
                 let body = match explain.body {
@@ -181,7 +181,7 @@ impl<'a> Binder<'a> {
     async fn bind_attach(
         &self,
         attach: ast::Attach<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::Attach<Bound>> {
         let mut options = HashMap::new();
         for (k, v) in attach.options {
@@ -211,7 +211,7 @@ impl<'a> Binder<'a> {
     async fn bind_copy_to(
         &self,
         copy_to: ast::CopyTo<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::CopyTo<Bound>> {
         let source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
@@ -381,7 +381,7 @@ impl<'a> Binder<'a> {
     async fn bind_create_table(
         &self,
         create: ast::CreateTable<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::CreateTable<Bound>> {
         // TODO: Search path
         let mut name: ItemReference = Self::reference_to_strings(create.name).into();
@@ -426,7 +426,7 @@ impl<'a> Binder<'a> {
     async fn bind_insert(
         &self,
         insert: ast::Insert<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::Insert<Bound>> {
         let table = match self.bindmode {
             BindMode::Normal => {
@@ -471,7 +471,7 @@ impl<'a> Binder<'a> {
     async fn bind_query(
         &self,
         query: ast::QueryNode<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::QueryNode<Bound>> {
         /// Helper containing the actual logic for the bind.
         ///
@@ -480,7 +480,7 @@ impl<'a> Binder<'a> {
         async fn bind_query_inner(
             binder: &Binder<'_>,
             query: ast::QueryNode<Raw>,
-            bind_data: &mut BindData,
+            bind_data: &mut BindContext,
         ) -> Result<ast::QueryNode<Bound>> {
             let ctes = match query.ctes {
                 Some(ctes) => Some(binder.bind_ctes(ctes, bind_data).await?),
@@ -531,7 +531,7 @@ impl<'a> Binder<'a> {
     async fn bind_query_node_body(
         &self,
         body: ast::QueryNodeBody<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::QueryNodeBody<Bound>> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => {
@@ -564,7 +564,7 @@ impl<'a> Binder<'a> {
     async fn bind_ctes(
         &self,
         ctes: ast::CommonTableExprDefs<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::CommonTableExprDefs<Bound>> {
         let mut bound_refs = Vec::with_capacity(ctes.ctes.len());
         for cte in ctes.ctes.into_iter() {
@@ -592,7 +592,7 @@ impl<'a> Binder<'a> {
     async fn bind_select(
         &self,
         select: ast::SelectNode<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::SelectNode<Bound>> {
         // Bind DISTINCT
         let distinct = match select.distinct {
@@ -681,7 +681,7 @@ impl<'a> Binder<'a> {
     async fn bind_values(
         &self,
         values: ast::Values<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::Values<Bound>> {
         let mut bound = Vec::with_capacity(values.rows.len());
         for row in values.rows {
@@ -697,7 +697,7 @@ impl<'a> Binder<'a> {
     async fn bind_order_by(
         &self,
         order_by: ast::OrderByNode<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::OrderByNode<Bound>> {
         let expr = ExpressionBinder::new(self)
             .bind_expression(order_by.expr, bind_data)
@@ -712,7 +712,7 @@ impl<'a> Binder<'a> {
     async fn bind_from(
         &self,
         from: ast::FromNode<Raw>,
-        bind_data: &mut BindData,
+        bind_data: &mut BindContext,
     ) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {

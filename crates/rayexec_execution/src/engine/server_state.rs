@@ -20,7 +20,7 @@ use crate::{
     },
     logical::{
         binder::{
-            bind_data::BindData,
+            bind_context::BindContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},
             BoundStatement,
         },
@@ -87,7 +87,7 @@ where
         &self,
         mut context: DatabaseContext,
         stmt: BoundStatement,
-        bind_data: BindData,
+        bind_data: BindContext,
     ) -> Result<HybridPlanResponse> {
         // Extend context with what we need in the query.
         let mut extender = HybridContextExtender::new(&mut context, &self.registry);

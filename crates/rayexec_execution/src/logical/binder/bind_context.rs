@@ -22,7 +22,7 @@ use super::{
 /// Planning will reference these items directly instead of having to resolve
 /// them.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct BindData {
+pub struct BindContext {
     /// A bound table may reference either an actual table, or a CTE. An unbound
     /// reference may only reference a table.
     pub tables: BindList<BoundTableOrCteReference, UnboundTableReference>,
@@ -57,7 +57,7 @@ pub struct BindData {
     pub ctes: Vec<BoundCte>,
 }
 
-impl BindData {
+impl BindContext {
     /// Checks if there's any unbound references in this query's bind data.
     pub fn any_unbound(&self) -> bool {
         self.tables.any_unbound()
@@ -115,8 +115,8 @@ impl BindData {
     }
 }
 
-impl DatabaseProtoConv for BindData {
-    type ProtoType = rayexec_proto::generated::binder::BindData;
+impl DatabaseProtoConv for BindContext {
+    type ProtoType = rayexec_proto::generated::binder::BindContext;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         if !self.ctes.is_empty() {

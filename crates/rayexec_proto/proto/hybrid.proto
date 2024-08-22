@@ -9,8 +9,8 @@ import "schema.proto";
 import "array.proto";
 
 message PlanRequest {
-    bytes           bound_statement_json = 1;  // Bytes encoded using serde_json, at some point maybe that all becomes proto.
-    binder.BindData bind_data            = 2;
+    bytes              bound_statement_json = 1;  // Bytes encoded using serde_json, at some point maybe that all becomes proto.
+    binder.BindContext bind_context         = 2;
 }
 
 message PlanResponse {

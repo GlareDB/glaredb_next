@@ -16,7 +16,7 @@ use tracing::error;
 
 use super::{
     bound_table::{BoundTableOrCteReference, BoundTableReference, UnboundTableReference},
-    BindData,
+    BindContext,
 };
 
 pub fn create_user_facing_resolve_err(
@@ -144,7 +144,7 @@ impl<'a> Resolver<'a> {
     pub async fn resolve_table_or_cte(
         &self,
         reference: &ast::ObjectReference,
-        bind_data: &BindData,
+        bind_data: &BindContext,
     ) -> Result<MaybeResolvedTable> {
         // TODO: Seach path.
         let [catalog, schema, table] = match reference.0.len() {
@@ -281,7 +281,7 @@ impl<'a> Resolver<'a> {
     pub async fn require_resolve_table_or_cte(
         &self,
         reference: &ast::ObjectReference,
-        bind_data: &BindData,
+        bind_data: &BindContext,
     ) -> Result<BoundTableOrCteReference> {
         match self.resolve_table_or_cte(reference, bind_data).await? {
             MaybeResolvedTable::Resolved(table) => Ok(table),
