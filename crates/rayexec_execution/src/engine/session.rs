@@ -176,7 +176,7 @@ where
             &self.context,
             self.registry.get_file_handlers(),
         )
-        .bind_statement(stmt)
+        .resolve_statement(stmt)
         .await?;
 
         let (stream, sink, errors) = new_results_sinks();
