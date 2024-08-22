@@ -17,7 +17,8 @@ use crate::{
         },
         planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
         resolver::{
-            resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference, Bound,
+            resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
+            ResolvedMeta,
         },
     },
 };
@@ -74,7 +75,7 @@ impl<'a> StatementPlanner<'a> {
 
     pub fn plan_statement(
         mut self,
-        stmt: Statement<Bound>,
+        stmt: Statement<ResolvedMeta>,
     ) -> Result<(LogicalQuery2, QueryContext)> {
         trace!("planning statement");
         let mut context = QueryContext::new();
@@ -181,7 +182,7 @@ impl<'a> StatementPlanner<'a> {
         Ok((query, context))
     }
 
-    fn plan_attach(&mut self, mut attach: ast::Attach<Bound>) -> Result<LogicalQuery2> {
+    fn plan_attach(&mut self, mut attach: ast::Attach<ResolvedMeta>) -> Result<LogicalQuery2> {
         match attach.attach_type {
             ast::AttachType::Database => {
                 let mut options = HashMap::new();
@@ -217,7 +218,7 @@ impl<'a> StatementPlanner<'a> {
 
                 Ok(LogicalQuery2 {
                     root: LogicalOperator::AttachDatabase(LogicalNode::new(AttachDatabase {
-                        datasource,
+                        datasource: datasource.into_normalized_string(),
                         name,
                         options,
                     })),
@@ -228,7 +229,7 @@ impl<'a> StatementPlanner<'a> {
         }
     }
 
-    fn plan_detach(&mut self, mut detach: ast::Detach<Bound>) -> Result<LogicalQuery2> {
+    fn plan_detach(&mut self, mut detach: ast::Detach<ResolvedMeta>) -> Result<LogicalQuery2> {
         match detach.attach_type {
             ast::AttachType::Database => {
                 if detach.alias.0.len() != 1 {
@@ -253,7 +254,7 @@ impl<'a> StatementPlanner<'a> {
     fn plan_copy_to(
         &mut self,
         context: &mut QueryContext,
-        copy_to: ast::CopyTo<Bound>,
+        copy_to: ast::CopyTo<ResolvedMeta>,
     ) -> Result<LogicalQuery2> {
         let source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
@@ -320,7 +321,7 @@ impl<'a> StatementPlanner<'a> {
     fn plan_insert(
         &mut self,
         context: &mut QueryContext,
-        insert: ast::Insert<Bound>,
+        insert: ast::Insert<ResolvedMeta>,
     ) -> Result<LogicalQuery2> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
         let source = planner.plan_query(context, insert.source)?;
@@ -362,7 +363,7 @@ impl<'a> StatementPlanner<'a> {
         })
     }
 
-    fn plan_drop(&mut self, mut drop: ast::DropStatement<Bound>) -> Result<LogicalQuery2> {
+    fn plan_drop(&mut self, mut drop: ast::DropStatement<ResolvedMeta>) -> Result<LogicalQuery2> {
         match drop.drop_type {
             ast::DropType::Schema => {
                 let [catalog, schema] = drop.name.pop_2()?;
@@ -391,7 +392,7 @@ impl<'a> StatementPlanner<'a> {
 
     fn plan_create_schema(
         &mut self,
-        mut create: ast::CreateSchema<Bound>,
+        mut create: ast::CreateSchema<ResolvedMeta>,
     ) -> Result<LogicalQuery2> {
         let on_conflict = if create.if_not_exists {
             OnConflict::Ignore
@@ -414,7 +415,7 @@ impl<'a> StatementPlanner<'a> {
     fn plan_create_table(
         &mut self,
         context: &mut QueryContext,
-        mut create: ast::CreateTable<Bound>,
+        mut create: ast::CreateTable<ResolvedMeta>,
     ) -> Result<LogicalQuery2> {
         let on_conflict = match (create.or_replace, create.if_not_exists) {
             (true, false) => OnConflict::Replace,
@@ -431,7 +432,7 @@ impl<'a> StatementPlanner<'a> {
         let mut columns: Vec<_> = create
             .columns
             .into_iter()
-            .map(|col| Field::new(col.name, col.datatype, true))
+            .map(|col| Field::new(col.name.into_normalized_string(), col.datatype, true))
             .collect();
 
         let input = match create.source {

@@ -7,7 +7,7 @@ use crate::logical::{
     resolver::{
         resolve_context::ResolveContext,
         resolved_table::{CteIndex, ResolvedTableOrCteReference, ResolvedTableReference},
-        Bound,
+        ResolvedMeta,
     },
 };
 use crate::{
@@ -70,7 +70,7 @@ impl<'a> QueryNodePlanner<'a> {
     pub fn plan_query(
         &mut self,
         context: &mut QueryContext,
-        query: ast::QueryNode<Bound>,
+        query: ast::QueryNode<ResolvedMeta>,
     ) -> Result<LogicalQuery2> {
         let mut planned = self.plan_query_body(context, query.body, query.order_by)?;
 
@@ -103,8 +103,8 @@ impl<'a> QueryNodePlanner<'a> {
     fn plan_query_body(
         &mut self,
         context: &mut QueryContext,
-        body: ast::QueryNodeBody<Bound>,
-        order_by: Vec<ast::OrderByNode<Bound>>,
+        body: ast::QueryNodeBody<ResolvedMeta>,
+        order_by: Vec<ast::OrderByNode<ResolvedMeta>>,
     ) -> Result<LogicalQuery2> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => self.plan_select(context, *select, order_by)?,
@@ -153,8 +153,8 @@ impl<'a> QueryNodePlanner<'a> {
     fn plan_select(
         &mut self,
         context: &mut QueryContext,
-        select: ast::SelectNode<Bound>,
-        order_by: Vec<ast::OrderByNode<Bound>>,
+        select: ast::SelectNode<ResolvedMeta>,
+        order_by: Vec<ast::OrderByNode<ResolvedMeta>>,
     ) -> Result<LogicalQuery2> {
         // Handle FROM
         let mut plan = match select.from {
@@ -326,7 +326,7 @@ impl<'a> QueryNodePlanner<'a> {
     pub fn plan_from_node(
         &self,
         context: &mut QueryContext,
-        from: ast::FromNode<Bound>,
+        from: ast::FromNode<ResolvedMeta>,
         current_schema: TypeSchema,
         current_scope: Scope,
     ) -> Result<LogicalQuery2> {
@@ -747,7 +747,7 @@ impl<'a> QueryNodePlanner<'a> {
     fn plan_values(
         &self,
         context: &mut QueryContext,
-        values: ast::Values<Bound>,
+        values: ast::Values<ResolvedMeta>,
     ) -> Result<LogicalQuery2> {
         if values.rows.is_empty() {
             return Err(RayexecError::new("Empty VALUES expression"));

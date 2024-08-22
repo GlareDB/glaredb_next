@@ -5,7 +5,7 @@ use crate::logical::{
     expr::LogicalExpression,
     grouping_set::GroupingSets,
     operator::{Aggregate, LogicalNode, LogicalOperator, Projection},
-    resolver::Bound,
+    resolver::ResolvedMeta,
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
@@ -31,7 +31,7 @@ impl AggregatePlanner {
         select_list: &mut [LogicalExpression],
         alias_map: &HashMap<String, usize>,
         mut plan: LogicalOperator,
-        group_by: Option<ast::GroupByNode<Bound>>,
+        group_by: Option<ast::GroupByNode<ResolvedMeta>>,
     ) -> Result<LogicalOperator> {
         // Track which select expressions we've modified when extracting
         // aggregates. This prevents will prevent us from try to point a GROUP

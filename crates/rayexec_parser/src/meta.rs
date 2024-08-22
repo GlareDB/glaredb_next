@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::ast::{
-    BinaryOperator, CommonTableExpr, CopyOption, CopyToTarget, DataType, FunctionArg, Ident,
+    BinaryOperator, CommonTableExpr, CopyOption, CopyToTarget, DataType, FunctionArg,
     ObjectReference, UnaryOperator,
 };
 
@@ -17,9 +17,6 @@ use crate::ast::{
 /// provides representations than can be used during planning, including
 /// resolved tables and types.
 pub trait AstMeta: Clone {
-    /// Name of a data source for ATTACH.
-    type DataSourceName: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
-
     /// Reference to item that might not have any associated context with it.
     type ItemReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
@@ -36,9 +33,6 @@ pub trait AstMeta: Clone {
 
     /// Reference to a scalar or aggregate function.
     type FunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
-
-    /// Reference to a column.
-    type ColumnReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// A data type.
     type DataType: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
@@ -58,14 +52,12 @@ pub trait AstMeta: Clone {
 pub struct Raw;
 
 impl AstMeta for Raw {
-    type DataSourceName = Ident;
     type ItemReference = ObjectReference;
     type TableReference = ObjectReference;
     type TableFunctionReference = ObjectReference;
     type TableFunctionArgs = Vec<FunctionArg<Raw>>;
     type CteReference = CommonTableExpr<Raw>;
     type FunctionReference = ObjectReference;
-    type ColumnReference = Ident;
     type DataType = DataType;
     type CopyToDestination = CopyToTarget;
     type CopyToOptions = Vec<CopyOption<Raw>>;

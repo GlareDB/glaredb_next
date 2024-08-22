@@ -42,15 +42,14 @@ use crate::{
 };
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
-pub type BoundStatement = Statement<Bound>;
+pub type ResolvedStatement = Statement<ResolvedMeta>;
 
 /// Implementation of `AstMeta` which annotates the AST query with
 /// tables/functions/etc found in the db.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Bound;
+pub struct ResolvedMeta;
 
-impl AstMeta for Bound {
-    type DataSourceName = String;
+impl AstMeta for ResolvedMeta {
     type ItemReference = ItemReference;
     /// Index into the tables bind list in bind data.
     type TableReference = ResolveListIdx;
@@ -64,7 +63,6 @@ impl AstMeta for Bound {
     type CteReference = CteIndex;
     /// Index into the functions bind list in bind data.
     type FunctionReference = ResolveListIdx;
-    type ColumnReference = String;
     type DataType = DataType;
     type CopyToDestination = FileLocation;
     type CopyToOptions = CopyToArgs;
@@ -115,7 +113,7 @@ impl<'a> Resolver<'a> {
     pub async fn resolve_statement(
         self,
         stmt: RawStatement,
-    ) -> Result<(BoundStatement, ResolveContext)> {
+    ) -> Result<(ResolvedStatement, ResolveContext)> {
         let mut resolve_context = ResolveContext::default();
         let bound = match stmt {
             Statement::Explain(explain) => {
@@ -186,7 +184,7 @@ impl<'a> Resolver<'a> {
         &self,
         attach: ast::Attach<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::Attach<Bound>> {
+    ) -> Result<ast::Attach<ResolvedMeta>> {
         let mut options = HashMap::new();
         for (k, v) in attach.options {
             let v = ExpressionResolver::new(self)
@@ -196,14 +194,14 @@ impl<'a> Resolver<'a> {
         }
 
         Ok(ast::Attach {
-            datasource_name: attach.datasource_name.into_normalized_string(),
+            datasource_name: attach.datasource_name,
             attach_type: attach.attach_type,
             alias: Self::reference_to_strings(attach.alias).into(),
             options,
         })
     }
 
-    async fn resolve_detach(&self, detach: ast::Detach<Raw>) -> Result<ast::Detach<Bound>> {
+    async fn resolve_detach(&self, detach: ast::Detach<Raw>) -> Result<ast::Detach<ResolvedMeta>> {
         // TODO: Replace 'ItemReference' with actual catalog reference. Similar
         // things will happen with Drop.
         Ok(ast::Detach {
@@ -216,7 +214,7 @@ impl<'a> Resolver<'a> {
         &self,
         copy_to: ast::CopyTo<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::CopyTo<Bound>> {
+    ) -> Result<ast::CopyTo<ResolvedMeta>> {
         let source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 ast::CopyToSource::Query(self.resolve_query(query, resolve_context).await?)
@@ -341,7 +339,7 @@ impl<'a> Resolver<'a> {
     async fn resolve_drop(
         &self,
         drop: ast::DropStatement<Raw>,
-    ) -> Result<ast::DropStatement<Bound>> {
+    ) -> Result<ast::DropStatement<ResolvedMeta>> {
         // TODO: Use search path.
         let mut name: ItemReference = Self::reference_to_strings(drop.name).into();
         match drop.drop_type {
@@ -372,7 +370,7 @@ impl<'a> Resolver<'a> {
     async fn resolve_create_schema(
         &self,
         create: ast::CreateSchema<Raw>,
-    ) -> Result<ast::CreateSchema<Bound>> {
+    ) -> Result<ast::CreateSchema<ResolvedMeta>> {
         // TODO: Search path.
         let mut name: ItemReference = Self::reference_to_strings(create.name).into();
         if name.0.len() == 1 {
@@ -389,7 +387,7 @@ impl<'a> Resolver<'a> {
         &self,
         create: ast::CreateTable<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::CreateTable<Bound>> {
+    ) -> Result<ast::CreateTable<ResolvedMeta>> {
         // TODO: Search path
         let mut name: ItemReference = Self::reference_to_strings(create.name).into();
         if create.temp {
@@ -406,8 +404,8 @@ impl<'a> Resolver<'a> {
             .columns
             .into_iter()
             .map(|col| {
-                Ok(ColumnDef::<Bound> {
-                    name: col.name.into_normalized_string(),
+                Ok(ColumnDef::<ResolvedMeta> {
+                    name: col.name,
                     datatype: Self::ast_datatype_to_exec_datatype(col.datatype)?,
                     opts: col.opts,
                 })
@@ -434,7 +432,7 @@ impl<'a> Resolver<'a> {
         &self,
         insert: ast::Insert<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::Insert<Bound>> {
+    ) -> Result<ast::Insert<ResolvedMeta>> {
         let table = match self.resolve_mode {
             ResolveMode::Normal => {
                 let table = NormalResolver::new(self.tx, self.context)
@@ -479,7 +477,7 @@ impl<'a> Resolver<'a> {
         &self,
         query: ast::QueryNode<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::QueryNode<Bound>> {
+    ) -> Result<ast::QueryNode<ResolvedMeta>> {
         /// Helper containing the actual logic for the resolve.
         ///
         /// Pulled out so we can accurately set the bind data depth before and
@@ -488,7 +486,7 @@ impl<'a> Resolver<'a> {
             resolver: &Resolver<'_>,
             query: ast::QueryNode<Raw>,
             resolve_context: &mut ResolveContext,
-        ) -> Result<ast::QueryNode<Bound>> {
+        ) -> Result<ast::QueryNode<ResolvedMeta>> {
             let ctes = match query.ctes {
                 Some(ctes) => Some(resolver.resolve_ctes(ctes, resolve_context).await?),
                 None => None,
@@ -541,7 +539,7 @@ impl<'a> Resolver<'a> {
         &self,
         body: ast::QueryNodeBody<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::QueryNodeBody<Bound>> {
+    ) -> Result<ast::QueryNodeBody<ResolvedMeta>> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => ast::QueryNodeBody::Select(Box::new(
                 self.resolve_select(*select, resolve_context).await?,
@@ -574,7 +572,7 @@ impl<'a> Resolver<'a> {
         &self,
         ctes: ast::CommonTableExprDefs<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::CommonTableExprDefs<Bound>> {
+    ) -> Result<ast::CommonTableExprDefs<ResolvedMeta>> {
         let mut bound_refs = Vec::with_capacity(ctes.ctes.len());
         for cte in ctes.ctes.into_iter() {
             let depth = resolve_context.current_depth;
@@ -602,7 +600,7 @@ impl<'a> Resolver<'a> {
         &self,
         select: ast::SelectNode<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::SelectNode<Bound>> {
+    ) -> Result<ast::SelectNode<ResolvedMeta>> {
         // Bind DISTINCT
         let distinct = match select.distinct {
             Some(distinct) => Some(match distinct {
@@ -691,7 +689,7 @@ impl<'a> Resolver<'a> {
         &self,
         values: ast::Values<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::Values<Bound>> {
+    ) -> Result<ast::Values<ResolvedMeta>> {
         let mut bound = Vec::with_capacity(values.rows.len());
         for row in values.rows {
             bound.push(
@@ -707,7 +705,7 @@ impl<'a> Resolver<'a> {
         &self,
         order_by: ast::OrderByNode<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::OrderByNode<Bound>> {
+    ) -> Result<ast::OrderByNode<ResolvedMeta>> {
         let expr = ExpressionResolver::new(self)
             .resolve_expression(order_by.expr, resolve_context)
             .await?;
@@ -722,7 +720,7 @@ impl<'a> Resolver<'a> {
         &self,
         from: ast::FromNode<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::FromNode<Bound>> {
+    ) -> Result<ast::FromNode<ResolvedMeta>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 let table = match self.resolve_mode {

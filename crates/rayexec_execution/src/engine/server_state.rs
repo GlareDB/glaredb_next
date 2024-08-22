@@ -23,7 +23,7 @@ use crate::{
         resolver::{
             resolve_context::ResolveContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},
-            BoundStatement,
+            ResolvedStatement,
         },
     },
     optimizer::Optimizer,
@@ -86,7 +86,7 @@ where
     pub async fn plan_partially_bound(
         &self,
         mut context: DatabaseContext,
-        stmt: BoundStatement,
+        stmt: ResolvedStatement,
         bind_data: ResolveContext,
     ) -> Result<HybridPlanResponse> {
         // Extend context with what we need in the query.

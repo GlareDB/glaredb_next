@@ -13,8 +13,8 @@ use rayexec_parser::{
 };
 
 use super::{
-    resolve_normal::create_user_facing_resolve_err, resolved_function::ResolvedFunction, Bound,
-    ResolveContext, Resolver,
+    resolve_normal::create_user_facing_resolve_err, resolved_function::ResolvedFunction,
+    ResolveContext, ResolvedMeta, Resolver,
 };
 
 pub struct ExpressionResolver<'a> {
@@ -30,7 +30,7 @@ impl<'a> ExpressionResolver<'a> {
         &self,
         select_expr: ast::SelectExpr<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::SelectExpr<Bound>> {
+    ) -> Result<ast::SelectExpr<ResolvedMeta>> {
         match select_expr {
             ast::SelectExpr::Expr(expr) => Ok(ast::SelectExpr::Expr(
                 self.resolve_expression(expr, resolve_context).await?,
@@ -55,7 +55,7 @@ impl<'a> ExpressionResolver<'a> {
         &self,
         wildcard: ast::Wildcard<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::Wildcard<Bound>> {
+    ) -> Result<ast::Wildcard<ResolvedMeta>> {
         let mut replace_cols = Vec::with_capacity(wildcard.replace_cols.len());
         for replace in wildcard.replace_cols {
             replace_cols.push(ReplaceColumn {
@@ -76,7 +76,7 @@ impl<'a> ExpressionResolver<'a> {
         &self,
         expr: ast::GroupByExpr<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::GroupByExpr<Bound>> {
+    ) -> Result<ast::GroupByExpr<ResolvedMeta>> {
         Ok(match expr {
             ast::GroupByExpr::Expr(exprs) => {
                 ast::GroupByExpr::Expr(self.resolve_expressions(exprs, resolve_context).await?)
@@ -171,7 +171,7 @@ impl<'a> ExpressionResolver<'a> {
         &self,
         exprs: impl IntoIterator<Item = ast::Expr<Raw>>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<Vec<ast::Expr<Bound>>> {
+    ) -> Result<Vec<ast::Expr<ResolvedMeta>>> {
         let mut resolved = Vec::new();
         for expr in exprs {
             resolved.push(self.resolve_expression(expr, resolve_context).await?);
@@ -184,7 +184,7 @@ impl<'a> ExpressionResolver<'a> {
         &self,
         expr: ast::Expr<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::Expr<Bound>> {
+    ) -> Result<ast::Expr<ResolvedMeta>> {
         match expr {
             ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),
             ast::Expr::CompoundIdent(idents) => Ok(ast::Expr::CompoundIdent(idents)),

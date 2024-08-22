@@ -65,7 +65,7 @@ impl AstParseable for CreateTable<Raw> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDef<T: AstMeta> {
-    pub name: T::ColumnReference,
+    pub name: Ident,
     pub datatype: T::DataType,
     pub opts: Vec<ColumnOption>,
 }

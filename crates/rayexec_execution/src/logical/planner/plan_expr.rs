@@ -16,7 +16,7 @@ use crate::functions::CastType;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 use crate::logical::resolver::resolved_function::ResolvedFunction;
-use crate::logical::resolver::Bound;
+use crate::logical::resolver::ResolvedMeta;
 
 use super::plan_query::QueryNodePlanner;
 use super::scope::{Scope, TableReference};
@@ -28,7 +28,7 @@ pub enum ExpandedSelectExpr {
     /// expression.
     Expr {
         /// The original expression.
-        expr: ast::Expr<Bound>,
+        expr: ast::Expr<ResolvedMeta>,
         /// Either an alias provided by the user or a name we generate for the
         /// expression. If this references a column, then the name will just
         /// match that column.
@@ -73,7 +73,7 @@ impl<'a> ExpressionContext<'a> {
 
     pub fn expand_all_select_exprs(
         &self,
-        exprs: impl IntoIterator<Item = ast::SelectExpr<Bound>>,
+        exprs: impl IntoIterator<Item = ast::SelectExpr<ResolvedMeta>>,
     ) -> Result<Vec<ExpandedSelectExpr>> {
         let mut expanded = Vec::new();
         for expr in exprs {
@@ -85,7 +85,7 @@ impl<'a> ExpressionContext<'a> {
 
     pub fn expand_select_expr(
         &self,
-        expr: ast::SelectExpr<Bound>,
+        expr: ast::SelectExpr<ResolvedMeta>,
     ) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
             ast::SelectExpr::Expr(expr) => match &expr {
@@ -164,7 +164,7 @@ impl<'a> ExpressionContext<'a> {
     pub fn plan_expression(
         &self,
         context: &mut QueryContext,
-        expr: ast::Expr<Bound>,
+        expr: ast::Expr<ResolvedMeta>,
     ) -> Result<LogicalExpression> {
         match expr {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
@@ -446,7 +446,7 @@ impl<'a> ExpressionContext<'a> {
         context: &mut QueryContext,
         alias_map: &HashMap<String, usize>,
         planned: &[LogicalExpression],
-        expr: ast::Expr<Bound>,
+        expr: ast::Expr<ResolvedMeta>,
     ) -> Result<LogicalExpression> {
         if let ast::Expr::Literal(ast::Literal::Number(s)) = expr {
             let n = s
@@ -478,7 +478,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     /// Plan a sql literal
-    pub(crate) fn plan_literal(literal: ast::Literal<Bound>) -> Result<LogicalExpression> {
+    pub(crate) fn plan_literal(literal: ast::Literal<ResolvedMeta>) -> Result<LogicalExpression> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i64>() {

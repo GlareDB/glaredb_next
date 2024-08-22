@@ -28,7 +28,7 @@ use std::io::Cursor;
 use url::{Host, Url};
 use uuid::Uuid;
 
-use crate::{database::DatabaseContext, logical::resolver::BoundStatement};
+use crate::{database::DatabaseContext, logical::resolver::ResolvedStatement};
 
 pub const API_VERSION: usize = 0;
 
@@ -57,7 +57,7 @@ pub struct HybridPlanRequest {
     ///
     /// This includes partially bound items that reference the things in the
     /// resolved context.
-    pub statement: BoundStatement,
+    pub statement: ResolvedStatement,
     pub resolve_context: ResolveContext,
 }
 
@@ -433,7 +433,7 @@ impl<C: HttpClient> HybridClient<C> {
     // data, and decoding the pipelines we get back.
     pub async fn remote_plan(
         &self,
-        stmt: BoundStatement,
+        stmt: ResolvedStatement,
         resolve_context: ResolveContext,
         context: &DatabaseContext,
     ) -> Result<HybridPlanResponse> {
