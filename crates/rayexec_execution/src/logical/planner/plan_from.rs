@@ -7,7 +7,7 @@ use super::{plan_statement::LogicalQuery, planning_context::PlanningContext};
 
 #[derive(Debug)]
 pub struct FromPlanner<'a> {
-    pub bind_data: &'a ResolveContext,
+    pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> FromPlanner<'a> {

@@ -146,7 +146,7 @@ impl<'a> NormalResolver<'a> {
     pub async fn resolve_table_or_cte(
         &self,
         reference: &ast::ObjectReference,
-        bind_data: &ResolveContext,
+        resolve_context: &ResolveContext,
     ) -> Result<MaybeResolvedTable> {
         // TODO: Seach path.
         let [catalog, schema, table] = match reference.0.len() {
@@ -154,7 +154,7 @@ impl<'a> NormalResolver<'a> {
                 let name = reference.0[0].as_normalized_string();
 
                 // Check bind data for cte that would satisfy this reference.
-                if let Some(cte) = bind_data.find_cte(&name) {
+                if let Some(cte) = resolve_context.find_cte(&name) {
                     return Ok(MaybeResolvedTable::Resolved(
                         ResolvedTableOrCteReference::Cte(cte),
                     ));
@@ -283,9 +283,12 @@ impl<'a> NormalResolver<'a> {
     pub async fn require_resolve_table_or_cte(
         &self,
         reference: &ast::ObjectReference,
-        bind_data: &ResolveContext,
+        resolve_context: &ResolveContext,
     ) -> Result<ResolvedTableOrCteReference> {
-        match self.resolve_table_or_cte(reference, bind_data).await? {
+        match self
+            .resolve_table_or_cte(reference, resolve_context)
+            .await?
+        {
             MaybeResolvedTable::Resolved(table) => Ok(table),
             _ => Err(RayexecError::new(format!(
                 "Missing table or view for reference '{}'",

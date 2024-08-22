@@ -2,13 +2,13 @@
 //!
 //! Planning happens in two stages:
 //!
-//! 1. Statement binding
+//! 1. Statement resolve
 //! 2. Logical planning
 //!
-//! During 'statement binding', the AST is walked, and database objects are
+//! During 'statement resolve', the AST is walked, and database objects are
 //! resolved from the database context. Since resolving potentially external
 //! database objects is async, the entire binding phase is async. Statement
-//! binding does not attempt to verify that the user's query is correct. Its
+//! resolving does not attempt to verify that the user's query is correct. Its
 //! primary job is to make sure the query is annotated with everything it needs
 //! such that the planner does not need to reference the catalog.
 //!

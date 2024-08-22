@@ -56,9 +56,9 @@ pub struct HybridPlanRequest {
     /// The sql statement we're planning.
     ///
     /// This includes partially bound items that reference the things in the
-    /// bind data.
+    /// resolved context.
     pub statement: BoundStatement,
-    pub bind_data: ResolveContext,
+    pub resolve_context: ResolveContext,
 }
 
 impl DatabaseProtoConv for HybridPlanRequest {
@@ -69,7 +69,7 @@ impl DatabaseProtoConv for HybridPlanRequest {
             serde_json::to_vec(&self.statement).context("failed to encode statement")?;
         Ok(Self::ProtoType {
             resolved_statement_json: statement,
-            resolve_context: Some(self.bind_data.to_proto_ctx(context)?),
+            resolve_context: Some(self.resolve_context.to_proto_ctx(context)?),
         })
     }
 
@@ -78,7 +78,7 @@ impl DatabaseProtoConv for HybridPlanRequest {
             .context("failed to decode statement")?;
         Ok(Self {
             statement,
-            bind_data: ResolveContext::from_proto_ctx(
+            resolve_context: ResolveContext::from_proto_ctx(
                 proto.resolve_context.required("resolve_context")?,
                 context,
             )?,
@@ -434,7 +434,7 @@ impl<C: HttpClient> HybridClient<C> {
     pub async fn remote_plan(
         &self,
         stmt: BoundStatement,
-        bind_data: ResolveContext,
+        resolve_context: ResolveContext,
         context: &DatabaseContext,
     ) -> Result<HybridPlanResponse> {
         let url = self
@@ -444,7 +444,7 @@ impl<C: HttpClient> HybridClient<C> {
 
         let msg = HybridPlanRequest {
             statement: stmt,
-            bind_data,
+            resolve_context,
         };
 
         let encoded_msg = msg.to_proto_ctx(context)?.encode_to_vec();

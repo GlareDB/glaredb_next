@@ -18,35 +18,35 @@ use super::{
 };
 
 pub struct ExpressionResolver<'a> {
-    binder: &'a Resolver<'a>,
+    resolver: &'a Resolver<'a>,
 }
 
 impl<'a> ExpressionResolver<'a> {
-    pub fn new(binder: &'a Resolver) -> Self {
-        ExpressionResolver { binder }
+    pub fn new(resolver: &'a Resolver) -> Self {
+        ExpressionResolver { resolver }
     }
 
     pub async fn resolve_select_expr(
         &self,
         select_expr: ast::SelectExpr<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::SelectExpr<Bound>> {
         match select_expr {
             ast::SelectExpr::Expr(expr) => Ok(ast::SelectExpr::Expr(
-                self.resolve_expression(expr, bind_data).await?,
+                self.resolve_expression(expr, resolve_context).await?,
             )),
             ast::SelectExpr::AliasedExpr(expr, alias) => Ok(ast::SelectExpr::AliasedExpr(
-                self.resolve_expression(expr, bind_data).await?,
+                self.resolve_expression(expr, resolve_context).await?,
                 alias,
             )),
             ast::SelectExpr::QualifiedWildcard(object_name, wildcard) => {
                 Ok(ast::SelectExpr::QualifiedWildcard(
                     object_name,
-                    self.resolve_wildcard(wildcard, bind_data).await?,
+                    self.resolve_wildcard(wildcard, resolve_context).await?,
                 ))
             }
             ast::SelectExpr::Wildcard(wildcard) => Ok(ast::SelectExpr::Wildcard(
-                self.resolve_wildcard(wildcard, bind_data).await?,
+                self.resolve_wildcard(wildcard, resolve_context).await?,
             )),
         }
     }
@@ -54,13 +54,15 @@ impl<'a> ExpressionResolver<'a> {
     pub async fn resolve_wildcard(
         &self,
         wildcard: ast::Wildcard<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::Wildcard<Bound>> {
         let mut replace_cols = Vec::with_capacity(wildcard.replace_cols.len());
         for replace in wildcard.replace_cols {
             replace_cols.push(ReplaceColumn {
                 col: replace.col,
-                expr: self.resolve_expression(replace.expr, bind_data).await?,
+                expr: self
+                    .resolve_expression(replace.expr, resolve_context)
+                    .await?,
             });
         }
 
@@ -73,27 +75,27 @@ impl<'a> ExpressionResolver<'a> {
     pub async fn resolve_group_by_expr(
         &self,
         expr: ast::GroupByExpr<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::GroupByExpr<Bound>> {
         Ok(match expr {
             ast::GroupByExpr::Expr(exprs) => {
-                ast::GroupByExpr::Expr(self.resolve_expressions(exprs, bind_data).await?)
+                ast::GroupByExpr::Expr(self.resolve_expressions(exprs, resolve_context).await?)
             }
             ast::GroupByExpr::Cube(exprs) => {
-                ast::GroupByExpr::Cube(self.resolve_expressions(exprs, bind_data).await?)
+                ast::GroupByExpr::Cube(self.resolve_expressions(exprs, resolve_context).await?)
             }
             ast::GroupByExpr::Rollup(exprs) => {
-                ast::GroupByExpr::Rollup(self.resolve_expressions(exprs, bind_data).await?)
+                ast::GroupByExpr::Rollup(self.resolve_expressions(exprs, resolve_context).await?)
             }
-            ast::GroupByExpr::GroupingSets(exprs) => {
-                ast::GroupByExpr::GroupingSets(self.resolve_expressions(exprs, bind_data).await?)
-            }
+            ast::GroupByExpr::GroupingSets(exprs) => ast::GroupByExpr::GroupingSets(
+                self.resolve_expressions(exprs, resolve_context).await?,
+            ),
         })
     }
 
-    /// Binds functions arguments for a table function.
+    /// Resolves functions arguments for a table function.
     ///
-    /// Slightly different from normal argument binding since arguments to a
+    /// Slightly different from normal argument resolving since arguments to a
     /// table function are more restrictive. E.g. we only allow literals as
     /// arguments.
     ///
@@ -103,7 +105,7 @@ impl<'a> ExpressionResolver<'a> {
         &self,
         args: Vec<FunctionArg<Raw>>,
     ) -> Result<TableFunctionArgs> {
-        let bind_data = &mut ResolveContext::default(); // Empty bind data since we don't allow complex expressions.
+        let resolve_context = &mut ResolveContext::default(); // Empty resolve context since we don't allow complex expressions.
 
         let mut named = HashMap::new();
         let mut positional = Vec::new();
@@ -119,7 +121,7 @@ impl<'a> ExpressionResolver<'a> {
                             ))
                         }
                         ast::FunctionArgExpr::Expr(expr) => {
-                            match Box::pin(self.resolve_expression(expr, bind_data)).await? {
+                            match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
                                 ast::Expr::Literal(lit) => {
                                     ExpressionContext::plan_literal(lit)?.try_into_scalar()?
                                 }
@@ -145,7 +147,7 @@ impl<'a> ExpressionResolver<'a> {
                             ))
                         }
                         ast::FunctionArgExpr::Expr(expr) => {
-                            match Box::pin(self.resolve_expression(expr, bind_data)).await? {
+                            match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
                                 ast::Expr::Literal(lit) => {
                                     ExpressionContext::plan_literal(lit)?.try_into_scalar()?
                                 }
@@ -168,20 +170,20 @@ impl<'a> ExpressionResolver<'a> {
     pub async fn resolve_expressions(
         &self,
         exprs: impl IntoIterator<Item = ast::Expr<Raw>>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<Vec<ast::Expr<Bound>>> {
-        let mut bound = Vec::new();
+        let mut resolved = Vec::new();
         for expr in exprs {
-            bound.push(self.resolve_expression(expr, bind_data).await?);
+            resolved.push(self.resolve_expression(expr, resolve_context).await?);
         }
-        Ok(bound)
+        Ok(resolved)
     }
 
     /// Resolve an expression.
     pub async fn resolve_expression(
         &self,
         expr: ast::Expr<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::Expr<Bound>> {
         match expr {
             ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),
@@ -192,26 +194,27 @@ impl<'a> ExpressionResolver<'a> {
                 ast::Literal::Boolean(b) => ast::Literal::Boolean(b),
                 ast::Literal::Null => ast::Literal::Null,
                 ast::Literal::Struct { keys, values } => {
-                    let bound = Box::pin(self.resolve_expressions(values, bind_data)).await?;
+                    let resolved =
+                        Box::pin(self.resolve_expressions(values, resolve_context)).await?;
                     ast::Literal::Struct {
                         keys,
-                        values: bound,
+                        values: resolved,
                     }
                 }
             })),
             ast::Expr::Array(arr) => {
                 let mut new_arr = Vec::with_capacity(arr.len());
                 for v in arr {
-                    let new_v = Box::pin(self.resolve_expression(v, bind_data)).await?;
+                    let new_v = Box::pin(self.resolve_expression(v, resolve_context)).await?;
                     new_arr.push(new_v);
                 }
                 Ok(ast::Expr::Array(new_arr))
             }
             ast::Expr::ArraySubscript { expr, subscript } => {
-                let expr = Box::pin(self.resolve_expression(*expr, bind_data)).await?;
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
                 let subscript = match *subscript {
                     ast::ArraySubscript::Index(index) => ast::ArraySubscript::Index(
-                        Box::pin(self.resolve_expression(index, bind_data)).await?,
+                        Box::pin(self.resolve_expression(index, resolve_context)).await?,
                     ),
                     ast::ArraySubscript::Slice {
                         lower,
@@ -219,21 +222,21 @@ impl<'a> ExpressionResolver<'a> {
                         stride,
                     } => {
                         let lower = match lower {
-                            Some(lower) => {
-                                Some(Box::pin(self.resolve_expression(lower, bind_data)).await?)
-                            }
+                            Some(lower) => Some(
+                                Box::pin(self.resolve_expression(lower, resolve_context)).await?,
+                            ),
                             None => None,
                         };
                         let upper = match upper {
-                            Some(upper) => {
-                                Some(Box::pin(self.resolve_expression(upper, bind_data)).await?)
-                            }
+                            Some(upper) => Some(
+                                Box::pin(self.resolve_expression(upper, resolve_context)).await?,
+                            ),
                             None => None,
                         };
                         let stride = match stride {
-                            Some(stride) => {
-                                Some(Box::pin(self.resolve_expression(stride, bind_data)).await?)
-                            }
+                            Some(stride) => Some(
+                                Box::pin(self.resolve_expression(stride, resolve_context)).await?,
+                            ),
                             None => None,
                         };
 
@@ -254,7 +257,7 @@ impl<'a> ExpressionResolver<'a> {
                 match op {
                     ast::UnaryOperator::Plus => {
                         // Nothing to do, just bind and return the inner expression.
-                        Box::pin(self.resolve_expression(*expr, bind_data)).await
+                        Box::pin(self.resolve_expression(*expr, resolve_context)).await
                     }
                     ast::UnaryOperator::Minus => match *expr {
                         ast::Expr::Literal(ast::Literal::Number(n)) => {
@@ -263,7 +266,7 @@ impl<'a> ExpressionResolver<'a> {
                         expr => Ok(ast::Expr::UnaryExpr {
                             op: UnaryOperator::Negate,
                             expr: Box::new(
-                                Box::pin(self.resolve_expression(expr, bind_data)).await?,
+                                Box::pin(self.resolve_expression(expr, resolve_context)).await?,
                             ),
                         }),
                     },
@@ -273,9 +276,9 @@ impl<'a> ExpressionResolver<'a> {
                 }
             }
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
-                left: Box::new(Box::pin(self.resolve_expression(*left, bind_data)).await?),
+                left: Box::new(Box::pin(self.resolve_expression(*left, resolve_context)).await?),
                 op: op.try_into()?,
-                right: Box::new(Box::pin(self.resolve_expression(*right, bind_data)).await?),
+                right: Box::new(Box::pin(self.resolve_expression(*right, resolve_context)).await?),
             }),
             ast::Expr::Function(func) => {
                 // TODO: Search path (with system being the first to check)
@@ -290,7 +293,7 @@ impl<'a> ExpressionResolver<'a> {
 
                 let filter = match func.filter {
                     Some(filter) => Some(Box::new(
-                        Box::pin(self.resolve_expression(*filter, bind_data)).await?,
+                        Box::pin(self.resolve_expression(*filter, resolve_context)).await?,
                     )),
                     None => None,
                 };
@@ -311,7 +314,8 @@ impl<'a> ExpressionResolver<'a> {
                                     ast::Expr::Literal(ast::Literal::Boolean(true)),
                                 ),
                                 ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                                    Box::pin(self.resolve_expression(expr, bind_data)).await?,
+                                    Box::pin(self.resolve_expression(expr, resolve_context))
+                                        .await?,
                                 ),
                             },
                         },
@@ -321,7 +325,8 @@ impl<'a> ExpressionResolver<'a> {
                                     ast::Expr::Literal(ast::Literal::Boolean(true)),
                                 ),
                                 ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                                    Box::pin(self.resolve_expression(expr, bind_data)).await?,
+                                    Box::pin(self.resolve_expression(expr, resolve_context))
+                                        .await?,
                                 ),
                             },
                         },
@@ -330,26 +335,26 @@ impl<'a> ExpressionResolver<'a> {
                 }
 
                 let schema_ent = self
-                    .binder
+                    .resolver
                     .context
                     .get_database(catalog)?
                     .catalog
-                    .get_schema(self.binder.tx, schema)?
+                    .get_schema(self.resolver.tx, schema)?
                     .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
                 // Check scalars first.
-                if let Some(scalar) = schema_ent.get_scalar_function(self.binder.tx, func_name)? {
-                    // TODO: Allow unbound scalars?
+                if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, func_name)? {
+                    // TODO: Allow unresolved scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
-                    let bind_idx = bind_data.functions.push_resolved(
+                    let resolve_idx = resolve_context.functions.push_resolved(
                         ResolvedFunction::Scalar(
                             scalar.try_as_scalar_function_entry()?.function.clone(),
                         ),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {
-                        reference: bind_idx,
+                        reference: resolve_idx,
                         args,
                         filter,
                     }));
@@ -357,10 +362,10 @@ impl<'a> ExpressionResolver<'a> {
 
                 // Now check aggregates.
                 if let Some(aggregate) =
-                    schema_ent.get_aggregate_function(self.binder.tx, func_name)?
+                    schema_ent.get_aggregate_function(self.resolver.tx, func_name)?
                 {
-                    // TODO: Allow unbound aggregates?
-                    let bind_idx = bind_data.functions.push_resolved(
+                    // TODO: Allow unresolved aggregates?
+                    let resolve_idx = resolve_context.functions.push_resolved(
                         ResolvedFunction::Aggregate(
                             aggregate
                                 .try_as_aggregate_function_entry()?
@@ -370,14 +375,14 @@ impl<'a> ExpressionResolver<'a> {
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {
-                        reference: bind_idx,
+                        reference: resolve_idx,
                         args,
                         filter,
                     }));
                 }
 
                 Err(create_user_facing_resolve_err(
-                    self.binder.tx,
+                    self.resolver.tx,
                     Some(&schema_ent),
                     &[
                         CatalogEntryType::ScalarFunction,
@@ -387,16 +392,18 @@ impl<'a> ExpressionResolver<'a> {
                 ))
             }
             ast::Expr::Subquery(subquery) => {
-                let bound = Box::pin(self.binder.resolve_query(*subquery, bind_data)).await?;
-                Ok(ast::Expr::Subquery(Box::new(bound)))
+                let resolved =
+                    Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
+                Ok(ast::Expr::Subquery(Box::new(resolved)))
             }
             ast::Expr::Exists {
                 subquery,
                 not_exists,
             } => {
-                let bound = Box::pin(self.binder.resolve_query(*subquery, bind_data)).await?;
+                let resolved =
+                    Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
                 Ok(ast::Expr::Exists {
-                    subquery: Box::new(bound),
+                    subquery: Box::new(resolved),
                     not_exists,
                 })
             }
@@ -405,7 +412,7 @@ impl<'a> ExpressionResolver<'a> {
                 Ok(ast::Expr::TypedString { datatype, value })
             }
             ast::Expr::Cast { datatype, expr } => {
-                let expr = Box::pin(self.resolve_expression(*expr, bind_data)).await?;
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
                 let datatype = Resolver::ast_datatype_to_exec_datatype(datatype)?;
                 Ok(ast::Expr::Cast {
                     datatype,
@@ -413,7 +420,7 @@ impl<'a> ExpressionResolver<'a> {
                 })
             }
             ast::Expr::Nested(expr) => {
-                let expr = Box::pin(self.resolve_expression(*expr, bind_data)).await?;
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
                 Ok(ast::Expr::Nested(Box::new(expr)))
             }
             ast::Expr::Interval(ast::Interval {
@@ -421,7 +428,7 @@ impl<'a> ExpressionResolver<'a> {
                 leading,
                 trailing,
             }) => {
-                let value = Box::pin(self.resolve_expression(*value, bind_data)).await?;
+                let value = Box::pin(self.resolve_expression(*value, resolve_context)).await?;
                 Ok(ast::Expr::Interval(ast::Interval {
                     value: Box::new(value),
                     leading,
@@ -434,8 +441,8 @@ impl<'a> ExpressionResolver<'a> {
                 expr,
                 pattern,
             } => {
-                let expr = Box::pin(self.resolve_expression(*expr, bind_data)).await?;
-                let pattern = Box::pin(self.resolve_expression(*pattern, bind_data)).await?;
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let pattern = Box::pin(self.resolve_expression(*pattern, resolve_context)).await?;
                 Ok(ast::Expr::Like {
                     not_like,
                     case_insensitive,

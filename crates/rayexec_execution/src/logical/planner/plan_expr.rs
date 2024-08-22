@@ -252,8 +252,8 @@ impl<'a> ExpressionContext<'a> {
                                 Ok(self.plan_expression(context, expr)?)
                             }
                             ast::FunctionArgExpr::Wildcard => {
-                                // Binder should have handled removing '*' from
-                                // function calls.
+                                // Resolver should have handled removing '*'
+                                // from function calls.
                                 Err(RayexecError::new(
                                     "Cannot plan a function with '*' as an argument",
                                 ))

@@ -119,7 +119,7 @@ impl DatabaseProtoConv for ResolveContext {
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         if !self.ctes.is_empty() {
             // More ast work needed.
-            not_implemented!("encode ctes in bind data")
+            not_implemented!("encode ctes in resolve context")
         }
 
         Ok(Self::ProtoType {
@@ -160,7 +160,7 @@ impl DatabaseProtoConv for ResolveContext {
 pub enum MaybeResolved<B, U> {
     /// The object has been resolved, and has a given location requirement.
     Resolved(B, LocationRequirement),
-    /// Object is unbound.
+    /// Object is unresolved.
     Unresolved(U),
 }
 

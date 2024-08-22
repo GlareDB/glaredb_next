@@ -41,7 +41,7 @@ use crate::{
     logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
 };
 
-/// An AST statement with references bound to data inside of the `bind_data`.
+/// An AST statement with references bound to data inside of the `resolve_context`.
 pub type BoundStatement = Statement<Bound>;
 
 /// Implementation of `AstMeta` which annotates the AST query with
@@ -116,13 +116,13 @@ impl<'a> Resolver<'a> {
         self,
         stmt: RawStatement,
     ) -> Result<(BoundStatement, ResolveContext)> {
-        let mut bind_data = ResolveContext::default();
+        let mut resolve_context = ResolveContext::default();
         let bound = match stmt {
             Statement::Explain(explain) => {
                 let body = match explain.body {
-                    ast::ExplainBody::Query(query) => {
-                        ast::ExplainBody::Query(self.resolve_query(query, &mut bind_data).await?)
-                    }
+                    ast::ExplainBody::Query(query) => ast::ExplainBody::Query(
+                        self.resolve_query(query, &mut resolve_context).await?,
+                    ),
                 };
                 Statement::Explain(ast::ExplainNode {
                     analyze: explain.analyze,
@@ -132,25 +132,26 @@ impl<'a> Resolver<'a> {
                 })
             }
             Statement::CopyTo(copy_to) => {
-                Statement::CopyTo(self.resolve_copy_to(copy_to, &mut bind_data).await?)
+                Statement::CopyTo(self.resolve_copy_to(copy_to, &mut resolve_context).await?)
             }
             Statement::Describe(describe) => match describe {
                 ast::Describe::Query(query) => Statement::Describe(ast::Describe::Query(
-                    self.resolve_query(query, &mut bind_data).await?,
+                    self.resolve_query(query, &mut resolve_context).await?,
                 )),
                 ast::Describe::FromNode(from) => Statement::Describe(ast::Describe::FromNode(
-                    self.resolve_from(from, &mut bind_data).await?,
+                    self.resolve_from(from, &mut resolve_context).await?,
                 )),
             },
             Statement::Query(query) => {
-                Statement::Query(self.resolve_query(query, &mut bind_data).await?)
+                Statement::Query(self.resolve_query(query, &mut resolve_context).await?)
             }
             Statement::Insert(insert) => {
-                Statement::Insert(self.resolve_insert(insert, &mut bind_data).await?)
+                Statement::Insert(self.resolve_insert(insert, &mut resolve_context).await?)
             }
-            Statement::CreateTable(create) => {
-                Statement::CreateTable(self.resolve_create_table(create, &mut bind_data).await?)
-            }
+            Statement::CreateTable(create) => Statement::CreateTable(
+                self.resolve_create_table(create, &mut resolve_context)
+                    .await?,
+            ),
             Statement::CreateSchema(create) => {
                 Statement::CreateSchema(self.resolve_create_schema(create).await?)
             }
@@ -158,7 +159,7 @@ impl<'a> Resolver<'a> {
             Statement::SetVariable(set) => Statement::SetVariable(ast::SetVariable {
                 reference: Self::reference_to_strings(set.reference).into(),
                 value: ExpressionResolver::new(&self)
-                    .resolve_expression(set.value, &mut bind_data)
+                    .resolve_expression(set.value, &mut resolve_context)
                     .await?,
             }),
             Statement::ShowVariable(show) => Statement::ShowVariable(ast::ShowVariable {
@@ -173,23 +174,23 @@ impl<'a> Resolver<'a> {
                 },
             }),
             Statement::Attach(attach) => {
-                Statement::Attach(self.resolve_attach(attach, &mut bind_data).await?)
+                Statement::Attach(self.resolve_attach(attach, &mut resolve_context).await?)
             }
             Statement::Detach(detach) => Statement::Detach(self.resolve_detach(detach).await?),
         };
 
-        Ok((bound, bind_data))
+        Ok((bound, resolve_context))
     }
 
     async fn resolve_attach(
         &self,
         attach: ast::Attach<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::Attach<Bound>> {
         let mut options = HashMap::new();
         for (k, v) in attach.options {
             let v = ExpressionResolver::new(self)
-                .resolve_expression(v, bind_data)
+                .resolve_expression(v, resolve_context)
                 .await?;
             options.insert(k, v);
         }
@@ -214,23 +215,23 @@ impl<'a> Resolver<'a> {
     async fn resolve_copy_to(
         &self,
         copy_to: ast::CopyTo<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::CopyTo<Bound>> {
         let source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
-                ast::CopyToSource::Query(self.resolve_query(query, bind_data).await?)
+                ast::CopyToSource::Query(self.resolve_query(query, resolve_context).await?)
             }
             ast::CopyToSource::Table(reference) => {
                 let table = match self.resolve_mode {
                     ResolveMode::Normal => {
                         let table = NormalResolver::new(self.tx, self.context)
-                            .require_resolve_table_or_cte(&reference, bind_data)
+                            .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
                         MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
                     ResolveMode::Hybrid => {
                         let table = NormalResolver::new(self.tx, self.context)
-                            .resolve_table_or_cte(&reference, bind_data)
+                            .resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
                         match table {
@@ -250,7 +251,7 @@ impl<'a> Resolver<'a> {
                     }
                 };
 
-                let idx = bind_data.tables.push_maybe_resolved(table);
+                let idx = resolve_context.tables.push_maybe_resolved(table);
                 ast::CopyToSource::Table(idx)
             }
         };
@@ -259,7 +260,7 @@ impl<'a> Resolver<'a> {
         for opt in copy_to.options {
             let key = opt.key.into_normalized_string();
             let expr = ExpressionResolver::new(self)
-                .resolve_expression(opt.val, bind_data)
+                .resolve_expression(opt.val, resolve_context)
                 .await?;
 
             let val = match expr {
@@ -324,7 +325,7 @@ impl<'a> Resolver<'a> {
                     }
                 };
 
-                bind_data.copy_to = Some(ResolvedCopyTo { func });
+                resolve_context.copy_to = Some(ResolvedCopyTo { func });
 
                 FileLocation::parse(&file_name)
             }
@@ -387,7 +388,7 @@ impl<'a> Resolver<'a> {
     async fn resolve_create_table(
         &self,
         create: ast::CreateTable<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::CreateTable<Bound>> {
         // TODO: Search path
         let mut name: ItemReference = Self::reference_to_strings(create.name).into();
@@ -414,7 +415,7 @@ impl<'a> Resolver<'a> {
             .collect::<Result<Vec<_>>>()?;
 
         let source = match create.source {
-            Some(source) => Some(self.resolve_query(source, bind_data).await?),
+            Some(source) => Some(self.resolve_query(source, resolve_context).await?),
             None => None,
         };
 
@@ -432,18 +433,18 @@ impl<'a> Resolver<'a> {
     async fn resolve_insert(
         &self,
         insert: ast::Insert<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::Insert<Bound>> {
         let table = match self.resolve_mode {
             ResolveMode::Normal => {
                 let table = NormalResolver::new(self.tx, self.context)
-                    .require_resolve_table_or_cte(&insert.table, bind_data)
+                    .require_resolve_table_or_cte(&insert.table, resolve_context)
                     .await?;
                 MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
             }
             ResolveMode::Hybrid => {
                 let table = NormalResolver::new(self.tx, self.context)
-                    .resolve_table_or_cte(&insert.table, bind_data)
+                    .resolve_table_or_cte(&insert.table, resolve_context)
                     .await?;
 
                 match table {
@@ -463,9 +464,9 @@ impl<'a> Resolver<'a> {
             }
         };
 
-        let source = self.resolve_query(insert.source, bind_data).await?;
+        let source = self.resolve_query(insert.source, resolve_context).await?;
 
-        let idx = bind_data.tables.push_maybe_resolved(table);
+        let idx = resolve_context.tables.push_maybe_resolved(table);
 
         Ok(ast::Insert {
             table: idx,
@@ -477,45 +478,45 @@ impl<'a> Resolver<'a> {
     async fn resolve_query(
         &self,
         query: ast::QueryNode<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::QueryNode<Bound>> {
         /// Helper containing the actual logic for the resolve.
         ///
         /// Pulled out so we can accurately set the bind data depth before and
         /// after this.
         async fn resolve_query_inner(
-            binder: &Resolver<'_>,
+            resolver: &Resolver<'_>,
             query: ast::QueryNode<Raw>,
-            bind_data: &mut ResolveContext,
+            resolve_context: &mut ResolveContext,
         ) -> Result<ast::QueryNode<Bound>> {
             let ctes = match query.ctes {
-                Some(ctes) => Some(binder.resolve_ctes(ctes, bind_data).await?),
+                Some(ctes) => Some(resolver.resolve_ctes(ctes, resolve_context).await?),
                 None => None,
             };
 
-            let body = binder
-                .resolve_query_node_body(query.body, bind_data)
+            let body = resolver
+                .resolve_query_node_body(query.body, resolve_context)
                 .await?;
 
             // Resolve ORDER BY
             let mut order_by = Vec::with_capacity(query.order_by.len());
             for expr in query.order_by {
-                order_by.push(binder.resolve_order_by(expr, bind_data).await?);
+                order_by.push(resolver.resolve_order_by(expr, resolve_context).await?);
             }
 
             // Resolve LIMIT/OFFSET
             let limit = match query.limit.limit {
                 Some(expr) => Some(
-                    ExpressionResolver::new(binder)
-                        .resolve_expression(expr, bind_data)
+                    ExpressionResolver::new(resolver)
+                        .resolve_expression(expr, resolve_context)
                         .await?,
                 ),
                 None => None,
             };
             let offset = match query.limit.offset {
                 Some(expr) => Some(
-                    ExpressionResolver::new(binder)
-                        .resolve_expression(expr, bind_data)
+                    ExpressionResolver::new(resolver)
+                        .resolve_expression(expr, resolve_context)
                         .await?,
                 ),
                 None => None,
@@ -529,9 +530,9 @@ impl<'a> Resolver<'a> {
             })
         }
 
-        bind_data.inc_depth();
-        let result = resolve_query_inner(self, query, bind_data).await;
-        bind_data.dec_depth();
+        resolve_context.inc_depth();
+        let result = resolve_query_inner(self, query, resolve_context).await;
+        resolve_context.dec_depth();
 
         result
     }
@@ -539,17 +540,17 @@ impl<'a> Resolver<'a> {
     async fn resolve_query_node_body(
         &self,
         body: ast::QueryNodeBody<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::QueryNodeBody<Bound>> {
         Ok(match body {
-            ast::QueryNodeBody::Select(select) => {
-                ast::QueryNodeBody::Select(Box::new(self.resolve_select(*select, bind_data).await?))
-            }
+            ast::QueryNodeBody::Select(select) => ast::QueryNodeBody::Select(Box::new(
+                self.resolve_select(*select, resolve_context).await?,
+            )),
             ast::QueryNodeBody::Nested(nested) => ast::QueryNodeBody::Nested(Box::new(
-                Box::pin(self.resolve_query(*nested, bind_data)).await?,
+                Box::pin(self.resolve_query(*nested, resolve_context)).await?,
             )),
             ast::QueryNodeBody::Values(values) => {
-                ast::QueryNodeBody::Values(self.resolve_values(values, bind_data).await?)
+                ast::QueryNodeBody::Values(self.resolve_values(values, resolve_context).await?)
             }
             ast::QueryNodeBody::Set {
                 left,
@@ -557,8 +558,8 @@ impl<'a> Resolver<'a> {
                 operation,
                 all,
             } => {
-                let left = Box::pin(self.resolve_query_node_body(*left, bind_data)).await?;
-                let right = Box::pin(self.resolve_query_node_body(*right, bind_data)).await?;
+                let left = Box::pin(self.resolve_query_node_body(*left, resolve_context)).await?;
+                let right = Box::pin(self.resolve_query_node_body(*right, resolve_context)).await?;
                 ast::QueryNodeBody::Set {
                     left: Box::new(left),
                     right: Box::new(right),
@@ -572,13 +573,13 @@ impl<'a> Resolver<'a> {
     async fn resolve_ctes(
         &self,
         ctes: ast::CommonTableExprDefs<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::CommonTableExprDefs<Bound>> {
         let mut bound_refs = Vec::with_capacity(ctes.ctes.len());
         for cte in ctes.ctes.into_iter() {
-            let depth = bind_data.current_depth;
+            let depth = resolve_context.current_depth;
 
-            let bound_body = Box::pin(self.resolve_query(*cte.body, bind_data)).await?;
+            let bound_body = Box::pin(self.resolve_query(*cte.body, resolve_context)).await?;
             let bound_cte = ResolvedCte {
                 name: cte.alias.into_normalized_string(),
                 depth,
@@ -587,7 +588,7 @@ impl<'a> Resolver<'a> {
                 materialized: cte.materialized,
             };
 
-            let bound_ref = bind_data.push_cte(bound_cte);
+            let bound_ref = resolve_context.push_cte(bound_cte);
             bound_refs.push(bound_ref);
         }
 
@@ -600,7 +601,7 @@ impl<'a> Resolver<'a> {
     async fn resolve_select(
         &self,
         select: ast::SelectNode<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::SelectNode<Bound>> {
         // Bind DISTINCT
         let distinct = match select.distinct {
@@ -610,7 +611,7 @@ impl<'a> Resolver<'a> {
                     for expr in exprs {
                         bound.push(
                             ExpressionResolver::new(self)
-                                .resolve_expression(expr, bind_data)
+                                .resolve_expression(expr, resolve_context)
                                 .await?,
                         );
                     }
@@ -623,7 +624,7 @@ impl<'a> Resolver<'a> {
 
         // Bind FROM
         let from = match select.from {
-            Some(from) => Some(self.resolve_from(from, bind_data).await?),
+            Some(from) => Some(self.resolve_from(from, resolve_context).await?),
             None => None,
         };
 
@@ -631,7 +632,7 @@ impl<'a> Resolver<'a> {
         let where_expr = match select.where_expr {
             Some(expr) => Some(
                 ExpressionResolver::new(self)
-                    .resolve_expression(expr, bind_data)
+                    .resolve_expression(expr, resolve_context)
                     .await?,
             ),
             None => None,
@@ -642,7 +643,7 @@ impl<'a> Resolver<'a> {
         for projection in select.projections {
             projections.push(
                 ExpressionResolver::new(self)
-                    .resolve_select_expr(projection, bind_data)
+                    .resolve_select_expr(projection, resolve_context)
                     .await?,
             );
         }
@@ -656,7 +657,7 @@ impl<'a> Resolver<'a> {
                     for expr in exprs {
                         bound.push(
                             ExpressionResolver::new(self)
-                                .resolve_group_by_expr(expr, bind_data)
+                                .resolve_group_by_expr(expr, resolve_context)
                                 .await?,
                         );
                     }
@@ -670,7 +671,7 @@ impl<'a> Resolver<'a> {
         let having = match select.having {
             Some(expr) => Some(
                 ExpressionResolver::new(self)
-                    .resolve_expression(expr, bind_data)
+                    .resolve_expression(expr, resolve_context)
                     .await?,
             ),
             None => None,
@@ -689,13 +690,13 @@ impl<'a> Resolver<'a> {
     async fn resolve_values(
         &self,
         values: ast::Values<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::Values<Bound>> {
         let mut bound = Vec::with_capacity(values.rows.len());
         for row in values.rows {
             bound.push(
                 ExpressionResolver::new(self)
-                    .resolve_expressions(row, bind_data)
+                    .resolve_expressions(row, resolve_context)
                     .await?,
             );
         }
@@ -705,10 +706,10 @@ impl<'a> Resolver<'a> {
     async fn resolve_order_by(
         &self,
         order_by: ast::OrderByNode<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::OrderByNode<Bound>> {
         let expr = ExpressionResolver::new(self)
-            .resolve_expression(order_by.expr, bind_data)
+            .resolve_expression(order_by.expr, resolve_context)
             .await?;
         Ok(ast::OrderByNode {
             typ: order_by.typ,
@@ -720,20 +721,20 @@ impl<'a> Resolver<'a> {
     async fn resolve_from(
         &self,
         from: ast::FromNode<Raw>,
-        bind_data: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 let table = match self.resolve_mode {
                     ResolveMode::Normal => {
                         let table = NormalResolver::new(self.tx, self.context)
-                            .require_resolve_table_or_cte(&reference, bind_data)
+                            .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
                         MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
                     ResolveMode::Hybrid => {
                         let table = NormalResolver::new(self.tx, self.context)
-                            .resolve_table_or_cte(&reference, bind_data)
+                            .resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
                         match table {
@@ -753,12 +754,12 @@ impl<'a> Resolver<'a> {
                     }
                 };
 
-                let idx = bind_data.tables.push_maybe_resolved(table);
+                let idx = resolve_context.tables.push_maybe_resolved(table);
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
                 ast::FromNodeBody::Subquery(ast::FromSubquery {
-                    query: Box::pin(self.resolve_query(query, bind_data)).await?,
+                    query: Box::pin(self.resolve_query(query, resolve_context)).await?,
                 })
             }
             ast::FromNodeBody::File(ast::FromFilePath { path }) => {
@@ -775,7 +776,7 @@ impl<'a> Resolver<'a> {
                             .plan_and_initialize(self.context, args.clone())
                             .await?;
 
-                        let resolve_idx = bind_data.table_functions.push_resolved(
+                        let resolve_idx = resolve_context.table_functions.push_resolved(
                             ResolvedTableFunctionReference { name, func },
                             LocationRequirement::ClientLocal,
                         );
@@ -838,7 +839,9 @@ impl<'a> Resolver<'a> {
                     }
                 };
 
-                let resolve_idx = bind_data.table_functions.push_maybe_resolved(function);
+                let resolve_idx = resolve_context
+                    .table_functions
+                    .push_maybe_resolved(function);
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                     reference: resolve_idx,
                     // TODO: These args aren't actually needed when bound. Not
@@ -852,13 +855,13 @@ impl<'a> Resolver<'a> {
                 join_type,
                 join_condition,
             }) => {
-                let left = Box::pin(self.resolve_from(*left, bind_data)).await?;
-                let right = Box::pin(self.resolve_from(*right, bind_data)).await?;
+                let left = Box::pin(self.resolve_from(*left, resolve_context)).await?;
+                let right = Box::pin(self.resolve_from(*right, resolve_context)).await?;
 
                 let join_condition = match join_condition {
                     ast::JoinCondition::On(expr) => {
                         let expr = ExpressionResolver::new(self)
-                            .resolve_expression(expr, bind_data)
+                            .resolve_expression(expr, resolve_context)
                             .await?;
                         ast::JoinCondition::On(expr)
                     }

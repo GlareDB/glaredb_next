@@ -608,7 +608,7 @@ impl<'a> QueryNodePlanner<'a> {
             }
             ast::FromNodeBody::File(_) => {
                 return Err(RayexecError::new(
-                    "Binder should have replace file path with a table function",
+                    "Resolver should have replace file path with a table function",
                 ))
             }
         };

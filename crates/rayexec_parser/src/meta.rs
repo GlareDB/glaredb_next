@@ -12,8 +12,8 @@ use crate::ast::{
 /// During parsing, a 'raw' implementation of this will be used which represents
 /// the input provided by the user with minimal processing.
 ///
-/// During binding, the 'raw' statement will be pushed through a binder,
-/// resulting in a 'bound' statement with an implementation of `AstMeta` that
+/// During binding, the 'raw' statement will be pushed through a resolver,
+/// resulting in a 'resolved' statement with an implementation of `AstMeta` that
 /// provides representations than can be used during planning, including
 /// resolved tables and types.
 pub trait AstMeta: Clone {
