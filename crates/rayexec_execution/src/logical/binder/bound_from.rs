@@ -5,7 +5,8 @@ use std::sync::Arc;
 use crate::{
     database::catalog_entry::CatalogEntry,
     logical::{
-        operator::LocationRequirement,
+        expr::LogicalExpression,
+        operator::{JoinType, LocationRequirement},
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
             ResolvedMeta,
@@ -13,10 +14,11 @@ use crate::{
     },
 };
 
+use super::bind_context::{BindContext, BindContextIdx, TableScopeIdx};
+
 #[derive(Debug)]
 pub struct BoundFrom {
-    pub alias: String,
-    pub column_aliases: Vec<String>,
+    pub scope_idx: TableScopeIdx,
     pub item: BoundFromItem,
 }
 
@@ -33,8 +35,18 @@ pub struct BoundBaseTable {
     pub entry: Arc<CatalogEntry>,
 }
 
+#[derive(Debug)]
+pub struct BoundJoin {
+    pub left: BoundFrom,
+    pub right: BoundFrom,
+    pub join_type: JoinType,
+    pub condition: LogicalExpression,
+}
+
 impl BoundFrom {
     pub fn bind(
+        current: BindContextIdx,
+        bind_context: &mut BindContext,
         resolve_context: &ResolveContext,
         from: ast::FromNode<ResolvedMeta>,
     ) -> Result<BoundFrom> {
@@ -42,12 +54,21 @@ impl BoundFrom {
     }
 
     fn bind_table(
+        current: BindContextIdx,
+        bind_context: &mut BindContext,
         resolve_context: &ResolveContext,
         table: ast::FromBaseTable<ResolvedMeta>,
     ) -> Result<BoundFrom> {
         match resolve_context.tables.try_get_bound(table.reference)? {
             (ResolvedTableOrCteReference::Table(table), location) => {
-                let column_aliases = table
+                let column_types = table
+                    .entry
+                    .try_as_table_entry()?
+                    .columns
+                    .iter()
+                    .map(|c| c.datatype.clone())
+                    .collect();
+                let column_names = table
                     .entry
                     .try_as_table_entry()?
                     .columns
@@ -55,9 +76,15 @@ impl BoundFrom {
                     .map(|c| c.name.clone())
                     .collect();
 
+                let scope_idx = bind_context.push_table_scope(
+                    current,
+                    &table.entry.name,
+                    column_types,
+                    column_names,
+                )?;
+
                 Ok(BoundFrom {
-                    alias: table.entry.name.clone(),
-                    column_aliases,
+                    scope_idx,
                     item: BoundFromItem::BaseTable(BoundBaseTable {
                         location,
                         catalog: table.catalog.clone(),
@@ -71,5 +98,21 @@ impl BoundFrom {
                 unimplemented!()
             }
         }
+    }
+
+    fn bind_join(
+        current: BindContextIdx,
+        bind_context: &mut BindContext,
+        resolve_context: &ResolveContext,
+        join: ast::FromJoin<ResolvedMeta>,
+    ) -> Result<BoundFrom> {
+        // TODO: Check lateral, correlations
+        let left_idx = bind_context.new_child(current);
+        let left = Self::bind(left_idx, bind_context, resolve_context, *join.left)?;
+
+        let right_idx = bind_context.new_child(current);
+        let right = Self::bind(right_idx, bind_context, resolve_context, *join.right)?;
+
+        unimplemented!()
     }
 }
