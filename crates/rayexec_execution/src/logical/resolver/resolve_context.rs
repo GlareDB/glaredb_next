@@ -116,7 +116,7 @@ impl BindContext {
 }
 
 impl DatabaseProtoConv for BindContext {
-    type ProtoType = rayexec_proto::generated::binder::BindContext;
+    type ProtoType = rayexec_proto::generated::resolver::ResolveContext;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         if !self.ctes.is_empty() {
@@ -224,24 +224,25 @@ impl<B, U> Default for BindList<B, U> {
 }
 
 impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableReference> {
-    type ProtoType = rayexec_proto::generated::binder::TablesBindList;
+    type ProtoType = rayexec_proto::generated::resolver::TablesResolveList;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::{
-            maybe_bound_table::Value, BoundTableOrCteReferenceWithLocation, MaybeBoundTable,
+        use rayexec_proto::generated::resolver::{
+            maybe_resolved_table::Value, MaybeResolvedTable,
+            ResolvedTableOrCteReferenceWithLocation,
         };
 
         let mut tables = Vec::new();
         for table in &self.inner {
             let table = match table {
-                MaybeBound::Bound(bound, loc) => MaybeBoundTable {
-                    value: Some(Value::Bound(BoundTableOrCteReferenceWithLocation {
+                MaybeBound::Bound(bound, loc) => MaybeResolvedTable {
+                    value: Some(Value::Resolved(ResolvedTableOrCteReferenceWithLocation {
                         bound: Some(bound.to_proto_ctx(context)?),
                         location: loc.to_proto()? as i32,
                     })),
                 },
-                MaybeBound::Unbound(unbound) => MaybeBoundTable {
-                    value: Some(Value::Unbound(unbound.to_proto()?)),
+                MaybeBound::Unbound(unbound) => MaybeResolvedTable {
+                    value: Some(Value::Unresolved(unbound.to_proto()?)),
                 },
             };
             tables.push(table);
@@ -251,13 +252,13 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableRefere
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::binder::maybe_bound_table::Value;
+        use rayexec_proto::generated::resolver::maybe_resolved_table::Value;
 
         let tables = proto
             .tables
             .into_iter()
             .map(|t| match t.value.required("value")? {
-                Value::Bound(bound) => {
+                Value::Resolved(bound) => {
                     let location = LocationRequirement::from_proto(bound.location())?;
                     let bound = BoundTableOrCteReference::from_proto_ctx(
                         bound.bound.required("bound")?,
@@ -265,7 +266,9 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableRefere
                     )?;
                     Ok(MaybeBound::Bound(bound, location))
                 }
-                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(ProtoConv::from_proto(unbound)?)),
+                Value::Unresolved(unbound) => {
+                    Ok(MaybeBound::Unbound(ProtoConv::from_proto(unbound)?))
+                }
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -274,24 +277,25 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableRefere
 }
 
 impl DatabaseProtoConv for BindList<BoundFunction, ast::ObjectReference> {
-    type ProtoType = rayexec_proto::generated::binder::FunctionsBindList;
+    type ProtoType = rayexec_proto::generated::resolver::FunctionsResolveList;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::{
-            maybe_bound_function::Value, BoundFunctionReferenceWithLocation, MaybeBoundFunction,
+        use rayexec_proto::generated::resolver::{
+            maybe_resolved_function::Value, MaybeResolvedFunction,
+            ResolvedFunctionReferenceWithLocation,
         };
 
         let mut funcs = Vec::new();
         for func in &self.inner {
             let func = match func {
-                MaybeBound::Bound(bound, loc) => MaybeBoundFunction {
-                    value: Some(Value::Bound(BoundFunctionReferenceWithLocation {
+                MaybeBound::Bound(bound, loc) => MaybeResolvedFunction {
+                    value: Some(Value::Resolved(ResolvedFunctionReferenceWithLocation {
                         bound: Some(bound.to_proto_ctx(context)?),
                         location: loc.to_proto()? as i32,
                     })),
                 },
-                MaybeBound::Unbound(unbound) => MaybeBoundFunction {
-                    value: Some(Value::Unbound(unbound.to_proto()?)),
+                MaybeBound::Unbound(unbound) => MaybeResolvedFunction {
+                    value: Some(Value::Unresolved(unbound.to_proto()?)),
                 },
             };
             funcs.push(func);
@@ -301,19 +305,19 @@ impl DatabaseProtoConv for BindList<BoundFunction, ast::ObjectReference> {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::binder::maybe_bound_function::Value;
+        use rayexec_proto::generated::resolver::maybe_resolved_function::Value;
 
         let funcs = proto
             .functions
             .into_iter()
             .map(|f| match f.value.required("value")? {
-                Value::Bound(bound) => {
+                Value::Resolved(bound) => {
                     let location = LocationRequirement::from_proto(bound.location())?;
                     let bound =
                         BoundFunction::from_proto_ctx(bound.bound.required("bound")?, context)?;
                     Ok(MaybeBound::Bound(bound, location))
                 }
-                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(
+                Value::Unresolved(unbound) => Ok(MaybeBound::Unbound(
                     ast::ObjectReference::from_proto(unbound)?,
                 )),
             })
@@ -324,25 +328,27 @@ impl DatabaseProtoConv for BindList<BoundFunction, ast::ObjectReference> {
 }
 
 impl DatabaseProtoConv for BindList<BoundTableFunctionReference, UnboundTableFunctionReference> {
-    type ProtoType = rayexec_proto::generated::binder::TableFunctionsBindList;
+    type ProtoType = rayexec_proto::generated::resolver::TableFunctionsResolveList;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::{
-            maybe_bound_table_function::Value, BoundTableFunctionReferenceWithLocation,
-            MaybeBoundTableFunction,
+        use rayexec_proto::generated::resolver::{
+            maybe_resolved_table_function::Value, MaybeResolvedTableFunction,
+            ResolvedTableFunctionReferenceWithLocation,
         };
 
         let mut funcs = Vec::new();
         for func in &self.inner {
             let func = match func {
-                MaybeBound::Bound(bound, loc) => MaybeBoundTableFunction {
-                    value: Some(Value::Bound(BoundTableFunctionReferenceWithLocation {
-                        bound: Some(bound.to_proto_ctx(context)?),
-                        location: loc.to_proto()? as i32,
-                    })),
+                MaybeBound::Bound(bound, loc) => MaybeResolvedTableFunction {
+                    value: Some(Value::Resolved(
+                        ResolvedTableFunctionReferenceWithLocation {
+                            bound: Some(bound.to_proto_ctx(context)?),
+                            location: loc.to_proto()? as i32,
+                        },
+                    )),
                 },
-                MaybeBound::Unbound(unbound) => MaybeBoundTableFunction {
-                    value: Some(Value::Unbound(unbound.to_proto()?)),
+                MaybeBound::Unbound(unbound) => MaybeResolvedTableFunction {
+                    value: Some(Value::Unresolved(unbound.to_proto()?)),
                 },
             };
             funcs.push(func);
@@ -352,13 +358,13 @@ impl DatabaseProtoConv for BindList<BoundTableFunctionReference, UnboundTableFun
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::binder::maybe_bound_table_function::Value;
+        use rayexec_proto::generated::resolver::maybe_resolved_table_function::Value;
 
         let funcs = proto
             .functions
             .into_iter()
             .map(|f| match f.value.required("value")? {
-                Value::Bound(bound) => {
+                Value::Resolved(bound) => {
                     let location = LocationRequirement::from_proto(bound.location())?;
                     let bound = BoundTableFunctionReference::from_proto_ctx(
                         bound.bound.required("bound")?,
@@ -366,7 +372,7 @@ impl DatabaseProtoConv for BindList<BoundTableFunctionReference, UnboundTableFun
                     )?;
                     Ok(MaybeBound::Bound(bound, location))
                 }
-                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(
+                Value::Unresolved(unbound) => Ok(MaybeBound::Unbound(
                     UnboundTableFunctionReference::from_proto(unbound)?,
                 )),
             })
@@ -431,7 +437,7 @@ impl fmt::Display for ItemReference {
 }
 
 impl ProtoConv for ItemReference {
-    type ProtoType = rayexec_proto::generated::binder::ItemReference;
+    type ProtoType = rayexec_proto::generated::resolver::ItemReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

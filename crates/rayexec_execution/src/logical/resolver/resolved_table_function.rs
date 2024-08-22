@@ -21,7 +21,7 @@ pub struct BoundTableFunctionReference {
 }
 
 impl DatabaseProtoConv for BoundTableFunctionReference {
-    type ProtoType = rayexec_proto::generated::binder::BoundTableFunctionReference;
+    type ProtoType = rayexec_proto::generated::resolver::ResolvedTableFunctionReference;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -51,7 +51,7 @@ pub struct UnboundTableFunctionReference {
 }
 
 impl ProtoConv for UnboundTableFunctionReference {
-    type ProtoType = rayexec_proto::generated::binder::UnboundTableFunctionReference;
+    type ProtoType = rayexec_proto::generated::resolver::UnresolvedTableFunctionReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

@@ -68,18 +68,18 @@ impl DatabaseProtoConv for HybridPlanRequest {
         let statement =
             serde_json::to_vec(&self.statement).context("failed to encode statement")?;
         Ok(Self::ProtoType {
-            bound_statement_json: statement,
-            bind_context: Some(self.bind_data.to_proto_ctx(context)?),
+            resolved_statement_json: statement,
+            resolve_context: Some(self.bind_data.to_proto_ctx(context)?),
         })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        let statement = serde_json::from_slice(&proto.bound_statement_json)
+        let statement = serde_json::from_slice(&proto.resolved_statement_json)
             .context("failed to decode statement")?;
         Ok(Self {
             statement,
             bind_data: BindContext::from_proto_ctx(
-                proto.bind_context.required("bind_data")?,
+                proto.resolve_context.required("resolve_context")?,
                 context,
             )?,
         })

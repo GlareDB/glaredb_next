@@ -29,12 +29,12 @@ pub struct BoundTableReference {
 }
 
 impl DatabaseProtoConv for BoundTableOrCteReference {
-    type ProtoType = rayexec_proto::generated::binder::BoundTableOrCteReference;
+    type ProtoType = rayexec_proto::generated::resolver::ResolvedTableOrCteReference;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::{
-            bound_table_or_cte_reference::Value, BoundCteReference,
-            BoundTableReference as ProtoBoundTableReference,
+        use rayexec_proto::generated::resolver::{
+            resolved_table_or_cte_reference::Value, ResolvedCteReference,
+            ResolvedTableReference as ProtoResolvedTableReference,
         };
 
         let value = match self {
@@ -42,12 +42,12 @@ impl DatabaseProtoConv for BoundTableOrCteReference {
                 catalog,
                 schema,
                 entry,
-            }) => Value::Table(ProtoBoundTableReference {
+            }) => Value::Table(ProtoResolvedTableReference {
                 catalog: catalog.clone(),
                 schema: schema.clone(),
                 entry: Some(entry.to_proto_ctx(context)?),
             }),
-            Self::Cte(cte_idx) => Value::Cte(BoundCteReference {
+            Self::Cte(cte_idx) => Value::Cte(ResolvedCteReference {
                 idx: cte_idx.0 as u32,
             }),
         };
@@ -56,7 +56,7 @@ impl DatabaseProtoConv for BoundTableOrCteReference {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::binder::bound_table_or_cte_reference::Value;
+        use rayexec_proto::generated::resolver::resolved_table_or_cte_reference::Value;
 
         Ok(match proto.value.required("value")? {
             Value::Table(table) => Self::Table(BoundTableReference {
@@ -88,7 +88,7 @@ pub struct UnboundTableReference {
 }
 
 impl ProtoConv for UnboundTableReference {
-    type ProtoType = rayexec_proto::generated::binder::UnboundTableReference;
+    type ProtoType = rayexec_proto::generated::resolver::UnresolvedTableReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

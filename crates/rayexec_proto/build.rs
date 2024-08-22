@@ -6,7 +6,7 @@ fn main() {
             "proto/execution.proto",
             "proto/expr.proto",
             "proto/access.proto",
-            "proto/binder.proto",
+            "proto/resolver.proto",
             "proto/ast/raw.proto",
             "proto/logical.proto",
             "proto/foreign.proto",

@@ -7,7 +7,7 @@ pub struct BoundCopyTo {
 }
 
 impl DatabaseProtoConv for BoundCopyTo {
-    type ProtoType = rayexec_proto::generated::binder::BoundCopyTo;
+    type ProtoType = rayexec_proto::generated::resolver::ResolvedCopyTo;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

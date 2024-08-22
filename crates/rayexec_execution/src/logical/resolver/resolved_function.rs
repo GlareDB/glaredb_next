@@ -22,10 +22,10 @@ impl BoundFunction {
 }
 
 impl DatabaseProtoConv for BoundFunction {
-    type ProtoType = rayexec_proto::generated::binder::BoundFunctionReference;
+    type ProtoType = rayexec_proto::generated::resolver::ResolvedFunctionReference;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::bound_function_reference::Value;
+        use rayexec_proto::generated::resolver::resolved_function_reference::Value;
 
         let value = match self {
             Self::Scalar(scalar) => Value::Scalar(scalar.to_proto_ctx(context)?),
@@ -36,7 +36,7 @@ impl DatabaseProtoConv for BoundFunction {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::binder::bound_function_reference::Value;
+        use rayexec_proto::generated::resolver::resolved_function_reference::Value;
 
         Ok(match proto.value.required("value")? {
             Value::Scalar(scalar) => {
