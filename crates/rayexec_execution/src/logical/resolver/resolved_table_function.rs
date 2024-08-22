@@ -7,9 +7,9 @@ use rayexec_error::{OptionExt, Result};
 use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
 
-/// A bound table function reference.
+/// A resolved table function reference.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BoundTableFunctionReference {
+pub struct ResolvedTableFunctionReference {
     /// Name of the original function.
     ///
     /// This is used to allow the user to reference the output of the function
@@ -20,7 +20,7 @@ pub struct BoundTableFunctionReference {
     // TODO: Maybe keep args here?
 }
 
-impl DatabaseProtoConv for BoundTableFunctionReference {
+impl DatabaseProtoConv for ResolvedTableFunctionReference {
     type ProtoType = rayexec_proto::generated::resolver::ResolvedTableFunctionReference;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -38,9 +38,9 @@ impl DatabaseProtoConv for BoundTableFunctionReference {
     }
 }
 
-/// An unbound reference to a table function.
+/// An unresolved reference to a table function.
 #[derive(Debug, Clone, PartialEq)]
-pub struct UnboundTableFunctionReference {
+pub struct UnresolvedTableFunctionReference {
     /// Original reference in the ast.
     pub reference: ast::ObjectReference,
     /// Arguments to the function.
@@ -50,7 +50,7 @@ pub struct UnboundTableFunctionReference {
     pub args: TableFunctionArgs,
 }
 
-impl ProtoConv for UnboundTableFunctionReference {
+impl ProtoConv for UnresolvedTableFunctionReference {
     type ProtoType = rayexec_proto::generated::resolver::UnresolvedTableFunctionReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {

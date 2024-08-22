@@ -1,6 +1,6 @@
 use crate::{
     execution::intermediate::{IntermediatePipelineGroup, StreamId},
-    logical::resolver::resolve_context::BindContext,
+    logical::resolver::resolve_context::ResolveContext,
     proto::DatabaseProtoConv,
 };
 use rayexec_bullet::{
@@ -58,7 +58,7 @@ pub struct HybridPlanRequest {
     /// This includes partially bound items that reference the things in the
     /// bind data.
     pub statement: BoundStatement,
-    pub bind_data: BindContext,
+    pub bind_data: ResolveContext,
 }
 
 impl DatabaseProtoConv for HybridPlanRequest {
@@ -78,7 +78,7 @@ impl DatabaseProtoConv for HybridPlanRequest {
             .context("failed to decode statement")?;
         Ok(Self {
             statement,
-            bind_data: BindContext::from_proto_ctx(
+            bind_data: ResolveContext::from_proto_ctx(
                 proto.resolve_context.required("resolve_context")?,
                 context,
             )?,
@@ -434,7 +434,7 @@ impl<C: HttpClient> HybridClient<C> {
     pub async fn remote_plan(
         &self,
         stmt: BoundStatement,
-        bind_data: BindContext,
+        bind_data: ResolveContext,
         context: &DatabaseContext,
     ) -> Result<HybridPlanResponse> {
         let url = self

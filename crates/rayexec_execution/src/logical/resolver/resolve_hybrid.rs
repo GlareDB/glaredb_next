@@ -3,14 +3,14 @@ use std::sync::Arc;
 use crate::{
     database::{catalog::CatalogTx, memory_catalog::MemoryCatalog, Database, DatabaseContext},
     datasource::{DataSourceRegistry, FileHandlers},
-    logical::{operator::LocationRequirement, resolver::BindMode},
+    logical::{operator::LocationRequirement, resolver::ResolveMode},
 };
 use rayexec_error::{RayexecError, Result};
 use tracing::debug;
 
 use super::{
-    resolve_context::MaybeBound, resolve_normal::Resolver,
-    resolved_table_function::BoundTableFunctionReference, BindContext, Binder,
+    resolve_context::MaybeResolved, resolve_normal::NormalResolver,
+    resolved_table_function::ResolvedTableFunctionReference, ResolveContext, Resolver,
 };
 
 /// Extends a context by attaching additional databases using information
@@ -30,9 +30,12 @@ impl<'a> HybridContextExtender<'a> {
 
     /// Iterates the provided bind data and attaches databases to the context as
     /// necessary.
-    pub async fn attach_unknown_databases(&mut self, bind_data: &BindContext) -> Result<()> {
-        for item in bind_data.tables.inner.iter() {
-            if let MaybeBound::Unbound(unbound) = item {
+    pub async fn attach_unknown_databases(
+        &mut self,
+        resolve_context: &ResolveContext,
+    ) -> Result<()> {
+        for item in resolve_context.tables.inner.iter() {
+            if let MaybeResolved::Unresolved(unbound) = item {
                 // We might have already attached a database. E.g. by already
                 // iterating over a table that comes from the same catalog.
                 if self.context.database_exists(&unbound.catalog) {
@@ -113,7 +116,7 @@ impl<'a> HybridContextExtender<'a> {
 // TODO: Somehow do search path.
 #[derive(Debug)]
 pub struct HybridResolver<'a> {
-    pub binder: Binder<'a>,
+    pub binder: Resolver<'a>,
 }
 
 impl<'a> HybridResolver<'a> {
@@ -134,58 +137,65 @@ impl<'a> HybridResolver<'a> {
         // Note we're using bindmode normal here since everything we attempt to
         // bind in this resolver should succeed.
         HybridResolver {
-            binder: Binder::new(BindMode::Normal, tx, context, EMPTY_FILE_HANDLER_REF),
+            binder: Resolver::new(ResolveMode::Normal, tx, context, EMPTY_FILE_HANDLER_REF),
         }
     }
 
-    /// Resolve all unbound references in the bind data, erroring if anything
-    /// fails to resolve.
+    /// Resolve all unresolved references in the resolve context, erroring if
+    /// anything fails to resolve.
     ///
-    /// Bound items should not be checked.
-    pub async fn resolve_all_unbound(&self, mut bind_data: BindContext) -> Result<BindContext> {
-        self.resolve_unbound_table_fns(&mut bind_data).await?;
-        self.resolve_unbound_tables(&mut bind_data).await?;
+    /// Resolved items should not be checked.
+    pub async fn resolve_all_unresolved(
+        &self,
+        mut resolve_context: ResolveContext,
+    ) -> Result<ResolveContext> {
+        self.resolve_unresolved_table_fns(&mut resolve_context)
+            .await?;
+        self.resolve_unresolved_tables(&mut resolve_context).await?;
         // TODO: Might be worth doing these in parallel since we have the
         // complete context of the query.
-        Ok(bind_data)
+        Ok(resolve_context)
     }
 
-    async fn resolve_unbound_tables(&self, bind_data: &mut BindContext) -> Result<()> {
-        for item in bind_data.tables.inner.iter_mut() {
-            if let MaybeBound::Unbound(unbound) = item {
-                debug!(%unbound.reference, "(hybrid) resolving unbound table");
+    async fn resolve_unresolved_tables(&self, resolve_context: &mut ResolveContext) -> Result<()> {
+        for item in resolve_context.tables.inner.iter_mut() {
+            if let MaybeResolved::Unresolved(unresolved) = item {
+                debug!(%unresolved.reference, "(hybrid) resolving unresolved table");
 
                 // Pass in empty bind data to resolver since it's only used for
                 // CTE lookup, which shouldn't be possible here.
-                let empty = BindContext::default();
+                let empty = ResolveContext::default();
 
-                let table = Resolver::new(self.binder.tx, self.binder.context)
-                    .require_resolve_table_or_cte(&unbound.reference, &empty)
+                let table = NormalResolver::new(self.binder.tx, self.binder.context)
+                    .require_resolve_table_or_cte(&unresolved.reference, &empty)
                     .await?;
 
-                debug!(%unbound.reference, "(hybrid) resolved unbound table");
+                debug!(%unresolved.reference, "(hybrid) resolved unbound table");
 
-                *item = MaybeBound::Bound(table, LocationRequirement::Remote)
+                *item = MaybeResolved::Resolved(table, LocationRequirement::Remote)
             }
         }
 
         Ok(())
     }
 
-    async fn resolve_unbound_table_fns(&self, bind_data: &mut BindContext) -> Result<()> {
-        for item in bind_data.table_functions.inner.iter_mut() {
-            if let MaybeBound::Unbound(unbound) = item {
-                let table_fn = Resolver::new(self.binder.tx, self.binder.context)
-                    .require_resolve_table_function(&unbound.reference)?;
+    async fn resolve_unresolved_table_fns(
+        &self,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<()> {
+        for item in resolve_context.table_functions.inner.iter_mut() {
+            if let MaybeResolved::Unresolved(unresolved) = item {
+                let table_fn = NormalResolver::new(self.binder.tx, self.binder.context)
+                    .require_resolve_table_function(&unresolved.reference)?;
 
                 let name = table_fn.name().to_string();
                 let func = table_fn
-                    .plan_and_initialize(self.binder.context, unbound.args.clone())
+                    .plan_and_initialize(self.binder.context, unresolved.args.clone())
                     .await?;
 
                 // TODO: Marker indicating this needs to be executing remotely.
-                *item = MaybeBound::Bound(
-                    BoundTableFunctionReference { name, func },
+                *item = MaybeResolved::Resolved(
+                    ResolvedTableFunctionReference { name, func },
                     LocationRequirement::Remote,
                 )
             }

@@ -5,8 +5,8 @@ use crate::logical::{
     expr::LogicalExpression,
     operator::{EqualityJoin, LogicalNode, SetOpKind, SetOperation},
     resolver::{
-        resolve_context::BindContext,
-        resolved_table::{BoundTableOrCteReference, BoundTableReference, CteIndex},
+        resolve_context::ResolveContext,
+        resolved_table::{CteIndex, ResolvedTableOrCteReference, ResolvedTableReference},
         Bound,
     },
 };
@@ -42,11 +42,11 @@ pub struct QueryNodePlanner<'a> {
     pub outer_scopes: Vec<Scope>,
 
     /// Data collected during binding (table references, functions, etc).
-    pub bind_data: &'a BindContext,
+    pub bind_data: &'a ResolveContext,
 }
 
 impl<'a> QueryNodePlanner<'a> {
-    pub fn new(bind_data: &'a BindContext) -> Self {
+    pub fn new(bind_data: &'a ResolveContext) -> Self {
         QueryNodePlanner {
             outer_schemas: Vec::new(),
             outer_scopes: Vec::new(),
@@ -335,7 +335,7 @@ impl<'a> QueryNodePlanner<'a> {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match self.bind_data.tables.try_get_bound(reference)? {
                     (
-                        BoundTableOrCteReference::Table(BoundTableReference {
+                        ResolvedTableOrCteReference::Table(ResolvedTableReference {
                             catalog,
                             schema,
                             entry,
@@ -371,7 +371,7 @@ impl<'a> QueryNodePlanner<'a> {
                             scope,
                         }
                     }
-                    (BoundTableOrCteReference::Cte(cte_idx), _) => {
+                    (ResolvedTableOrCteReference::Cte(cte_idx), _) => {
                         self.plan_cte_body(context, *cte_idx, current_schema, current_scope)?
                     }
                 }

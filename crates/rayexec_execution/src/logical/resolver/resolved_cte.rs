@@ -4,7 +4,7 @@ use super::Bound;
 
 // TODO: This might need some scoping information.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BoundCte {
+pub struct ResolvedCte {
     /// Normalized name for the CTE.
     pub name: String,
     /// Depth this CTE was found at.

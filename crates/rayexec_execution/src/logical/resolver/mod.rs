@@ -10,7 +10,7 @@ pub mod resolved_table_function;
 
 use std::collections::HashMap;
 
-use expr_resolver::ExpressionBinder;
+use expr_resolver::ExpressionResolver;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
@@ -25,12 +25,12 @@ use rayexec_parser::{
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
-use resolve_context::{BindContext, BindListIdx, ItemReference, MaybeBound};
-use resolve_normal::{MaybeResolvedTable, Resolver};
-use resolved_copy_to::BoundCopyTo;
-use resolved_cte::BoundCte;
+use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListIdx};
+use resolve_normal::{MaybeResolvedTable, NormalResolver};
+use resolved_copy_to::ResolvedCopyTo;
+use resolved_cte::ResolvedCte;
 use resolved_table::CteIndex;
-use resolved_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference};
+use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -53,9 +53,9 @@ impl AstMeta for Bound {
     type DataSourceName = String;
     type ItemReference = ItemReference;
     /// Index into the tables bind list in bind data.
-    type TableReference = BindListIdx;
+    type TableReference = ResolveListIdx;
     /// Index into the table functions bind list in bind data
-    type TableFunctionReference = BindListIdx;
+    type TableFunctionReference = ResolveListIdx;
     // TODO: Having this be the actual table function args does require that we
     // clone them, and the args that go back into the ast don't actually do
     // anything, they're never referenced again.
@@ -63,7 +63,7 @@ impl AstMeta for Bound {
     /// Index into the CTE list in bind data.
     type CteReference = CteIndex;
     /// Index into the functions bind list in bind data.
-    type FunctionReference = BindListIdx;
+    type FunctionReference = ResolveListIdx;
     type ColumnReference = String;
     type DataType = DataType;
     type CopyToDestination = FileLocation;
@@ -74,46 +74,49 @@ impl AstMeta for Bound {
 
 /// Determines the logic taken when encountering an unknown object in a query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BindMode {
-    /// Normal binding, on missing object, return an appropriate error.
+pub enum ResolveMode {
+    /// Normal resolving, on missing object, return an appropriate error.
     Normal,
-    /// Hybrid binding, allow query binding to continue with the assumption that
-    /// a remote node will handle anything that's left unbound.
+    /// Hybrid resolving, allow query binding to continue with the assumption
+    /// that a remote node will handle anything that's left unresolved.
     Hybrid,
 }
 
-impl BindMode {
+impl ResolveMode {
     pub const fn is_hybrid(&self) -> bool {
-        matches!(self, BindMode::Hybrid)
+        matches!(self, ResolveMode::Hybrid)
     }
 }
 
-/// Binds a raw SQL AST with entries in the catalog.
+/// Resolves references in a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
-pub struct Binder<'a> {
-    pub bindmode: BindMode,
+pub struct Resolver<'a> {
+    pub resolve_mode: ResolveMode,
     pub tx: &'a CatalogTx,
     pub context: &'a DatabaseContext,
     pub file_handlers: &'a FileHandlers,
 }
 
-impl<'a> Binder<'a> {
+impl<'a> Resolver<'a> {
     pub fn new(
-        bindmode: BindMode,
+        resolve_mode: ResolveMode,
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
     ) -> Self {
-        Binder {
-            bindmode,
+        Resolver {
+            resolve_mode,
             tx,
             context,
             file_handlers,
         }
     }
 
-    pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindContext)> {
-        let mut bind_data = BindContext::default();
+    pub async fn bind_statement(
+        self,
+        stmt: RawStatement,
+    ) -> Result<(BoundStatement, ResolveContext)> {
+        let mut bind_data = ResolveContext::default();
         let bound = match stmt {
             Statement::Explain(explain) => {
                 let body = match explain.body {
@@ -154,7 +157,7 @@ impl<'a> Binder<'a> {
             Statement::Drop(drop) => Statement::Drop(self.bind_drop(drop).await?),
             Statement::SetVariable(set) => Statement::SetVariable(ast::SetVariable {
                 reference: Self::reference_to_strings(set.reference).into(),
-                value: ExpressionBinder::new(&self)
+                value: ExpressionResolver::new(&self)
                     .bind_expression(set.value, &mut bind_data)
                     .await?,
             }),
@@ -181,11 +184,11 @@ impl<'a> Binder<'a> {
     async fn bind_attach(
         &self,
         attach: ast::Attach<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::Attach<Bound>> {
         let mut options = HashMap::new();
         for (k, v) in attach.options {
-            let v = ExpressionBinder::new(self)
+            let v = ExpressionResolver::new(self)
                 .bind_expression(v, bind_data)
                 .await?;
             options.insert(k, v);
@@ -211,31 +214,31 @@ impl<'a> Binder<'a> {
     async fn bind_copy_to(
         &self,
         copy_to: ast::CopyTo<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::CopyTo<Bound>> {
         let source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 ast::CopyToSource::Query(self.bind_query(query, bind_data).await?)
             }
             ast::CopyToSource::Table(reference) => {
-                let table = match self.bindmode {
-                    BindMode::Normal => {
-                        let table = Resolver::new(self.tx, self.context)
+                let table = match self.resolve_mode {
+                    ResolveMode::Normal => {
+                        let table = NormalResolver::new(self.tx, self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
-                        MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                        MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
-                    BindMode::Hybrid => {
-                        let table = Resolver::new(self.tx, self.context)
+                    ResolveMode::Hybrid => {
+                        let table = NormalResolver::new(self.tx, self.context)
                             .resolve_table_or_cte(&reference, bind_data)
                             .await?;
 
                         match table {
                             MaybeResolvedTable::Resolved(table) => {
-                                MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                                MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                             }
                             MaybeResolvedTable::UnresolvedWithCatalog(unbound) => {
-                                MaybeBound::Unbound(unbound)
+                                MaybeResolved::Unresolved(unbound)
                             }
                             MaybeResolvedTable::Unresolved => {
                                 return Err(RayexecError::new(format!(
@@ -247,7 +250,7 @@ impl<'a> Binder<'a> {
                     }
                 };
 
-                let idx = bind_data.tables.push_maybe_bound(table);
+                let idx = bind_data.tables.push_maybe_resolved(table);
                 ast::CopyToSource::Table(idx)
             }
         };
@@ -255,7 +258,7 @@ impl<'a> Binder<'a> {
         let mut options = HashMap::with_capacity(copy_to.options.len());
         for opt in copy_to.options {
             let key = opt.key.into_normalized_string();
-            let expr = ExpressionBinder::new(self)
+            let expr = ExpressionResolver::new(self)
                 .bind_expression(opt.val, bind_data)
                 .await?;
 
@@ -321,7 +324,7 @@ impl<'a> Binder<'a> {
                     }
                 };
 
-                bind_data.copy_to = Some(BoundCopyTo { func });
+                bind_data.copy_to = Some(ResolvedCopyTo { func });
 
                 FileLocation::parse(&file_name)
             }
@@ -381,7 +384,7 @@ impl<'a> Binder<'a> {
     async fn bind_create_table(
         &self,
         create: ast::CreateTable<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::CreateTable<Bound>> {
         // TODO: Search path
         let mut name: ItemReference = Self::reference_to_strings(create.name).into();
@@ -426,26 +429,26 @@ impl<'a> Binder<'a> {
     async fn bind_insert(
         &self,
         insert: ast::Insert<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::Insert<Bound>> {
-        let table = match self.bindmode {
-            BindMode::Normal => {
-                let table = Resolver::new(self.tx, self.context)
+        let table = match self.resolve_mode {
+            ResolveMode::Normal => {
+                let table = NormalResolver::new(self.tx, self.context)
                     .require_resolve_table_or_cte(&insert.table, bind_data)
                     .await?;
-                MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
             }
-            BindMode::Hybrid => {
-                let table = Resolver::new(self.tx, self.context)
+            ResolveMode::Hybrid => {
+                let table = NormalResolver::new(self.tx, self.context)
                     .resolve_table_or_cte(&insert.table, bind_data)
                     .await?;
 
                 match table {
                     MaybeResolvedTable::Resolved(table) => {
-                        MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                        MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
                     MaybeResolvedTable::UnresolvedWithCatalog(unbound) => {
-                        MaybeBound::Unbound(unbound)
+                        MaybeResolved::Unresolved(unbound)
                     }
                     MaybeResolvedTable::Unresolved => {
                         return Err(RayexecError::new(format!(
@@ -459,7 +462,7 @@ impl<'a> Binder<'a> {
 
         let source = self.bind_query(insert.source, bind_data).await?;
 
-        let idx = bind_data.tables.push_maybe_bound(table);
+        let idx = bind_data.tables.push_maybe_resolved(table);
 
         Ok(ast::Insert {
             table: idx,
@@ -471,16 +474,16 @@ impl<'a> Binder<'a> {
     async fn bind_query(
         &self,
         query: ast::QueryNode<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::QueryNode<Bound>> {
         /// Helper containing the actual logic for the bind.
         ///
         /// Pulled out so we can accurately set the bind data depth before and
         /// after this.
         async fn bind_query_inner(
-            binder: &Binder<'_>,
+            binder: &Resolver<'_>,
             query: ast::QueryNode<Raw>,
-            bind_data: &mut BindContext,
+            bind_data: &mut ResolveContext,
         ) -> Result<ast::QueryNode<Bound>> {
             let ctes = match query.ctes {
                 Some(ctes) => Some(binder.bind_ctes(ctes, bind_data).await?),
@@ -498,7 +501,7 @@ impl<'a> Binder<'a> {
             // Bind LIMIT/OFFSET
             let limit = match query.limit.limit {
                 Some(expr) => Some(
-                    ExpressionBinder::new(binder)
+                    ExpressionResolver::new(binder)
                         .bind_expression(expr, bind_data)
                         .await?,
                 ),
@@ -506,7 +509,7 @@ impl<'a> Binder<'a> {
             };
             let offset = match query.limit.offset {
                 Some(expr) => Some(
-                    ExpressionBinder::new(binder)
+                    ExpressionResolver::new(binder)
                         .bind_expression(expr, bind_data)
                         .await?,
                 ),
@@ -531,7 +534,7 @@ impl<'a> Binder<'a> {
     async fn bind_query_node_body(
         &self,
         body: ast::QueryNodeBody<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::QueryNodeBody<Bound>> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => {
@@ -564,14 +567,14 @@ impl<'a> Binder<'a> {
     async fn bind_ctes(
         &self,
         ctes: ast::CommonTableExprDefs<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::CommonTableExprDefs<Bound>> {
         let mut bound_refs = Vec::with_capacity(ctes.ctes.len());
         for cte in ctes.ctes.into_iter() {
             let depth = bind_data.current_depth;
 
             let bound_body = Box::pin(self.bind_query(*cte.body, bind_data)).await?;
-            let bound_cte = BoundCte {
+            let bound_cte = ResolvedCte {
                 name: cte.alias.into_normalized_string(),
                 depth,
                 column_aliases: cte.column_aliases,
@@ -592,7 +595,7 @@ impl<'a> Binder<'a> {
     async fn bind_select(
         &self,
         select: ast::SelectNode<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::SelectNode<Bound>> {
         // Bind DISTINCT
         let distinct = match select.distinct {
@@ -601,7 +604,7 @@ impl<'a> Binder<'a> {
                     let mut bound = Vec::with_capacity(exprs.len());
                     for expr in exprs {
                         bound.push(
-                            ExpressionBinder::new(self)
+                            ExpressionResolver::new(self)
                                 .bind_expression(expr, bind_data)
                                 .await?,
                         );
@@ -622,7 +625,7 @@ impl<'a> Binder<'a> {
         // Bind WHERE
         let where_expr = match select.where_expr {
             Some(expr) => Some(
-                ExpressionBinder::new(self)
+                ExpressionResolver::new(self)
                     .bind_expression(expr, bind_data)
                     .await?,
             ),
@@ -633,7 +636,7 @@ impl<'a> Binder<'a> {
         let mut projections = Vec::with_capacity(select.projections.len());
         for projection in select.projections {
             projections.push(
-                ExpressionBinder::new(self)
+                ExpressionResolver::new(self)
                     .bind_select_expr(projection, bind_data)
                     .await?,
             );
@@ -647,7 +650,7 @@ impl<'a> Binder<'a> {
                     let mut bound = Vec::with_capacity(exprs.len());
                     for expr in exprs {
                         bound.push(
-                            ExpressionBinder::new(self)
+                            ExpressionResolver::new(self)
                                 .bind_group_by_expr(expr, bind_data)
                                 .await?,
                         );
@@ -661,7 +664,7 @@ impl<'a> Binder<'a> {
         // Bind HAVING
         let having = match select.having {
             Some(expr) => Some(
-                ExpressionBinder::new(self)
+                ExpressionResolver::new(self)
                     .bind_expression(expr, bind_data)
                     .await?,
             ),
@@ -681,12 +684,12 @@ impl<'a> Binder<'a> {
     async fn bind_values(
         &self,
         values: ast::Values<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::Values<Bound>> {
         let mut bound = Vec::with_capacity(values.rows.len());
         for row in values.rows {
             bound.push(
-                ExpressionBinder::new(self)
+                ExpressionResolver::new(self)
                     .bind_expressions(row, bind_data)
                     .await?,
             );
@@ -697,9 +700,9 @@ impl<'a> Binder<'a> {
     async fn bind_order_by(
         &self,
         order_by: ast::OrderByNode<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::OrderByNode<Bound>> {
-        let expr = ExpressionBinder::new(self)
+        let expr = ExpressionResolver::new(self)
             .bind_expression(order_by.expr, bind_data)
             .await?;
         Ok(ast::OrderByNode {
@@ -712,28 +715,28 @@ impl<'a> Binder<'a> {
     async fn bind_from(
         &self,
         from: ast::FromNode<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::FromNode<Bound>> {
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                let table = match self.bindmode {
-                    BindMode::Normal => {
-                        let table = Resolver::new(self.tx, self.context)
+                let table = match self.resolve_mode {
+                    ResolveMode::Normal => {
+                        let table = NormalResolver::new(self.tx, self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
-                        MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                        MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
-                    BindMode::Hybrid => {
-                        let table = Resolver::new(self.tx, self.context)
+                    ResolveMode::Hybrid => {
+                        let table = NormalResolver::new(self.tx, self.context)
                             .resolve_table_or_cte(&reference, bind_data)
                             .await?;
 
                         match table {
                             MaybeResolvedTable::Resolved(table) => {
-                                MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                                MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                             }
                             MaybeResolvedTable::UnresolvedWithCatalog(unbound) => {
-                                MaybeBound::Unbound(unbound)
+                                MaybeResolved::Unresolved(unbound)
                             }
                             MaybeResolvedTable::Unresolved => {
                                 return Err(RayexecError::new(format!(
@@ -745,7 +748,7 @@ impl<'a> Binder<'a> {
                     }
                 };
 
-                let idx = bind_data.tables.push_maybe_bound(table);
+                let idx = bind_data.tables.push_maybe_resolved(table);
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
@@ -767,8 +770,8 @@ impl<'a> Binder<'a> {
                             .plan_and_initialize(self.context, args.clone())
                             .await?;
 
-                        let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference { name, func },
+                        let bind_idx = bind_data.table_functions.push_resolved(
+                            ResolvedTableFunctionReference { name, func },
                             LocationRequirement::ClientLocal,
                         );
 
@@ -786,43 +789,43 @@ impl<'a> Binder<'a> {
                 }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
-                let args = ExpressionBinder::new(self)
+                let args = ExpressionResolver::new(self)
                     .bind_table_function_args(args)
                     .await?;
 
-                let function = match self.bindmode {
-                    BindMode::Normal => {
-                        let function = Resolver::new(self.tx, self.context)
+                let function = match self.resolve_mode {
+                    ResolveMode::Normal => {
+                        let function = NormalResolver::new(self.tx, self.context)
                             .require_resolve_table_function(&reference)?;
                         let function = function
                             .plan_and_initialize(self.context, args.clone())
                             .await?;
 
-                        MaybeBound::Bound(
-                            BoundTableFunctionReference {
+                        MaybeResolved::Resolved(
+                            ResolvedTableFunctionReference {
                                 name: function.table_function().name().to_string(),
                                 func: function,
                             },
                             LocationRequirement::ClientLocal,
                         )
                     }
-                    BindMode::Hybrid => {
-                        match Resolver::new(self.tx, self.context)
+                    ResolveMode::Hybrid => {
+                        match NormalResolver::new(self.tx, self.context)
                             .resolve_table_function(&reference)?
                         {
                             Some(function) => {
                                 let function = function
                                     .plan_and_initialize(self.context, args.clone())
                                     .await?;
-                                MaybeBound::Bound(
-                                    BoundTableFunctionReference {
+                                MaybeResolved::Resolved(
+                                    ResolvedTableFunctionReference {
                                         name: function.table_function().name().to_string(),
                                         func: function,
                                     },
                                     LocationRequirement::ClientLocal,
                                 )
                             }
-                            None => MaybeBound::Unbound(UnboundTableFunctionReference {
+                            None => MaybeResolved::Unresolved(UnresolvedTableFunctionReference {
                                 reference,
                                 args: args.clone(),
                             }),
@@ -830,7 +833,7 @@ impl<'a> Binder<'a> {
                     }
                 };
 
-                let bind_idx = bind_data.table_functions.push_maybe_bound(function);
+                let bind_idx = bind_data.table_functions.push_maybe_resolved(function);
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                     reference: bind_idx,
                     // TODO: These args aren't actually needed when bound. Not
@@ -849,7 +852,7 @@ impl<'a> Binder<'a> {
 
                 let join_condition = match join_condition {
                     ast::JoinCondition::On(expr) => {
-                        let expr = ExpressionBinder::new(self)
+                        let expr = ExpressionResolver::new(self)
                             .bind_expression(expr, bind_data)
                             .await?;
                         ast::JoinCondition::On(expr)

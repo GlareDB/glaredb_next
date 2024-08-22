@@ -2,11 +2,11 @@ use crate::{database::DatabaseContext, functions::copy::CopyToFunction, proto::D
 use rayexec_error::{OptionExt, Result};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BoundCopyTo {
+pub struct ResolvedCopyTo {
     pub func: Box<dyn CopyToFunction>,
 }
 
-impl DatabaseProtoConv for BoundCopyTo {
+impl DatabaseProtoConv for ResolvedCopyTo {
     type ProtoType = rayexec_proto::generated::resolver::ResolvedCopyTo;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {

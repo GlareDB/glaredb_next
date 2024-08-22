@@ -16,7 +16,9 @@ use crate::{
             Projection, ResetVar, Scan, SetVar, ShowVar, VariableOrAll,
         },
         planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
-        resolver::{resolve_context::BindContext, resolved_table::BoundTableOrCteReference, Bound},
+        resolver::{
+            resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference, Bound,
+        },
     },
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
@@ -62,11 +64,11 @@ impl LogicalQuery2 {
 pub struct StatementPlanner<'a> {
     /// Session variables.
     pub vars: &'a SessionVars,
-    pub bind_data: &'a BindContext,
+    pub bind_data: &'a ResolveContext,
 }
 
 impl<'a> StatementPlanner<'a> {
-    pub fn new(vars: &'a SessionVars, bind_data: &'a BindContext) -> Self {
+    pub fn new(vars: &'a SessionVars, bind_data: &'a ResolveContext) -> Self {
         StatementPlanner { vars, bind_data }
     }
 
@@ -260,8 +262,10 @@ impl<'a> StatementPlanner<'a> {
             }
             ast::CopyToSource::Table(table) => {
                 let (reference, location) = match self.bind_data.tables.try_get_bound(table)? {
-                    (BoundTableOrCteReference::Table(reference), location) => (reference, location),
-                    (BoundTableOrCteReference::Cte { .. }, _) => {
+                    (ResolvedTableOrCteReference::Table(reference), location) => {
+                        (reference, location)
+                    }
+                    (ResolvedTableOrCteReference::Cte { .. }, _) => {
                         // Shouldn't be possible.
                         return Err(RayexecError::new("Cannot COPY from CTE"));
                     }
@@ -322,8 +326,8 @@ impl<'a> StatementPlanner<'a> {
         let source = planner.plan_query(context, insert.source)?;
 
         let (reference, location) = match self.bind_data.tables.try_get_bound(insert.table)? {
-            (BoundTableOrCteReference::Table(reference), location) => (reference, location),
-            (BoundTableOrCteReference::Cte { .. }, _) => {
+            (ResolvedTableOrCteReference::Table(reference), location) => (reference, location),
+            (ResolvedTableOrCteReference::Cte { .. }, _) => {
                 // Shouldn't be possible.
                 return Err(RayexecError::new("Cannot insert into CTE"));
             }

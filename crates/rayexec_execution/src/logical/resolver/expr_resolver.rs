@@ -13,23 +13,23 @@ use rayexec_parser::{
 };
 
 use super::{
-    resolve_normal::create_user_facing_resolve_err, resolved_function::BoundFunction, BindContext,
-    Binder, Bound,
+    resolve_normal::create_user_facing_resolve_err, resolved_function::ResolvedFunction, Bound,
+    ResolveContext, Resolver,
 };
 
-pub struct ExpressionBinder<'a> {
-    binder: &'a Binder<'a>,
+pub struct ExpressionResolver<'a> {
+    binder: &'a Resolver<'a>,
 }
 
-impl<'a> ExpressionBinder<'a> {
-    pub fn new(binder: &'a Binder) -> Self {
-        ExpressionBinder { binder }
+impl<'a> ExpressionResolver<'a> {
+    pub fn new(binder: &'a Resolver) -> Self {
+        ExpressionResolver { binder }
     }
 
     pub async fn bind_select_expr(
         &self,
         select_expr: ast::SelectExpr<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::SelectExpr<Bound>> {
         match select_expr {
             ast::SelectExpr::Expr(expr) => Ok(ast::SelectExpr::Expr(
@@ -54,7 +54,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_wildcard(
         &self,
         wildcard: ast::Wildcard<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::Wildcard<Bound>> {
         let mut replace_cols = Vec::with_capacity(wildcard.replace_cols.len());
         for replace in wildcard.replace_cols {
@@ -73,7 +73,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_group_by_expr(
         &self,
         expr: ast::GroupByExpr<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::GroupByExpr<Bound>> {
         Ok(match expr {
             ast::GroupByExpr::Expr(exprs) => {
@@ -103,7 +103,7 @@ impl<'a> ExpressionBinder<'a> {
         &self,
         args: Vec<FunctionArg<Raw>>,
     ) -> Result<TableFunctionArgs> {
-        let bind_data = &mut BindContext::default(); // Empty bind data since we don't allow complex expressions.
+        let bind_data = &mut ResolveContext::default(); // Empty bind data since we don't allow complex expressions.
 
         let mut named = HashMap::new();
         let mut positional = Vec::new();
@@ -168,7 +168,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_expressions(
         &self,
         exprs: impl IntoIterator<Item = ast::Expr<Raw>>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<Vec<ast::Expr<Bound>>> {
         let mut bound = Vec::new();
         for expr in exprs {
@@ -181,7 +181,7 @@ impl<'a> ExpressionBinder<'a> {
     pub async fn bind_expression(
         &self,
         expr: ast::Expr<Raw>,
-        bind_data: &mut BindContext,
+        bind_data: &mut ResolveContext,
     ) -> Result<ast::Expr<Bound>> {
         match expr {
             ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),
@@ -340,8 +340,8 @@ impl<'a> ExpressionBinder<'a> {
                     // TODO: Allow unbound scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
-                    let bind_idx = bind_data.functions.push_bound(
-                        BoundFunction::Scalar(
+                    let bind_idx = bind_data.functions.push_resolved(
+                        ResolvedFunction::Scalar(
                             scalar.try_as_scalar_function_entry()?.function.clone(),
                         ),
                         LocationRequirement::Any,
@@ -358,8 +358,8 @@ impl<'a> ExpressionBinder<'a> {
                     schema_ent.get_aggregate_function(self.binder.tx, func_name)?
                 {
                     // TODO: Allow unbound aggregates?
-                    let bind_idx = bind_data.functions.push_bound(
-                        BoundFunction::Aggregate(
+                    let bind_idx = bind_data.functions.push_resolved(
+                        ResolvedFunction::Aggregate(
                             aggregate
                                 .try_as_aggregate_function_entry()?
                                 .function
@@ -399,12 +399,12 @@ impl<'a> ExpressionBinder<'a> {
                 })
             }
             ast::Expr::TypedString { datatype, value } => {
-                let datatype = Binder::ast_datatype_to_exec_datatype(datatype)?;
+                let datatype = Resolver::ast_datatype_to_exec_datatype(datatype)?;
                 Ok(ast::Expr::TypedString { datatype, value })
             }
             ast::Expr::Cast { datatype, expr } => {
                 let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
-                let datatype = Binder::ast_datatype_to_exec_datatype(datatype)?;
+                let datatype = Resolver::ast_datatype_to_exec_datatype(datatype)?;
                 Ok(ast::Expr::Cast {
                     datatype,
                     expr: Box::new(expr),

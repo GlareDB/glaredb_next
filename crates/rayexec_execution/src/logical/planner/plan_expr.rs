@@ -15,7 +15,7 @@ use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
-use crate::logical::resolver::resolved_function::BoundFunction;
+use crate::logical::resolver::resolved_function::ResolvedFunction;
 use crate::logical::resolver::Bound;
 
 use super::plan_query::QueryNodePlanner;
@@ -274,7 +274,7 @@ impl<'a> ExpressionContext<'a> {
                 // I don't think it makes sense to try to handle different sets
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
-                    (BoundFunction::Scalar(scalar), _) => {
+                    (ResolvedFunction::Scalar(scalar), _) => {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
@@ -283,7 +283,7 @@ impl<'a> ExpressionContext<'a> {
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
-                    (BoundFunction::Aggregate(agg), _) => {
+                    (ResolvedFunction::Aggregate(agg), _) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
                         let agg = agg.plan_from_expressions(&inputs, self.input)?;

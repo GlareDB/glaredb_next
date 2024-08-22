@@ -21,7 +21,7 @@ use crate::{
     logical::{
         planner::plan_statement::StatementPlanner,
         resolver::{
-            resolve_context::BindContext,
+            resolve_context::ResolveContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},
             BoundStatement,
         },
@@ -87,7 +87,7 @@ where
         &self,
         mut context: DatabaseContext,
         stmt: BoundStatement,
-        bind_data: BindContext,
+        bind_data: ResolveContext,
     ) -> Result<HybridPlanResponse> {
         // Extend context with what we need in the query.
         let mut extender = HybridContextExtender::new(&mut context, &self.registry);
@@ -96,7 +96,7 @@ where
         // Now resolve with the extended context.
         let tx = CatalogTx::new();
         let resolver = HybridResolver::new(&tx, &context);
-        let bind_data = resolver.resolve_all_unbound(bind_data).await?;
+        let bind_data = resolver.resolve_all_unresolved(bind_data).await?;
 
         // TODO: Remove session var requirement.
         let vars = SessionVars::new_local();

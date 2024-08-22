@@ -14,21 +14,21 @@ pub struct CteIndex(pub usize);
 
 /// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
-pub enum BoundTableOrCteReference {
+pub enum ResolvedTableOrCteReference {
     /// Resolved table.
-    Table(BoundTableReference),
+    Table(ResolvedTableReference),
     /// Resolved CTE, index of the CTE in bind data.
     Cte(CteIndex),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BoundTableReference {
+pub struct ResolvedTableReference {
     pub catalog: String,
     pub schema: String,
     pub entry: Arc<CatalogEntry>,
 }
 
-impl DatabaseProtoConv for BoundTableOrCteReference {
+impl DatabaseProtoConv for ResolvedTableOrCteReference {
     type ProtoType = rayexec_proto::generated::resolver::ResolvedTableOrCteReference;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -38,7 +38,7 @@ impl DatabaseProtoConv for BoundTableOrCteReference {
         };
 
         let value = match self {
-            Self::Table(BoundTableReference {
+            Self::Table(ResolvedTableReference {
                 catalog,
                 schema,
                 entry,
@@ -59,7 +59,7 @@ impl DatabaseProtoConv for BoundTableOrCteReference {
         use rayexec_proto::generated::resolver::resolved_table_or_cte_reference::Value;
 
         Ok(match proto.value.required("value")? {
-            Value::Table(table) => Self::Table(BoundTableReference {
+            Value::Table(table) => Self::Table(ResolvedTableReference {
                 catalog: table.catalog,
                 schema: table.schema,
                 entry: Arc::new(CatalogEntry::from_proto_ctx(
@@ -73,7 +73,7 @@ impl DatabaseProtoConv for BoundTableOrCteReference {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct UnboundTableReference {
+pub struct UnresolvedTableReference {
     /// The raw ast reference.
     pub reference: ast::ObjectReference,
     /// Name of the catalog this table is in.
@@ -87,7 +87,7 @@ pub struct UnboundTableReference {
     pub attach_info: Option<AttachInfo>,
 }
 
-impl ProtoConv for UnboundTableReference {
+impl ProtoConv for UnresolvedTableReference {
     type ProtoType = rayexec_proto::generated::resolver::UnresolvedTableReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn roundtrip_unbound_table_reference() {
-        let reference = UnboundTableReference {
+        let reference = UnresolvedTableReference {
             reference: ast::ObjectReference::from_strings(["my", "table"]),
             catalog: "catalog".to_string(),
             attach_info: Some(AttachInfo {

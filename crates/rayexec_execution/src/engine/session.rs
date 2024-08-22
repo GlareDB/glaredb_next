@@ -18,7 +18,7 @@ use crate::{
         context::QueryContext,
         operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
         planner::plan_statement::StatementPlanner,
-        resolver::{BindMode, Binder},
+        resolver::{ResolveMode, Resolver},
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},
@@ -165,12 +165,12 @@ where
         let tx = CatalogTx::new();
 
         let bindmode = if self.hybrid_client.is_some() {
-            BindMode::Hybrid
+            ResolveMode::Hybrid
         } else {
-            BindMode::Normal
+            ResolveMode::Normal
         };
 
-        let (bound_stmt, bind_data) = Binder::new(
+        let (bound_stmt, bind_data) = Resolver::new(
             bindmode,
             &tx,
             &self.context,
@@ -182,7 +182,7 @@ where
         let (stream, sink, errors) = new_results_sinks();
 
         let (pipelines, output_schema) = match bindmode {
-            BindMode::Hybrid if bind_data.any_unbound() => {
+            ResolveMode::Hybrid if bind_data.any_unresolved() => {
                 // Hybrid planning, send to remote to complete planning.
 
                 let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;

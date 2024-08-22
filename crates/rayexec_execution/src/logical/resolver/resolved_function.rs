@@ -5,14 +5,14 @@ use crate::{
 };
 use rayexec_error::{OptionExt, Result};
 
-/// A bound aggregate or scalar function.
+/// A resolved aggregate or scalar function.
 #[derive(Debug, Clone, PartialEq)]
-pub enum BoundFunction {
+pub enum ResolvedFunction {
     Scalar(Box<dyn ScalarFunction>),
     Aggregate(Box<dyn AggregateFunction>),
 }
 
-impl BoundFunction {
+impl ResolvedFunction {
     pub fn name(&self) -> &str {
         match self {
             Self::Scalar(f) => f.name(),
@@ -21,7 +21,7 @@ impl BoundFunction {
     }
 }
 
-impl DatabaseProtoConv for BoundFunction {
+impl DatabaseProtoConv for ResolvedFunction {
     type ProtoType = rayexec_proto::generated::resolver::ResolvedFunctionReference;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {

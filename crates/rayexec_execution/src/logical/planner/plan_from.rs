@@ -1,13 +1,13 @@
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
-use crate::logical::resolver::{resolve_context::BindContext, Bound};
+use crate::logical::resolver::{resolve_context::ResolveContext, Bound};
 
 use super::{plan_statement::LogicalQuery, planning_context::PlanningContext};
 
 #[derive(Debug)]
 pub struct FromPlanner<'a> {
-    pub bind_data: &'a BindContext,
+    pub bind_data: &'a ResolveContext,
 }
 
 impl<'a> FromPlanner<'a> {
