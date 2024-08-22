@@ -4,9 +4,9 @@ use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    binder::bound_table::CteIndex,
     operator::{LogicalOperator, MaterializedScan},
     planner::scope::Scope,
+    resolver::bound_table::CteIndex,
 };
 
 #[derive(Debug, PartialEq)]

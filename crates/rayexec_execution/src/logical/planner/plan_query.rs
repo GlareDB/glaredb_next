@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use crate::logical::{
-    binder::{
+    context::QueryContext,
+    expr::LogicalExpression,
+    operator::{EqualityJoin, LogicalNode, SetOpKind, SetOperation},
+    resolver::{
         bind_context::BindContext,
         bound_table::{BoundTableOrCteReference, BoundTableReference, CteIndex},
         Bound,
     },
-    context::QueryContext,
-    expr::LogicalExpression,
-    operator::{EqualityJoin, LogicalNode, SetOpKind, SetOperation},
 };
 use crate::{
     functions::implicit::implicit_cast_score,

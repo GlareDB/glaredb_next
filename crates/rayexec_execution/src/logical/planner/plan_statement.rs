@@ -8,7 +8,6 @@ use crate::{
     },
     engine::vars::SessionVars,
     logical::{
-        binder::{bind_context::BindContext, bound_table::BoundTableOrCteReference, Bound},
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
@@ -17,6 +16,7 @@ use crate::{
             Projection, ResetVar, Scan, SetVar, ShowVar, VariableOrAll,
         },
         planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
+        resolver::{bind_context::BindContext, bound_table::BoundTableOrCteReference, Bound},
     },
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};

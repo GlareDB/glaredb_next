@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     database::{catalog::CatalogTx, memory_catalog::MemoryCatalog, Database, DatabaseContext},
     datasource::{DataSourceRegistry, FileHandlers},
-    logical::{binder::BindMode, operator::LocationRequirement},
+    logical::{operator::LocationRequirement, resolver::BindMode},
 };
 use rayexec_error::{RayexecError, Result};
 use tracing::debug;

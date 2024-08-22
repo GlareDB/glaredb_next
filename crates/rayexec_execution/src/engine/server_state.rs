@@ -19,12 +19,12 @@ use crate::{
         client::{HybridPlanResponse, PullStatus},
     },
     logical::{
-        binder::{
+        planner::plan_statement::StatementPlanner,
+        resolver::{
             bind_context::BindContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},
             BoundStatement,
         },
-        planner::plan_statement::StatementPlanner,
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, QueryHandle, Runtime},

@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
-use crate::logical::binder::{bind_context::BindContext, Bound};
+use crate::logical::resolver::{bind_context::BindContext, Bound};
 
 use super::{plan_statement::LogicalQuery, planning_context::PlanningContext};
 

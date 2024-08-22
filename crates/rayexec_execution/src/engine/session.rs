@@ -15,10 +15,10 @@ use crate::{
     },
     hybrid::client::HybridClient,
     logical::{
-        binder::{BindMode, Binder},
         context::QueryContext,
         operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
         planner::plan_statement::StatementPlanner,
+        resolver::{BindMode, Binder},
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},

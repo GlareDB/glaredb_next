@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use crate::logical::{
-    binder::Bound,
     context::QueryContext,
     expr::LogicalExpression,
     grouping_set::GroupingSets,
     operator::{Aggregate, LogicalNode, LogicalOperator, Projection},
+    resolver::Bound,
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
