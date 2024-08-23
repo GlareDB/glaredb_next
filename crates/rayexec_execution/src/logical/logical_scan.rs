@@ -47,7 +47,7 @@ pub struct LogicalScan {
 }
 
 impl Explainable for LogicalNode<LogicalScan> {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Scan")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.annotate_explain(ExplainEntry::new("Scan"), conf)
     }
 }

@@ -30,13 +30,13 @@ impl SubqueryPlanner {
                         self.plan_subquery_expr(context, expr, &mut proj.input)?;
                     }
                 }
-                LogicalOperator::Aggregate(node) => {
+                LogicalOperator::Aggregate2(node) => {
                     let agg = node.as_mut();
                     for expr in &mut agg.aggregates {
                         self.plan_subquery_expr(context, expr, &mut agg.input)?;
                     }
                 }
-                LogicalOperator::Filter(node) => {
+                LogicalOperator::Filter2(node) => {
                     let filter = node.as_mut();
                     self.plan_subquery_expr(context, &mut filter.predicate, &mut filter.input)?;
                 }
@@ -107,7 +107,7 @@ impl SubqueryPlanner {
                 // column around here.
 
                 // LIMIT the original subquery to 1
-                let subquery = LogicalOperator::Limit(LogicalNode::new(Limit {
+                let subquery = LogicalOperator::Limit2(LogicalNode::new(Limit {
                     offset: None,
                     limit: 1,
                     input: root,
@@ -151,7 +151,7 @@ impl SubqueryPlanner {
                 };
 
                 // COUNT(*) and LIMIT the original query.
-                let subquery = LogicalOperator::Aggregate(LogicalNode::new(Aggregate {
+                let subquery = LogicalOperator::Aggregate2(LogicalNode::new(Aggregate {
                     // TODO: Replace with CountStar once that's in.
                     //
                     // This currently just includes a 'true'
@@ -164,7 +164,7 @@ impl SubqueryPlanner {
                     }],
                     grouping_sets: None,
                     group_exprs: Vec::new(),
-                    input: Box::new(LogicalOperator::Limit(LogicalNode::new(Limit {
+                    input: Box::new(LogicalOperator::Limit2(LogicalNode::new(Limit {
                         offset: None,
                         limit: 1,
                         input: Box::new(LogicalOperator::Projection(LogicalNode::new(

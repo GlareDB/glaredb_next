@@ -26,8 +26,8 @@ pub struct BoundOrderBy {
 
 #[derive(Debug)]
 pub struct BoundLimit {
-    limit: usize,
-    offset: Option<usize>,
+    pub limit: usize,
+    pub offset: Option<usize>,
 }
 
 /// Binds ORDER BY, LIMIT, and DISTINCT.
@@ -53,13 +53,14 @@ impl<'a> ModifierBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         select_list: &mut SelectList,
-        order_bys: Vec<ast::OrderByNode<ResolvedMeta>>,
+        order_by: ast::OrderByModifier<ResolvedMeta>,
     ) -> Result<BoundOrderBy> {
         // TODO
         let expr_binder =
             ExpressionBinder::new(self.current[0], bind_context, self.resolve_context);
 
-        let exprs = order_bys
+        let exprs = order_by
+            .order_by_nodes
             .into_iter()
             .map(|order_by| {
                 // Check select list first.

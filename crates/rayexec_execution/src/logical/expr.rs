@@ -53,7 +53,7 @@ impl Subquery {
                         .iter_mut()
                         .for_each(|expr| correlated |= expr.is_correlated());
                 }
-                LogicalOperator::Filter(node) => {
+                LogicalOperator::Filter2(node) => {
                     correlated = node.as_mut().predicate.is_correlated();
                 }
                 _ => (), // TODO: The others
@@ -324,12 +324,12 @@ impl LogicalExpression {
                 LogicalOperator::Projection(p) => {
                     LogicalExpression::walk_mut_many(&mut p.as_mut().exprs, pre, post)?
                 }
-                LogicalOperator::Filter(p) => p.as_mut().predicate.walk_mut(pre, post)?,
-                LogicalOperator::Aggregate(p) => {
+                LogicalOperator::Filter2(p) => p.as_mut().predicate.walk_mut(pre, post)?,
+                LogicalOperator::Aggregate2(p) => {
                     LogicalExpression::walk_mut_many(&mut p.as_mut().aggregates, pre, post)?;
                     LogicalExpression::walk_mut_many(&mut p.as_mut().group_exprs, pre, post)?;
                 }
-                LogicalOperator::Order(p) => {
+                LogicalOperator::Order2(p) => {
                     let p = p.as_mut();
                     for expr in &mut p.exprs {
                         expr.expr.walk_mut(pre, post)?;
@@ -340,7 +340,7 @@ impl LogicalExpression {
                 LogicalOperator::CrossJoin(_) => (),
                 LogicalOperator::DependentJoin(_) => (),
                 LogicalOperator::SetOperation(_) => (),
-                LogicalOperator::Limit(_) => (),
+                LogicalOperator::Limit2(_) => (),
                 LogicalOperator::MaterializedScan(_) => (),
                 LogicalOperator::Scan2(_) => (),
                 LogicalOperator::TableFunction(_) => (),

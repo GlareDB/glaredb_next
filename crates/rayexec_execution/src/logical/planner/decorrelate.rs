@@ -136,13 +136,13 @@ impl DependentJoinPushDown {
                             .get(&node.as_ref().input)
                             .unwrap_or(false)
                 }
-                LogicalOperator::Filter(node) => {
+                LogicalOperator::Filter2(node) => {
                     let filter = node.as_mut();
                     let has_correlation =
                         self.add_any_correlated_columns([&mut filter.predicate])?;
                     has_correlation || self.has_correlations.get(&filter.input).unwrap_or(false)
                 }
-                LogicalOperator::Aggregate(node) => {
+                LogicalOperator::Aggregate2(node) => {
                     let agg = node.as_mut();
                     let mut has_correlation =
                         self.add_any_correlated_columns(&mut agg.aggregates)?;
@@ -275,7 +275,7 @@ impl DependentJoinPushDown {
         }
 
         match plan {
-            LogicalOperator::Filter(node) => {
+            LogicalOperator::Filter2(node) => {
                 let filter = node.as_mut();
                 self.push_down(context, materialized_idx, &mut filter.input)?;
                 // Filter is simple, don't need to do anything special.

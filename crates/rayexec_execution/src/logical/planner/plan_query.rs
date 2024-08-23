@@ -90,7 +90,7 @@ impl<'a> QueryNodePlanner<'a> {
             };
 
             // Update plan, does not change scope.
-            planned.root = LogicalOperator::Limit(LogicalNode::new(Limit {
+            planned.root = LogicalOperator::Limit2(LogicalNode::new(Limit {
                 offset,
                 limit,
                 input: Box::new(planned.root),
@@ -104,7 +104,7 @@ impl<'a> QueryNodePlanner<'a> {
         &mut self,
         context: &mut QueryContext,
         body: ast::QueryNodeBody<ResolvedMeta>,
-        order_by: Vec<ast::OrderByNode<ResolvedMeta>>,
+        order_by: Option<ast::OrderByModifier<ResolvedMeta>>,
     ) -> Result<LogicalQuery2> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => self.plan_select(context, *select, order_by)?,
@@ -115,8 +115,8 @@ impl<'a> QueryNodePlanner<'a> {
                 operation,
                 all,
             } => {
-                let top = self.plan_query_body(context, *left, Vec::new())?;
-                let bottom = self.plan_query_body(context, *right, Vec::new())?;
+                let top = self.plan_query_body(context, *left, None)?;
+                let bottom = self.plan_query_body(context, *right, None)?;
 
                 // Output scope always takes the scope from the top. Aliases and
                 // column names from the bottom get thrown away.
@@ -140,7 +140,7 @@ impl<'a> QueryNodePlanner<'a> {
 
                 // TODO: Apply ORDER BY to plan making use of scope. Similar to
                 // what happens in planning select.
-                if !order_by.is_empty() {
+                if order_by.is_some() {
                     not_implemented!("order by on set ops");
                 }
 
@@ -154,7 +154,7 @@ impl<'a> QueryNodePlanner<'a> {
         &mut self,
         context: &mut QueryContext,
         select: ast::SelectNode<ResolvedMeta>,
-        order_by: Vec<ast::OrderByNode<ResolvedMeta>>,
+        order_by: Option<ast::OrderByModifier<ResolvedMeta>>,
     ) -> Result<LogicalQuery2> {
         // Handle FROM
         let mut plan = match select.from {
@@ -176,7 +176,7 @@ impl<'a> QueryNodePlanner<'a> {
             // SubqueryPlanner.plan_subquery_expr(&mut expr, &mut plan.root)?;
 
             // Add filter to the plan, does not change the scope.
-            plan.root = LogicalOperator::Filter(LogicalNode::new(Filter {
+            plan.root = LogicalOperator::Filter2(LogicalNode::new(Filter {
                 predicate: expr,
                 input: Box::new(plan.root),
             }));
@@ -232,25 +232,29 @@ impl<'a> QueryNodePlanner<'a> {
             None => None,
         };
 
-        let mut order_by_exprs = order_by
-            .into_iter()
-            .map(|order_by| {
-                let expr = expr_ctx.plan_expression_with_select_list(
-                    context,
-                    &alias_map,
-                    &select_exprs,
-                    order_by.expr,
-                )?;
-                Ok(OrderByExpr {
-                    expr,
-                    desc: matches!(order_by.typ.unwrap_or(OrderByType::Asc), OrderByType::Desc),
-                    nulls_first: matches!(
-                        order_by.nulls.unwrap_or(OrderByNulls::First),
-                        OrderByNulls::First
-                    ),
+        let mut order_by_exprs = match order_by {
+            Some(order_by) => order_by
+                .order_by_nodes
+                .into_iter()
+                .map(|order_by| {
+                    let expr = expr_ctx.plan_expression_with_select_list(
+                        context,
+                        &alias_map,
+                        &select_exprs,
+                        order_by.expr,
+                    )?;
+                    Ok(OrderByExpr {
+                        expr,
+                        desc: matches!(order_by.typ.unwrap_or(OrderByType::Asc), OrderByType::Desc),
+                        nulls_first: matches!(
+                            order_by.nulls.unwrap_or(OrderByNulls::First),
+                            OrderByNulls::First
+                        ),
+                    })
                 })
-            })
-            .collect::<Result<Vec<_>>>()?;
+                .collect::<Result<Vec<_>>>()?,
+            None => Vec::new(),
+        };
 
         num_appended += Self::append_order_by_exprs(&mut select_exprs, &mut order_by_exprs)?;
 
@@ -279,7 +283,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Add filter for HAVING.
         if let Some(expr) = having_expr {
             plan = LogicalQuery2 {
-                root: LogicalOperator::Filter(LogicalNode::new(Filter {
+                root: LogicalOperator::Filter2(LogicalNode::new(Filter {
                     predicate: expr,
                     input: Box::new(plan.root),
                 })),
@@ -290,7 +294,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Add order by node.
         if !order_by_exprs.is_empty() {
             plan = LogicalQuery2 {
-                root: LogicalOperator::Order(LogicalNode::new(Order {
+                root: LogicalOperator::Order2(LogicalNode::new(Order {
                     exprs: order_by_exprs,
                     input: Box::new(plan.root),
                 })),

@@ -497,10 +497,18 @@ impl<'a> Resolver<'a> {
                 .await?;
 
             // Resolve ORDER BY
-            let mut order_by = Vec::with_capacity(query.order_by.len());
-            for expr in query.order_by {
-                order_by.push(resolver.resolve_order_by(expr, resolve_context).await?);
-            }
+            let order_by = match query.order_by {
+                Some(order_by) => {
+                    let mut order_bys = Vec::with_capacity(order_by.order_by_nodes.len());
+                    for expr in order_by.order_by_nodes {
+                        order_bys.push(resolver.resolve_order_by(expr, resolve_context).await?);
+                    }
+                    Some(ast::OrderByModifier {
+                        order_by_nodes: order_bys,
+                    })
+                }
+                None => None,
+            };
 
             // Resolve LIMIT/OFFSET
             let limit = match query.limit.limit {

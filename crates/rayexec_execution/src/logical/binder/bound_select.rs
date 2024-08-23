@@ -14,6 +14,8 @@ use rayexec_parser::ast;
 use super::{
     bind_context::{BindContext, BindContextIdx},
     bound_from::BoundFrom,
+    bound_group_by::BoundGroupBy,
+    bound_modifier::{BoundLimit, BoundOrderBy},
 };
 
 #[derive(Debug)]
@@ -26,6 +28,12 @@ pub struct BoundSelect {
     pub filter: Option<LogicalExpression>,
     /// Expression for HAVING.
     pub having: Option<LogicalExpression>,
+    /// Bound GROUP BY with expressions and grouping sets.
+    pub group_by: Option<BoundGroupBy>,
+    /// Bound ORDER BY.
+    pub order_by: Option<BoundOrderBy>,
+    /// Bound LIMIT.
+    pub limit: Option<BoundLimit>,
     /// Any aggregates in the select list.
     pub aggregates: Vec<LogicalExpression>,
 }
@@ -41,7 +49,7 @@ impl<'a> SelectBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         select: ast::SelectNode<ResolvedMeta>,
-        order_by: Vec<ast::OrderByNode<ResolvedMeta>>,
+        order_by: Option<ast::OrderByModifier<ResolvedMeta>>,
         limit: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<Self> {
         // Handle FROM
@@ -83,7 +91,9 @@ impl<'a> SelectBinder<'a> {
 
         // Handle ORDER BY, LIMIT, DISTINCT (todo)
         let modifier_binder = ModifierBinder::new(vec![self.current], self.resolve_context);
-        let order_by = modifier_binder.bind_order_by(bind_context, &mut select_list, order_by)?;
+        let order_by = order_by
+            .map(|order_by| modifier_binder.bind_order_by(bind_context, &mut select_list, order_by))
+            .transpose()?;
         let limit = modifier_binder.bind_limit(bind_context, limit)?;
 
         // Handle GROUP BY

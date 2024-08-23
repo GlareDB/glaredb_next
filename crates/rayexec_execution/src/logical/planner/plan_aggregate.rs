@@ -159,7 +159,7 @@ impl AggregatePlanner {
             input: Box::new(current),
         }));
 
-        Ok(LogicalOperator::Aggregate(LogicalNode::new(Aggregate {
+        Ok(LogicalOperator::Aggregate2(LogicalNode::new(Aggregate {
             aggregates: agg_exprs,
             group_exprs,
             grouping_sets,

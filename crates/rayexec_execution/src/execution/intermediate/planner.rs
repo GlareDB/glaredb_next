@@ -294,7 +294,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         match plan {
             LogicalOperator::Projection(proj) => self.push_project(id_gen, materializations, proj),
-            LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
+            LogicalOperator::Filter2(filter) => self.push_filter(id_gen, materializations, filter),
             LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
@@ -307,9 +307,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 "Dependent joins cannot be made into a pipeline",
             )),
             LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
-            LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
-            LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
-            LogicalOperator::Order(order) => self.push_global_sort(id_gen, materializations, order),
+            LogicalOperator::Aggregate2(agg) => self.push_aggregate(id_gen, materializations, agg),
+            LogicalOperator::Limit2(limit) => self.push_limit(id_gen, materializations, limit),
+            LogicalOperator::Order2(order) => {
+                self.push_global_sort(id_gen, materializations, order)
+            }
             LogicalOperator::ShowVar(show_var) => self.push_show_var(id_gen, show_var),
             LogicalOperator::Explain(explain) => {
                 self.push_explain(id_gen, materializations, explain)

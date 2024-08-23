@@ -2,6 +2,11 @@ use super::context::QueryContext;
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
+use super::logical_aggregate::LogicalAggregate;
+use super::logical_filter::LogicalFilter;
+use super::logical_limit::LogicalLimit;
+use super::logical_order::LogicalOrder;
+use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::database::create::OnConflict;
@@ -72,6 +77,16 @@ impl ProtoConv for LocationRequirement {
     }
 }
 
+impl fmt::Display for LocationRequirement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ClientLocal => write!(f, "ClientLocal"),
+            Self::Remote => write!(f, "Remote"),
+            Self::Any => write!(f, "Any"),
+        }
+    }
+}
+
 /// Wrapper around nodes in the logical plan to holds additional metadata for
 /// the node.
 #[derive(Debug, Clone, PartialEq)]
@@ -106,6 +121,20 @@ impl<N> LogicalNode<N> {
     pub fn into_inner(self) -> N {
         self.node
     }
+
+    pub fn annotate_explain(
+        &self,
+        mut explain: ExplainEntry,
+        _conf: ExplainConfig,
+    ) -> ExplainEntry {
+        if !self.expressions.is_empty() {
+            explain = explain.with_values(
+                "expressions",
+                self.expressions.iter().map(|expr| format!("{expr}")),
+            );
+        }
+        explain.with_value("location", self.location)
+    }
 }
 
 impl<N> AsRef<N> for LogicalNode<N> {
@@ -123,14 +152,14 @@ impl<N> AsMut<N> for LogicalNode<N> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalOperator {
     Projection(LogicalNode<Projection>),
-    Filter(LogicalNode<Filter>),
-    Aggregate(LogicalNode<Aggregate>),
-    Order(LogicalNode<Order>),
+    Filter2(LogicalNode<Filter>),
+    Aggregate2(LogicalNode<Aggregate>),
+    Order2(LogicalNode<Order>),
     AnyJoin(LogicalNode<AnyJoin>),
     EqualityJoin(LogicalNode<EqualityJoin>),
     CrossJoin(LogicalNode<CrossJoin>),
     DependentJoin(LogicalNode<DependentJoin>),
-    Limit(LogicalNode<Limit>),
+    Limit2(LogicalNode<Limit>),
     SetOperation(LogicalNode<SetOperation>),
     MaterializedScan(LogicalNode<MaterializedScan>),
     Scan2(LogicalNode<Scan>),
@@ -151,6 +180,11 @@ pub enum LogicalOperator {
     Explain(LogicalNode<Explain>),
     Describe(LogicalNode<Describe>),
     // TODO
+    Project(LogicalNode<LogicalProject>),
+    Filter(LogicalNode<LogicalFilter>),
+    Limit(LogicalNode<LogicalLimit>),
+    Order(LogicalNode<LogicalOrder>),
+    Aggregate(LogicalNode<LogicalAggregate>),
     Scan(LogicalNode<LogicalScan>),
 }
 
@@ -164,14 +198,14 @@ impl LogicalOperator {
     pub fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         match self {
             Self::Projection(n) => n.as_ref().output_schema(outer),
-            Self::Filter(n) => n.as_ref().output_schema(outer),
-            Self::Aggregate(n) => n.as_ref().output_schema(outer),
-            Self::Order(n) => n.as_ref().output_schema(outer),
+            Self::Filter2(n) => n.as_ref().output_schema(outer),
+            Self::Aggregate2(n) => n.as_ref().output_schema(outer),
+            Self::Order2(n) => n.as_ref().output_schema(outer),
             Self::AnyJoin(n) => n.as_ref().output_schema(outer),
             Self::EqualityJoin(n) => n.as_ref().output_schema(outer),
             Self::CrossJoin(n) => n.as_ref().output_schema(outer),
             Self::DependentJoin(n) => n.as_ref().output_schema(outer),
-            Self::Limit(n) => n.as_ref().output_schema(outer),
+            Self::Limit2(n) => n.as_ref().output_schema(outer),
             Self::SetOperation(n) => n.as_ref().output_schema(outer),
             Self::MaterializedScan(n) => n.as_ref().output_schema(outer),
             Self::Scan2(n) => n.as_ref().output_schema(outer),
@@ -198,14 +232,14 @@ impl LogicalOperator {
     pub fn location(&self) -> &LocationRequirement {
         match self {
             Self::Projection(n) => &n.location,
-            Self::Filter(n) => &n.location,
-            Self::Aggregate(n) => &n.location,
-            Self::Order(n) => &n.location,
+            Self::Filter2(n) => &n.location,
+            Self::Aggregate2(n) => &n.location,
+            Self::Order2(n) => &n.location,
             Self::AnyJoin(n) => &n.location,
             Self::EqualityJoin(n) => &n.location,
             Self::CrossJoin(n) => &n.location,
             Self::DependentJoin(n) => &n.location,
-            Self::Limit(n) => &n.location,
+            Self::Limit2(n) => &n.location,
             Self::SetOperation(n) => &n.location,
             Self::MaterializedScan(n) => &n.location,
             Self::Scan2(n) => &n.location,
@@ -232,14 +266,14 @@ impl LogicalOperator {
     pub fn location_mut(&mut self) -> &mut LocationRequirement {
         match self {
             Self::Projection(n) => &mut n.location,
-            Self::Filter(n) => &mut n.location,
-            Self::Aggregate(n) => &mut n.location,
-            Self::Order(n) => &mut n.location,
+            Self::Filter2(n) => &mut n.location,
+            Self::Aggregate2(n) => &mut n.location,
+            Self::Order2(n) => &mut n.location,
             Self::AnyJoin(n) => &mut n.location,
             Self::EqualityJoin(n) => &mut n.location,
             Self::CrossJoin(n) => &mut n.location,
             Self::DependentJoin(n) => &mut n.location,
-            Self::Limit(n) => &mut n.location,
+            Self::Limit2(n) => &mut n.location,
             Self::SetOperation(n) => &mut n.location,
             Self::MaterializedScan(n) => &mut n.location,
             Self::Scan2(n) => &mut n.location,
@@ -277,9 +311,9 @@ impl LogicalOperator {
     {
         match self {
             Self::Projection(n) => f(&mut n.as_mut().input)?,
-            Self::Filter(n) => f(&mut n.as_mut().input)?,
-            Self::Aggregate(n) => f(&mut n.as_mut().input)?,
-            Self::Order(n) => f(&mut n.as_mut().input)?,
+            Self::Filter2(n) => f(&mut n.as_mut().input)?,
+            Self::Aggregate2(n) => f(&mut n.as_mut().input)?,
+            Self::Order2(n) => f(&mut n.as_mut().input)?,
             Self::AnyJoin(n) => {
                 f(&mut n.as_mut().left)?;
                 f(&mut n.as_mut().right)?;
@@ -296,7 +330,7 @@ impl LogicalOperator {
                 f(&mut n.as_mut().left)?;
                 f(&mut n.as_mut().right)?;
             }
-            Self::Limit(n) => f(&mut n.as_mut().input)?,
+            Self::Limit2(n) => f(&mut n.as_mut().input)?,
             Self::SetOperation(_) => (),
             Self::MaterializedScan(_) => (),
             Self::Scan2(_) => (),
@@ -351,22 +385,22 @@ impl LogicalOperator {
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
             }
-            LogicalOperator::Filter(p) => {
+            LogicalOperator::Filter2(p) => {
                 pre(&mut p.as_mut().input)?;
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
             }
-            LogicalOperator::Aggregate(p) => {
+            LogicalOperator::Aggregate2(p) => {
                 pre(&mut p.as_mut().input)?;
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
             }
-            LogicalOperator::Order(p) => {
+            LogicalOperator::Order2(p) => {
                 pre(&mut p.as_mut().input)?;
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
             }
-            LogicalOperator::Limit(p) => {
+            LogicalOperator::Limit2(p) => {
                 pre(&mut p.as_mut().input)?;
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
@@ -468,14 +502,14 @@ impl Explainable for LogicalOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         match self {
             Self::Projection(p) => p.as_ref().explain_entry(conf),
-            Self::Filter(p) => p.as_ref().explain_entry(conf),
-            Self::Aggregate(p) => p.as_ref().explain_entry(conf),
-            Self::Order(p) => p.as_ref().explain_entry(conf),
+            Self::Filter2(p) => p.as_ref().explain_entry(conf),
+            Self::Aggregate2(p) => p.as_ref().explain_entry(conf),
+            Self::Order2(p) => p.as_ref().explain_entry(conf),
             Self::AnyJoin(p) => p.as_ref().explain_entry(conf),
             Self::EqualityJoin(p) => p.as_ref().explain_entry(conf),
             Self::CrossJoin(p) => p.as_ref().explain_entry(conf),
             Self::DependentJoin(p) => p.as_ref().explain_entry(conf),
-            Self::Limit(p) => p.as_ref().explain_entry(conf),
+            Self::Limit2(p) => p.as_ref().explain_entry(conf),
             Self::SetOperation(p) => p.as_ref().explain_entry(conf),
             Self::MaterializedScan(p) => p.as_ref().explain_entry(conf),
             Self::Scan2(p) => p.as_ref().explain_entry(conf),
@@ -1218,7 +1252,7 @@ mod tests {
     fn walk_plan_pre_post() {
         let mut plan = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: Vec::new(),
-            input: Box::new(LogicalOperator::Filter(LogicalNode::new(Filter {
+            input: Box::new(LogicalOperator::Filter2(LogicalNode::new(Filter {
                 predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
                 input: Box::new(LogicalOperator::Empty(LogicalNode::new(()))),
             }))),
@@ -1231,7 +1265,7 @@ mod tests {
                         .as_mut()
                         .exprs
                         .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
-                    LogicalOperator::Filter(_) => {}
+                    LogicalOperator::Filter2(_) => {}
                     LogicalOperator::Empty(_) => {}
                     other => panic!("unexpected child {other:?}"),
                 }
@@ -1248,7 +1282,7 @@ mod tests {
                             .exprs
                             .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
                     }
-                    LogicalOperator::Filter(_) => {}
+                    LogicalOperator::Filter2(_) => {}
                     LogicalOperator::Empty(_) => {}
                     other => panic!("unexpected child {other:?}"),
                 }

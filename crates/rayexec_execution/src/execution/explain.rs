@@ -106,13 +106,15 @@ impl ExplainNode {
             LogicalOperator::Projection(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
-            LogicalOperator::Filter(p) => {
+            LogicalOperator::Filter2(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
-            LogicalOperator::Aggregate(p) => {
+            LogicalOperator::Aggregate2(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
-            LogicalOperator::Order(p) => vec![Self::walk_logical(context, &p.as_ref().input, conf)],
+            LogicalOperator::Order2(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
             LogicalOperator::AnyJoin(p) => {
                 vec![
                     Self::walk_logical(context, &p.as_ref().left, conf),
@@ -144,7 +146,9 @@ impl ExplainNode {
                 ]
             }
 
-            LogicalOperator::Limit(p) => vec![Self::walk_logical(context, &p.as_ref().input, conf)],
+            LogicalOperator::Limit2(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
             LogicalOperator::CreateTableAs(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
