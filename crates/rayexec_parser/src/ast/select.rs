@@ -253,7 +253,7 @@ pub enum GroupByExpr<T: AstMeta> {
     /// `GROUP BY ROLLUP (<expr>)`
     Rollup(Vec<Expr<T>>),
     /// `GROUP BY GROUPING SETS (<expr>)`
-    GroupingSets(Vec<Expr<T>>),
+    GroupingSets(Vec<Expr<T>>), // TODO: vec vec
 }
 
 impl AstParseable for GroupByExpr<Raw> {

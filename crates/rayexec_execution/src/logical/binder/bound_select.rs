@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
 use crate::logical::{
-    binder::{bound_from::FromBinder, expr_binder::ExpressionBinder},
+    binder::{
+        bound_from::FromBinder, bound_modifier::ModifierBinder, expr_binder::ExpressionBinder,
+        select_list::SelectList,
+    },
+    expr::LogicalExpression,
     resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast::{self, SelectExpr};
+use rayexec_parser::ast;
 
 use super::{
     bind_context::{BindContext, BindContextIdx},
@@ -14,8 +18,16 @@ use super::{
 
 #[derive(Debug)]
 pub struct BoundSelect {
+    /// Projections in select, including appended projections.
+    pub select_list: SelectList,
     /// Bound FROM.
     pub from: BoundFrom,
+    /// Expression for WHERE.
+    pub filter: Option<LogicalExpression>,
+    /// Expression for HAVING.
+    pub having: Option<LogicalExpression>,
+    /// Any aggregates in the select list.
+    pub aggregates: Vec<LogicalExpression>,
 }
 
 #[derive(Debug)]
@@ -30,6 +42,7 @@ impl<'a> SelectBinder<'a> {
         bind_context: &mut BindContext,
         select: ast::SelectNode<ResolvedMeta>,
         order_by: Vec<ast::OrderByNode<ResolvedMeta>>,
+        limit: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<Self> {
         // Handle FROM
         let from =
@@ -43,11 +56,18 @@ impl<'a> SelectBinder<'a> {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
         }
 
+        let mut select_list = SelectList {
+            alias_map: HashMap::new(),
+            projections,
+            appended: Vec::new(),
+        };
+
         // Track aliases to allow referencing them in GROUP BY and ORDER BY.
-        let mut alias_map = HashMap::new();
-        for (idx, projection) in projections.iter().enumerate() {
+        for (idx, projection) in select_list.projections.iter().enumerate() {
             if let Some(alias) = projection.get_alias() {
-                alias_map.insert(alias.as_normalized_string(), idx);
+                select_list
+                    .alias_map
+                    .insert(alias.as_normalized_string(), idx);
             }
         }
 
@@ -60,6 +80,11 @@ impl<'a> SelectBinder<'a> {
                 binder.bind_expression(expr)
             })
             .transpose()?;
+
+        // Handle ORDER BY, LIMIT, DISTINCT (todo)
+        let modifier_binder = ModifierBinder::new(vec![self.current], self.resolve_context);
+        let order_by = modifier_binder.bind_order_by(bind_context, &mut select_list, order_by)?;
+        let limit = modifier_binder.bind_limit(bind_context, limit)?;
 
         unimplemented!()
     }

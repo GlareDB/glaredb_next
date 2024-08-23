@@ -10,15 +10,29 @@ pub struct SelectList {
 
     /// Expanded projections that will be shown in the output.
     pub projections: Vec<ast::SelectExpr<ResolvedMeta>>,
+
+    /// Projections that are appended to the right of the output projects.
+    ///
+    /// This is for appending expressions used for ORDER BY and GROUP BY.
+    pub appended: Vec<ast::SelectExpr<ResolvedMeta>>,
 }
 
 impl SelectList {
+    pub fn append_expression(&mut self, expr: ast::SelectExpr<ResolvedMeta>) -> usize {
+        let idx = self.projections.len() + self.appended.len();
+        self.appended.push(expr);
+        idx
+    }
+
     /// Attempt to get an expression with the possibility of it pointing to an
     /// expression in the select list.
     ///
     /// This allows GROUP BY and ORDER BY to reference columns in the output by
     /// either its alias, or by its ordinal.
-    pub fn get_projection_reference(&self, expr: ast::Expr<ResolvedMeta>) -> Result<Option<usize>> {
+    pub fn get_projection_reference(
+        &self,
+        expr: &ast::Expr<ResolvedMeta>,
+    ) -> Result<Option<usize>> {
         // Check constant first.
         //
         // e.g. ORDER BY 1
@@ -38,7 +52,7 @@ impl SelectList {
 
         // Alias reference
         if let ast::Expr::Ident(ident) = expr {
-            if let Some(idx) = self.alias_map.get(&ident.into_normalized_string()) {
+            if let Some(idx) = self.alias_map.get(&ident.as_normalized_string()) {
                 return Ok(Some(*idx));
             }
         }
