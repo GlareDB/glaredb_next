@@ -48,7 +48,7 @@ impl BoundFrom {
         current: BindContextIdx,
         bind_context: &mut BindContext,
         resolve_context: &ResolveContext,
-        from: ast::FromNode<ResolvedMeta>,
+        from: Option<ast::FromNode<ResolvedMeta>>,
     ) -> Result<BoundFrom> {
         unimplemented!()
     }

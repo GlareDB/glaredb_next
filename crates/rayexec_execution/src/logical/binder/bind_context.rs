@@ -94,6 +94,14 @@ impl BindContext {
         Ok(found)
     }
 
+    pub fn iter_table_scopes(
+        &self,
+        current: BindContextIdx,
+    ) -> Result<impl Iterator<Item = &TableScope>> {
+        let context = self.get_child_context(current)?;
+        Ok(context.scopes.iter())
+    }
+
     fn get_child_context(&self, BindContextIdx(idx): BindContextIdx) -> Result<&ChildBindContext> {
         self.contexts
             .get(idx)

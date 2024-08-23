@@ -87,6 +87,15 @@ pub enum SelectExpr<T: AstMeta> {
     Wildcard(Wildcard<T>),
 }
 
+impl<T: AstMeta> SelectExpr<T> {
+    pub fn get_alias(&self) -> Option<&Ident> {
+        match self {
+            Self::AliasedExpr(_, alias) => Some(alias),
+            _ => None,
+        }
+    }
+}
+
 impl AstParseable for SelectExpr<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let expr = WildcardExpr::parse(parser)?;
