@@ -151,7 +151,7 @@ impl DependentJoinPushDown {
                 }
                 LogicalOperator::MaterializedScan(_)
                 | LogicalOperator::Empty(_)
-                | LogicalOperator::Scan(_)
+                | LogicalOperator::Scan2(_)
                 | LogicalOperator::TableFunction(_) => false,
                 _ => true, // TODO: More
             };

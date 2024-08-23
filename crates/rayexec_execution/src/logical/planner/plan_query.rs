@@ -25,7 +25,7 @@ use super::{
     plan_aggregate::AggregatePlanner,
     plan_expr::{ExpandedSelectExpr, ExpressionContext},
     plan_statement::LogicalQuery2,
-    plan_subquery::SubqueryPlanner,
+    plan_subquery2::SubqueryPlanner,
     scope::{ColumnRef, Scope, TableReference},
 };
 
@@ -360,7 +360,7 @@ impl<'a> QueryNodePlanner<'a> {
                                 .map(|f| f.name.clone()),
                         );
                         LogicalQuery2 {
-                            root: LogicalOperator::Scan(LogicalNode::with_location(
+                            root: LogicalOperator::Scan2(LogicalNode::with_location(
                                 Scan {
                                     catalog: catalog.clone(),
                                     schema: schema.clone(),

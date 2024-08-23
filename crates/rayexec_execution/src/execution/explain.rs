@@ -170,7 +170,7 @@ impl ExplainNode {
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)
             | LogicalOperator::ResetVar(_)
-            | LogicalOperator::Scan(_)
+            | LogicalOperator::Scan2(_)
             | LogicalOperator::TableFunction(_)
             | LogicalOperator::Drop(_)
             | LogicalOperator::Describe(_)
@@ -178,6 +178,7 @@ impl ExplainNode {
             | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::CreateSchema(_)
             | LogicalOperator::CreateTable(_) => Vec::new(),
+            _ => unimplemented!(),
         };
 
         ExplainNode {

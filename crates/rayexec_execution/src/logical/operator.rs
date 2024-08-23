@@ -2,6 +2,7 @@ use super::context::QueryContext;
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
+use super::logical_scan::LogicalScan;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
@@ -77,6 +78,8 @@ impl ProtoConv for LocationRequirement {
 pub struct LogicalNode<N> {
     pub node: N,
     pub location: LocationRequirement,
+    pub children: Vec<LogicalOperator>,
+    pub expressions: Vec<LogicalExpression>,
 }
 
 impl<N> LogicalNode<N> {
@@ -85,12 +88,19 @@ impl<N> LogicalNode<N> {
         LogicalNode {
             node,
             location: LocationRequirement::Any,
+            children: Vec::new(),
+            expressions: Vec::new(),
         }
     }
 
     /// Create a logical node with a specified location requirement.
     pub fn with_location(node: N, location: LocationRequirement) -> Self {
-        LogicalNode { node, location }
+        LogicalNode {
+            node,
+            location,
+            children: Vec::new(),
+            expressions: Vec::new(),
+        }
     }
 
     pub fn into_inner(self) -> N {
@@ -123,7 +133,7 @@ pub enum LogicalOperator {
     Limit(LogicalNode<Limit>),
     SetOperation(LogicalNode<SetOperation>),
     MaterializedScan(LogicalNode<MaterializedScan>),
-    Scan(LogicalNode<Scan>),
+    Scan2(LogicalNode<Scan>),
     TableFunction(LogicalNode<TableFunction>),
     ExpressionList(LogicalNode<ExpressionList>),
     Empty(LogicalNode<()>),
@@ -140,6 +150,8 @@ pub enum LogicalOperator {
     CopyTo(LogicalNode<CopyTo>),
     Explain(LogicalNode<Explain>),
     Describe(LogicalNode<Describe>),
+    // TODO
+    Scan(LogicalNode<LogicalScan>),
 }
 
 impl LogicalOperator {
@@ -162,7 +174,7 @@ impl LogicalOperator {
             Self::Limit(n) => n.as_ref().output_schema(outer),
             Self::SetOperation(n) => n.as_ref().output_schema(outer),
             Self::MaterializedScan(n) => n.as_ref().output_schema(outer),
-            Self::Scan(n) => n.as_ref().output_schema(outer),
+            Self::Scan2(n) => n.as_ref().output_schema(outer),
             Self::TableFunction(n) => n.as_ref().output_schema(outer),
             Self::ExpressionList(n) => n.as_ref().output_schema(outer),
             Self::Empty(_) => Ok(TypeSchema::empty()),
@@ -179,6 +191,7 @@ impl LogicalOperator {
             Self::CopyTo(n) => n.as_ref().output_schema(outer),
             Self::Explain(n) => n.as_ref().output_schema(outer),
             Self::Describe(n) => n.as_ref().output_schema(outer),
+            _ => unimplemented!(),
         }
     }
 
@@ -195,7 +208,7 @@ impl LogicalOperator {
             Self::Limit(n) => &n.location,
             Self::SetOperation(n) => &n.location,
             Self::MaterializedScan(n) => &n.location,
-            Self::Scan(n) => &n.location,
+            Self::Scan2(n) => &n.location,
             Self::TableFunction(n) => &n.location,
             Self::ExpressionList(n) => &n.location,
             Self::Empty(n) => &n.location,
@@ -212,6 +225,7 @@ impl LogicalOperator {
             Self::CopyTo(n) => &n.location,
             Self::Explain(n) => &n.location,
             Self::Describe(n) => &n.location,
+            _ => unimplemented!(),
         }
     }
 
@@ -228,7 +242,7 @@ impl LogicalOperator {
             Self::Limit(n) => &mut n.location,
             Self::SetOperation(n) => &mut n.location,
             Self::MaterializedScan(n) => &mut n.location,
-            Self::Scan(n) => &mut n.location,
+            Self::Scan2(n) => &mut n.location,
             Self::TableFunction(n) => &mut n.location,
             Self::ExpressionList(n) => &mut n.location,
             Self::Empty(n) => &mut n.location,
@@ -245,6 +259,7 @@ impl LogicalOperator {
             Self::CopyTo(n) => &mut n.location,
             Self::Explain(n) => &mut n.location,
             Self::Describe(n) => &mut n.location,
+            _ => unimplemented!(),
         }
     }
 
@@ -284,7 +299,7 @@ impl LogicalOperator {
             Self::Limit(n) => f(&mut n.as_mut().input)?,
             Self::SetOperation(_) => (),
             Self::MaterializedScan(_) => (),
-            Self::Scan(_) => (),
+            Self::Scan2(_) => (),
             Self::TableFunction(_) => (),
             Self::ExpressionList(_) => (),
             Self::Empty(_) => (),
@@ -301,6 +316,7 @@ impl LogicalOperator {
             Self::CopyTo(n) => f(&mut n.as_mut().source)?,
             Self::Explain(n) => f(&mut n.as_mut().input)?,
             Self::Describe(_) => (),
+            _ => unimplemented!(),
         }
         Ok(())
     }
@@ -431,9 +447,10 @@ impl LogicalOperator {
             | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::Drop(_)
             | LogicalOperator::MaterializedScan(_)
-            | LogicalOperator::Scan(_)
+            | LogicalOperator::Scan2(_)
             | LogicalOperator::Describe(_)
             | LogicalOperator::TableFunction(_) => (),
+            _ => unimplemented!(),
         }
         post(self)?;
 
@@ -461,7 +478,7 @@ impl Explainable for LogicalOperator {
             Self::Limit(p) => p.as_ref().explain_entry(conf),
             Self::SetOperation(p) => p.as_ref().explain_entry(conf),
             Self::MaterializedScan(p) => p.as_ref().explain_entry(conf),
-            Self::Scan(p) => p.as_ref().explain_entry(conf),
+            Self::Scan2(p) => p.as_ref().explain_entry(conf),
             Self::TableFunction(p) => p.as_ref().explain_entry(conf),
             Self::ExpressionList(p) => p.as_ref().explain_entry(conf),
             Self::Empty(_) => ExplainEntry::new("Empty"),
@@ -478,6 +495,7 @@ impl Explainable for LogicalOperator {
             Self::Explain(p) => p.as_ref().explain_entry(conf),
             Self::CopyTo(p) => p.as_ref().explain_entry(conf),
             Self::Describe(p) => p.as_ref().explain_entry(conf),
+            _ => unimplemented!(),
         }
     }
 }

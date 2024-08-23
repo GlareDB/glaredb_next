@@ -25,15 +25,43 @@ pub struct GroupByBinder<'a> {
 }
 
 impl<'a> GroupByBinder<'a> {
+    pub fn new(current: BindContextIdx, resolve_context: &'a ResolveContext) -> Self {
+        GroupByBinder {
+            current,
+            resolve_context,
+        }
+    }
+
     pub fn bind(
         &self,
         bind_context: &mut BindContext,
         select_list: &mut SelectList,
         group_by: ast::GroupByNode<ResolvedMeta>,
     ) -> Result<BoundGroupBy> {
+        let sets = GroupByWithSets::try_from_ast(group_by)?;
         let expr_binder = ExpressionBinder::new(self.current, bind_context, self.resolve_context);
 
-        unimplemented!()
+        let expressions = sets
+            .expressions
+            .into_iter()
+            .map(|expr| {
+                // TODO: Bind column first.
+
+                if let Some(idx) = select_list.get_projection_reference(&expr)? {
+                    // TODO: Return it..
+                    unimplemented!()
+                }
+
+                let idx = select_list.append_expression(ast::SelectExpr::Expr(expr));
+                // TODO: Do the thing
+                unimplemented!()
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(BoundGroupBy {
+            expressions,
+            grouping_sets: sets.grouping_sets,
+        })
     }
 }
 

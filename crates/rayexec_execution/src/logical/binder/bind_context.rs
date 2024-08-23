@@ -94,6 +94,17 @@ impl BindContext {
         Ok(found)
     }
 
+    pub fn get_table_scope(
+        &self,
+        TableScopeIdx(context_idx, table_idx): TableScopeIdx,
+    ) -> Result<&TableScope> {
+        let context = self.get_child_context(context_idx)?;
+        context
+            .scopes
+            .get(table_idx)
+            .ok_or_else(|| RayexecError::new("Missing table scope"))
+    }
+
     pub fn iter_table_scopes(
         &self,
         current: BindContextIdx,

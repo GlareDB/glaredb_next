@@ -1,9 +1,14 @@
-use rayexec_parser::ast::DataType;
 use std::sync::Arc;
+
+use rayexec_bullet::datatype::DataType;
 
 use crate::{database::catalog_entry::CatalogEntry, functions::table::PlannedTableFunction};
 
-use super::expr::LogicalExpression;
+use super::{
+    explainable::{ExplainConfig, ExplainEntry, Explainable},
+    expr::LogicalExpression,
+    operator::LogicalNode,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanSource {
@@ -36,4 +41,13 @@ pub struct LogicalScan {
 
     /// Positional column projections.
     pub projection: Vec<usize>,
+
+    /// Source of the scan.
+    pub source: ScanSource,
+}
+
+impl Explainable for LogicalNode<LogicalScan> {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Scan")
+    }
 }

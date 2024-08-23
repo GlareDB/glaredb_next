@@ -25,6 +25,7 @@ pub struct BoundFrom {
 #[derive(Debug)]
 pub enum BoundFromItem {
     BaseTable(BoundBaseTable),
+    Join(BoundJoin),
 }
 
 #[derive(Debug)]
@@ -37,8 +38,8 @@ pub struct BoundBaseTable {
 
 #[derive(Debug)]
 pub struct BoundJoin {
-    pub left: BoundFrom,
-    pub right: BoundFrom,
+    pub left: Box<BoundFrom>,
+    pub right: Box<BoundFrom>,
     pub join_type: JoinType,
     pub condition: LogicalExpression,
 }

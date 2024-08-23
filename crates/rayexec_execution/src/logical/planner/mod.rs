@@ -39,4 +39,8 @@ mod decorrelate;
 mod plan_aggregate;
 mod plan_from;
 mod plan_query;
+mod plan_select;
 mod plan_subquery;
+
+// Delete
+mod plan_subquery2;

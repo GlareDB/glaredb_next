@@ -342,7 +342,7 @@ impl LogicalExpression {
                 LogicalOperator::SetOperation(_) => (),
                 LogicalOperator::Limit(_) => (),
                 LogicalOperator::MaterializedScan(_) => (),
-                LogicalOperator::Scan(_) => (),
+                LogicalOperator::Scan2(_) => (),
                 LogicalOperator::TableFunction(_) => (),
                 LogicalOperator::ExpressionList(p) => {
                     let p = p.as_mut();
@@ -364,6 +364,7 @@ impl LogicalExpression {
                 LogicalOperator::Drop(_) => (),
                 LogicalOperator::Empty(_) => (),
                 LogicalOperator::Describe(_) => (),
+                _ => unimplemented!(),
             }
             Ok(())
         }

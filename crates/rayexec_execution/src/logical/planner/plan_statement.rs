@@ -283,7 +283,7 @@ impl<'a> StatementPlanner<'a> {
                 );
 
                 LogicalQuery2 {
-                    root: LogicalOperator::Scan(LogicalNode::with_location(
+                    root: LogicalOperator::Scan2(LogicalNode::with_location(
                         Scan {
                             catalog: reference.catalog.clone(),
                             schema: reference.schema.clone(),

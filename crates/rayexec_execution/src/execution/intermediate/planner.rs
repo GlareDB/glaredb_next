@@ -327,7 +327,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::MaterializedScan(scan) => {
                 self.push_materialized_scan(materializations, id_gen, scan)
             }
-            LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
+            LogicalOperator::Scan2(scan) => self.push_scan(id_gen, scan),
             LogicalOperator::TableFunction(table_func) => {
                 self.push_table_function(id_gen, table_func)
             }

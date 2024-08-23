@@ -84,7 +84,7 @@ mod tests {
 
         let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: Vec::new(),
-            input: Box::new(LogicalOperator::Scan(LogicalNode::with_location(
+            input: Box::new(LogicalOperator::Scan2(LogicalNode::with_location(
                 Scan {
                     catalog: "catalog".to_string(),
                     schema: "schema".to_string(),
@@ -111,7 +111,7 @@ mod tests {
 
         let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: Vec::new(),
-            input: Box::new(LogicalOperator::Scan(LogicalNode::with_location(
+            input: Box::new(LogicalOperator::Scan2(LogicalNode::with_location(
                 Scan {
                     catalog: "catalog".to_string(),
                     schema: "schema".to_string(),

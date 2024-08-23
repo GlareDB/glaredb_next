@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::logical::{
     binder::{
-        bound_from::FromBinder, bound_modifier::ModifierBinder, expr_binder::ExpressionBinder,
-        select_list::SelectList,
+        bound_from::FromBinder, bound_group_by::GroupByBinder, bound_modifier::ModifierBinder,
+        expr_binder::ExpressionBinder, select_list::SelectList,
     },
     expr::LogicalExpression,
     resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -85,6 +85,27 @@ impl<'a> SelectBinder<'a> {
         let modifier_binder = ModifierBinder::new(vec![self.current], self.resolve_context);
         let order_by = modifier_binder.bind_order_by(bind_context, &mut select_list, order_by)?;
         let limit = modifier_binder.bind_limit(bind_context, limit)?;
+
+        // Handle GROUP BY
+        let group_by = select
+            .group_by
+            .map(|g| {
+                GroupByBinder::new(self.current, self.resolve_context).bind(
+                    bind_context,
+                    &mut select_list,
+                    g,
+                )
+            })
+            .transpose()?;
+
+        // Handle HAVING
+        let having = select
+            .having
+            .map(|h| {
+                ExpressionBinder::new(self.current, bind_context, self.resolve_context)
+                    .bind_expression(h)
+            })
+            .transpose()?;
 
         unimplemented!()
     }
