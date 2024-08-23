@@ -43,23 +43,34 @@ pub struct BoundJoin {
     pub condition: LogicalExpression,
 }
 
-impl BoundFrom {
+#[derive(Debug)]
+pub struct FromBinder<'a> {
+    pub current: BindContextIdx,
+    pub resolve_context: &'a ResolveContext,
+}
+
+impl<'a> FromBinder<'a> {
+    pub fn new(current: BindContextIdx, resolve_context: &'a ResolveContext) -> Self {
+        FromBinder {
+            current,
+            resolve_context,
+        }
+    }
+
     pub fn bind(
-        current: BindContextIdx,
+        &self,
         bind_context: &mut BindContext,
-        resolve_context: &ResolveContext,
         from: Option<ast::FromNode<ResolvedMeta>>,
     ) -> Result<BoundFrom> {
         unimplemented!()
     }
 
     fn bind_table(
-        current: BindContextIdx,
+        &self,
         bind_context: &mut BindContext,
-        resolve_context: &ResolveContext,
         table: ast::FromBaseTable<ResolvedMeta>,
     ) -> Result<BoundFrom> {
-        match resolve_context.tables.try_get_bound(table.reference)? {
+        match self.resolve_context.tables.try_get_bound(table.reference)? {
             (ResolvedTableOrCteReference::Table(table), location) => {
                 let column_types = table
                     .entry
@@ -77,7 +88,7 @@ impl BoundFrom {
                     .collect();
 
                 let scope_idx = bind_context.push_table_scope(
-                    current,
+                    self.current,
                     &table.entry.name,
                     column_types,
                     column_names,
@@ -101,17 +112,18 @@ impl BoundFrom {
     }
 
     fn bind_join(
-        current: BindContextIdx,
+        &self,
         bind_context: &mut BindContext,
-        resolve_context: &ResolveContext,
         join: ast::FromJoin<ResolvedMeta>,
     ) -> Result<BoundFrom> {
         // TODO: Check lateral, correlations
-        let left_idx = bind_context.new_child(current);
-        let left = Self::bind(left_idx, bind_context, resolve_context, *join.left)?;
+        let left_idx = bind_context.new_child(self.current);
+        let left =
+            FromBinder::new(left_idx, self.resolve_context).bind(bind_context, Some(*join.left))?;
 
-        let right_idx = bind_context.new_child(current);
-        let right = Self::bind(right_idx, bind_context, resolve_context, *join.right)?;
+        let right_idx = bind_context.new_child(self.current);
+        let left = FromBinder::new(right_idx, self.resolve_context)
+            .bind(bind_context, Some(*join.right))?;
 
         unimplemented!()
     }

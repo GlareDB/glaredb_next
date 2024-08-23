@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use crate::logical::{
-    binder::expr_binder::ExpressionBinder,
+    binder::{bound_from::FromBinder, expr_binder::ExpressionBinder},
     resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use rayexec_parser::ast::{self, SelectExpr};
 
 use super::{
     bind_context::{BindContext, BindContextIdx},
@@ -14,24 +14,29 @@ use super::{
 
 #[derive(Debug)]
 pub struct BoundSelect {
-    /// Mapping from explicit user-provided alias to column index in the output.
-    pub alias_map: HashMap<String, usize>,
     /// Bound FROM.
     pub from: BoundFrom,
 }
 
-impl BoundSelect {
+#[derive(Debug)]
+pub struct SelectBinder<'a> {
+    pub current: BindContextIdx,
+    pub resolve_context: &'a ResolveContext,
+}
+
+impl<'a> SelectBinder<'a> {
     pub fn bind(
-        current: BindContextIdx,
+        &self,
         bind_context: &mut BindContext,
-        resolve_context: &ResolveContext,
         select: ast::SelectNode<ResolvedMeta>,
+        order_by: Vec<ast::OrderByNode<ResolvedMeta>>,
     ) -> Result<Self> {
         // Handle FROM
-        let from = BoundFrom::bind(current, bind_context, resolve_context, select.from)?;
+        let from =
+            FromBinder::new(self.current, self.resolve_context).bind(bind_context, select.from)?;
 
         // Expand SELECT
-        let projections = ExpressionBinder::new(current, bind_context, resolve_context)
+        let projections = ExpressionBinder::new(self.current, bind_context, self.resolve_context)
             .expand_all_select_exprs(select.projections)?;
 
         if projections.is_empty() {
@@ -50,7 +55,8 @@ impl BoundSelect {
         let where_expr = select
             .where_expr
             .map(|expr| {
-                let binder = ExpressionBinder::new(current, bind_context, resolve_context);
+                let binder =
+                    ExpressionBinder::new(self.current, bind_context, self.resolve_context);
                 binder.bind_expression(expr)
             })
             .transpose()?;
