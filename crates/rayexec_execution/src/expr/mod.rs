@@ -13,6 +13,7 @@ pub mod window_expr;
 use crate::database::DatabaseContext;
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
+use crate::logical::binder::bind_context::{BindContext, BindContextRef};
 use crate::logical::expr::LogicalExpression;
 use crate::proto::DatabaseProtoConv;
 use aggregate_expr::AggregateExpr;
@@ -50,6 +51,10 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
+        unimplemented!()
+    }
+
     pub fn for_each_child_mut<F>(&mut self, func: &mut F) -> Result<()>
     where
         F: FnMut(&mut Expression) -> Result<()>,

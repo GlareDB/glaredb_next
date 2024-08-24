@@ -95,7 +95,7 @@ impl<'a> ExpressionBinder<'a> {
     pub fn bind_expression(
         &self,
         bind_context: &mut BindContext,
-        expr: ast::Expr<ResolvedMeta>,
+        expr: &ast::Expr<ResolvedMeta>,
     ) -> Result<Expression> {
         match expr {
             ast::Expr::Ident(ident) => self.bind_ident(bind_context, ident),
@@ -103,8 +103,8 @@ impl<'a> ExpressionBinder<'a> {
         }
     }
 
-    fn bind_ident(&self, bind_context: &mut BindContext, ident: ast::Ident) -> Result<Expression> {
-        let col = ident.into_normalized_string();
+    fn bind_ident(&self, bind_context: &mut BindContext, ident: &ast::Ident) -> Result<Expression> {
+        let col = ident.as_normalized_string();
 
         let mut current = self.current;
         loop {

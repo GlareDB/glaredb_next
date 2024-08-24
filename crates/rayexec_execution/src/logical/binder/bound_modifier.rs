@@ -114,7 +114,7 @@ impl<'a> ModifierBinder<'a> {
         let expr_binder = ExpressionBinder::new(self.current[0], self.resolve_context);
 
         let limit = match limit_mod.limit {
-            Some(limit) => expr_binder.bind_expression(bind_context, limit)?,
+            Some(limit) => expr_binder.bind_expression(bind_context, &limit)?,
             None => {
                 if limit_mod.offset.is_some() {
                     return Err(RayexecError::new("OFFSET without LIMIT not supported"));
@@ -132,7 +132,7 @@ impl<'a> ModifierBinder<'a> {
 
         let offset = match limit_mod.offset {
             Some(offset) => {
-                let offset = expr_binder.bind_expression(bind_context, offset)?;
+                let offset = expr_binder.bind_expression(bind_context, &offset)?;
                 let offset = offset.try_into_scalar()?.try_as_i64()?;
                 if offset < 0 {
                     return Err(RayexecError::new("OFFSET cannot be negative"));

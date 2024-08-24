@@ -160,6 +160,12 @@ impl BindContext {
         self.push_table_scope(bind_ref, "empty", Vec::new(), Vec::new())
     }
 
+    pub fn get_table_mut(&mut self, table_ref: TableScopeRef) -> Result<&mut Table> {
+        self.tables
+            .get_mut(table_ref.table_idx)
+            .ok_or_else(|| RayexecError::new("Missing table scope in bind context"))
+    }
+
     pub fn push_table_scope(
         &mut self,
         idx: BindContextRef,
