@@ -1,7 +1,10 @@
-use crate::logical::{
-    binder::expr_binder::ExpressionBinder,
-    expr::LogicalExpression,
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
+use crate::{
+    expr::Expression,
+    logical::{
+        binder::expr_binder::ExpressionBinder,
+        expr::LogicalExpression,
+        resolver::{resolve_context::ResolveContext, ResolvedMeta},
+    },
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
@@ -14,7 +17,7 @@ use super::{
 
 #[derive(Debug)]
 pub struct BoundGroupBy {
-    pub expressions: Vec<LogicalExpression>,
+    pub expressions: Vec<Expression>,
     pub grouping_sets: Vec<BTreeSet<usize>>,
 }
 

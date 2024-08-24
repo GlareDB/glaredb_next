@@ -3,8 +3,14 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::collections::HashMap;
 
+use super::bind_context::TableScopeRef;
+
 #[derive(Debug)]
 pub struct SelectList {
+    /// The table scope that expressions referencing columns in the select list
+    /// should bind to.
+    pub table: TableScopeRef,
+
     /// Mapping from explicit user-provided alias to column index in the output.
     pub alias_map: HashMap<String, usize>,
 

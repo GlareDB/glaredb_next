@@ -1,4 +1,5 @@
-use rayexec_error::{not_implemented, Result};
+use rayexec_bullet::datatype::DataType;
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 use std::sync::Arc;
 
@@ -26,6 +27,7 @@ pub struct BoundFrom {
 pub enum BoundFromItem {
     BaseTable(BoundBaseTable),
     Join(BoundJoin),
+    Empty,
 }
 
 #[derive(Debug)]
@@ -48,8 +50,8 @@ pub struct BoundJoin {
     pub right: Box<BoundFrom>,
     /// Join type.
     pub join_type: JoinType,
-    /// Expression we're joining on.
-    pub condition: Expression,
+    /// Expression we're joining on, if any.
+    pub condition: Option<Expression>,
     /// Columns on right side that are correlated with the left side of a join.
     pub right_correlated_columns: Vec<CorrelatedColumn>,
     /// If this is a lateral join.
@@ -75,13 +77,77 @@ impl<'a> FromBinder<'a> {
         bind_context: &mut BindContext,
         from: Option<ast::FromNode<ResolvedMeta>>,
     ) -> Result<BoundFrom> {
-        unimplemented!()
+        let from = match from {
+            Some(from) => from,
+            None => {
+                return Ok(BoundFrom {
+                    bind_ref: self.current,
+                    item: BoundFromItem::Empty,
+                })
+            }
+        };
+
+        match from.body {
+            ast::FromNodeBody::BaseTable(table) => self.bind_table(bind_context, table, from.alias),
+            ast::FromNodeBody::Join(join) => self.bind_join(bind_context, join), // TODO: What to do with alias?
+            _ => unimplemented!(),
+        }
+    }
+
+    fn push_table_scope_with_from_alias(
+        &self,
+        bind_context: &mut BindContext,
+        mut default_alias: String,
+        mut default_column_aliases: Vec<String>,
+        column_types: Vec<DataType>,
+        from_alias: Option<ast::FromAlias>,
+    ) -> Result<()> {
+        match from_alias {
+            Some(ast::FromAlias { alias, columns }) => {
+                default_alias = alias.into_normalized_string();
+
+                // If column aliases are provided as well, apply those to the
+                // columns in the scope.
+                //
+                // Note that if the user supplies less aliases than there are
+                // columns in the scope, then the remaining columns will retain
+                // their original names.
+                if let Some(columns) = columns {
+                    if columns.len() > default_column_aliases.len() {
+                        return Err(RayexecError::new(format!(
+                            "Specified {} column aliases when only {} columns exist",
+                            columns.len(),
+                            default_column_aliases.len(),
+                        )));
+                    }
+
+                    for (orig_alias, new_alias) in
+                        default_column_aliases.iter_mut().zip(columns.into_iter())
+                    {
+                        *orig_alias = new_alias.into_normalized_string();
+                    }
+                }
+            }
+            None => {
+                // Keep aliases unmodified.
+            }
+        }
+
+        let _ = bind_context.push_table_scope(
+            self.current,
+            default_alias,
+            column_types,
+            default_column_aliases,
+        )?;
+
+        Ok(())
     }
 
     fn bind_table(
         &self,
         bind_context: &mut BindContext,
         table: ast::FromBaseTable<ResolvedMeta>,
+        alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
         match self.resolve_context.tables.try_get_bound(table.reference)? {
             (ResolvedTableOrCteReference::Table(table), location) => {
@@ -100,11 +166,12 @@ impl<'a> FromBinder<'a> {
                     .map(|c| c.name.clone())
                     .collect();
 
-                let _ = bind_context.push_table_scope(
-                    self.current,
-                    &table.entry.name,
-                    column_types,
+                self.push_table_scope_with_from_alias(
+                    bind_context,
+                    table.entry.name.clone(),
                     column_names,
+                    column_types,
+                    alias,
                 )?;
 
                 Ok(BoundFrom {
@@ -147,7 +214,7 @@ impl<'a> FromBinder<'a> {
 
         // If any column in right is correlated with left, then this is a
         // lateral join.
-        let mut any_lateral = right_correlated_columns.iter().any(|c| c.outer == left_idx);
+        let any_lateral = right_correlated_columns.iter().any(|c| c.outer == left_idx);
 
         let (conditions, using_cols) = match join.join_condition {
             ast::JoinCondition::On(exprs) => (vec![exprs], Vec::new()),

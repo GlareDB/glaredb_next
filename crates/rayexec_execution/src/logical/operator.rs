@@ -13,6 +13,7 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::engine::vars::SessionVar;
 use crate::execution::explain::format_logical_plan_for_explain;
+use crate::expr::Expression;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::PlannedTableFunction;
 use rayexec_bullet::datatype::DataType;
@@ -94,7 +95,7 @@ pub struct LogicalNode<N> {
     pub node: N,
     pub location: LocationRequirement,
     pub children: Vec<LogicalOperator>,
-    pub expressions: Vec<LogicalExpression>,
+    pub expressions: Vec<Expression>,
 }
 
 impl<N> LogicalNode<N> {
@@ -128,10 +129,10 @@ impl<N> LogicalNode<N> {
         _conf: ExplainConfig,
     ) -> ExplainEntry {
         if !self.expressions.is_empty() {
-            explain = explain.with_values(
-                "expressions",
-                self.expressions.iter().map(|expr| format!("{expr}")),
-            );
+            // explain = explain.with_values(
+            //     "expressions",
+            //     self.expressions.iter().map(|expr| format!("{expr}")),
+            // );
         }
         explain.with_value("location", self.location)
     }

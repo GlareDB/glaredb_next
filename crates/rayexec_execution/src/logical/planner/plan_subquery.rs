@@ -1,5 +1,8 @@
-use crate::logical::{
-    binder::bind_context::BindContext, expr::LogicalExpression, operator::LogicalOperator,
+use crate::{
+    expr::Expression,
+    logical::{
+        binder::bind_context::BindContext, expr::LogicalExpression, operator::LogicalOperator,
+    },
 };
 use rayexec_error::Result;
 
@@ -13,11 +16,7 @@ impl<'a> SubqueryPlanner<'a> {
         SubqueryPlanner { bind_context }
     }
 
-    pub fn plan(
-        &self,
-        expr: &mut LogicalExpression,
-        plan: LogicalOperator,
-    ) -> Result<LogicalOperator> {
+    pub fn plan(&self, expr: &mut Expression, plan: LogicalOperator) -> Result<LogicalOperator> {
         unimplemented!()
     }
 }

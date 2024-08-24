@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
-use crate::logical::{
-    binder::{
-        bound_from::FromBinder, bound_group_by::GroupByBinder, bound_modifier::ModifierBinder,
-        expr_binder::ExpressionBinder, select_list::SelectList,
+use crate::{
+    expr::Expression,
+    logical::{
+        binder::{
+            bound_from::FromBinder, bound_group_by::GroupByBinder, bound_modifier::ModifierBinder,
+            expr_binder::ExpressionBinder, select_list::SelectList,
+        },
+        resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
-    expr::LogicalExpression,
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
@@ -23,7 +25,7 @@ pub struct BoundSelect {
     /// Unplanned projections in select, including appended projections.
     pub select_list: SelectList,
     /// Planned expressions in the select.
-    pub projections: Vec<LogicalExpression>,
+    pub projections: Vec<Expression>,
     /// Number of columns in the output.
     ///
     /// This may be greater than len(projections) in order handle
@@ -33,9 +35,9 @@ pub struct BoundSelect {
     /// Bound FROM.
     pub from: BoundFrom,
     /// Expression for WHERE.
-    pub filter: Option<LogicalExpression>,
+    pub filter: Option<Expression>,
     /// Expression for HAVING.
-    pub having: Option<LogicalExpression>,
+    pub having: Option<Expression>,
     /// Bound GROUP BY with expressions and grouping sets.
     pub group_by: Option<BoundGroupBy>,
     /// Bound ORDER BY.
@@ -43,7 +45,7 @@ pub struct BoundSelect {
     /// Bound LIMIT.
     pub limit: Option<BoundLimit>,
     /// Any aggregates in the select list.
-    pub aggregates: Vec<LogicalExpression>,
+    pub aggregates: Vec<Expression>,
 }
 
 #[derive(Debug)]
@@ -59,7 +61,7 @@ impl<'a> SelectBinder<'a> {
         select: ast::SelectNode<ResolvedMeta>,
         order_by: Option<ast::OrderByModifier<ResolvedMeta>>,
         limit: ast::LimitModifier<ResolvedMeta>,
-    ) -> Result<Self> {
+    ) -> Result<BoundSelect> {
         // Handle FROM
         let from =
             FromBinder::new(self.current, self.resolve_context).bind(bind_context, select.from)?;
@@ -73,6 +75,7 @@ impl<'a> SelectBinder<'a> {
         }
 
         let mut select_list = SelectList {
+            table: bind_context.push_empty_scope(self.current)?,
             alias_map: HashMap::new(),
             projections,
             appended: Vec::new(),

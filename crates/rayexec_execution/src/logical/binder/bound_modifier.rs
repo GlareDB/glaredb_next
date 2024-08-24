@@ -1,10 +1,12 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::logical::{
-    binder::expr_binder::ExpressionBinder,
-    expr::LogicalExpression,
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
+use crate::{
+    expr::{column_expr::ColumnExpr, Expression},
+    logical::{
+        binder::expr_binder::ExpressionBinder,
+        resolver::{resolve_context::ResolveContext, ResolvedMeta},
+    },
 };
 
 use super::{
@@ -14,7 +16,7 @@ use super::{
 
 #[derive(Debug)]
 pub struct BoundOrderByExpr {
-    pub expr: LogicalExpression,
+    pub expr: Expression,
     pub desc: bool,
     pub nulls_first: bool,
 }
@@ -51,30 +53,57 @@ impl<'a> ModifierBinder<'a> {
 
     pub fn bind_order_by(
         &self,
-        bind_context: &mut BindContext,
+        _bind_context: &mut BindContext,
         select_list: &mut SelectList,
         order_by: ast::OrderByModifier<ResolvedMeta>,
     ) -> Result<BoundOrderBy> {
-        // TODO
-        let expr_binder = ExpressionBinder::new(self.current[0], self.resolve_context);
-
         let exprs = order_by
             .order_by_nodes
             .into_iter()
             .map(|order_by| {
-                // Check select list first.
-                if let Some(idx) = select_list.get_projection_reference(&order_by.expr)? {
-                    // TODO: Return it..
-                    unimplemented!()
-                }
+                let expr =
+                    Expression::Column(self.bind_to_select_list(select_list, order_by.expr)?);
 
-                let idx = select_list.append_expression(ast::SelectExpr::Expr(order_by.expr));
-                // TODO: Do the thing
-                unimplemented!()
+                Ok(BoundOrderByExpr {
+                    expr,
+                    desc: matches!(
+                        order_by.typ.unwrap_or(ast::OrderByType::Asc),
+                        ast::OrderByType::Desc
+                    ),
+                    nulls_first: matches!(
+                        order_by.nulls.unwrap_or(ast::OrderByNulls::First),
+                        ast::OrderByNulls::First
+                    ),
+                })
             })
             .collect::<Result<Vec<_>>>()?;
 
         Ok(BoundOrderBy { exprs })
+    }
+
+    /// Generates a column epxression referencing the output of the select list.
+    fn bind_to_select_list(
+        &self,
+        select_list: &mut SelectList,
+        expr: ast::Expr<ResolvedMeta>,
+    ) -> Result<ColumnExpr> {
+        // Check if there's already something in the list that we're
+        // referencing.
+        if let Some(idx) = select_list.get_projection_reference(&expr)? {
+            return Ok(ColumnExpr {
+                table_scope: select_list.table,
+                column: idx,
+            });
+        }
+
+        // Append our expression to the select list. We'll generate a column
+        // expression that references this column.
+        let idx = select_list.append_expression(ast::SelectExpr::Expr(expr));
+
+        Ok(ColumnExpr {
+            table_scope: select_list.table,
+            column: idx,
+        })
     }
 
     pub fn bind_limit(

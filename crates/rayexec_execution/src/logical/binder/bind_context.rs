@@ -150,6 +150,16 @@ impl BindContext {
         }
     }
 
+    /// Pushes an empty table scope tot he current context.
+    ///
+    /// This allows us to generate a table scope reference for the select list
+    /// prior to having all expressions planned. This lets us stub the table
+    /// scope to allow for things that reference the select list to do so using
+    /// normal column expressions (e.g. ORDER BY).
+    pub fn push_empty_scope(&mut self, bind_ref: BindContextRef) -> Result<TableScopeRef> {
+        self.push_table_scope(bind_ref, "empty", Vec::new(), Vec::new())
+    }
+
     pub fn push_table_scope(
         &mut self,
         idx: BindContextRef,

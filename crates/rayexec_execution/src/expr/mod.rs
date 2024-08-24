@@ -50,6 +50,127 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub fn for_each_child_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        match self {
+            Self::Aggregate(agg) => {
+                for expr in &mut agg.inputs {
+                    func(expr)?;
+                }
+                if let Some(filter) = agg.filter.as_mut() {
+                    func(filter)?;
+                }
+            }
+            Self::Between(between) => {
+                func(&mut between.lower)?;
+                func(&mut between.upper)?;
+                func(&mut between.input)?;
+            }
+            Self::Cast(cast) => {
+                func(&mut cast.expr)?;
+            }
+            Self::Case(case) => {
+                for when_then in &mut case.cases {
+                    func(&mut when_then.when)?;
+                    func(&mut when_then.then)?;
+                }
+                func(&mut case.else_expr)?;
+            }
+            Self::Column(_) => (),
+            Self::Conjunction(conj) => {
+                func(&mut conj.left)?;
+                func(&mut conj.right)?;
+            }
+            Self::Literal(_) => (),
+            Self::ScalarFunction(scalar) => {
+                for input in &mut scalar.inputs {
+                    func(input)?;
+                }
+            }
+            Self::Subquery(_) => (),
+            Self::Window(window) => {
+                for input in &mut window.inputs {
+                    func(input)?;
+                }
+                func(&mut window.filter)?;
+                for partition in &mut window.partition_by {
+                    func(partition)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn for_each_child<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        match self {
+            Self::Aggregate(agg) => {
+                for expr in &agg.inputs {
+                    func(expr)?;
+                }
+                if let Some(filter) = agg.filter.as_ref() {
+                    func(filter)?;
+                }
+            }
+            Self::Between(between) => {
+                func(&between.lower)?;
+                func(&between.upper)?;
+                func(&between.input)?;
+            }
+            Self::Cast(cast) => {
+                func(&cast.expr)?;
+            }
+            Self::Case(case) => {
+                for when_then in &case.cases {
+                    func(&when_then.when)?;
+                    func(&when_then.then)?;
+                }
+                func(&case.else_expr)?;
+            }
+            Self::Column(_) => (),
+            Self::Conjunction(conj) => {
+                func(&conj.left)?;
+                func(&conj.right)?;
+            }
+            Self::Literal(_) => (),
+            Self::ScalarFunction(scalar) => {
+                for input in &scalar.inputs {
+                    func(input)?;
+                }
+            }
+            Self::Subquery(_) => (),
+            Self::Window(window) => {
+                for input in &window.inputs {
+                    func(input)?;
+                }
+                func(&window.filter)?;
+                for partition in &window.partition_by {
+                    func(partition)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn contains_subquery(&self) -> bool {
+        match self {
+            Self::Subquery(_) => true,
+            _ => {
+                let mut has_subquery = false;
+                self.for_each_child(&mut |expr| {
+                    has_subquery = has_subquery || expr.contains_subquery();
+                    Ok(())
+                })
+                .expect("subquery check to no fail");
+                has_subquery
+            }
+        }
+    }
+
     /// Try to get a top-level literal from this expression, erroring if it's
     /// not one.
     pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
