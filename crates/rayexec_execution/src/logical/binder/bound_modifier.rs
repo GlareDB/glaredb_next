@@ -8,7 +8,7 @@ use crate::logical::{
 };
 
 use super::{
-    bind_context::{BindContext, BindContextIdx},
+    bind_context::{BindContext, BindContextRef},
     select_list::SelectList,
 };
 
@@ -37,12 +37,12 @@ pub struct ModifierBinder<'a> {
     ///
     /// Should be a length of 1 for typical select query, and length or two for
     /// set operations.
-    pub current: Vec<BindContextIdx>,
+    pub current: Vec<BindContextRef>,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> ModifierBinder<'a> {
-    pub fn new(current: Vec<BindContextIdx>, resolve_context: &'a ResolveContext) -> Self {
+    pub fn new(current: Vec<BindContextRef>, resolve_context: &'a ResolveContext) -> Self {
         ModifierBinder {
             current,
             resolve_context,
@@ -56,8 +56,7 @@ impl<'a> ModifierBinder<'a> {
         order_by: ast::OrderByModifier<ResolvedMeta>,
     ) -> Result<BoundOrderBy> {
         // TODO
-        let expr_binder =
-            ExpressionBinder::new(self.current[0], bind_context, self.resolve_context);
+        let expr_binder = ExpressionBinder::new(self.current[0], self.resolve_context);
 
         let exprs = order_by
             .order_by_nodes
@@ -83,11 +82,10 @@ impl<'a> ModifierBinder<'a> {
         bind_context: &mut BindContext,
         limit_mod: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<Option<BoundLimit>> {
-        let expr_binder =
-            ExpressionBinder::new(self.current[0], bind_context, self.resolve_context);
+        let expr_binder = ExpressionBinder::new(self.current[0], self.resolve_context);
 
         let limit = match limit_mod.limit {
-            Some(limit) => expr_binder.bind_expression(limit)?,
+            Some(limit) => expr_binder.bind_expression(bind_context, limit)?,
             None => {
                 if limit_mod.offset.is_some() {
                     return Err(RayexecError::new("OFFSET without LIMIT not supported"));
@@ -105,7 +103,7 @@ impl<'a> ModifierBinder<'a> {
 
         let offset = match limit_mod.offset {
             Some(offset) => {
-                let offset = expr_binder.bind_expression(offset)?;
+                let offset = expr_binder.bind_expression(bind_context, offset)?;
                 let offset = offset.try_into_scalar()?.try_as_i64()?;
                 if offset < 0 {
                     return Err(RayexecError::new("OFFSET cannot be negative"));

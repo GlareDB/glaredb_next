@@ -633,6 +633,7 @@ pub enum JoinType {
     Full,
     Semi,
     Anti,
+    Cross,
 }
 
 impl fmt::Display for JoinType {
@@ -644,6 +645,7 @@ impl fmt::Display for JoinType {
             Self::Full => write!(f, "FULL"),
             Self::Semi => write!(f, "SEMI"),
             Self::Anti => write!(f, "ANTI"),
+            Self::Cross => write!(f, "CROSS"),
         }
     }
 }

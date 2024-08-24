@@ -8,7 +8,7 @@ use rayexec_parser::ast;
 use std::collections::BTreeSet;
 
 use super::{
-    bind_context::{BindContext, BindContextIdx},
+    bind_context::{BindContext, BindContextRef},
     select_list::SelectList,
 };
 
@@ -20,12 +20,12 @@ pub struct BoundGroupBy {
 
 #[derive(Debug)]
 pub struct GroupByBinder<'a> {
-    pub current: BindContextIdx,
+    pub current: BindContextRef,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> GroupByBinder<'a> {
-    pub fn new(current: BindContextIdx, resolve_context: &'a ResolveContext) -> Self {
+    pub fn new(current: BindContextRef, resolve_context: &'a ResolveContext) -> Self {
         GroupByBinder {
             current,
             resolve_context,
@@ -39,7 +39,7 @@ impl<'a> GroupByBinder<'a> {
         group_by: ast::GroupByNode<ResolvedMeta>,
     ) -> Result<BoundGroupBy> {
         let sets = GroupByWithSets::try_from_ast(group_by)?;
-        let expr_binder = ExpressionBinder::new(self.current, bind_context, self.resolve_context);
+        let expr_binder = ExpressionBinder::new(self.current, self.resolve_context);
 
         let expressions = sets
             .expressions

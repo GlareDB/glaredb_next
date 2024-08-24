@@ -1,5 +1,4 @@
 use rayexec_error::Result;
-use rayexec_parser::ast;
 
 use crate::logical::{
     binder::{
@@ -21,24 +20,33 @@ impl<'a> FromPlanner<'a> {
     }
 
     pub fn plan(&self, from: BoundFrom) -> Result<LogicalOperator> {
-        let table_scope = self.bind_context.get_table_scope(from.scope_idx)?;
-
         match from.item {
-            BoundFromItem::BaseTable(table) => Ok(LogicalOperator::Scan(LogicalNode {
-                node: LogicalScan {
-                    types: table_scope.column_types.clone(),
-                    names: table_scope.column_names.clone(),
-                    projection: (0..table_scope.column_names.len()).collect(),
-                    source: ScanSource::Table {
-                        catalog: table.catalog,
-                        schema: table.schema,
-                        source: table.entry,
+            BoundFromItem::BaseTable(table) => {
+                let mut types = Vec::new();
+                let mut names = Vec::new();
+                for table in self.bind_context.iter_table_scopes(from.bind_ref)? {
+                    types.extend(table.column_types.iter().cloned());
+                    names.extend(table.column_names.iter().cloned());
+                }
+
+                let projection = (0..types.len()).collect();
+
+                Ok(LogicalOperator::Scan(LogicalNode {
+                    node: LogicalScan {
+                        types,
+                        names,
+                        projection,
+                        source: ScanSource::Table {
+                            catalog: table.catalog,
+                            schema: table.schema,
+                            source: table.entry,
+                        },
                     },
-                },
-                location: table.location,
-                children: Vec::new(),
-                expressions: Vec::new(),
-            })),
+                    location: table.location,
+                    children: Vec::new(),
+                    expressions: Vec::new(),
+                }))
+            }
             BoundFromItem::Join(_) => unimplemented!(),
         }
     }

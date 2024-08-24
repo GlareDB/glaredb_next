@@ -1,11 +1,11 @@
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 use rayexec_parser::ast;
 use std::sync::Arc;
 
 use crate::{
     database::catalog_entry::CatalogEntry,
+    expr::Expression,
     logical::{
-        expr::LogicalExpression,
         operator::{JoinType, LocationRequirement},
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
@@ -14,11 +14,11 @@ use crate::{
     },
 };
 
-use super::bind_context::{BindContext, BindContextIdx, TableScopeIdx};
+use super::bind_context::{BindContext, BindContextRef, CorrelatedColumn, TableScopeRef};
 
 #[derive(Debug)]
 pub struct BoundFrom {
-    pub scope_idx: TableScopeIdx,
+    pub bind_ref: BindContextRef,
     pub item: BoundFromItem,
 }
 
@@ -38,20 +38,32 @@ pub struct BoundBaseTable {
 
 #[derive(Debug)]
 pub struct BoundJoin {
+    /// Reference to binder for left side of join.
+    pub left_bind_ref: BindContextRef,
+    /// Bound left.
     pub left: Box<BoundFrom>,
+    /// Reference to binder for right side of join.
+    pub right_bind_ref: BindContextRef,
+    /// Bound right.
     pub right: Box<BoundFrom>,
+    /// Join type.
     pub join_type: JoinType,
-    pub condition: LogicalExpression,
+    /// Expression we're joining on.
+    pub condition: Expression,
+    /// Columns on right side that are correlated with the left side of a join.
+    pub right_correlated_columns: Vec<CorrelatedColumn>,
+    /// If this is a lateral join.
+    pub lateral: bool,
 }
 
 #[derive(Debug)]
 pub struct FromBinder<'a> {
-    pub current: BindContextIdx,
+    pub current: BindContextRef,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> FromBinder<'a> {
-    pub fn new(current: BindContextIdx, resolve_context: &'a ResolveContext) -> Self {
+    pub fn new(current: BindContextRef, resolve_context: &'a ResolveContext) -> Self {
         FromBinder {
             current,
             resolve_context,
@@ -88,7 +100,7 @@ impl<'a> FromBinder<'a> {
                     .map(|c| c.name.clone())
                     .collect();
 
-                let scope_idx = bind_context.push_table_scope(
+                let _ = bind_context.push_table_scope(
                     self.current,
                     &table.entry.name,
                     column_types,
@@ -96,7 +108,7 @@ impl<'a> FromBinder<'a> {
                 )?;
 
                 Ok(BoundFrom {
-                    scope_idx,
+                    bind_ref: self.current,
                     item: BoundFromItem::BaseTable(BoundBaseTable {
                         location,
                         catalog: table.catalog.clone(),
@@ -117,15 +129,72 @@ impl<'a> FromBinder<'a> {
         bind_context: &mut BindContext,
         join: ast::FromJoin<ResolvedMeta>,
     ) -> Result<BoundFrom> {
-        // TODO: Check lateral, correlations
+        // Bind left first.
         let left_idx = bind_context.new_child(self.current);
         let left =
             FromBinder::new(left_idx, self.resolve_context).bind(bind_context, Some(*join.left))?;
 
-        let right_idx = bind_context.new_child(self.current);
-        let left = FromBinder::new(right_idx, self.resolve_context)
+        // Bind right.
+        //
+        // The right bind context is created as a child of the left bind context
+        // to easily check if this is a lateral join (distance between right and
+        // left contexts == 1).
+        let right_idx = bind_context.new_child(left_idx);
+        let right = FromBinder::new(right_idx, self.resolve_context)
             .bind(bind_context, Some(*join.right))?;
 
-        unimplemented!()
+        let right_correlated_columns = bind_context.correlated_columns(right_idx)?.clone();
+
+        // If any column in right is correlated with left, then this is a
+        // lateral join.
+        let mut any_lateral = right_correlated_columns.iter().any(|c| c.outer == left_idx);
+
+        let (conditions, using_cols) = match join.join_condition {
+            ast::JoinCondition::On(exprs) => (vec![exprs], Vec::new()),
+            ast::JoinCondition::Using(cols) => {
+                let using_cols: Vec<_> = cols
+                    .into_iter()
+                    .map(|c| c.into_normalized_string())
+                    .collect();
+                (Vec::new(), using_cols)
+            }
+            ast::JoinCondition::Natural => {
+                //
+                unimplemented!()
+            }
+            ast::JoinCondition::None => (Vec::new(), Vec::new()),
+        };
+
+        let join_type = match join.join_type {
+            ast::JoinType::Inner => JoinType::Inner,
+            ast::JoinType::Left => JoinType::Left,
+            ast::JoinType::Right => JoinType::Right,
+            ast::JoinType::Cross => JoinType::Cross,
+            other => not_implemented!("plan join type: {other:?}"),
+        };
+
+        // Move left and right into current context.
+        bind_context.append_context(self.current, left_idx)?;
+        bind_context.append_context(self.current, right_idx)?;
+
+        let condition = {
+            let _ = conditions;
+            // TODO
+            unimplemented!()
+        };
+
+        Ok(BoundFrom {
+            bind_ref: self.current,
+            item: BoundFromItem::Join(BoundJoin {
+                left_bind_ref: left_idx,
+                left: Box::new(left),
+                right_bind_ref: right_idx,
+                right: Box::new(right),
+                join_type,
+                condition,
+                right_correlated_columns,
+                lateral: any_lateral,
+            }),
+        })
     }
 }

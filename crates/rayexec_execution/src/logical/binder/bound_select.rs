@@ -12,7 +12,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::{
-    bind_context::{BindContext, BindContextIdx},
+    bind_context::{BindContext, BindContextRef},
     bound_from::BoundFrom,
     bound_group_by::BoundGroupBy,
     bound_modifier::{BoundLimit, BoundOrderBy},
@@ -48,7 +48,7 @@ pub struct BoundSelect {
 
 #[derive(Debug)]
 pub struct SelectBinder<'a> {
-    pub current: BindContextIdx,
+    pub current: BindContextRef,
     pub resolve_context: &'a ResolveContext,
 }
 
@@ -65,8 +65,8 @@ impl<'a> SelectBinder<'a> {
             FromBinder::new(self.current, self.resolve_context).bind(bind_context, select.from)?;
 
         // Expand SELECT
-        let projections = ExpressionBinder::new(self.current, bind_context, self.resolve_context)
-            .expand_all_select_exprs(select.projections)?;
+        let projections = ExpressionBinder::new(self.current, self.resolve_context)
+            .expand_all_select_exprs(bind_context, select.projections)?;
 
         if projections.is_empty() {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
@@ -91,9 +91,8 @@ impl<'a> SelectBinder<'a> {
         let where_expr = select
             .where_expr
             .map(|expr| {
-                let binder =
-                    ExpressionBinder::new(self.current, bind_context, self.resolve_context);
-                binder.bind_expression(expr)
+                let binder = ExpressionBinder::new(self.current, self.resolve_context);
+                binder.bind_expression(bind_context, expr)
             })
             .transpose()?;
 
@@ -120,8 +119,8 @@ impl<'a> SelectBinder<'a> {
         let having = select
             .having
             .map(|h| {
-                ExpressionBinder::new(self.current, bind_context, self.resolve_context)
-                    .bind_expression(h)
+                ExpressionBinder::new(self.current, self.resolve_context)
+                    .bind_expression(bind_context, h)
             })
             .transpose()?;
 

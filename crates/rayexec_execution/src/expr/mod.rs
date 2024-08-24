@@ -3,6 +3,8 @@ pub mod between_expr;
 pub mod case_expr;
 pub mod cast_expr;
 pub mod column_expr;
+pub mod conjunction_expr;
+pub mod literal_expr;
 pub mod scalar;
 pub mod scalar_function_expr;
 pub mod subquery_expr;
@@ -17,7 +19,10 @@ use aggregate_expr::AggregateExpr;
 use between_expr::BetweenExpr;
 use case_expr::CaseExpr;
 use cast_expr::CastExpr;
+use column_expr::ColumnExpr;
+use conjunction_expr::ConjunctionExpr;
 use fmtutil::IntoDisplayableSlice;
+use literal_expr::LiteralExpr;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
@@ -36,9 +41,23 @@ pub enum Expression {
     Between(BetweenExpr),
     Case(CaseExpr),
     Cast(CastExpr),
+    Column(ColumnExpr),
+    Conjunction(ConjunctionExpr),
+    Literal(LiteralExpr),
     ScalarFunction(ScalarFunctionExpr),
     Subquery(SubqueryExpr),
     Window(WindowExpr),
+}
+
+impl Expression {
+    /// Try to get a top-level literal from this expression, erroring if it's
+    /// not one.
+    pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
+        match self {
+            Self::Literal(lit) => Ok(lit.literal),
+            other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
