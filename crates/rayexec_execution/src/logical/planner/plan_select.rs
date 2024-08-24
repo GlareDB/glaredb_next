@@ -4,6 +4,7 @@ use crate::logical::{
     logical_filter::LogicalFilter,
     logical_limit::LogicalLimit,
     logical_order::{LogicalOrder, OrderByExpr},
+    logical_project::LogicalProject,
     operator::{LocationRequirement, LogicalNode, LogicalOperator},
     planner::{plan_from::FromPlanner, plan_subquery::SubqueryPlanner},
 };
@@ -75,6 +76,18 @@ impl<'a> SelectPlanner<'a> {
             })
         }
 
+        // Handle projections.
+        let projection_len = select.projections.len(); // Used to see if need a separate projection at the end.
+        for expr in &mut select.projections {
+            plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+        }
+        plan = LogicalOperator::Project(LogicalNode {
+            node: LogicalProject,
+            location: LocationRequirement::Any,
+            children: vec![plan],
+            expressions: select.projections,
+        });
+
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {
             let mut exprs = Vec::with_capacity(order_by.exprs.len());
@@ -112,6 +125,12 @@ impl<'a> SelectPlanner<'a> {
             });
         }
 
-        unimplemented!()
+        // Omit any columns that shouldn't be in the output.
+        if projection_len > select.output_columns {
+            // Do the thing...
+            unimplemented!()
+        }
+
+        Ok(plan)
     }
 }

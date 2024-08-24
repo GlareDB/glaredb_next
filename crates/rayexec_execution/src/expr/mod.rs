@@ -1,10 +1,22 @@
+pub mod aggregate_expr;
+pub mod between_expr;
+pub mod case_expr;
+pub mod cast_expr;
+pub mod column_expr;
 pub mod scalar;
+pub mod scalar_function_expr;
+pub mod subquery_expr;
+pub mod window_expr;
 
 use crate::database::DatabaseContext;
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::expr::LogicalExpression;
 use crate::proto::DatabaseProtoConv;
+use aggregate_expr::AggregateExpr;
+use between_expr::BetweenExpr;
+use case_expr::CaseExpr;
+use cast_expr::CastExpr;
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
@@ -12,8 +24,22 @@ use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
+use scalar_function_expr::ScalarFunctionExpr;
 use std::fmt::{self, Debug};
 use std::sync::Arc;
+use subquery_expr::SubqueryExpr;
+use window_expr::WindowExpr;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expression {
+    Aggregate(AggregateExpr),
+    Between(BetweenExpr),
+    Case(CaseExpr),
+    Cast(CastExpr),
+    ScalarFunction(ScalarFunctionExpr),
+    Subquery(SubqueryExpr),
+    Window(WindowExpr),
+}
 
 #[derive(Debug, Clone)]
 pub enum PhysicalScalarExpression {

@@ -20,8 +20,16 @@ use super::{
 
 #[derive(Debug)]
 pub struct BoundSelect {
-    /// Projections in select, including appended projections.
+    /// Unplanned projections in select, including appended projections.
     pub select_list: SelectList,
+    /// Planned expressions in the select.
+    pub projections: Vec<LogicalExpression>,
+    /// Number of columns in the output.
+    ///
+    /// This may be greater than len(projections) in order handle
+    /// pre-projections into ORDER BY and GROUP BY. If this is the case,
+    /// those appended columns should be omitted at the end.
+    pub output_columns: usize,
     /// Bound FROM.
     pub from: BoundFrom,
     /// Expression for WHERE.
