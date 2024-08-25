@@ -10,16 +10,22 @@ use crate::{
     },
 };
 
-use super::bind_context::{BindContext, BindContextRef, TableRef};
+use super::bind_context::{BindContext, BindScopeRef, TableRef};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecursionContext {
+    pub allow_aggregate: bool,
+    pub allow_window: bool,
+}
 
 #[derive(Debug)]
 pub struct ExpressionBinder<'a> {
-    pub current: BindContextRef,
+    pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> ExpressionBinder<'a> {
-    pub const fn new(current: BindContextRef, resolve_context: &'a ResolveContext) -> Self {
+    pub const fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
         ExpressionBinder {
             current,
             resolve_context,
@@ -30,22 +36,17 @@ impl<'a> ExpressionBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         expr: &ast::Expr<ResolvedMeta>,
+        recur: RecursionContext,
     ) -> Result<Expression> {
         match expr {
             ast::Expr::Ident(ident) => self.bind_ident(bind_context, ident),
+            ast::Expr::CompoundIdent(idents) => self.bind_idents(idents),
+            ast::Expr::Literal(literal) => Self::bind_literal(literal),
             _ => unimplemented!(),
         }
     }
 
-    pub(crate) fn bind_aggregate(
-        func: ast::Function<ResolvedMeta>,
-        bind_context: &mut BindContext,
-        agg_table: TableRef,
-    ) -> Result<Expression> {
-        unimplemented!()
-    }
-
-    pub(crate) fn bind_literal(literal: ast::Literal<ResolvedMeta>) -> Result<Expression> {
+    pub(crate) fn bind_literal(literal: &ast::Literal<ResolvedMeta>) -> Result<Expression> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i64>() {
@@ -67,7 +68,7 @@ impl<'a> ExpressionBinder<'a> {
                 }
             }
             ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr {
-                literal: OwnedScalarValue::Boolean(b),
+                literal: OwnedScalarValue::Boolean(*b),
             }),
             ast::Literal::Null => Expression::Literal(LiteralExpr {
                 literal: OwnedScalarValue::Null,
@@ -83,7 +84,11 @@ impl<'a> ExpressionBinder<'a> {
         })
     }
 
-    fn bind_ident(&self, bind_context: &mut BindContext, ident: &ast::Ident) -> Result<Expression> {
+    pub(crate) fn bind_ident(
+        &self,
+        bind_context: &mut BindContext,
+        ident: &ast::Ident,
+    ) -> Result<Expression> {
         let col = ident.as_normalized_string();
 
         let mut current = self.current;
@@ -131,5 +136,53 @@ impl<'a> ExpressionBinder<'a> {
                 }
             }
         }
+    }
+
+    /// Plan a compound identifier.
+    ///
+    /// Assumed to be a reference to a column either in the current scope or one
+    /// of the outer scopes.
+    fn bind_idents(&self, idents: &[ast::Ident]) -> Result<Expression> {
+        unimplemented!()
+        // fn format_err(table_ref: &TableReference, col: &str) -> String {
+        //     format!("Missing column for reference: {table_ref}.{col}")
+        // }
+
+        // match idents.len() {
+        //     0 => Err(RayexecError::new("Empty identifier")),
+        //     1 => {
+        //         // Single column.
+        //         let ident = idents.pop().unwrap();
+        //         self.plan_ident(ident)
+        //     }
+        //     2..=4 => {
+        //         // Qualified column.
+        //         // 2 => 'table.column'
+        //         // 3 => 'schema.table.column'
+        //         // 4 => 'database.schema.table.column'
+        //         // TODO: Struct fields.
+        //         let col = idents.pop().unwrap().into_normalized_string();
+        //         let table_ref = TableReference {
+        //             table: idents
+        //                 .pop()
+        //                 .map(|ident| ident.into_normalized_string())
+        //                 .unwrap(), // Must exist
+        //             schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+        //             database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+        //         };
+        //         match self.scope.resolve_column(
+        //             &self.planner.outer_scopes,
+        //             Some(&table_ref),
+        //             &col,
+        //         )? {
+        //             Some(col) => Ok(LogicalExpression::ColumnRef(col)),
+        //             None => Err(RayexecError::new(format_err(&table_ref, &col))), // Struct fields here.
+        //         }
+        //     }
+        //     _ => Err(RayexecError::new(format!(
+        //         "Too many identifier parts in {}",
+        //         ast::ObjectReference(idents),
+        //     ))), // TODO: Struct fields.
+        // }
     }
 }

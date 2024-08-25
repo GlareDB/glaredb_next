@@ -24,7 +24,7 @@ impl<'a> FromPlanner<'a> {
             BoundFromItem::BaseTable(table) => {
                 let mut types = Vec::new();
                 let mut names = Vec::new();
-                for table in self.bind_context.iter_table_scopes(from.bind_ref)? {
+                for table in self.bind_context.iter_tables(from.bind_ref)? {
                     types.extend(table.column_types.iter().cloned());
                     names.extend(table.column_names.iter().cloned());
                 }

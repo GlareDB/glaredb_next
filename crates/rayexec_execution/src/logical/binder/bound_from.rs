@@ -15,11 +15,11 @@ use crate::{
     },
 };
 
-use super::bind_context::{BindContext, BindContextRef, CorrelatedColumn, TableRef};
+use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableRef};
 
 #[derive(Debug)]
 pub struct BoundFrom {
-    pub bind_ref: BindContextRef,
+    pub bind_ref: BindScopeRef,
     pub item: BoundFromItem,
 }
 
@@ -41,11 +41,11 @@ pub struct BoundBaseTable {
 #[derive(Debug)]
 pub struct BoundJoin {
     /// Reference to binder for left side of join.
-    pub left_bind_ref: BindContextRef,
+    pub left_bind_ref: BindScopeRef,
     /// Bound left.
     pub left: Box<BoundFrom>,
     /// Reference to binder for right side of join.
-    pub right_bind_ref: BindContextRef,
+    pub right_bind_ref: BindScopeRef,
     /// Bound right.
     pub right: Box<BoundFrom>,
     /// Join type.
@@ -60,12 +60,12 @@ pub struct BoundJoin {
 
 #[derive(Debug)]
 pub struct FromBinder<'a> {
-    pub current: BindContextRef,
+    pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> FromBinder<'a> {
-    pub fn new(current: BindContextRef, resolve_context: &'a ResolveContext) -> Self {
+    pub fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
         FromBinder {
             current,
             resolve_context,
@@ -133,7 +133,7 @@ impl<'a> FromBinder<'a> {
             }
         }
 
-        let _ = bind_context.push_table_scope(
+        let _ = bind_context.push_table(
             self.current,
             default_alias,
             column_types,
@@ -197,7 +197,7 @@ impl<'a> FromBinder<'a> {
         join: ast::FromJoin<ResolvedMeta>,
     ) -> Result<BoundFrom> {
         // Bind left first.
-        let left_idx = bind_context.new_child(self.current);
+        let left_idx = bind_context.new_scope(self.current);
         let left =
             FromBinder::new(left_idx, self.resolve_context).bind(bind_context, Some(*join.left))?;
 
@@ -206,7 +206,7 @@ impl<'a> FromBinder<'a> {
         // The right bind context is created as a child of the left bind context
         // to easily check if this is a lateral join (distance between right and
         // left contexts == 1).
-        let right_idx = bind_context.new_child(left_idx);
+        let right_idx = bind_context.new_scope(left_idx);
         let right = FromBinder::new(right_idx, self.resolve_context)
             .bind(bind_context, Some(*join.right))?;
 

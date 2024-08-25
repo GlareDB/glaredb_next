@@ -1,28 +1,34 @@
 use crate::{
-    expr::Expression,
+    expr::{column_expr::ColumnExpr, Expression},
     logical::{
-        binder::expr_binder::ExpressionBinder,
+        binder::expr_binder::{ExpressionBinder, RecursionContext},
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use rayexec_parser::ast::{self, SelectExpr};
 use std::collections::HashMap;
 
-use super::bind_context::{BindContext, BindContextRef, TableRef};
+use super::bind_context::{BindContext, BindScopeRef, TableRef};
 
 #[derive(Debug)]
 pub struct BoundSelectList {
+    /// Table containing columns for projections
     pub projections_table: TableRef,
+    /// Projection expressions. May contain additional expressions for use with
+    /// ORDER BY and GROUP BY.
     pub projections: Vec<Expression>,
-
-    pub appended_table: TableRef,
-    pub appended: Vec<Expression>,
-
+    /// Number of columns that this select should output.
+    ///
+    /// If less than length of projections, extra columns need to be omitted.
+    pub output_column_count: usize,
+    /// Table containing columns for aggregates.
     pub aggregates_table: TableRef,
-    pub aggreagtes: Vec<Expression>,
-
+    /// All extracted aggregates.
+    pub aggregates: Vec<Expression>,
+    /// Table containing columns for windows.
     pub windows_table: TableRef,
+    /// All extracted windows.
     pub windows: Vec<Expression>,
 }
 
@@ -32,7 +38,7 @@ pub struct SelectList {
     /// should bind to.
     ///
     /// Remains empty during binding.
-    pub table: TableRef,
+    pub projections_table: TableRef,
 
     /// Mapping from explicit user-provided alias to column index in the output.
     pub alias_map: HashMap<String, usize>,
@@ -47,13 +53,37 @@ pub struct SelectList {
 }
 
 impl SelectList {
+    /// Create a new select list from the provided select expressions.
+    ///
+    /// Select expressions should have already been expanded.
+    pub fn try_new(
+        bind_context: &mut BindContext,
+        projections: Vec<SelectExpr<ResolvedMeta>>,
+    ) -> Result<Self> {
+        let mut alias_map = HashMap::new();
+
+        // Track aliases to allow referencing them in GROUP BY and ORDER BY.
+        for (idx, projection) in projections.iter().enumerate() {
+            if let Some(alias) = projection.get_alias() {
+                alias_map.insert(alias.as_normalized_string(), idx);
+            }
+        }
+
+        Ok(SelectList {
+            projections_table: bind_context.new_ephemeral_table()?,
+            alias_map,
+            projections,
+            appended: Vec::new(),
+        })
+    }
+
     /// Binds the select expressions in this to the provided bind context.
-    pub fn bind_expressions(
+    pub fn bind(
         &self,
-        bind_ref: BindContextRef,
+        bind_ref: BindScopeRef,
         bind_context: &mut BindContext,
         resolve_context: &ResolveContext,
-    ) -> Result<Vec<Expression>> {
+    ) -> Result<BoundSelectList> {
         let expr_binder = ExpressionBinder::new(bind_ref, resolve_context);
 
         let mut ast_exprs = Vec::with_capacity(self.projections.len() + self.appended.len());
@@ -73,7 +103,14 @@ impl SelectList {
         // Bind both user projections and appended projections.
         let mut expressions = Vec::with_capacity(self.projections.len());
         for &expr in ast_exprs.iter() {
-            let bound = expr_binder.bind_expression(bind_context, expr)?;
+            let bound = expr_binder.bind_expression(
+                bind_context,
+                expr,
+                RecursionContext {
+                    allow_window: true,
+                    allow_aggregate: true,
+                },
+            )?;
             expressions.push(bound);
         }
 
@@ -117,12 +154,56 @@ impl SelectList {
 
         debug_assert_eq!(names.len(), types.len());
 
-        let table = bind_context.get_table_mut(self.table)?;
+        let table = bind_context.get_table_mut(self.projections_table)?;
         // TODO: Probably assert these are still empty before writing over them.
         table.column_names = names;
         table.column_types = types;
 
-        Ok(expressions)
+        // Extract aggregates into separate table.
+        let aggregates_table = bind_context.new_ephemeral_table()?;
+        let mut aggregates = Vec::new();
+
+        for expr in &mut expressions {
+            Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
+        }
+
+        Ok(BoundSelectList {
+            projections_table: self.projections_table,
+            projections: expressions,
+            output_column_count: self.projections.len(),
+            aggregates_table,
+            aggregates,
+            windows_table: bind_context.new_ephemeral_table()?, // TODO
+            windows: Vec::new(),                                // TODO
+        })
+    }
+
+    fn extract_aggregates(
+        aggregates_table: TableRef,
+        bind_context: &mut BindContext,
+        expression: &mut Expression,
+        aggregates: &mut Vec<Expression>,
+    ) -> Result<()> {
+        if let Expression::Aggregate(agg) = expression {
+            let datatype = agg.datatype(bind_context)?;
+            let col_idx =
+                bind_context.push_column_for_table(aggregates_table, "__generated", datatype)?;
+
+            let col_ref = Expression::Column(ColumnExpr {
+                table_scope: aggregates_table,
+                column: col_idx,
+            });
+
+            let agg = std::mem::replace(expression, col_ref);
+            aggregates.push(agg);
+            return Ok(());
+        }
+
+        expression.for_each_child_mut(&mut |expr| {
+            Self::extract_aggregates(aggregates_table, bind_context, expr, aggregates)
+        })?;
+
+        Ok(())
     }
 
     /// Appends an expression to the select list for later binding.

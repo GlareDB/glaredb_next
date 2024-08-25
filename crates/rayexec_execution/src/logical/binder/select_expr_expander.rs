@@ -2,21 +2,21 @@ use crate::logical::resolver::{resolve_context::ResolveContext, ResolvedMeta};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::bind_context::{BindContext, BindContextRef};
+use super::bind_context::{BindContext, BindScopeRef};
 
 /// Expands wildcards in expressions found in the select list.
 ///
 /// Generates ast expressions.
 #[derive(Debug)]
 pub struct SelectExprExpander<'a> {
-    pub current: BindContextRef,
+    pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
     pub bind_context: &'a BindContext,
 }
 
 impl<'a> SelectExprExpander<'a> {
     pub fn new(
-        current: BindContextRef,
+        current: BindScopeRef,
         resolve_context: &'a ResolveContext,
         bind_context: &'a BindContext,
     ) -> Self {
@@ -47,7 +47,7 @@ impl<'a> SelectExprExpander<'a> {
             ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
                 let mut exprs = Vec::new();
-                for scope in self.bind_context.iter_table_scopes(self.current)? {
+                for scope in self.bind_context.iter_tables(self.current)? {
                     let table = &scope.alias;
                     for column in &scope.column_names {
                         exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
@@ -71,7 +71,7 @@ impl<'a> SelectExprExpander<'a> {
 
                 let scope = self
                     .bind_context
-                    .iter_table_scopes(self.current)?
+                    .iter_tables(self.current)?
                     .find(|s| s.alias == table)
                     .ok_or_else(|| {
                         RayexecError::new(format!(

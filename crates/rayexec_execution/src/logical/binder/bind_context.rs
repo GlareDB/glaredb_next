@@ -3,13 +3,13 @@ use std::collections::{HashMap, HashSet};
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
-/// Reference to a child bind context.
+/// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BindContextRef {
+pub struct BindScopeRef {
     pub context_idx: usize,
 }
 
-/// Reference to a table scope in a context.
+/// Reference to a table in a context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableRef {
     pub table_idx: usize,
@@ -17,38 +17,47 @@ pub struct TableRef {
 
 #[derive(Debug)]
 pub struct BindContext {
-    /// All child contexts used for binding.
+    /// All child scopes used for binding.
     ///
-    /// Initialized with a single child context (root).
-    contexts: Vec<ChildBindContext>,
+    /// Initialized with a single scope (root).
+    scopes: Vec<BindScope>,
 
-    /// All tables across all child contexts.
+    /// All tables in the bind context. Tables may or may not be inside a scope.
     tables: Vec<Table>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CorrelatedColumn {
     /// Reference to an outer context the column is referencing.
-    pub outer: BindContextRef,
+    pub outer: BindScopeRef,
     pub table: TableRef,
     /// Index of the column in the table.
     pub col_idx: usize,
 }
 
 #[derive(Debug, Default)]
-struct ChildBindContext {
+struct BindScope {
     /// Index to the parent bind context.
     ///
     /// Will be None if this is the root context.
-    parent: Option<BindContextRef>,
+    parent: Option<BindScopeRef>,
 
     /// Correlated columns in the query at this depth.
     correlated_columns: Vec<CorrelatedColumn>,
 
-    /// Scopes currently at this depth.
-    scopes: Vec<TableRef>,
+    /// Tables currently in scope.
+    tables: Vec<TableRef>,
 }
 
+/// A "table" in the context.
+///
+/// These may have a direct relationship to an underlying base table, but may
+/// also be used for ephemeral columns.
+///
+/// For example, when a query has aggregates in the select list, a separate
+/// "aggregates" table will be created for hold columns that produce aggregates,
+/// and the original select list will have their expressions replaced with
+/// column references that point to this table.
 #[derive(Debug)]
 pub struct Table {
     pub reference: TableRef,
@@ -60,42 +69,43 @@ pub struct Table {
 impl BindContext {
     pub fn new() -> Self {
         BindContext {
-            contexts: vec![ChildBindContext {
+            scopes: vec![BindScope {
                 parent: None,
-                scopes: Vec::new(),
+                tables: Vec::new(),
                 correlated_columns: Vec::new(),
             }],
             tables: Vec::new(),
         }
     }
 
-    pub fn new_child(&mut self, current: BindContextRef) -> BindContextRef {
-        let idx = self.contexts.len();
-        self.contexts.push(ChildBindContext {
+    /// Creates a new bind scope, with current being the parent scope.
+    pub fn new_scope(&mut self, current: BindScopeRef) -> BindScopeRef {
+        let idx = self.scopes.len();
+        self.scopes.push(BindScope {
             parent: Some(current),
-            scopes: Vec::new(),
+            tables: Vec::new(),
             correlated_columns: Vec::new(),
         });
 
-        BindContextRef { context_idx: idx }
+        BindScopeRef { context_idx: idx }
     }
 
-    pub fn get_parent_ref(&self, bind_ref: BindContextRef) -> Result<Option<BindContextRef>> {
-        let child = self.get_child_context(bind_ref)?;
+    pub fn get_parent_ref(&self, bind_ref: BindScopeRef) -> Result<Option<BindScopeRef>> {
+        let child = self.get_scope(bind_ref)?;
         Ok(child.parent)
     }
 
-    pub fn correlated_columns(&self, bind_ref: BindContextRef) -> Result<&Vec<CorrelatedColumn>> {
-        let child = self.get_child_context(bind_ref)?;
+    pub fn correlated_columns(&self, bind_ref: BindScopeRef) -> Result<&Vec<CorrelatedColumn>> {
+        let child = self.get_scope(bind_ref)?;
         Ok(&child.correlated_columns)
     }
 
     /// Appends `other` context to `current`.
     ///
     /// Errors on duplicate table aliases.
-    pub fn append_context(&mut self, current: BindContextRef, other: BindContextRef) -> Result<()> {
-        let left_aliases: HashSet<_> = self.iter_table_scopes(current)?.map(|t| &t.alias).collect();
-        for table in self.iter_table_scopes(other)? {
+    pub fn append_context(&mut self, current: BindScopeRef, other: BindScopeRef) -> Result<()> {
+        let left_aliases: HashSet<_> = self.iter_tables(current)?.map(|t| &t.alias).collect();
+        for table in self.iter_tables(other)? {
             if left_aliases.contains(&table.alias) {
                 return Err(RayexecError::new(format!(
                     "Duplicate table name: {}",
@@ -106,13 +116,13 @@ impl BindContext {
 
         // TODO: Correlated columns, USING
         let mut other_tables = {
-            let other = self.get_child_context(other)?;
-            other.scopes.clone()
+            let other = self.get_scope(other)?;
+            other.tables.clone()
         };
 
-        let current = self.get_child_context_mut(current)?;
+        let current = self.get_scope_mut(current)?;
 
-        current.scopes.append(&mut other_tables);
+        current.tables.append(&mut other_tables);
 
         Ok(())
     }
@@ -124,10 +134,10 @@ impl BindContext {
     /// context will have a distance of 1.
     pub fn distance_child_to_parent(
         &self,
-        child: BindContextRef,
-        parent: BindContextRef,
+        child: BindScopeRef,
+        parent: BindScopeRef,
     ) -> Result<usize> {
-        let mut current = self.get_child_context(child)?;
+        let mut current = self.get_scope(child)?;
         let mut distance = 0;
 
         loop {
@@ -146,21 +156,12 @@ impl BindContext {
                 }
             };
 
-            current = self.get_child_context(current_parent)?;
+            current = self.get_scope(current_parent)?;
         }
     }
 
-    /// Pushes an empty table scope to the current context.
-    ///
-    /// This allows us to generate a table scope reference for the select list
-    /// prior to having all expressions planned. This lets us stub the table
-    /// scope to allow for things that reference the select list to do so using
-    /// normal column expressions (e.g. ORDER BY).
-    pub fn push_empty_scope_to_context(&mut self, bind_ref: BindContextRef) -> Result<TableRef> {
-        self.push_table_scope(bind_ref, "empty", Vec::new(), Vec::new())
-    }
-
-    pub fn push_empty_scope(&mut self) -> Result<TableRef> {
+    /// Create a table that belong to no scope.
+    pub fn new_ephemeral_table(&mut self) -> Result<TableRef> {
         let table_idx = self.tables.len();
         let reference = TableRef { table_idx };
         let scope = Table {
@@ -179,11 +180,12 @@ impl BindContext {
         table: TableRef,
         name: impl Into<String>,
         datatype: DataType,
-    ) -> Result<()> {
+    ) -> Result<usize> {
         let table = self.get_table_mut(table)?;
+        let idx = table.column_types.len();
         table.column_names.push(name.into());
         table.column_types.push(datatype);
-        Ok(())
+        Ok(idx)
     }
 
     pub fn get_table_mut(&mut self, table_ref: TableRef) -> Result<&mut Table> {
@@ -192,16 +194,16 @@ impl BindContext {
             .ok_or_else(|| RayexecError::new("Missing table scope in bind context"))
     }
 
-    pub fn push_table_scope(
+    pub fn push_table(
         &mut self,
-        idx: BindContextRef,
+        idx: BindScopeRef,
         alias: impl Into<String>,
         column_types: Vec<DataType>,
         column_names: Vec<String>,
     ) -> Result<TableRef> {
         let alias = alias.into();
 
-        for scope in self.iter_table_scopes(idx)? {
+        for scope in self.iter_tables(idx)? {
             if scope.alias == alias {
                 return Err(RayexecError::new(format!("Duplicate table name: {alias}")));
             }
@@ -217,18 +219,18 @@ impl BindContext {
         };
         self.tables.push(scope);
 
-        let child = self.get_child_context_mut(idx)?;
-        child.scopes.push(reference);
+        let child = self.get_scope_mut(idx)?;
+        child.tables.push(reference);
 
         Ok(reference)
     }
 
     pub fn push_correlation(
         &mut self,
-        idx: BindContextRef,
+        idx: BindScopeRef,
         correlation: CorrelatedColumn,
     ) -> Result<()> {
-        let child = self.get_child_context_mut(idx)?;
+        let child = self.get_scope_mut(idx)?;
         child.correlated_columns.push(correlation);
         Ok(())
     }
@@ -241,11 +243,11 @@ impl BindContext {
     /// Returns the table, and the relative index of the column within that table.
     pub fn find_table_scope_for_column(
         &self,
-        current: BindContextRef,
+        current: BindScopeRef,
         column: &str,
     ) -> Result<Option<(&Table, usize)>> {
         let mut found = None;
-        for table in self.iter_table_scopes(current)? {
+        for table in self.iter_tables(current)? {
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
                 if col_name == column {
                     if found.is_some() {
@@ -259,39 +261,30 @@ impl BindContext {
         Ok(found)
     }
 
-    pub fn get_table_scope(&self, scope_ref: TableRef) -> Result<&Table> {
+    pub fn get_table(&self, scope_ref: TableRef) -> Result<&Table> {
         self.tables
             .get(scope_ref.table_idx)
             .ok_or_else(|| RayexecError::new("Missing table scope"))
     }
 
-    /// Iterate table scopes in the given bind context.
-    pub fn iter_table_scopes(
-        &self,
-        current: BindContextRef,
-    ) -> Result<impl Iterator<Item = &Table>> {
-        let context = self.get_child_context(current)?;
+    /// Iterate tables in the given bind scope.
+    pub fn iter_tables(&self, current: BindScopeRef) -> Result<impl Iterator<Item = &Table>> {
+        let context = self.get_scope(current)?;
         Ok(context
-            .scopes
+            .tables
             .iter()
             .map(|table| &self.tables[table.table_idx]))
     }
 
-    fn get_child_context(&self, bind_ref: BindContextRef) -> Result<&ChildBindContext> {
-        let child = self
-            .contexts
+    fn get_scope(&self, bind_ref: BindScopeRef) -> Result<&BindScope> {
+        self.scopes
             .get(bind_ref.context_idx)
-            .ok_or_else(|| RayexecError::new("Missing child bind context"))?;
-
-        Ok(child)
+            .ok_or_else(|| RayexecError::new("Missing child bind context"))
     }
 
-    fn get_child_context_mut(&mut self, bind_ref: BindContextRef) -> Result<&mut ChildBindContext> {
-        let child = self
-            .contexts
+    fn get_scope_mut(&mut self, bind_ref: BindScopeRef) -> Result<&mut BindScope> {
+        self.scopes
             .get_mut(bind_ref.context_idx)
-            .ok_or_else(|| RayexecError::new("Missing child bind context"))?;
-
-        Ok(child)
+            .ok_or_else(|| RayexecError::new("Missing child bind context"))
     }
 }

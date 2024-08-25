@@ -10,7 +10,8 @@ use crate::{
 };
 
 use super::{
-    bind_context::{BindContext, BindContextRef},
+    bind_context::{BindContext, BindScopeRef},
+    expr_binder::RecursionContext,
     select_list::SelectList,
 };
 
@@ -39,12 +40,12 @@ pub struct ModifierBinder<'a> {
     ///
     /// Should be a length of 1 for typical select query, and length or two for
     /// set operations.
-    pub current: Vec<BindContextRef>,
+    pub current: Vec<BindScopeRef>,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> ModifierBinder<'a> {
-    pub fn new(current: Vec<BindContextRef>, resolve_context: &'a ResolveContext) -> Self {
+    pub fn new(current: Vec<BindScopeRef>, resolve_context: &'a ResolveContext) -> Self {
         ModifierBinder {
             current,
             resolve_context,
@@ -91,7 +92,7 @@ impl<'a> ModifierBinder<'a> {
         // referencing.
         if let Some(idx) = select_list.get_projection_reference(&expr)? {
             return Ok(ColumnExpr {
-                table_scope: select_list.table,
+                table_scope: select_list.projections_table,
                 column: idx,
             });
         }
@@ -101,7 +102,7 @@ impl<'a> ModifierBinder<'a> {
         let idx = select_list.append_expression(ast::SelectExpr::Expr(expr));
 
         Ok(ColumnExpr {
-            table_scope: select_list.table,
+            table_scope: select_list.projections_table,
             column: idx,
         })
     }
@@ -114,7 +115,14 @@ impl<'a> ModifierBinder<'a> {
         let expr_binder = ExpressionBinder::new(self.current[0], self.resolve_context);
 
         let limit = match limit_mod.limit {
-            Some(limit) => expr_binder.bind_expression(bind_context, &limit)?,
+            Some(limit) => expr_binder.bind_expression(
+                bind_context,
+                &limit,
+                RecursionContext {
+                    allow_window: false,
+                    allow_aggregate: false,
+                },
+            )?,
             None => {
                 if limit_mod.offset.is_some() {
                     return Err(RayexecError::new("OFFSET without LIMIT not supported"));
@@ -132,7 +140,14 @@ impl<'a> ModifierBinder<'a> {
 
         let offset = match limit_mod.offset {
             Some(offset) => {
-                let offset = expr_binder.bind_expression(bind_context, &offset)?;
+                let offset = expr_binder.bind_expression(
+                    bind_context,
+                    &offset,
+                    RecursionContext {
+                        allow_window: false,
+                        allow_aggregate: false,
+                    },
+                )?;
                 let offset = offset.try_into_scalar()?.try_as_i64()?;
                 if offset < 0 {
                     return Err(RayexecError::new("OFFSET cannot be negative"));

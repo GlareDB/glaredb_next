@@ -4,6 +4,7 @@ pub mod case_expr;
 pub mod cast_expr;
 pub mod column_expr;
 pub mod conjunction_expr;
+pub mod is_expr;
 pub mod literal_expr;
 pub mod scalar;
 pub mod scalar_function_expr;
@@ -13,7 +14,7 @@ pub mod window_expr;
 use crate::database::DatabaseContext;
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
-use crate::logical::binder::bind_context::{BindContext, BindContextRef};
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::expr::LogicalExpression;
 use crate::proto::DatabaseProtoConv;
 use aggregate_expr::AggregateExpr;
@@ -23,6 +24,7 @@ use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
 use conjunction_expr::ConjunctionExpr;
 use fmtutil::IntoDisplayableSlice;
+use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
@@ -44,6 +46,7 @@ pub enum Expression {
     Cast(CastExpr),
     Column(ColumnExpr),
     Conjunction(ConjunctionExpr),
+    Is(IsExpr),
     Literal(LiteralExpr),
     ScalarFunction(ScalarFunctionExpr),
     Subquery(SubqueryExpr),
@@ -88,6 +91,7 @@ impl Expression {
                 func(&mut conj.left)?;
                 func(&mut conj.right)?;
             }
+            Self::Is(is) => func(&mut is.input)?,
             Self::Literal(_) => (),
             Self::ScalarFunction(scalar) => {
                 for input in &mut scalar.inputs {
@@ -141,6 +145,7 @@ impl Expression {
                 func(&conj.left)?;
                 func(&conj.right)?;
             }
+            Self::Is(is) => func(&is.input)?,
             Self::Literal(_) => (),
             Self::ScalarFunction(scalar) => {
                 for input in &scalar.inputs {

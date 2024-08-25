@@ -11,7 +11,7 @@ use rayexec_parser::ast;
 use std::collections::BTreeSet;
 
 use super::{
-    bind_context::{BindContext, BindContextRef},
+    bind_context::{BindContext, BindScopeRef},
     select_list::SelectList,
 };
 
@@ -23,12 +23,12 @@ pub struct BoundGroupBy {
 
 #[derive(Debug)]
 pub struct GroupByBinder<'a> {
-    pub current: BindContextRef,
+    pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> GroupByBinder<'a> {
-    pub fn new(current: BindContextRef, resolve_context: &'a ResolveContext) -> Self {
+    pub fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
         GroupByBinder {
             current,
             resolve_context,

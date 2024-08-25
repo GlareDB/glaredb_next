@@ -4,8 +4,11 @@ use crate::{
     expr::Expression,
     logical::{
         binder::{
-            bound_from::FromBinder, bound_group_by::GroupByBinder, bound_modifier::ModifierBinder,
-            expr_binder::ExpressionBinder, select_expr_expander::SelectExprExpander,
+            bound_from::FromBinder,
+            bound_group_by::GroupByBinder,
+            bound_modifier::ModifierBinder,
+            expr_binder::{ExpressionBinder, RecursionContext},
+            select_expr_expander::SelectExprExpander,
             select_list::SelectList,
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -15,7 +18,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::{
-    bind_context::{BindContext, BindContextRef, TableRef},
+    bind_context::{BindContext, BindScopeRef, TableRef},
     bound_from::BoundFrom,
     bound_group_by::BoundGroupBy,
     bound_modifier::{BoundLimit, BoundOrderBy},
@@ -42,7 +45,7 @@ pub struct BoundSelect {
 
 #[derive(Debug)]
 pub struct SelectBinder<'a> {
-    pub current: BindContextRef,
+    pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
 }
 
@@ -55,7 +58,7 @@ impl<'a> SelectBinder<'a> {
         limit: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<BoundSelect> {
         // Handle FROM
-        let from_bind_ref = bind_context.new_child(self.current);
+        let from_bind_ref = bind_context.new_scope(self.current);
         let from =
             FromBinder::new(from_bind_ref, self.resolve_context).bind(bind_context, select.from)?;
 
@@ -68,12 +71,7 @@ impl<'a> SelectBinder<'a> {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
         }
 
-        let mut select_list = SelectList {
-            table: bind_context.push_empty_scope_to_context(self.current)?, // In current scope, not from scope.
-            alias_map: HashMap::new(),
-            projections,
-            appended: Vec::new(),
-        };
+        let mut select_list = SelectList::try_new(bind_context, projections)?;
 
         // Track aliases to allow referencing them in GROUP BY and ORDER BY.
         for (idx, projection) in select_list.projections.iter().enumerate() {
@@ -89,7 +87,14 @@ impl<'a> SelectBinder<'a> {
             .where_expr
             .map(|expr| {
                 let binder = ExpressionBinder::new(from_bind_ref, self.resolve_context);
-                binder.bind_expression(bind_context, &expr)
+                binder.bind_expression(
+                    bind_context,
+                    &expr,
+                    RecursionContext {
+                        allow_window: false,
+                        allow_aggregate: false,
+                    },
+                )
             })
             .transpose()?;
 
@@ -116,14 +121,19 @@ impl<'a> SelectBinder<'a> {
         let having = select
             .having
             .map(|h| {
-                ExpressionBinder::new(from_bind_ref, self.resolve_context)
-                    .bind_expression(bind_context, &h)
+                ExpressionBinder::new(from_bind_ref, self.resolve_context).bind_expression(
+                    bind_context,
+                    &h,
+                    RecursionContext {
+                        allow_aggregate: true,
+                        allow_window: false,
+                    },
+                )
             })
             .transpose()?;
 
         // Finalize projections.
-        let projections =
-            select_list.bind_expressions(from_bind_ref, bind_context, self.resolve_context)?;
+        let projections = select_list.bind(from_bind_ref, bind_context, self.resolve_context)?;
 
         let output_columns = select_list.projections.len();
 
