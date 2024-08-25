@@ -12,7 +12,22 @@ use std::collections::HashMap;
 use super::bind_context::{BindContext, BindScopeRef, TableRef};
 
 #[derive(Debug)]
+pub struct PrunedProjectionTable {
+    /// Table containing just column references.
+    pub table: TableRef,
+    /// Column expressions containing references to the original expanded select
+    /// expressions.
+    pub expressions: Vec<Expression>,
+}
+
+#[derive(Debug)]
 pub struct BoundSelectList {
+    /// Optional pruned table to use at the end of select planning.
+    ///
+    /// Is Some when additional columns are added to the select list for ORDER
+    /// BY and GROUP BY. The pruned table serves to remove those from the final
+    /// output.
+    pub pruned: Option<PrunedProjectionTable>,
     /// Table containing columns for projections
     pub projections_table: TableRef,
     /// Projection expressions. May contain additional expressions for use with
@@ -154,10 +169,37 @@ impl SelectList {
 
         debug_assert_eq!(names.len(), types.len());
 
-        let table = bind_context.get_table_mut(self.projections_table)?;
+        // If we had appended column, ensure we have a pruned table that only
+        // contains the original projections.
+        let pruned_table = if !self.appended.is_empty() {
+            let len = self.projections.len();
+
+            let table_ref = bind_context.new_ephemeral_table_with_columns(
+                types.iter().take(len).cloned().collect(),
+                names.iter().take(len).cloned().collect(),
+            )?;
+
+            let expressions = (0..len)
+                .map(|idx| {
+                    Expression::Column(ColumnExpr {
+                        table_scope: table_ref,
+                        column: idx,
+                    })
+                })
+                .collect();
+
+            Some(PrunedProjectionTable {
+                table: table_ref,
+                expressions,
+            })
+        } else {
+            None
+        };
+
+        let projections_table = bind_context.get_table_mut(self.projections_table)?;
         // TODO: Probably assert these are still empty before writing over them.
-        table.column_names = names;
-        table.column_types = types;
+        projections_table.column_names = names;
+        projections_table.column_types = types;
 
         // Extract aggregates into separate table.
         let aggregates_table = bind_context.new_ephemeral_table()?;
@@ -168,6 +210,7 @@ impl SelectList {
         }
 
         Ok(BoundSelectList {
+            pruned: pruned_table,
             projections_table: self.projections_table,
             projections: expressions,
             output_column_count: self.projections.len(),

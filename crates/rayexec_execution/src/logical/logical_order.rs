@@ -1,18 +1,12 @@
 use super::{
+    binder::bound_modifier::BoundOrderByExpr,
     explainable::{ExplainConfig, ExplainEntry, Explainable},
     operator::LogicalNode,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OrderByExpr {
-    pub expr: usize,
-    pub desc: bool,
-    pub nulls_first: bool,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalOrder {
-    pub exprs: Vec<OrderByExpr>,
+    pub exprs: Vec<BoundOrderByExpr>,
 }
 
 impl Explainable for LogicalNode<LogicalOrder> {

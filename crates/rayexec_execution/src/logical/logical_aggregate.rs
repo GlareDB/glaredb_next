@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+use crate::expr::Expression;
+
 use super::{
     explainable::{ExplainConfig, ExplainEntry, Explainable},
     operator::LogicalNode,
@@ -7,8 +9,8 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAggregate {
-    pub aggregates: Vec<usize>,
-    pub group_exprs: Vec<usize>,
+    pub aggregates: Vec<Expression>,
+    pub group_exprs: Vec<Expression>,
     pub grouping_sets: Vec<BTreeSet<usize>>,
 }
 

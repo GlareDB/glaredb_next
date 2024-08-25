@@ -95,7 +95,6 @@ pub struct LogicalNode<N> {
     pub node: N,
     pub location: LocationRequirement,
     pub children: Vec<LogicalOperator>,
-    pub expressions: Vec<Expression>,
 }
 
 impl<N> LogicalNode<N> {
@@ -105,7 +104,6 @@ impl<N> LogicalNode<N> {
             node,
             location: LocationRequirement::Any,
             children: Vec::new(),
-            expressions: Vec::new(),
         }
     }
 
@@ -115,7 +113,6 @@ impl<N> LogicalNode<N> {
             node,
             location,
             children: Vec::new(),
-            expressions: Vec::new(),
         }
     }
 

@@ -1,10 +1,14 @@
+use crate::expr::Expression;
+
 use super::{
     explainable::{ExplainConfig, ExplainEntry, Explainable},
     operator::LogicalNode,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LogicalFilter;
+#[derive(Debug, Clone, PartialEq)]
+pub struct LogicalFilter {
+    pub filter: Expression,
+}
 
 impl Explainable for LogicalNode<LogicalFilter> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {

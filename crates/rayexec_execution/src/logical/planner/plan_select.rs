@@ -3,7 +3,7 @@ use crate::logical::{
     logical_aggregate::LogicalAggregate,
     logical_filter::LogicalFilter,
     logical_limit::LogicalLimit,
-    logical_order::{LogicalOrder, OrderByExpr},
+    logical_order::LogicalOrder,
     logical_project::LogicalProject,
     operator::{LocationRequirement, LogicalNode, LogicalOperator},
     planner::{plan_from::FromPlanner, plan_subquery::SubqueryPlanner},
@@ -27,88 +27,70 @@ impl<'a> SelectPlanner<'a> {
         // Handle WHERE
         if let Some(mut filter) = select.filter {
             plan = SubqueryPlanner::new(self.bind_context).plan(&mut filter, plan)?;
-
-            // Do it
-            unimplemented!()
+            plan = LogicalOperator::Filter(LogicalNode {
+                node: LogicalFilter { filter },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+            });
         }
 
-        // // Handle GROUP BY/aggregates
-        // if !select.aggregates.is_empty() {
-        //     let (mut group_exprs, grouping_sets) = match select.group_by {
-        //         Some(group_by) => (group_by.expressions, group_by.grouping_sets),
-        //         None => (Vec::new(), Vec::new()),
-        //     };
+        // Handle GROUP BY/aggregates
+        if !select.select_list.aggregates.is_empty() {
+            let (mut group_exprs, grouping_sets) = match select.group_by {
+                Some(group_by) => (group_by.expressions, group_by.grouping_sets),
+                None => (Vec::new(), Vec::new()),
+            };
 
-        //     for expr in &mut group_exprs {
-        //         plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
-        //     }
+            for expr in &mut group_exprs {
+                plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+            }
 
-        //     for expr in &mut select.aggregates {
-        //         plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
-        //     }
+            for expr in &mut select.select_list.aggregates {
+                plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+            }
 
-        //     let agg = LogicalAggregate {
-        //         aggregates: (0..select.aggregates.len()).collect(),
-        //         group_exprs: (0..group_exprs.len())
-        //             .map(|i| i + select.aggregates.len())
-        //             .collect(),
-        //         grouping_sets,
-        //     };
+            let agg = LogicalAggregate {
+                aggregates: select.select_list.aggregates,
+                group_exprs,
+                grouping_sets,
+            };
 
-        //     let mut expressions = select.aggregates;
-        //     expressions.append(&mut group_exprs);
-
-        //     plan = LogicalOperator::Aggregate(LogicalNode {
-        //         node: agg,
-        //         location: LocationRequirement::Any,
-        //         children: vec![plan],
-        //         expressions,
-        //     })
-        // }
+            plan = LogicalOperator::Aggregate(LogicalNode {
+                node: agg,
+                location: LocationRequirement::Any,
+                children: vec![plan],
+            })
+        }
 
         // Handle HAVING
         if let Some(expr) = select.having {
             plan = LogicalOperator::Filter(LogicalNode {
-                node: LogicalFilter,
+                node: LogicalFilter { filter: expr },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                expressions: vec![expr],
             })
         }
 
         // Handle projections.
-        // let projection_len = select.projections.len(); // Used to see if need a separate projection at the end.
-        // for expr in &mut select.projections {
-        //     plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
-        // }
-        // plan = LogicalOperator::Project(LogicalNode {
-        //     node: LogicalProject,
-        //     location: LocationRequirement::Any,
-        //     children: vec![plan],
-        //     expressions: select.projections,
-        // });
+        for expr in &mut select.select_list.projections {
+            plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+        }
+        plan = LogicalOperator::Project(LogicalNode {
+            node: LogicalProject {
+                projections: select.select_list.projections,
+            },
+            location: LocationRequirement::Any,
+            children: vec![plan],
+        });
 
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {
-            let mut exprs = Vec::with_capacity(order_by.exprs.len());
-            let mut order_by_exprs = Vec::with_capacity(order_by.exprs.len());
-
-            for (idx, expr) in order_by.exprs.into_iter().enumerate() {
-                order_by_exprs.push(OrderByExpr {
-                    expr: idx,
-                    desc: expr.desc,
-                    nulls_first: expr.nulls_first,
-                });
-                exprs.push(expr.expr);
-            }
-
             plan = LogicalOperator::Order(LogicalNode {
                 node: LogicalOrder {
-                    exprs: order_by_exprs,
+                    exprs: order_by.exprs,
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                expressions: exprs,
             })
         }
 
@@ -121,15 +103,25 @@ impl<'a> SelectPlanner<'a> {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                expressions: Vec::new(),
             });
         }
 
-        // // Omit any columns that shouldn't be in the output.
-        // if projection_len > select.output_columns {
-        //     // Do the thing...
-        //     unimplemented!()
-        // }
+        // // Table to bring in scope to allow referencing the output of this
+        // // select.
+        // //
+        // // Updated to pruned if necessary.
+        // let mut final_table_ref = select.select_list.projections_table;
+
+        // Omit any columns that shouldn't be in the output.
+        if let Some(pruned) = select.select_list.pruned {
+            plan = LogicalOperator::Project(LogicalNode {
+                node: LogicalProject {
+                    projections: pruned.expressions,
+                },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+            })
+        }
 
         Ok(plan)
     }

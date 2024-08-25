@@ -93,7 +93,7 @@ impl<'a> ExpressionBinder<'a> {
 
         let mut current = self.current;
         loop {
-            let table = bind_context.find_table_scope_for_column(current, &col)?;
+            let table = bind_context.find_table_for_column(current, &col)?;
             match table {
                 Some((table, col_idx)) => {
                     let table = table.reference;

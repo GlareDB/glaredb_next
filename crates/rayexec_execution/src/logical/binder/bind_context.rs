@@ -66,6 +66,12 @@ pub struct Table {
     pub column_names: Vec<String>,
 }
 
+impl Table {
+    pub fn num_columns(&self) -> usize {
+        self.column_types.len()
+    }
+}
+
 impl BindContext {
     pub fn new() -> Self {
         BindContext {
@@ -162,13 +168,21 @@ impl BindContext {
 
     /// Create a table that belong to no scope.
     pub fn new_ephemeral_table(&mut self) -> Result<TableRef> {
+        self.new_ephemeral_table_with_columns(Vec::new(), Vec::new())
+    }
+
+    pub fn new_ephemeral_table_with_columns(
+        &mut self,
+        column_types: Vec<DataType>,
+        column_names: Vec<String>,
+    ) -> Result<TableRef> {
         let table_idx = self.tables.len();
         let reference = TableRef { table_idx };
         let scope = Table {
             reference,
             alias: String::new(),
-            column_types: Vec::new(),
-            column_names: Vec::new(),
+            column_types,
+            column_names,
         };
         self.tables.push(scope);
 
@@ -225,6 +239,13 @@ impl BindContext {
         Ok(reference)
     }
 
+    pub fn append_table_to_scope(&mut self, scope: BindScopeRef, table: TableRef) -> Result<()> {
+        // TODO: Probably check columns for duplicates.
+        let scope = self.get_scope_mut(scope)?;
+        scope.tables.push(table);
+        Ok(())
+    }
+
     pub fn push_correlation(
         &mut self,
         idx: BindScopeRef,
@@ -235,13 +256,13 @@ impl BindContext {
         Ok(())
     }
 
-    /// Tries to find the the table scope that has a matching column name.
+    /// Tries to find the the scope that has a matching column name.
     ///
     /// This will only search the current scope, and will not look at any outer
     /// scopes.
     ///
     /// Returns the table, and the relative index of the column within that table.
-    pub fn find_table_scope_for_column(
+    pub fn find_table_for_column(
         &self,
         current: BindScopeRef,
         column: &str,
