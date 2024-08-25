@@ -362,7 +362,7 @@ impl LogicalExpression {
                 LogicalOperator::DetachDatabase(_) => (),
                 LogicalOperator::Explain(_) => (),
                 LogicalOperator::Drop(_) => (),
-                LogicalOperator::Empty(_) => (),
+                LogicalOperator::Empty2(_) => (),
                 LogicalOperator::Describe(_) => (),
                 _ => unimplemented!(),
             }

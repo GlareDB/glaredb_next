@@ -1,12 +1,31 @@
-use rayexec_bullet::scalar::OwnedScalarValue;
+use fmtutil::IntoDisplayableSlice;
+use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::{
-    expr::{column_expr::ColumnExpr, literal_expr::LiteralExpr, Expression},
+    expr::{
+        aggregate_expr::AggregateExpr,
+        cast_expr::CastExpr,
+        column_expr::ColumnExpr,
+        comparison_expr::{ComparisonExpr, ComparisonOperator},
+        literal_expr::LiteralExpr,
+        scalar_function_expr::ScalarFunctionExpr,
+        Expression,
+    },
+    functions::{
+        aggregate::AggregateFunction,
+        scalar::{
+            list::{ListExtract, ListValues},
+            ScalarFunction,
+        },
+        CastType,
+    },
     logical::{
         binder::bind_context::CorrelatedColumn,
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
+        resolver::{
+            resolve_context::ResolveContext, resolved_function::ResolvedFunction, ResolvedMeta,
+        },
     },
 };
 
@@ -42,6 +61,176 @@ impl<'a> ExpressionBinder<'a> {
             ast::Expr::Ident(ident) => self.bind_ident(bind_context, ident),
             ast::Expr::CompoundIdent(idents) => self.bind_idents(idents),
             ast::Expr::Literal(literal) => Self::bind_literal(literal),
+            ast::Expr::Array(arr) => {
+                let exprs = arr
+                    .into_iter()
+                    .map(|v| self.bind_expression(bind_context, v, recur))
+                    .collect::<Result<Vec<_>>>()?;
+
+                let scalar = Box::new(ListValues);
+                let exprs =
+                    self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), exprs)?;
+
+                let refs: Vec<_> = exprs.iter().collect();
+                let planned = scalar.plan_from_expressions(bind_context, &refs)?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: planned,
+                    inputs: exprs,
+                }))
+            }
+            ast::Expr::ArraySubscript { expr, subscript } => {
+                let expr = self.bind_expression(bind_context, expr.as_ref(), recur)?;
+                match subscript.as_ref() {
+                    ast::ArraySubscript::Index(index) => {
+                        let index = self.bind_expression(
+                            bind_context,
+                            index,
+                            RecursionContext {
+                                allow_window: false,
+                                allow_aggregate: false,
+                            },
+                        )?;
+
+                        let scalar = Box::new(ListExtract);
+                        let mut exprs = self.apply_casts_for_scalar_function(
+                            bind_context,
+                            scalar.as_ref(),
+                            vec![expr, index],
+                        )?;
+                        let index = exprs.pop().unwrap();
+                        let expr = exprs.pop().unwrap();
+
+                        let planned =
+                            scalar.plan_from_expressions(bind_context, &[&expr, &index])?;
+
+                        Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                            function: planned,
+                            inputs: vec![expr, index],
+                        }))
+                    }
+                    ast::ArraySubscript::Slice { .. } => {
+                        Err(RayexecError::new("Array slicing not yet implemented"))
+                    }
+                }
+            }
+            ast::Expr::UnaryExpr { .. } => {
+                unimplemented!()
+            }
+            ast::Expr::BinaryExpr { left, op, right } => {
+                let left = self.bind_expression(bind_context, left, recur)?;
+                let right = self.bind_expression(bind_context, right, recur)?;
+
+                Ok(match op {
+                    ast::BinaryOperator::NotEq => Expression::Comparison(ComparisonExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ComparisonOperator::NotEq,
+                    }),
+                    ast::BinaryOperator::Eq => Expression::Comparison(ComparisonExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ComparisonOperator::Eq,
+                    }),
+                    ast::BinaryOperator::Lt => Expression::Comparison(ComparisonExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ComparisonOperator::Lt,
+                    }),
+                    ast::BinaryOperator::LtEq => Expression::Comparison(ComparisonExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ComparisonOperator::LtEq,
+                    }),
+                    ast::BinaryOperator::Gt => Expression::Comparison(ComparisonExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ComparisonOperator::Gt,
+                    }),
+                    ast::BinaryOperator::GtEq => Expression::Comparison(ComparisonExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ComparisonOperator::GtEq,
+                    }),
+
+                    _ => unimplemented!(),
+                })
+            }
+            ast::Expr::Function(func) => {
+                let reference = self
+                    .resolve_context
+                    .functions
+                    .try_get_bound(func.reference)?;
+
+                let recur = if reference.0.is_aggregate() {
+                    RecursionContext {
+                        allow_window: false,
+                        allow_aggregate: false,
+                    }
+                } else {
+                    recur
+                };
+
+                let inputs = func
+                    .args
+                    .iter()
+                    .map(|arg| match arg {
+                        ast::FunctionArg::Unnamed { arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => {
+                                Ok(self.bind_expression(bind_context, &expr, recur)?)
+                            }
+                            ast::FunctionArgExpr::Wildcard => {
+                                // Resolver should have handled removing '*'
+                                // from function calls.
+                                Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ))
+                            }
+                        },
+                        ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                            "Named arguments to scalar functions not supported",
+                        )),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                // TODO: This should probably assert that location == any since
+                // I don't think it makes sense to try to handle different sets
+                // of scalar/aggs in the hybrid case yet.
+                match reference {
+                    (ResolvedFunction::Scalar(scalar), _) => {
+                        let inputs = self.apply_casts_for_scalar_function(
+                            bind_context,
+                            scalar.as_ref(),
+                            inputs,
+                        )?;
+
+                        let refs: Vec<_> = inputs.iter().collect();
+                        let function = scalar.plan_from_expressions(bind_context, &refs)?;
+
+                        Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                            function,
+                            inputs,
+                        }))
+                    }
+                    (ResolvedFunction::Aggregate(agg), _) => {
+                        let inputs = self.apply_casts_for_aggregate_function(
+                            bind_context,
+                            agg.as_ref(),
+                            inputs,
+                        )?;
+
+                        let refs: Vec<_> = inputs.iter().collect();
+                        let agg = agg.plan_from_expressions(bind_context, &refs)?;
+
+                        Ok(Expression::Aggregate(AggregateExpr {
+                            agg,
+                            inputs,
+                            filter: None,
+                        }))
+                    }
+                }
+            }
+
             _ => unimplemented!(),
         }
     }
@@ -184,5 +373,114 @@ impl<'a> ExpressionBinder<'a> {
         //         ast::ObjectReference(idents),
         //     ))), // TODO: Struct fields.
         // }
+    }
+
+    /// Applies casts to an input expression based on the signatures for a
+    /// scalar function.
+    fn apply_casts_for_scalar_function(
+        &self,
+        bind_context: &BindContext,
+        scalar: &dyn ScalarFunction,
+        inputs: Vec<Expression>,
+    ) -> Result<Vec<Expression>> {
+        let input_datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(bind_context))
+            .collect::<Result<Vec<_>>>()?;
+
+        if scalar.exact_signature(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = scalar.candidate(&input_datatypes);
+
+            if candidates.is_empty() {
+                // TODO: Do we want to fall through? Is it possible for a
+                // scalar and aggregate function to have the same name?
+
+                // TODO: Better error.
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    scalar.name(),
+                    input_datatypes.displayable(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            //
+            // TODO: Sort by score
+            //
+            // We should do some lightweight const folding and prefer candidates
+            // that cast the consts over ones that need array inputs to be
+            // casted.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        }),
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(inputs)
+        }
+    }
+
+    // TODO: Reduce dupliation with the scalar one.
+    fn apply_casts_for_aggregate_function(
+        &self,
+        bind_context: &BindContext,
+        agg: &dyn AggregateFunction,
+        inputs: Vec<Expression>,
+    ) -> Result<Vec<Expression>> {
+        let input_datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(bind_context))
+            .collect::<Result<Vec<_>>>()?;
+
+        if agg.exact_signature(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = agg.candidate(&input_datatypes);
+
+            if candidates.is_empty() {
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    agg.name(),
+                    input_datatypes.displayable(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        }),
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(inputs)
+        }
     }
 }

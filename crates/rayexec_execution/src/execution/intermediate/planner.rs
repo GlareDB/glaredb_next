@@ -306,7 +306,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
                 "Dependent joins cannot be made into a pipeline",
             )),
-            LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
+            LogicalOperator::Empty2(empty) => self.push_empty(id_gen, empty),
             LogicalOperator::Aggregate2(agg) => self.push_aggregate(id_gen, materializations, agg),
             LogicalOperator::Limit2(limit) => self.push_limit(id_gen, materializations, limit),
             LogicalOperator::Order2(order) => {

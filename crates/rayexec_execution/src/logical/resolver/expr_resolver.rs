@@ -264,7 +264,7 @@ impl<'a> ExpressionResolver<'a> {
                             Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
                         }
                         expr => Ok(ast::Expr::UnaryExpr {
-                            op: UnaryOperator::Negate,
+                            op: ast::UnaryOperator::Minus,
                             expr: Box::new(
                                 Box::pin(self.resolve_expression(expr, resolve_context)).await?,
                             ),
@@ -277,7 +277,7 @@ impl<'a> ExpressionResolver<'a> {
             }
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.resolve_expression(*left, resolve_context)).await?),
-                op: op.try_into()?,
+                op,
                 right: Box::new(Box::pin(self.resolve_expression(*right, resolve_context)).await?),
             }),
             ast::Expr::Function(func) => {

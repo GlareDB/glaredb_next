@@ -150,7 +150,7 @@ impl DependentJoinPushDown {
                     has_correlation || self.has_correlations.get(&agg.input).unwrap_or(false)
                 }
                 LogicalOperator::MaterializedScan(_)
-                | LogicalOperator::Empty(_)
+                | LogicalOperator::Empty2(_)
                 | LogicalOperator::Scan2(_)
                 | LogicalOperator::TableFunction(_) => false,
                 _ => true, // TODO: More

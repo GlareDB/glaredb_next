@@ -5,8 +5,9 @@ use crate::logical::{
         bind_context::BindContext,
         bound_from::{BoundFrom, BoundFromItem},
     },
+    logical_empty::LogicalEmpty,
     logical_scan::{LogicalScan, ScanSource},
-    operator::{LogicalNode, LogicalOperator},
+    operator::{LocationRequirement, LogicalNode, LogicalOperator},
 };
 
 #[derive(Debug)]
@@ -47,7 +48,11 @@ impl<'a> FromPlanner<'a> {
                 }))
             }
             BoundFromItem::Join(_) => unimplemented!(),
-            BoundFromItem::Empty => unimplemented!(),
+            BoundFromItem::Empty => Ok(LogicalOperator::Empty(LogicalNode {
+                node: LogicalEmpty,
+                location: LocationRequirement::Any,
+                children: Vec::new(),
+            })),
         }
     }
 }

@@ -133,6 +133,14 @@ impl<'a> SelectBinder<'a> {
         // Finalize projections.
         let select_list = select_list.bind(from_bind_ref, bind_context, self.resolve_context)?;
 
+        // Move output select columns into current scope.
+        match &select_list.pruned {
+            Some(pruned) => bind_context.append_table_to_scope(self.current, pruned.table)?,
+            None => {
+                bind_context.append_table_to_scope(self.current, select_list.projections_table)?
+            }
+        }
+
         Ok(BoundSelect {
             select_list,
             from,
@@ -142,5 +150,67 @@ impl<'a> SelectBinder<'a> {
             order_by,
             limit,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::datatype::DataType;
+
+    use super::*;
+
+    fn cols_in_scope(bind_context: &BindContext, scope: BindScopeRef) -> Vec<(String, DataType)> {
+        bind_context
+            .iter_tables(bind_context.root_scope_ref())
+            .unwrap()
+            .flat_map(|t| {
+                t.column_names
+                    .iter()
+                    .cloned()
+                    .zip(t.column_types.iter().cloned())
+                    .into_iter()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn bind_context_projection_in_scope() {
+        let resolve_context = ResolveContext::default();
+        let mut bind_context = BindContext::new();
+
+        let binder = SelectBinder {
+            current: bind_context.root_scope_ref(),
+            resolve_context: &resolve_context,
+        };
+
+        let select = ast::SelectNode {
+            distinct: None,
+            projections: vec![
+                ast::SelectExpr::Expr(ast::Expr::Literal(ast::Literal::Number("1".to_string()))),
+                ast::SelectExpr::AliasedExpr(
+                    ast::Expr::Literal(ast::Literal::Number("1".to_string())),
+                    ast::Ident::from_string("my_alias"),
+                ),
+            ],
+            from: None,
+            where_expr: None,
+            group_by: None,
+            having: None,
+        };
+
+        let limit = ast::LimitModifier {
+            limit: None,
+            offset: None,
+        };
+
+        let _ = binder.bind(&mut bind_context, select, None, limit).unwrap();
+
+        let cols = cols_in_scope(&bind_context, bind_context.root_scope_ref());
+        let expected = vec![
+            ("?column?".to_string(), DataType::Int64),
+            ("my_alias".to_string(), DataType::Int64),
+        ];
+
+        assert_eq!(expected, cols);
     }
 }

@@ -13,12 +13,13 @@ use rayexec_proto::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    expr::Expression,
     functions::{
         invalid_input_types_error, plan_check_num_args,
         scalar::macros::{primitive_binary_execute_bool, primitive_unary_execute_bool},
         FunctionInfo, Signature,
     },
-    logical::{consteval::ConstEval, expr::LogicalExpression},
+    logical::{binder::bind_context::BindContext, consteval::ConstEval, expr::LogicalExpression},
 };
 
 use super::{comparison::EqImpl, PlannedScalarFunction, ScalarFunction};
@@ -83,12 +84,12 @@ impl ScalarFunction for Like {
 
     fn plan_from_expressions(
         &self,
-        inputs: &[&LogicalExpression],
-        operator_schema: &TypeSchema,
+        bind_context: &BindContext,
+        inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(operator_schema, &[]))
+            .map(|expr| expr.datatype(bind_context))
             .collect::<Result<Vec<_>>>()?;
 
         // TODO: 3rd arg for optional escape char

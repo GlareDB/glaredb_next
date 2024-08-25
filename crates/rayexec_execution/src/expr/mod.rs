@@ -3,6 +3,7 @@ pub mod between_expr;
 pub mod case_expr;
 pub mod cast_expr;
 pub mod column_expr;
+pub mod comparison_expr;
 pub mod conjunction_expr;
 pub mod is_expr;
 pub mod literal_expr;
@@ -24,6 +25,7 @@ use between_expr::BetweenExpr;
 use case_expr::CaseExpr;
 use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
+use comparison_expr::ComparisonExpr;
 use conjunction_expr::ConjunctionExpr;
 use fmtutil::IntoDisplayableSlice;
 use is_expr::IsExpr;
@@ -47,6 +49,7 @@ pub enum Expression {
     Case(CaseExpr),
     Cast(CastExpr),
     Column(ColumnExpr),
+    Comparison(ComparisonExpr),
     Conjunction(ConjunctionExpr),
     Is(IsExpr),
     Literal(LiteralExpr),
@@ -57,7 +60,11 @@ pub enum Expression {
 
 impl Expression {
     pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
-        unimplemented!()
+        Ok(match self {
+            Self::Cast(expr) => expr.to.clone(),
+            Self::Literal(expr) => expr.literal.datatype(),
+            _ => unimplemented!(),
+        })
     }
 
     pub fn for_each_child_mut<F>(&mut self, func: &mut F) -> Result<()>
@@ -89,6 +96,10 @@ impl Expression {
                 func(&mut case.else_expr)?;
             }
             Self::Column(_) => (),
+            Self::Comparison(comp) => {
+                func(&mut comp.left)?;
+                func(&mut comp.right)?;
+            }
             Self::Conjunction(conj) => {
                 func(&mut conj.left)?;
                 func(&mut conj.right)?;
@@ -143,6 +154,10 @@ impl Expression {
                 func(&case.else_expr)?;
             }
             Self::Column(_) => (),
+            Self::Comparison(comp) => {
+                func(&comp.left)?;
+                func(&comp.right)?;
+            }
             Self::Conjunction(conj) => {
                 func(&conj.left)?;
                 func(&conj.right)?;
@@ -183,6 +198,10 @@ impl Expression {
         }
     }
 
+    pub fn is_constant(&self) -> bool {
+        unimplemented!()
+    }
+
     /// Try to get a top-level literal from this expression, erroring if it's
     /// not one.
     pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
@@ -190,6 +209,12 @@ impl Expression {
             Self::Literal(lit) => Ok(lit.literal),
             other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
         }
+    }
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unimplemented!()
     }
 }
 

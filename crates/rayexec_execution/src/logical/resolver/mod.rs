@@ -66,8 +66,6 @@ impl AstMeta for ResolvedMeta {
     type DataType = DataType;
     type CopyToDestination = FileLocation;
     type CopyToOptions = CopyToArgs;
-    type BinaryOperator = BinaryOperator;
-    type UnaryOperator = UnaryOperator;
 }
 
 /// Determines the logic taken when encountering an unknown object in a query.

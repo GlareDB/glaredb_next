@@ -19,6 +19,10 @@ impl ResolvedFunction {
             Self::Aggregate(f) => f.name(),
         }
     }
+
+    pub fn is_aggregate(&self) -> bool {
+        matches!(self, ResolvedFunction::Aggregate(_))
+    }
 }
 
 impl DatabaseProtoConv for ResolvedFunction {

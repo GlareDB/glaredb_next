@@ -180,12 +180,13 @@ impl<'a> ExpressionContext<'a> {
                 let exprs = self.apply_casts_for_scalar_function(scalar.as_ref(), exprs)?;
 
                 let refs: Vec<_> = exprs.iter().collect();
-                let planned = scalar.plan_from_expressions(&refs, self.input)?;
+                unimplemented!()
+                // let planned = scalar.plan_from_expressions(&refs, self.input)?;
 
-                Ok(LogicalExpression::ScalarFunction {
-                    function: planned,
-                    inputs: exprs,
-                })
+                // Ok(LogicalExpression::ScalarFunction {
+                //     function: planned,
+                //     inputs: exprs,
+                // })
             }
             ast::Expr::ArraySubscript { expr, subscript } => {
                 let expr = self.plan_expression(context, *expr)?;
@@ -199,12 +200,13 @@ impl<'a> ExpressionContext<'a> {
                         let index = exprs.pop().unwrap();
                         let expr = exprs.pop().unwrap();
 
-                        let planned = scalar.plan_from_expressions(&[&expr, &index], self.input)?;
+                        unimplemented!()
+                        // let planned = scalar.plan_from_expressions(&[&expr, &index], self.input)?;
 
-                        Ok(LogicalExpression::ScalarFunction {
-                            function: planned,
-                            inputs: vec![expr, index],
-                        })
+                        // Ok(LogicalExpression::ScalarFunction {
+                        //     function: planned,
+                        //     inputs: vec![expr, index],
+                        // })
                     }
                     ast::ArraySubscript::Slice { .. } => {
                         Err(RayexecError::new("Array slicing not yet implemented"))
@@ -213,34 +215,36 @@ impl<'a> ExpressionContext<'a> {
             }
             ast::Expr::UnaryExpr { op, expr } => {
                 let expr = self.plan_expression(context, *expr)?;
-                let scalar = op
-                    .scalar_function()
-                    .plan_from_expressions(&[&expr], self.input)?;
+                unimplemented!()
+                // let scalar = op
+                //     .scalar_function()
+                //     .plan_from_expressions(&[&expr], self.input)?;
 
-                Ok(LogicalExpression::Unary {
-                    op: PlannedUnaryOperator { op, scalar },
-                    expr: Box::new(expr),
-                })
+                // Ok(LogicalExpression::Unary {
+                //     op: PlannedUnaryOperator { op, scalar },
+                //     expr: Box::new(expr),
+                // })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
                 let left = self.plan_expression(context, *left)?;
                 let right = self.plan_expression(context, *right)?;
 
-                let mut inputs =
-                    self.apply_casts_for_scalar_function(op.scalar_function(), vec![left, right])?;
+                // let mut inputs =
+                //     self.apply_casts_for_scalar_function(op.scalar_function(), vec![left, right])?;
 
-                let right = inputs.pop().unwrap();
-                let left = inputs.pop().unwrap();
+                // let right = inputs.pop().unwrap();
+                // let left = inputs.pop().unwrap();
 
-                let scalar = op
-                    .scalar_function()
-                    .plan_from_expressions(&[&left, &right], self.input)?;
+                unimplemented!()
+                // let scalar = op
+                //     .scalar_function()
+                //     .plan_from_expressions(&[&left, &right], self.input)?;
 
-                Ok(LogicalExpression::Binary {
-                    op: PlannedBinaryOperator { op, scalar },
-                    left: Box::new(left),
-                    right: Box::new(right),
-                })
+                // Ok(LogicalExpression::Binary {
+                //     op: PlannedBinaryOperator { op, scalar },
+                //     left: Box::new(left),
+                //     right: Box::new(right),
+                // })
             }
             ast::Expr::Function(func) => {
                 let inputs = func
@@ -279,20 +283,22 @@ impl<'a> ExpressionContext<'a> {
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
                         let refs: Vec<_> = inputs.iter().collect();
-                        let function = scalar.plan_from_expressions(&refs, self.input)?;
+                        unimplemented!()
+                        // let function = scalar.plan_from_expressions(&refs, self.input)?;
 
-                        Ok(LogicalExpression::ScalarFunction { function, inputs })
+                        // Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
                     (ResolvedFunction::Aggregate(agg), _) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
-                        let agg = agg.plan_from_expressions(&inputs, self.input)?;
+                        unimplemented!()
+                        // let agg = agg.plan_from_expressions(&inputs, self.input)?;
 
-                        Ok(LogicalExpression::Aggregate {
-                            agg,
-                            inputs,
-                            filter: None,
-                        })
+                        // Ok(LogicalExpression::Aggregate {
+                        //     agg,
+                        //     inputs,
+                        //     filter: None,
+                        // })
                     }
                 }
             }
@@ -389,15 +395,16 @@ impl<'a> ExpressionContext<'a> {
 
                         let op = BinaryOperator::Multiply;
                         // Plan `mul(<interval>, <expr>)`
-                        let scalar = op
-                            .scalar_function()
-                            .plan_from_expressions(&[&interval, &expr], self.input)?;
+                        unimplemented!()
+                        // let scalar = op
+                        //     .scalar_function()
+                        //     .plan_from_expressions(&[&interval, &expr], self.input)?;
 
-                        Ok(LogicalExpression::Binary {
-                            op: PlannedBinaryOperator { op, scalar },
-                            left: Box::new(interval),
-                            right: Box::new(expr),
-                        })
+                        // Ok(LogicalExpression::Binary {
+                        //     op: PlannedBinaryOperator { op, scalar },
+                        //     left: Box::new(interval),
+                        //     right: Box::new(expr),
+                        // })
                     }
                     None => Ok(LogicalExpression::Cast {
                         to: DataType::Interval,
@@ -421,12 +428,13 @@ impl<'a> ExpressionContext<'a> {
                 let expr = self.plan_expression(context, *expr)?;
                 let pattern = self.plan_expression(context, *pattern)?;
 
-                let scalar = like::Like.plan_from_expressions(&[&expr, &pattern], self.input)?;
+                unimplemented!()
+                // let scalar = like::Like.plan_from_expressions(&[&expr, &pattern], self.input)?;
 
-                Ok(LogicalExpression::ScalarFunction {
-                    function: scalar,
-                    inputs: vec![expr, pattern],
-                })
+                // Ok(LogicalExpression::ScalarFunction {
+                //     function: scalar,
+                //     inputs: vec![expr, pattern],
+                // })
             }
 
             other => unimplemented!("{other:?}"),

@@ -3,6 +3,7 @@ use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
 use super::logical_aggregate::LogicalAggregate;
+use super::logical_empty::LogicalEmpty;
 use super::logical_filter::LogicalFilter;
 use super::logical_limit::LogicalLimit;
 use super::logical_order::LogicalOrder;
@@ -159,7 +160,7 @@ pub enum LogicalOperator {
     Scan2(LogicalNode<Scan>),
     TableFunction(LogicalNode<TableFunction>),
     ExpressionList(LogicalNode<ExpressionList>),
-    Empty(LogicalNode<()>),
+    Empty2(LogicalNode<()>),
     SetVar(LogicalNode<SetVar>),
     ShowVar(LogicalNode<ShowVar>),
     ResetVar(LogicalNode<ResetVar>),
@@ -180,10 +181,11 @@ pub enum LogicalOperator {
     Order(LogicalNode<LogicalOrder>),
     Aggregate(LogicalNode<LogicalAggregate>),
     Scan(LogicalNode<LogicalScan>),
+    Empty(LogicalNode<LogicalEmpty>),
 }
 
 impl LogicalOperator {
-    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty(LogicalNode::new(()));
+    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty2(LogicalNode::new(()));
 
     /// Get the output type schema of the operator.
     ///
@@ -205,7 +207,7 @@ impl LogicalOperator {
             Self::Scan2(n) => n.as_ref().output_schema(outer),
             Self::TableFunction(n) => n.as_ref().output_schema(outer),
             Self::ExpressionList(n) => n.as_ref().output_schema(outer),
-            Self::Empty(_) => Ok(TypeSchema::empty()),
+            Self::Empty2(_) => Ok(TypeSchema::empty()),
             Self::SetVar(n) => n.as_ref().output_schema(outer),
             Self::ShowVar(n) => n.as_ref().output_schema(outer),
             Self::ResetVar(n) => n.as_ref().output_schema(outer),
@@ -239,7 +241,7 @@ impl LogicalOperator {
             Self::Scan2(n) => &n.location,
             Self::TableFunction(n) => &n.location,
             Self::ExpressionList(n) => &n.location,
-            Self::Empty(n) => &n.location,
+            Self::Empty2(n) => &n.location,
             Self::SetVar(n) => &n.location,
             Self::ShowVar(n) => &n.location,
             Self::ResetVar(n) => &n.location,
@@ -273,7 +275,7 @@ impl LogicalOperator {
             Self::Scan2(n) => &mut n.location,
             Self::TableFunction(n) => &mut n.location,
             Self::ExpressionList(n) => &mut n.location,
-            Self::Empty(n) => &mut n.location,
+            Self::Empty2(n) => &mut n.location,
             Self::SetVar(n) => &mut n.location,
             Self::ShowVar(n) => &mut n.location,
             Self::ResetVar(n) => &mut n.location,
@@ -330,7 +332,7 @@ impl LogicalOperator {
             Self::Scan2(_) => (),
             Self::TableFunction(_) => (),
             Self::ExpressionList(_) => (),
-            Self::Empty(_) => (),
+            Self::Empty2(_) => (),
             Self::SetVar(_) => (),
             Self::ShowVar(_) => (),
             Self::ResetVar(_) => (),
@@ -465,7 +467,7 @@ impl LogicalOperator {
                 post(&mut p.as_mut().source)?;
             }
             LogicalOperator::ExpressionList(_)
-            | LogicalOperator::Empty(_)
+            | LogicalOperator::Empty2(_)
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)
             | LogicalOperator::ResetVar(_)
@@ -509,7 +511,7 @@ impl Explainable for LogicalOperator {
             Self::Scan2(p) => p.as_ref().explain_entry(conf),
             Self::TableFunction(p) => p.as_ref().explain_entry(conf),
             Self::ExpressionList(p) => p.as_ref().explain_entry(conf),
-            Self::Empty(_) => ExplainEntry::new("Empty"),
+            Self::Empty2(_) => ExplainEntry::new("Empty"),
             Self::SetVar(p) => p.as_ref().explain_entry(conf),
             Self::ShowVar(p) => p.as_ref().explain_entry(conf),
             Self::ResetVar(p) => p.as_ref().explain_entry(conf),
@@ -1250,7 +1252,7 @@ mod tests {
             exprs: Vec::new(),
             input: Box::new(LogicalOperator::Filter2(LogicalNode::new(Filter {
                 predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
-                input: Box::new(LogicalOperator::Empty(LogicalNode::new(()))),
+                input: Box::new(LogicalOperator::Empty2(LogicalNode::new(()))),
             }))),
         }));
 
@@ -1262,7 +1264,7 @@ mod tests {
                         .exprs
                         .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
                     LogicalOperator::Filter2(_) => {}
-                    LogicalOperator::Empty(_) => {}
+                    LogicalOperator::Empty2(_) => {}
                     other => panic!("unexpected child {other:?}"),
                 }
                 Ok(())
@@ -1279,7 +1281,7 @@ mod tests {
                             .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
                     }
                     LogicalOperator::Filter2(_) => {}
-                    LogicalOperator::Empty(_) => {}
+                    LogicalOperator::Empty2(_) => {}
                     other => panic!("unexpected child {other:?}"),
                 }
                 Ok(())

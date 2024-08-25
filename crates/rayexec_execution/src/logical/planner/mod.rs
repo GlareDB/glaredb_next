@@ -31,11 +31,12 @@
 pub mod plan_expr;
 pub mod scope;
 
+pub mod plan_statement;
+
 mod decorrelate;
 mod plan_from;
 mod plan_query;
 mod plan_select;
-mod plan_statement;
 mod plan_subquery;
 
 // Delete

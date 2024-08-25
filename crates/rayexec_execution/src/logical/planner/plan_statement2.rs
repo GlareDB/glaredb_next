@@ -56,15 +56,15 @@ impl LogicalQuery2 {
 }
 
 #[derive(Debug, Clone)]
-pub struct StatementPlanner<'a> {
+pub struct StatementPlanner2<'a> {
     /// Session variables.
     pub vars: &'a SessionVars,
     pub bind_data: &'a ResolveContext,
 }
 
-impl<'a> StatementPlanner<'a> {
+impl<'a> StatementPlanner2<'a> {
     pub fn new(vars: &'a SessionVars, bind_data: &'a ResolveContext) -> Self {
-        StatementPlanner { vars, bind_data }
+        StatementPlanner2 { vars, bind_data }
     }
 
     pub fn plan_statement(

@@ -15,9 +15,10 @@ use crate::{
     },
     hybrid::client::HybridClient,
     logical::{
+        binder::bound_statement::StatementBinder,
         context::QueryContext,
         operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
-        planner::plan_statement2::StatementPlanner,
+        planner::{plan_statement::StatementPlanner, plan_statement2::StatementPlanner2},
         resolver::{ResolveMode, Resolver},
     },
     optimizer::Optimizer,
@@ -170,7 +171,7 @@ where
             ResolveMode::Normal
         };
 
-        let (bound_stmt, bind_data) = Resolver::new(
+        let (resolved_stmt, resolve_context) = Resolver::new(
             bindmode,
             &tx,
             &self.context,
@@ -182,12 +183,12 @@ where
         let (stream, sink, errors) = new_results_sinks();
 
         let (pipelines, output_schema) = match bindmode {
-            ResolveMode::Hybrid if bind_data.any_unresolved() => {
+            ResolveMode::Hybrid if resolve_context.any_unresolved() => {
                 // Hybrid planning, send to remote to complete planning.
 
                 let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
                 let resp = hybrid_client
-                    .remote_plan(bound_stmt, bind_data, &self.context)
+                    .remote_plan(resolved_stmt, resolve_context, &self.context)
                     .await?;
 
                 // Begin executing remote side.
@@ -198,8 +199,34 @@ where
             _ => {
                 // Normal all-local planning.
 
-                let (mut logical, context) =
-                    StatementPlanner::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
+                let binder = StatementBinder {
+                    session_vars: &self.vars,
+                    resolve_context: &resolve_context,
+                };
+                let (bound_stmt, bind_context) = binder.bind(resolved_stmt)?;
+
+                let planner = StatementPlanner {
+                    bind_context: &bind_context,
+                };
+                let mut logical = planner.plan(bound_stmt)?;
+
+                let cols: Vec<_> = bind_context
+                    .iter_tables(bind_context.root_scope_ref())?
+                    .flat_map(|t| {
+                        t.column_names
+                            .iter()
+                            .cloned()
+                            .zip(t.column_types.iter().cloned())
+                            .into_iter()
+                    })
+                    .collect();
+
+                return Err(RayexecError::new(format!(
+                    "COMPLETE\n{logical:#?}\nCOLS: {cols:?}"
+                )));
+
+                let (mut logical, context) = StatementPlanner2::new(&self.vars, &resolve_context)
+                    .plan_statement(resolved_stmt)?;
 
                 let optimizer = Optimizer::new();
                 logical.root = optimizer.optimize(logical.root)?;

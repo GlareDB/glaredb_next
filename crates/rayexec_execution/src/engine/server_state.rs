@@ -19,7 +19,7 @@ use crate::{
         client::{HybridPlanResponse, PullStatus},
     },
     logical::{
-        planner::plan_statement2::StatementPlanner,
+        planner::plan_statement2::StatementPlanner2,
         resolver::{
             resolve_context::ResolveContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},
@@ -102,7 +102,7 @@ where
         let vars = SessionVars::new_local();
 
         let (mut logical, query_context) =
-            StatementPlanner::new(&vars, &bind_data).plan_statement(stmt)?;
+            StatementPlanner2::new(&vars, &bind_data).plan_statement(stmt)?;
 
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
