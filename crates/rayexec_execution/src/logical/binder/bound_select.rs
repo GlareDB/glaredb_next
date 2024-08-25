@@ -5,7 +5,8 @@ use crate::{
     logical::{
         binder::{
             bound_from::FromBinder, bound_group_by::GroupByBinder, bound_modifier::ModifierBinder,
-            expr_binder::ExpressionBinder, select_list::SelectList,
+            expr_binder::ExpressionBinder, select_expr_expander::SelectExprExpander,
+            select_list::SelectList,
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
@@ -14,24 +15,17 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::{
-    bind_context::{BindContext, BindContextRef},
+    bind_context::{BindContext, BindContextRef, TableRef},
     bound_from::BoundFrom,
     bound_group_by::BoundGroupBy,
     bound_modifier::{BoundLimit, BoundOrderBy},
+    select_list::BoundSelectList,
 };
 
 #[derive(Debug)]
 pub struct BoundSelect {
-    /// Unplanned projections in select, including appended projections.
-    pub select_list: SelectList,
-    /// Planned expressions in the select.
-    pub projections: Vec<Expression>,
-    /// Number of columns in the output.
-    ///
-    /// This may be greater than len(projections) in order handle
-    /// pre-projections into ORDER BY and GROUP BY. If this is the case,
-    /// those appended columns should be omitted at the end.
-    pub output_columns: usize,
+    /// Bound projections.
+    pub select_list: BoundSelectList,
     /// Bound FROM.
     pub from: BoundFrom,
     /// Expression for WHERE.
@@ -44,8 +38,6 @@ pub struct BoundSelect {
     pub order_by: Option<BoundOrderBy>,
     /// Bound LIMIT.
     pub limit: Option<BoundLimit>,
-    /// Any aggregates in the select list.
-    pub aggregates: Vec<Expression>,
 }
 
 #[derive(Debug)]
@@ -63,19 +55,21 @@ impl<'a> SelectBinder<'a> {
         limit: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<BoundSelect> {
         // Handle FROM
+        let from_bind_ref = bind_context.new_child(self.current);
         let from =
-            FromBinder::new(self.current, self.resolve_context).bind(bind_context, select.from)?;
+            FromBinder::new(from_bind_ref, self.resolve_context).bind(bind_context, select.from)?;
 
         // Expand SELECT
-        let projections = ExpressionBinder::new(self.current, self.resolve_context)
-            .expand_all_select_exprs(bind_context, select.projections)?;
+        let projections =
+            SelectExprExpander::new(from_bind_ref, self.resolve_context, bind_context)
+                .expand_all_select_exprs(select.projections)?;
 
         if projections.is_empty() {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
         }
 
         let mut select_list = SelectList {
-            table: bind_context.push_empty_scope(self.current)?,
+            table: bind_context.push_empty_scope_to_context(self.current)?, // In current scope, not from scope.
             alias_map: HashMap::new(),
             projections,
             appended: Vec::new(),
@@ -94,13 +88,13 @@ impl<'a> SelectBinder<'a> {
         let where_expr = select
             .where_expr
             .map(|expr| {
-                let binder = ExpressionBinder::new(self.current, self.resolve_context);
-                binder.bind_expression(bind_context, expr)
+                let binder = ExpressionBinder::new(from_bind_ref, self.resolve_context);
+                binder.bind_expression(bind_context, &expr)
             })
             .transpose()?;
 
         // Handle ORDER BY, LIMIT, DISTINCT (todo)
-        let modifier_binder = ModifierBinder::new(vec![self.current], self.resolve_context);
+        let modifier_binder = ModifierBinder::new(vec![from_bind_ref], self.resolve_context);
         let order_by = order_by
             .map(|order_by| modifier_binder.bind_order_by(bind_context, &mut select_list, order_by))
             .transpose()?;
@@ -110,7 +104,7 @@ impl<'a> SelectBinder<'a> {
         let group_by = select
             .group_by
             .map(|g| {
-                GroupByBinder::new(self.current, self.resolve_context).bind(
+                GroupByBinder::new(from_bind_ref, self.resolve_context).bind(
                     bind_context,
                     &mut select_list,
                     g,
@@ -122,11 +116,29 @@ impl<'a> SelectBinder<'a> {
         let having = select
             .having
             .map(|h| {
-                ExpressionBinder::new(self.current, self.resolve_context)
-                    .bind_expression(bind_context, h)
+                ExpressionBinder::new(from_bind_ref, self.resolve_context)
+                    .bind_expression(bind_context, &h)
             })
             .transpose()?;
 
+        // Finalize projections.
+        let projections =
+            select_list.bind_expressions(from_bind_ref, bind_context, self.resolve_context)?;
+
+        let output_columns = select_list.projections.len();
+
         unimplemented!()
+        // Ok(BoundSelect {
+        //     select_list,
+        //     projections,
+        //     output_columns,
+        //     from,
+        //     filter: where_expr,
+        //     having,
+        //     group_by,
+        //     order_by,
+        //     limit,
+        //     aggregates: Vec::new(),
+        // })
     }
 }

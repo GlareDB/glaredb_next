@@ -48,6 +48,7 @@ impl<'a> FromPlanner<'a> {
                 }))
             }
             BoundFromItem::Join(_) => unimplemented!(),
+            BoundFromItem::Empty => unimplemented!(),
         }
     }
 }

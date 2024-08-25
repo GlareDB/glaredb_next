@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-use super::bind_context::{BindContext, BindContextRef, CorrelatedColumn, TableScopeRef};
+use super::bind_context::{BindContext, BindContextRef, CorrelatedColumn, TableRef};
 
 #[derive(Debug)]
 pub struct BoundFrom {

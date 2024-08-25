@@ -9,13 +9,30 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::collections::HashMap;
 
-use super::bind_context::{BindContext, BindContextRef, TableScopeRef};
+use super::bind_context::{BindContext, BindContextRef, TableRef};
+
+#[derive(Debug)]
+pub struct BoundSelectList {
+    pub projections_table: TableRef,
+    pub projections: Vec<Expression>,
+
+    pub appended_table: TableRef,
+    pub appended: Vec<Expression>,
+
+    pub aggregates_table: TableRef,
+    pub aggreagtes: Vec<Expression>,
+
+    pub windows_table: TableRef,
+    pub windows: Vec<Expression>,
+}
 
 #[derive(Debug)]
 pub struct SelectList {
     /// The table scope that expressions referencing columns in the select list
     /// should bind to.
-    pub table: TableScopeRef,
+    ///
+    /// Remains empty during binding.
+    pub table: TableRef,
 
     /// Mapping from explicit user-provided alias to column index in the output.
     pub alias_map: HashMap<String, usize>,

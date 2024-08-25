@@ -11,7 +11,7 @@ pub struct BindContextRef {
 
 /// Reference to a table scope in a context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TableScopeRef {
+pub struct TableRef {
     pub table_idx: usize,
 }
 
@@ -30,7 +30,7 @@ pub struct BindContext {
 pub struct CorrelatedColumn {
     /// Reference to an outer context the column is referencing.
     pub outer: BindContextRef,
-    pub table: TableScopeRef,
+    pub table: TableRef,
     /// Index of the column in the table.
     pub col_idx: usize,
 }
@@ -46,12 +46,12 @@ struct ChildBindContext {
     correlated_columns: Vec<CorrelatedColumn>,
 
     /// Scopes currently at this depth.
-    scopes: Vec<TableScopeRef>,
+    scopes: Vec<TableRef>,
 }
 
 #[derive(Debug)]
 pub struct Table {
-    pub reference: TableScopeRef,
+    pub reference: TableRef,
     pub alias: String,
     pub column_types: Vec<DataType>,
     pub column_names: Vec<String>,
@@ -150,17 +150,43 @@ impl BindContext {
         }
     }
 
-    /// Pushes an empty table scope tot he current context.
+    /// Pushes an empty table scope to the current context.
     ///
     /// This allows us to generate a table scope reference for the select list
     /// prior to having all expressions planned. This lets us stub the table
     /// scope to allow for things that reference the select list to do so using
     /// normal column expressions (e.g. ORDER BY).
-    pub fn push_empty_scope(&mut self, bind_ref: BindContextRef) -> Result<TableScopeRef> {
+    pub fn push_empty_scope_to_context(&mut self, bind_ref: BindContextRef) -> Result<TableRef> {
         self.push_table_scope(bind_ref, "empty", Vec::new(), Vec::new())
     }
 
-    pub fn get_table_mut(&mut self, table_ref: TableScopeRef) -> Result<&mut Table> {
+    pub fn push_empty_scope(&mut self) -> Result<TableRef> {
+        let table_idx = self.tables.len();
+        let reference = TableRef { table_idx };
+        let scope = Table {
+            reference,
+            alias: String::new(),
+            column_types: Vec::new(),
+            column_names: Vec::new(),
+        };
+        self.tables.push(scope);
+
+        Ok(reference)
+    }
+
+    pub fn push_column_for_table(
+        &mut self,
+        table: TableRef,
+        name: impl Into<String>,
+        datatype: DataType,
+    ) -> Result<()> {
+        let table = self.get_table_mut(table)?;
+        table.column_names.push(name.into());
+        table.column_types.push(datatype);
+        Ok(())
+    }
+
+    pub fn get_table_mut(&mut self, table_ref: TableRef) -> Result<&mut Table> {
         self.tables
             .get_mut(table_ref.table_idx)
             .ok_or_else(|| RayexecError::new("Missing table scope in bind context"))
@@ -172,7 +198,7 @@ impl BindContext {
         alias: impl Into<String>,
         column_types: Vec<DataType>,
         column_names: Vec<String>,
-    ) -> Result<TableScopeRef> {
+    ) -> Result<TableRef> {
         let alias = alias.into();
 
         for scope in self.iter_table_scopes(idx)? {
@@ -182,7 +208,7 @@ impl BindContext {
         }
 
         let table_idx = self.tables.len();
-        let reference = TableScopeRef { table_idx };
+        let reference = TableRef { table_idx };
         let scope = Table {
             reference,
             alias,
@@ -233,7 +259,7 @@ impl BindContext {
         Ok(found)
     }
 
-    pub fn get_table_scope(&self, scope_ref: TableScopeRef) -> Result<&Table> {
+    pub fn get_table_scope(&self, scope_ref: TableRef) -> Result<&Table> {
         self.tables
             .get(scope_ref.table_idx)
             .ok_or_else(|| RayexecError::new("Missing table scope"))

@@ -32,39 +32,39 @@ impl<'a> SelectPlanner<'a> {
             unimplemented!()
         }
 
-        // Handle GROUP BY/aggregates
-        if !select.aggregates.is_empty() {
-            let (mut group_exprs, grouping_sets) = match select.group_by {
-                Some(group_by) => (group_by.expressions, group_by.grouping_sets),
-                None => (Vec::new(), Vec::new()),
-            };
+        // // Handle GROUP BY/aggregates
+        // if !select.aggregates.is_empty() {
+        //     let (mut group_exprs, grouping_sets) = match select.group_by {
+        //         Some(group_by) => (group_by.expressions, group_by.grouping_sets),
+        //         None => (Vec::new(), Vec::new()),
+        //     };
 
-            for expr in &mut group_exprs {
-                plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
-            }
+        //     for expr in &mut group_exprs {
+        //         plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+        //     }
 
-            for expr in &mut select.aggregates {
-                plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
-            }
+        //     for expr in &mut select.aggregates {
+        //         plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+        //     }
 
-            let agg = LogicalAggregate {
-                aggregates: (0..select.aggregates.len()).collect(),
-                group_exprs: (0..group_exprs.len())
-                    .map(|i| i + select.aggregates.len())
-                    .collect(),
-                grouping_sets,
-            };
+        //     let agg = LogicalAggregate {
+        //         aggregates: (0..select.aggregates.len()).collect(),
+        //         group_exprs: (0..group_exprs.len())
+        //             .map(|i| i + select.aggregates.len())
+        //             .collect(),
+        //         grouping_sets,
+        //     };
 
-            let mut expressions = select.aggregates;
-            expressions.append(&mut group_exprs);
+        //     let mut expressions = select.aggregates;
+        //     expressions.append(&mut group_exprs);
 
-            plan = LogicalOperator::Aggregate(LogicalNode {
-                node: agg,
-                location: LocationRequirement::Any,
-                children: vec![plan],
-                expressions,
-            })
-        }
+        //     plan = LogicalOperator::Aggregate(LogicalNode {
+        //         node: agg,
+        //         location: LocationRequirement::Any,
+        //         children: vec![plan],
+        //         expressions,
+        //     })
+        // }
 
         // Handle HAVING
         if let Some(expr) = select.having {
@@ -77,16 +77,16 @@ impl<'a> SelectPlanner<'a> {
         }
 
         // Handle projections.
-        let projection_len = select.projections.len(); // Used to see if need a separate projection at the end.
-        for expr in &mut select.projections {
-            plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
-        }
-        plan = LogicalOperator::Project(LogicalNode {
-            node: LogicalProject,
-            location: LocationRequirement::Any,
-            children: vec![plan],
-            expressions: select.projections,
-        });
+        // let projection_len = select.projections.len(); // Used to see if need a separate projection at the end.
+        // for expr in &mut select.projections {
+        //     plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+        // }
+        // plan = LogicalOperator::Project(LogicalNode {
+        //     node: LogicalProject,
+        //     location: LocationRequirement::Any,
+        //     children: vec![plan],
+        //     expressions: select.projections,
+        // });
 
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {
@@ -125,11 +125,11 @@ impl<'a> SelectPlanner<'a> {
             });
         }
 
-        // Omit any columns that shouldn't be in the output.
-        if projection_len > select.output_columns {
-            // Do the thing...
-            unimplemented!()
-        }
+        // // Omit any columns that shouldn't be in the output.
+        // if projection_len > select.output_columns {
+        //     // Do the thing...
+        //     unimplemented!()
+        // }
 
         Ok(plan)
     }

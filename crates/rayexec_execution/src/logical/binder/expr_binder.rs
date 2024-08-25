@@ -1,15 +1,16 @@
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::{
-    expr::{column_expr::ColumnExpr, Expression},
+    expr::{column_expr::ColumnExpr, literal_expr::LiteralExpr, Expression},
     logical::{
         binder::bind_context::CorrelatedColumn,
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
 
-use super::bind_context::{BindContext, BindContextRef};
+use super::bind_context::{BindContext, BindContextRef, TableRef};
 
 #[derive(Debug)]
 pub struct ExpressionBinder<'a> {
@@ -25,73 +26,6 @@ impl<'a> ExpressionBinder<'a> {
         }
     }
 
-    pub fn expand_all_select_exprs(
-        &self,
-        bind_context: &BindContext,
-        exprs: impl IntoIterator<Item = ast::SelectExpr<ResolvedMeta>>,
-    ) -> Result<Vec<ast::SelectExpr<ResolvedMeta>>> {
-        let mut expanded = Vec::new();
-        for expr in exprs {
-            let mut ex = self.expand_select_expr(bind_context, expr)?;
-            expanded.append(&mut ex);
-        }
-        Ok(expanded)
-    }
-
-    pub fn expand_select_expr(
-        &self,
-        bind_context: &BindContext,
-        expr: ast::SelectExpr<ResolvedMeta>,
-    ) -> Result<Vec<ast::SelectExpr<ResolvedMeta>>> {
-        Ok(match expr {
-            ast::SelectExpr::Wildcard(_wildcard) => {
-                // TODO: Exclude, replace
-                let mut exprs = Vec::new();
-                for scope in bind_context.iter_table_scopes(self.current)? {
-                    let table = &scope.alias;
-                    for column in &scope.column_names {
-                        exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                            ast::Ident::from_string(table),
-                            ast::Ident::from_string(column),
-                        ])))
-                    }
-                }
-
-                exprs
-            }
-            ast::SelectExpr::QualifiedWildcard(reference, _wildcard) => {
-                // TODO: Exclude, replace
-                if reference.0.len() > 1 {
-                    return Err(RayexecError::new(
-                        "Qualified wildcard references with more than one ident not yet supported",
-                    ));
-                }
-
-                let table = reference.base()?.into_normalized_string();
-
-                let scope = bind_context
-                    .iter_table_scopes(self.current)?
-                    .find(|s| s.alias == table)
-                    .ok_or_else(|| {
-                        RayexecError::new(format!(
-                            "Missing table '{table}', cannot expand wildcard"
-                        ))
-                    })?;
-
-                let mut exprs = Vec::new();
-                for column in &scope.column_names {
-                    exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                        ast::Ident::from_string(&table),
-                        ast::Ident::from_string(column),
-                    ])))
-                }
-
-                exprs
-            }
-            other => vec![other],
-        })
-    }
-
     pub fn bind_expression(
         &self,
         bind_context: &mut BindContext,
@@ -101,6 +35,52 @@ impl<'a> ExpressionBinder<'a> {
             ast::Expr::Ident(ident) => self.bind_ident(bind_context, ident),
             _ => unimplemented!(),
         }
+    }
+
+    pub(crate) fn bind_aggregate(
+        func: ast::Function<ResolvedMeta>,
+        bind_context: &mut BindContext,
+        agg_table: TableRef,
+    ) -> Result<Expression> {
+        unimplemented!()
+    }
+
+    pub(crate) fn bind_literal(literal: ast::Literal<ResolvedMeta>) -> Result<Expression> {
+        Ok(match literal {
+            ast::Literal::Number(n) => {
+                if let Ok(n) = n.parse::<i64>() {
+                    Expression::Literal(LiteralExpr {
+                        literal: OwnedScalarValue::Int64(n),
+                    })
+                } else if let Ok(n) = n.parse::<u64>() {
+                    Expression::Literal(LiteralExpr {
+                        literal: OwnedScalarValue::UInt64(n),
+                    })
+                } else if let Ok(n) = n.parse::<f64>() {
+                    Expression::Literal(LiteralExpr {
+                        literal: OwnedScalarValue::Float64(n),
+                    })
+                } else {
+                    return Err(RayexecError::new(format!(
+                        "Unable to parse {n} as a number"
+                    )));
+                }
+            }
+            ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr {
+                literal: OwnedScalarValue::Boolean(b),
+            }),
+            ast::Literal::Null => Expression::Literal(LiteralExpr {
+                literal: OwnedScalarValue::Null,
+            }),
+            ast::Literal::SingleQuotedString(s) => Expression::Literal(LiteralExpr {
+                literal: OwnedScalarValue::Utf8(s.to_string().into()),
+            }),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unusupported SQL literal: {other:?}"
+                )))
+            }
+        })
     }
 
     fn bind_ident(&self, bind_context: &mut BindContext, ident: &ast::Ident) -> Result<Expression> {
