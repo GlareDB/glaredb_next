@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     expr::Expression,
     logical::{
@@ -18,7 +16,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::{
-    bind_context::{BindContext, BindScopeRef, TableRef},
+    bind_context::{BindContext, BindScopeRef},
     bound_from::BoundFrom,
     bound_group_by::BoundGroupBy,
     bound_modifier::{BoundLimit, BoundOrderBy},
@@ -133,22 +131,16 @@ impl<'a> SelectBinder<'a> {
             .transpose()?;
 
         // Finalize projections.
-        let projections = select_list.bind(from_bind_ref, bind_context, self.resolve_context)?;
+        let select_list = select_list.bind(from_bind_ref, bind_context, self.resolve_context)?;
 
-        let output_columns = select_list.projections.len();
-
-        unimplemented!()
-        // Ok(BoundSelect {
-        //     select_list,
-        //     projections,
-        //     output_columns,
-        //     from,
-        //     filter: where_expr,
-        //     having,
-        //     group_by,
-        //     order_by,
-        //     limit,
-        //     aggregates: Vec::new(),
-        // })
+        Ok(BoundSelect {
+            select_list,
+            from,
+            filter: where_expr,
+            having,
+            group_by,
+            order_by,
+            limit,
+        })
     }
 }

@@ -19,7 +19,7 @@ use crate::{
         client::{HybridPlanResponse, PullStatus},
     },
     logical::{
-        planner::plan_statement::StatementPlanner,
+        planner::plan_statement2::StatementPlanner,
         resolver::{
             resolve_context::ResolveContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},

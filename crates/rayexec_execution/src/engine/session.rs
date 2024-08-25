@@ -17,7 +17,7 @@ use crate::{
     logical::{
         context::QueryContext,
         operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
-        planner::plan_statement::StatementPlanner,
+        planner::plan_statement2::StatementPlanner,
         resolver::{ResolveMode, Resolver},
     },
     optimizer::Optimizer,

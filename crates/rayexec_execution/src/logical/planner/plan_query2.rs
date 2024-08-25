@@ -24,7 +24,7 @@ use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
 use super::{
     plan_aggregate2::AggregatePlanner,
     plan_expr::{ExpandedSelectExpr, ExpressionContext},
-    plan_statement::LogicalQuery2,
+    plan_statement2::LogicalQuery2,
     plan_subquery2::SubqueryPlanner,
     scope::{ColumnRef, Scope, TableReference},
 };

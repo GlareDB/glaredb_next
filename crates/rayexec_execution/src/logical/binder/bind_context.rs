@@ -84,6 +84,10 @@ impl BindContext {
         }
     }
 
+    pub fn root_scope_ref(&self) -> BindScopeRef {
+        BindScopeRef { context_idx: 0 }
+    }
+
     /// Creates a new bind scope, with current being the parent scope.
     pub fn new_scope(&mut self, current: BindScopeRef) -> BindScopeRef {
         let idx = self.scopes.len();

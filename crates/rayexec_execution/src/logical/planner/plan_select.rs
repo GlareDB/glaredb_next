@@ -16,10 +16,6 @@ pub struct SelectPlanner<'a> {
 }
 
 impl<'a> SelectPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        SelectPlanner { bind_context }
-    }
-
     pub fn plan(&self, mut select: BoundSelect) -> Result<LogicalOperator> {
         // Handle FROM
         let mut plan = FromPlanner::new(self.bind_context).plan(select.from)?;
