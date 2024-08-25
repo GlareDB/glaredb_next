@@ -17,20 +17,20 @@ use crate::{
 
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableRef};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundFrom {
     pub bind_ref: BindScopeRef,
     pub item: BoundFromItem,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BoundFromItem {
     BaseTable(BoundBaseTable),
     Join(BoundJoin),
     Empty,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundBaseTable {
     pub location: LocationRequirement,
     pub catalog: String,
@@ -38,7 +38,7 @@ pub struct BoundBaseTable {
     pub entry: Arc<CatalogEntry>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundJoin {
     /// Reference to binder for left side of join.
     pub left_bind_ref: BindScopeRef,

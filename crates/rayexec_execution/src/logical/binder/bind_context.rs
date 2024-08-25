@@ -26,7 +26,7 @@ pub struct BindContext {
     tables: Vec<Table>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CorrelatedColumn {
     /// Reference to an outer context the column is referencing.
     pub outer: BindScopeRef,

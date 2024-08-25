@@ -32,15 +32,12 @@ pub mod plan_expr;
 pub mod plan_statement;
 pub mod scope;
 
-pub mod planning_context;
-pub mod planning_scope;
-
 mod decorrelate;
-mod plan_aggregate;
 mod plan_from;
-mod plan_query;
 mod plan_select;
 mod plan_subquery;
 
 // Delete
+mod plan_aggregate2;
+mod plan_query2;
 mod plan_subquery2;

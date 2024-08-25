@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{planning_context::ScopeIdx, scope::Scope};
+use super::scope::Scope;
 use crate::{
     database::{
         create::OnConflict,
@@ -15,7 +15,7 @@ use crate::{
             Explain, ExplainFormat, Insert, LocationRequirement, LogicalNode, LogicalOperator,
             Projection, ResetVar, Scan, SetVar, ShowVar, VariableOrAll,
         },
-        planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
+        planner::{plan_expr::ExpressionContext, plan_query2::QueryNodePlanner},
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
             ResolvedMeta,
@@ -29,12 +29,6 @@ use tracing::trace;
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();
 const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
-
-#[derive(Debug)]
-pub struct LogicalQuery {
-    pub root: LogicalOperator,
-    pub output_scope: ScopeIdx,
-}
 
 #[derive(Debug)]
 pub struct LogicalQuery2 {

@@ -120,17 +120,13 @@ impl<N> LogicalNode<N> {
         self.node
     }
 
-    pub fn annotate_explain(
-        &self,
-        mut explain: ExplainEntry,
-        _conf: ExplainConfig,
-    ) -> ExplainEntry {
-        if !self.expressions.is_empty() {
-            // explain = explain.with_values(
-            //     "expressions",
-            //     self.expressions.iter().map(|expr| format!("{expr}")),
-            // );
-        }
+    pub fn annotate_explain(&self, explain: ExplainEntry, _conf: ExplainConfig) -> ExplainEntry {
+        // if !self.expressions.is_empty() {
+        //     explain = explain.with_values(
+        //         "expressions",
+        //         self.expressions.iter().map(|expr| format!("{expr}")),
+        //     );
+        // }
         explain.with_value("location", self.location)
     }
 }

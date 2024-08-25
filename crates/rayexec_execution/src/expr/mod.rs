@@ -11,10 +11,12 @@ pub mod scalar_function_expr;
 pub mod subquery_expr;
 pub mod window_expr;
 
+pub mod physical;
+
 use crate::database::DatabaseContext;
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::scalar::PlannedScalarFunction;
-use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
+use crate::logical::binder::bind_context::BindContext;
 use crate::logical::expr::LogicalExpression;
 use crate::proto::DatabaseProtoConv;
 use aggregate_expr::AggregateExpr;

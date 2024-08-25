@@ -22,7 +22,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
 
 use super::{
-    plan_aggregate::AggregatePlanner,
+    plan_aggregate2::AggregatePlanner,
     plan_expr::{ExpandedSelectExpr, ExpressionContext},
     plan_statement::LogicalQuery2,
     plan_subquery2::SubqueryPlanner,

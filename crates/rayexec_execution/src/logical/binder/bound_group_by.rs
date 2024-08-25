@@ -1,12 +1,8 @@
 use crate::{
-    expr::Expression,
-    logical::{
-        binder::expr_binder::ExpressionBinder,
-        expr::LogicalExpression,
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
+    expr::{column_expr::ColumnExpr, Expression},
+    logical::resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 use std::collections::BTreeSet;
 
@@ -15,7 +11,7 @@ use super::{
     select_list::SelectList,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundGroupBy {
     pub expressions: Vec<Expression>,
     pub grouping_sets: Vec<BTreeSet<usize>>,
@@ -37,33 +33,50 @@ impl<'a> GroupByBinder<'a> {
 
     pub fn bind(
         &self,
-        bind_context: &mut BindContext,
+        _bind_context: &mut BindContext,
         select_list: &mut SelectList,
         group_by: ast::GroupByNode<ResolvedMeta>,
     ) -> Result<BoundGroupBy> {
         let sets = GroupByWithSets::try_from_ast(group_by)?;
-        let expr_binder = ExpressionBinder::new(self.current, self.resolve_context);
 
         let expressions = sets
             .expressions
             .into_iter()
             .map(|expr| {
-                // TODO: Bind column first.
-
-                if let Some(idx) = select_list.get_projection_reference(&expr)? {
-                    // TODO: Return it..
-                    unimplemented!()
-                }
-
-                let idx = select_list.append_expression(ast::SelectExpr::Expr(expr));
-                // TODO: Do the thing
-                unimplemented!()
+                Ok(Expression::Column(
+                    self.bind_to_select_list(select_list, expr)?,
+                ))
             })
             .collect::<Result<Vec<_>>>()?;
 
         Ok(BoundGroupBy {
             expressions,
             grouping_sets: sets.grouping_sets,
+        })
+    }
+
+    // TODO: Duplicated with order binder.
+    fn bind_to_select_list(
+        &self,
+        select_list: &mut SelectList,
+        expr: ast::Expr<ResolvedMeta>,
+    ) -> Result<ColumnExpr> {
+        // Check if there's already something in the list that we're
+        // referencing.
+        if let Some(idx) = select_list.get_projection_reference(&expr)? {
+            return Ok(ColumnExpr {
+                table_scope: select_list.projections_table,
+                column: idx,
+            });
+        }
+
+        // Append our expression to the select list. We'll generate a column
+        // expression that references this column.
+        let idx = select_list.append_expression(ast::SelectExpr::Expr(expr));
+
+        Ok(ColumnExpr {
+            table_scope: select_list.projections_table,
+            column: idx,
         })
     }
 }
@@ -77,7 +90,7 @@ struct GroupByWithSets {
 impl GroupByWithSets {
     fn try_from_ast(group_by: ast::GroupByNode<ResolvedMeta>) -> Result<Self> {
         match group_by {
-            ast::GroupByNode::All => unimplemented!(),
+            ast::GroupByNode::All => not_implemented!("GROUP BY ALL"),
             ast::GroupByNode::Exprs { mut exprs } => {
                 let expr = match exprs.len() {
                     1 => exprs.pop().unwrap(),
@@ -114,9 +127,8 @@ impl GroupByWithSets {
 
                         (exprs, sets)
                     }
-                    ast::GroupByExpr::GroupingSets(exprs) => {
-                        //
-                        unimplemented!()
+                    ast::GroupByExpr::GroupingSets(_exprs) => {
+                        not_implemented!("GROUPING SETS")
                     }
                 };
 

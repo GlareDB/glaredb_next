@@ -15,19 +15,19 @@ use super::{
     select_list::SelectList,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundOrderByExpr {
     pub expr: Expression,
     pub desc: bool,
     pub nulls_first: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundOrderBy {
     pub exprs: Vec<BoundOrderByExpr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundLimit {
     pub limit: usize,
     pub offset: Option<usize>,

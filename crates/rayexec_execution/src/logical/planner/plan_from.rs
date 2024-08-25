@@ -44,7 +44,6 @@ impl<'a> FromPlanner<'a> {
                     },
                     location: table.location,
                     children: Vec::new(),
-                    expressions: Vec::new(),
                 }))
             }
             BoundFromItem::Join(_) => unimplemented!(),

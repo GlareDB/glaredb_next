@@ -11,6 +11,6 @@ pub enum SubqueryType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubqueryExpr {
     pub bind_idx: BindScopeRef,
-    pub subquery: BoundQuery,
+    pub subquery: Box<BoundQuery>,
     pub subquery_type: SubqueryType,
 }

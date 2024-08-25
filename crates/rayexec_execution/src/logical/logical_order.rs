@@ -4,7 +4,7 @@ use super::{
     operator::LogicalNode,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LogicalOrder {
     pub exprs: Vec<BoundOrderByExpr>,
 }
