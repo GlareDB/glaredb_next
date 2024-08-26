@@ -49,6 +49,7 @@ pub mod resolver;
 
 pub mod logical_aggregate;
 pub mod logical_attach;
+pub mod logical_drop;
 pub mod logical_empty;
 pub mod logical_filter;
 pub mod logical_limit;

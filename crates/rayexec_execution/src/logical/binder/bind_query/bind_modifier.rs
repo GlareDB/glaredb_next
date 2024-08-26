@@ -4,16 +4,15 @@ use rayexec_parser::ast;
 use crate::{
     expr::{column_expr::ColumnExpr, Expression},
     logical::{
-        binder::expr_binder::ExpressionBinder,
+        binder::{
+            bind_context::{BindContext, BindScopeRef},
+            expr_binder::{ExpressionBinder, RecursionContext},
+        },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
 
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    expr_binder::RecursionContext,
-    select_list::SelectList,
-};
+use super::select_list::SelectList;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundOrderByExpr {

@@ -313,3 +313,28 @@ impl BindContext {
             .ok_or_else(|| RayexecError::new("Missing child bind context"))
     }
 }
+
+#[cfg(test)]
+pub(crate) mod testutil {
+    //! Test utilities for the bind context.
+
+    use super::*;
+
+    /// Collect all (name, type) pairs for columns in the current scope.
+    pub fn columns_in_scope(
+        bind_context: &BindContext,
+        scope: BindScopeRef,
+    ) -> Vec<(String, DataType)> {
+        bind_context
+            .iter_tables(scope)
+            .unwrap()
+            .flat_map(|t| {
+                t.column_names
+                    .iter()
+                    .cloned()
+                    .zip(t.column_types.iter().cloned())
+                    .into_iter()
+            })
+            .collect()
+    }
+}

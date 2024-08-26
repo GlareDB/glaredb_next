@@ -1,4 +1,4 @@
-use crate::logical::binder::{bind_context::BindScopeRef, bound_query::BoundQuery};
+use crate::logical::binder::{bind_context::BindScopeRef, bind_query::BoundQuery};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SubqueryType {

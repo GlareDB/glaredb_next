@@ -15,7 +15,7 @@ use crate::{
     },
     hybrid::client::HybridClient,
     logical::{
-        binder::bound_statement::StatementBinder,
+        binder::bind_statement::StatementBinder,
         context::QueryContext,
         operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
         planner::{plan_statement::StatementPlanner, plan_statement2::StatementPlanner2},

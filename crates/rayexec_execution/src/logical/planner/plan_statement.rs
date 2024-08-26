@@ -2,9 +2,9 @@ use rayexec_error::Result;
 
 use crate::logical::{
     binder::{
+        bind_attach::{BoundAttach, BoundDetach},
         bind_context::BindContext,
-        bound_attach::{BoundAttach, BoundDetach},
-        bound_statement::BoundStatement,
+        bind_statement::BoundStatement,
     },
     operator::LogicalOperator,
 };

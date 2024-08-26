@@ -1,15 +1,15 @@
 use crate::{
     expr::{column_expr::ColumnExpr, Expression},
-    logical::resolver::{resolve_context::ResolveContext, ResolvedMeta},
+    logical::{
+        binder::bind_context::{BindContext, BindScopeRef},
+        resolver::{resolve_context::ResolveContext, ResolvedMeta},
+    },
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 use std::collections::BTreeSet;
 
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    select_list::SelectList,
-};
+use super::select_list::SelectList;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundGroupBy {

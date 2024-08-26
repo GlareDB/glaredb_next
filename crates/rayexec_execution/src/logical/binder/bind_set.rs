@@ -90,3 +90,30 @@ impl<'a> SetVarBinder<'a> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::logical::binder::bind_context::testutil::columns_in_scope;
+
+    use super::*;
+
+    #[test]
+    fn bind_show_has_column() {
+        let mut context = BindContext::new();
+        let scope = context.root_scope_ref();
+
+        let vars = SessionVars::new_local();
+        let _ = SetVarBinder::new(scope, &vars)
+            .bind_show(
+                &mut context,
+                ast::ShowVariable {
+                    reference: vec!["application_name".to_string()].into(),
+                },
+            )
+            .unwrap();
+
+        let cols = columns_in_scope(&context, scope);
+        let expected = vec![("application_name".to_string(), DataType::Utf8)];
+        assert_eq!(expected, cols);
+    }
+}

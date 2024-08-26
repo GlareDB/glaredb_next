@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::logical::{
     binder::{
         bind_context::BindContext,
-        bound_from::{BoundFrom, BoundFromItem},
+        bind_query::bind_from::{BoundFrom, BoundFromItem},
     },
     logical_empty::LogicalEmpty,
     logical_scan::{LogicalScan, ScanSource},

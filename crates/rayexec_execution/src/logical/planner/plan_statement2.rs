@@ -365,7 +365,7 @@ impl<'a> StatementPlanner2<'a> {
                 // Dropping defaults to restricting (erroring) on dependencies.
                 let deps = drop.deps.unwrap_or(ast::DropDependents::Restrict);
 
-                let plan = LogicalOperator::Drop(LogicalNode::new(DropEntry {
+                let plan = LogicalOperator::Drop2(LogicalNode::new(DropEntry {
                     catalog,
                     info: DropInfo {
                         schema,

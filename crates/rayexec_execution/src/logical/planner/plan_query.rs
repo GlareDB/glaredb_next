@@ -1,5 +1,5 @@
 use crate::logical::{
-    binder::{bind_context::BindContext, bound_query::BoundQuery},
+    binder::{bind_context::BindContext, bind_query::BoundQuery},
     operator::LogicalOperator,
     planner::plan_select::SelectPlanner,
 };

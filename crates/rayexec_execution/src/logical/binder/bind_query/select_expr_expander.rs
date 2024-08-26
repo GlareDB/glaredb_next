@@ -1,8 +1,9 @@
-use crate::logical::resolver::{resolve_context::ResolveContext, ResolvedMeta};
+use crate::logical::{
+    binder::bind_context::{BindContext, BindScopeRef},
+    resolver::{resolve_context::ResolveContext, ResolvedMeta},
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
-
-use super::bind_context::{BindContext, BindScopeRef};
 
 /// Expands wildcards in expressions found in the select list.
 ///

@@ -1,12 +1,17 @@
+pub mod bind_from;
+pub mod bind_group_by;
+pub mod bind_modifier;
+pub mod bind_select;
+pub mod select_expr_expander;
+pub mod select_list;
+
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::logical::resolver::{resolve_context::ResolveContext, ResolvedMeta};
+use bind_select::{BoundSelect, SelectBinder};
 
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    bound_select::{BoundSelect, SelectBinder},
-};
+use super::bind_context::{BindContext, BindScopeRef};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundQuery {

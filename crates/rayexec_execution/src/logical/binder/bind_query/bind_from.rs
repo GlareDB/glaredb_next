@@ -7,6 +7,7 @@ use crate::{
     database::catalog_entry::CatalogEntry,
     expr::Expression,
     logical::{
+        binder::bind_context::{BindContext, BindScopeRef, CorrelatedColumn},
         operator::{JoinType, LocationRequirement},
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
@@ -14,8 +15,6 @@ use crate::{
         },
     },
 };
-
-use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableRef};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundFrom {

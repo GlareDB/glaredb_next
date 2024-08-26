@@ -1,5 +1,5 @@
 use super::{
-    binder::bound_modifier::BoundOrderByExpr,
+    binder::bind_query::bind_modifier::BoundOrderByExpr,
     explainable::{ExplainConfig, ExplainEntry, Explainable},
     operator::LogicalNode,
 };

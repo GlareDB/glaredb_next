@@ -2,12 +2,8 @@ use crate::{
     expr::Expression,
     logical::{
         binder::{
-            bound_from::FromBinder,
-            bound_group_by::GroupByBinder,
-            bound_modifier::ModifierBinder,
+            bind_context::{BindContext, BindScopeRef},
             expr_binder::{ExpressionBinder, RecursionContext},
-            select_expr_expander::SelectExprExpander,
-            select_list::SelectList,
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
@@ -16,11 +12,11 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::{
-    bind_context::{BindContext, BindScopeRef},
-    bound_from::BoundFrom,
-    bound_group_by::BoundGroupBy,
-    bound_modifier::{BoundLimit, BoundOrderBy},
-    select_list::BoundSelectList,
+    bind_from::{BoundFrom, FromBinder},
+    bind_group_by::{BoundGroupBy, GroupByBinder},
+    bind_modifier::{BoundLimit, BoundOrderBy, ModifierBinder},
+    select_expr_expander::SelectExprExpander,
+    select_list::{BoundSelectList, SelectList},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -157,21 +153,9 @@ impl<'a> SelectBinder<'a> {
 mod tests {
     use rayexec_bullet::datatype::DataType;
 
-    use super::*;
+    use crate::logical::binder::bind_context::testutil::columns_in_scope;
 
-    fn cols_in_scope(bind_context: &BindContext, scope: BindScopeRef) -> Vec<(String, DataType)> {
-        bind_context
-            .iter_tables(bind_context.root_scope_ref())
-            .unwrap()
-            .flat_map(|t| {
-                t.column_names
-                    .iter()
-                    .cloned()
-                    .zip(t.column_types.iter().cloned())
-                    .into_iter()
-            })
-            .collect()
-    }
+    use super::*;
 
     #[test]
     fn bind_context_projection_in_scope() {
@@ -205,7 +189,7 @@ mod tests {
 
         let _ = binder.bind(&mut bind_context, select, None, limit).unwrap();
 
-        let cols = cols_in_scope(&bind_context, bind_context.root_scope_ref());
+        let cols = columns_in_scope(&bind_context, bind_context.root_scope_ref());
         let expected = vec![
             ("?column?".to_string(), DataType::Int64),
             ("my_alias".to_string(), DataType::Int64),

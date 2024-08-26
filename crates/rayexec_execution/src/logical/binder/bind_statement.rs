@@ -4,7 +4,7 @@ use rayexec_parser::{ast, statement::Statement};
 use crate::{
     engine::vars::SessionVars,
     logical::{
-        binder::bound_query::QueryBinder,
+        binder::bind_query::QueryBinder,
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
         operator::LogicalNode,
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -12,10 +12,10 @@ use crate::{
 };
 
 use super::{
+    bind_attach::{AttachBinder, BoundAttach, BoundDetach},
     bind_context::BindContext,
-    bound_attach::{AttachBinder, BoundAttach, BoundDetach},
-    bound_query::BoundQuery,
-    bound_set::SetVarBinder,
+    bind_query::BoundQuery,
+    bind_set::SetVarBinder,
 };
 
 #[derive(Debug)]

@@ -1,15 +1,16 @@
 use crate::{
     expr::{column_expr::ColumnExpr, Expression},
     logical::{
-        binder::expr_binder::{ExpressionBinder, RecursionContext},
+        binder::{
+            bind_context::{BindContext, BindScopeRef, TableRef},
+            expr_binder::{ExpressionBinder, RecursionContext},
+        },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, SelectExpr};
 use std::collections::HashMap;
-
-use super::bind_context::{BindContext, BindScopeRef, TableRef};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrunedProjectionTable {

@@ -1,5 +1,5 @@
 use crate::logical::{
-    binder::{bind_context::BindContext, bound_select::BoundSelect},
+    binder::{bind_context::BindContext, bind_query::bind_select::BoundSelect},
     logical_aggregate::LogicalAggregate,
     logical_filter::LogicalFilter,
     logical_limit::LogicalLimit,
