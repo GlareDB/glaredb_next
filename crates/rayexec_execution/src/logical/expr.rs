@@ -350,16 +350,16 @@ impl LogicalExpression {
                         LogicalExpression::walk_mut_many(row, pre, post)?;
                     }
                 }
-                LogicalOperator::SetVar(_) => (),
-                LogicalOperator::ShowVar(_) => (),
-                LogicalOperator::ResetVar(_) => (),
+                LogicalOperator::SetVar2(_) => (),
+                LogicalOperator::ShowVar2(_) => (),
+                LogicalOperator::ResetVar2(_) => (),
                 LogicalOperator::Insert(_) => (),
                 LogicalOperator::CopyTo(_) => (),
                 LogicalOperator::CreateSchema(_) => (),
                 LogicalOperator::CreateTable(_) => (),
                 LogicalOperator::CreateTableAs(_) => (),
-                LogicalOperator::AttachDatabase(_) => (),
-                LogicalOperator::DetachDatabase(_) => (),
+                LogicalOperator::AttachDatabase2(_) => (),
+                LogicalOperator::DetachDatabase2(_) => (),
                 LogicalOperator::Explain(_) => (),
                 LogicalOperator::Drop(_) => (),
                 LogicalOperator::Empty2(_) => (),

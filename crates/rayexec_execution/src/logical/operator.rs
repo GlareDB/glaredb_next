@@ -3,12 +3,14 @@ use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
 use super::logical_aggregate::LogicalAggregate;
+use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
 use super::logical_empty::LogicalEmpty;
 use super::logical_filter::LogicalFilter;
 use super::logical_limit::LogicalLimit;
 use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
+use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use crate::database::catalog_entry::CatalogEntry;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
@@ -161,14 +163,14 @@ pub enum LogicalOperator {
     TableFunction(LogicalNode<TableFunction>),
     ExpressionList(LogicalNode<ExpressionList>),
     Empty2(LogicalNode<()>),
-    SetVar(LogicalNode<SetVar>),
-    ShowVar(LogicalNode<ShowVar>),
-    ResetVar(LogicalNode<ResetVar>),
+    SetVar2(LogicalNode<SetVar>),
+    ShowVar2(LogicalNode<ShowVar>),
+    ResetVar2(LogicalNode<ResetVar>),
     CreateSchema(LogicalNode<CreateSchema>),
     CreateTable(LogicalNode<CreateTable>),
     CreateTableAs(LogicalNode<CreateTableAs>),
-    AttachDatabase(LogicalNode<AttachDatabase>),
-    DetachDatabase(LogicalNode<DetachDatabase>),
+    AttachDatabase2(LogicalNode<AttachDatabase>),
+    DetachDatabase2(LogicalNode<DetachDatabase>),
     Drop(LogicalNode<DropEntry>),
     Insert(LogicalNode<Insert>),
     CopyTo(LogicalNode<CopyTo>),
@@ -182,6 +184,11 @@ pub enum LogicalOperator {
     Aggregate(LogicalNode<LogicalAggregate>),
     Scan(LogicalNode<LogicalScan>),
     Empty(LogicalNode<LogicalEmpty>),
+    SetVar(LogicalNode<LogicalSetVar>),
+    ResetVar(LogicalNode<LogicalResetVar>),
+    ShowVar(LogicalNode<LogicalShowVar>),
+    AttachDatabase(LogicalNode<LogicalAttachDatabase>),
+    DetachDatabase(LogicalNode<LogicalDetachDatabase>),
 }
 
 impl LogicalOperator {
@@ -208,14 +215,14 @@ impl LogicalOperator {
             Self::TableFunction(n) => n.as_ref().output_schema(outer),
             Self::ExpressionList(n) => n.as_ref().output_schema(outer),
             Self::Empty2(_) => Ok(TypeSchema::empty()),
-            Self::SetVar(n) => n.as_ref().output_schema(outer),
-            Self::ShowVar(n) => n.as_ref().output_schema(outer),
-            Self::ResetVar(n) => n.as_ref().output_schema(outer),
+            Self::SetVar2(n) => n.as_ref().output_schema(outer),
+            Self::ShowVar2(n) => n.as_ref().output_schema(outer),
+            Self::ResetVar2(n) => n.as_ref().output_schema(outer),
             Self::CreateSchema(n) => n.as_ref().output_schema(outer),
             Self::CreateTable(n) => n.as_ref().output_schema(outer),
             Self::CreateTableAs(_) => not_implemented!("create table as output schema"),
-            Self::AttachDatabase(n) => n.as_ref().output_schema(outer),
-            Self::DetachDatabase(n) => n.as_ref().output_schema(outer),
+            Self::AttachDatabase2(n) => n.as_ref().output_schema(outer),
+            Self::DetachDatabase2(n) => n.as_ref().output_schema(outer),
             Self::Drop(n) => n.as_ref().output_schema(outer),
             Self::Insert(n) => n.as_ref().output_schema(outer),
             Self::CopyTo(n) => n.as_ref().output_schema(outer),
@@ -242,14 +249,14 @@ impl LogicalOperator {
             Self::TableFunction(n) => &n.location,
             Self::ExpressionList(n) => &n.location,
             Self::Empty2(n) => &n.location,
-            Self::SetVar(n) => &n.location,
-            Self::ShowVar(n) => &n.location,
-            Self::ResetVar(n) => &n.location,
+            Self::SetVar2(n) => &n.location,
+            Self::ShowVar2(n) => &n.location,
+            Self::ResetVar2(n) => &n.location,
             Self::CreateSchema(n) => &n.location,
             Self::CreateTable(n) => &n.location,
             Self::CreateTableAs(n) => &n.location,
-            Self::AttachDatabase(n) => &n.location,
-            Self::DetachDatabase(n) => &n.location,
+            Self::AttachDatabase2(n) => &n.location,
+            Self::DetachDatabase2(n) => &n.location,
             Self::Drop(n) => &n.location,
             Self::Insert(n) => &n.location,
             Self::CopyTo(n) => &n.location,
@@ -276,14 +283,14 @@ impl LogicalOperator {
             Self::TableFunction(n) => &mut n.location,
             Self::ExpressionList(n) => &mut n.location,
             Self::Empty2(n) => &mut n.location,
-            Self::SetVar(n) => &mut n.location,
-            Self::ShowVar(n) => &mut n.location,
-            Self::ResetVar(n) => &mut n.location,
+            Self::SetVar2(n) => &mut n.location,
+            Self::ShowVar2(n) => &mut n.location,
+            Self::ResetVar2(n) => &mut n.location,
             Self::CreateSchema(n) => &mut n.location,
             Self::CreateTable(n) => &mut n.location,
             Self::CreateTableAs(n) => &mut n.location,
-            Self::AttachDatabase(n) => &mut n.location,
-            Self::DetachDatabase(n) => &mut n.location,
+            Self::AttachDatabase2(n) => &mut n.location,
+            Self::DetachDatabase2(n) => &mut n.location,
             Self::Drop(n) => &mut n.location,
             Self::Insert(n) => &mut n.location,
             Self::CopyTo(n) => &mut n.location,
@@ -333,14 +340,14 @@ impl LogicalOperator {
             Self::TableFunction(_) => (),
             Self::ExpressionList(_) => (),
             Self::Empty2(_) => (),
-            Self::SetVar(_) => (),
-            Self::ShowVar(_) => (),
-            Self::ResetVar(_) => (),
+            Self::SetVar2(_) => (),
+            Self::ShowVar2(_) => (),
+            Self::ResetVar2(_) => (),
             Self::CreateSchema(_) => (),
             Self::CreateTable(_) => (),
             Self::CreateTableAs(n) => f(&mut n.as_mut().input)?,
-            Self::AttachDatabase(_) => (),
-            Self::DetachDatabase(_) => (),
+            Self::AttachDatabase2(_) => (),
+            Self::DetachDatabase2(_) => (),
             Self::Drop(_) => (),
             Self::Insert(n) => f(&mut n.as_mut().input)?,
             Self::CopyTo(n) => f(&mut n.as_mut().source)?,
@@ -468,13 +475,13 @@ impl LogicalOperator {
             }
             LogicalOperator::ExpressionList(_)
             | LogicalOperator::Empty2(_)
-            | LogicalOperator::SetVar(_)
-            | LogicalOperator::ShowVar(_)
-            | LogicalOperator::ResetVar(_)
+            | LogicalOperator::SetVar2(_)
+            | LogicalOperator::ShowVar2(_)
+            | LogicalOperator::ResetVar2(_)
             | LogicalOperator::CreateTable(_)
             | LogicalOperator::CreateSchema(_)
-            | LogicalOperator::AttachDatabase(_)
-            | LogicalOperator::DetachDatabase(_)
+            | LogicalOperator::AttachDatabase2(_)
+            | LogicalOperator::DetachDatabase2(_)
             | LogicalOperator::Drop(_)
             | LogicalOperator::MaterializedScan(_)
             | LogicalOperator::Scan2(_)
@@ -512,14 +519,14 @@ impl Explainable for LogicalOperator {
             Self::TableFunction(p) => p.as_ref().explain_entry(conf),
             Self::ExpressionList(p) => p.as_ref().explain_entry(conf),
             Self::Empty2(_) => ExplainEntry::new("Empty"),
-            Self::SetVar(p) => p.as_ref().explain_entry(conf),
-            Self::ShowVar(p) => p.as_ref().explain_entry(conf),
-            Self::ResetVar(p) => p.as_ref().explain_entry(conf),
+            Self::SetVar2(p) => p.as_ref().explain_entry(conf),
+            Self::ShowVar2(p) => p.as_ref().explain_entry(conf),
+            Self::ResetVar2(p) => p.as_ref().explain_entry(conf),
             Self::CreateSchema(p) => p.as_ref().explain_entry(conf),
             Self::CreateTable(p) => p.as_ref().explain_entry(conf),
             Self::CreateTableAs(p) => p.as_ref().explain_entry(conf),
-            Self::AttachDatabase(n) => n.as_ref().explain_entry(conf),
-            Self::DetachDatabase(n) => n.as_ref().explain_entry(conf),
+            Self::AttachDatabase2(n) => n.as_ref().explain_entry(conf),
+            Self::DetachDatabase2(n) => n.as_ref().explain_entry(conf),
             Self::Drop(p) => p.as_ref().explain_entry(conf),
             Self::Insert(p) => p.as_ref().explain_entry(conf),
             Self::Explain(p) => p.as_ref().explain_entry(conf),

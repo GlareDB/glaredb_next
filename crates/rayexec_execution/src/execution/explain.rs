@@ -171,15 +171,15 @@ impl ExplainNode {
             }
             LogicalOperator::Empty2(_)
             | LogicalOperator::ExpressionList(_)
-            | LogicalOperator::SetVar(_)
-            | LogicalOperator::ShowVar(_)
-            | LogicalOperator::ResetVar(_)
+            | LogicalOperator::SetVar2(_)
+            | LogicalOperator::ShowVar2(_)
+            | LogicalOperator::ResetVar2(_)
             | LogicalOperator::Scan2(_)
             | LogicalOperator::TableFunction(_)
             | LogicalOperator::Drop(_)
             | LogicalOperator::Describe(_)
-            | LogicalOperator::AttachDatabase(_)
-            | LogicalOperator::DetachDatabase(_)
+            | LogicalOperator::AttachDatabase2(_)
+            | LogicalOperator::DetachDatabase2(_)
             | LogicalOperator::CreateSchema(_)
             | LogicalOperator::CreateTable(_) => Vec::new(),
             _ => unimplemented!(),

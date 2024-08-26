@@ -56,6 +56,17 @@ pub struct ResolveContext {
 }
 
 impl ResolveContext {
+    pub const fn empty() -> Self {
+        ResolveContext {
+            tables: ResolveList::empty(),
+            functions: ResolveList::empty(),
+            table_functions: ResolveList::empty(),
+            copy_to: None,
+            current_depth: 0,
+            ctes: Vec::new(),
+        }
+    }
+
     /// Checks if there's any unresolved references in this query.
     pub fn any_unresolved(&self) -> bool {
         self.tables.any_unresolved()
@@ -189,6 +200,10 @@ pub struct ResolveList<B, U> {
 pub struct ResolveListIdx(pub usize);
 
 impl<B, U> ResolveList<B, U> {
+    pub const fn empty() -> Self {
+        ResolveList { inner: Vec::new() }
+    }
+
     pub fn any_unresolved(&self) -> bool {
         self.inner
             .iter()

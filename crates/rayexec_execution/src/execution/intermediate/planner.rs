@@ -312,7 +312,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Order2(order) => {
                 self.push_global_sort(id_gen, materializations, order)
             }
-            LogicalOperator::ShowVar(show_var) => self.push_show_var(id_gen, show_var),
+            LogicalOperator::ShowVar2(show_var) => self.push_show_var(id_gen, show_var),
             LogicalOperator::Explain(explain) => {
                 self.push_explain(id_gen, materializations, explain)
             }
@@ -336,13 +336,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::SetOperation(setop) => {
                 self.push_set_operation(id_gen, materializations, setop)
             }
-            LogicalOperator::SetVar(_) => {
+            LogicalOperator::SetVar2(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
-            LogicalOperator::ResetVar(_) => {
+            LogicalOperator::ResetVar2(_) => {
                 Err(RayexecError::new("RESET should be handled in the session"))
             }
-            LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
+            LogicalOperator::DetachDatabase2(_) | LogicalOperator::AttachDatabase2(_) => Err(
                 RayexecError::new("ATTACH/DETACH should be handled in the session"),
             ),
             other => not_implemented!("logical plan to pipeline: {other:?}"),

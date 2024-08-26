@@ -111,7 +111,7 @@ impl<'a> StatementPlanner2<'a> {
                 let expr_ctx = ExpressionContext::new(&planner, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(&mut context, value)?;
                 LogicalQuery2 {
-                    root: LogicalOperator::SetVar(LogicalNode::new(SetVar {
+                    root: LogicalOperator::SetVar2(LogicalNode::new(SetVar {
                         name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
                     })),
@@ -123,7 +123,7 @@ impl<'a> StatementPlanner2<'a> {
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 LogicalQuery2 {
-                    root: LogicalOperator::ShowVar(LogicalNode::new(ShowVar { var: var.clone() })),
+                    root: LogicalOperator::ShowVar2(LogicalNode::new(ShowVar { var: var.clone() })),
                     scope,
                 }
             }
@@ -137,7 +137,7 @@ impl<'a> StatementPlanner2<'a> {
                     ast::VariableOrAll::All => VariableOrAll::All,
                 };
                 LogicalQuery2 {
-                    root: LogicalOperator::ResetVar(LogicalNode::new(ResetVar { var })),
+                    root: LogicalOperator::ResetVar2(LogicalNode::new(ResetVar { var })),
                     scope: Scope::empty(),
                 }
             }
@@ -211,7 +211,7 @@ impl<'a> StatementPlanner2<'a> {
                 let datasource = attach.datasource_name;
 
                 Ok(LogicalQuery2 {
-                    root: LogicalOperator::AttachDatabase(LogicalNode::new(AttachDatabase {
+                    root: LogicalOperator::AttachDatabase2(LogicalNode::new(AttachDatabase {
                         datasource: datasource.into_normalized_string(),
                         name,
                         options,
@@ -235,7 +235,7 @@ impl<'a> StatementPlanner2<'a> {
                 let name = detach.alias.pop()?;
 
                 Ok(LogicalQuery2 {
-                    root: LogicalOperator::DetachDatabase(LogicalNode::new(DetachDatabase {
+                    root: LogicalOperator::DetachDatabase2(LogicalNode::new(DetachDatabase {
                         name,
                     })),
                     scope: Scope::empty(),

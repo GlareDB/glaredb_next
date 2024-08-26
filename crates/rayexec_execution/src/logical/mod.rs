@@ -48,9 +48,11 @@ pub mod planner;
 pub mod resolver;
 
 pub mod logical_aggregate;
+pub mod logical_attach;
 pub mod logical_empty;
 pub mod logical_filter;
 pub mod logical_limit;
 pub mod logical_order;
 pub mod logical_project;
 pub mod logical_scan;
+pub mod logical_set;

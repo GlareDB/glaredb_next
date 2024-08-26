@@ -239,17 +239,17 @@ where
                 );
 
                 let pipelines = match logical.root {
-                    LogicalOperator::AttachDatabase(attach) => {
+                    LogicalOperator::AttachDatabase2(attach) => {
                         self.handle_attach_database(attach).await?;
                         planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
                     }
-                    LogicalOperator::DetachDatabase(detach) => {
+                    LogicalOperator::DetachDatabase2(detach) => {
                         let empty =
                             planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?; // Here to avoid lifetime issues.
                         self.context.detach_database(&detach.as_ref().name)?;
                         empty
                     }
-                    LogicalOperator::SetVar(set_var) => {
+                    LogicalOperator::SetVar2(set_var) => {
                         // TODO: Do we want this logic to exist here?
                         //
                         // SET seems fine, but what happens with things like wanting to
@@ -267,7 +267,7 @@ where
                         self.vars.set_var(&set_var.name, val)?;
                         planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
                     }
-                    LogicalOperator::ResetVar(reset) => {
+                    LogicalOperator::ResetVar2(reset) => {
                         // Same TODO as above.
                         match &reset.as_ref().var {
                             VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
