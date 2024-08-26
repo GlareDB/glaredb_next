@@ -152,7 +152,7 @@ impl ExplainNode {
             LogicalOperator::CreateTableAs(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
-            LogicalOperator::Insert(p) => {
+            LogicalOperator::Insert2(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
             LogicalOperator::CopyTo(p) => {

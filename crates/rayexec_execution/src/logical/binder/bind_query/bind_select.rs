@@ -52,7 +52,7 @@ impl<'a> SelectBinder<'a> {
         limit: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<BoundSelect> {
         // Handle FROM
-        let from_bind_ref = bind_context.new_scope(self.current);
+        let from_bind_ref = bind_context.new_child_scope(self.current);
         let from =
             FromBinder::new(from_bind_ref, self.resolve_context).bind(bind_context, select.from)?;
 

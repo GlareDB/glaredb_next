@@ -52,6 +52,7 @@ pub mod logical_attach;
 pub mod logical_drop;
 pub mod logical_empty;
 pub mod logical_filter;
+pub mod logical_insert;
 pub mod logical_limit;
 pub mod logical_order;
 pub mod logical_project;

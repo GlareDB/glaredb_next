@@ -196,7 +196,7 @@ impl<'a> FromBinder<'a> {
         join: ast::FromJoin<ResolvedMeta>,
     ) -> Result<BoundFrom> {
         // Bind left first.
-        let left_idx = bind_context.new_scope(self.current);
+        let left_idx = bind_context.new_child_scope(self.current);
         let left =
             FromBinder::new(left_idx, self.resolve_context).bind(bind_context, Some(*join.left))?;
 
@@ -205,7 +205,7 @@ impl<'a> FromBinder<'a> {
         // The right bind context is created as a child of the left bind context
         // to easily check if this is a lateral join (distance between right and
         // left contexts == 1).
-        let right_idx = bind_context.new_scope(left_idx);
+        let right_idx = bind_context.new_child_scope(left_idx);
         let right = FromBinder::new(right_idx, self.resolve_context)
             .bind(bind_context, Some(*join.right))?;
 

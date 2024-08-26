@@ -89,10 +89,26 @@ impl BindContext {
     }
 
     /// Creates a new bind scope, with current being the parent scope.
-    pub fn new_scope(&mut self, current: BindScopeRef) -> BindScopeRef {
+    ///
+    /// The resulting scope should have visibility into parent scopes (for
+    /// binding correlated columns).
+    pub fn new_child_scope(&mut self, current: BindScopeRef) -> BindScopeRef {
         let idx = self.scopes.len();
         self.scopes.push(BindScope {
             parent: Some(current),
+            tables: Vec::new(),
+            correlated_columns: Vec::new(),
+        });
+
+        BindScopeRef { context_idx: idx }
+    }
+
+    /// Creates a new scope that has no parents, and thus no visibility into any
+    /// other scope.
+    pub fn new_orphan_scope(&mut self) -> BindScopeRef {
+        let idx = self.scopes.len();
+        self.scopes.push(BindScope {
+            parent: None,
             tables: Vec::new(),
             correlated_columns: Vec::new(),
         });

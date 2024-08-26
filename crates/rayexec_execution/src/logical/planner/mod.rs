@@ -35,6 +35,7 @@ pub mod plan_statement;
 
 mod decorrelate;
 mod plan_from;
+mod plan_insert;
 mod plan_query;
 mod plan_select;
 mod plan_subquery;

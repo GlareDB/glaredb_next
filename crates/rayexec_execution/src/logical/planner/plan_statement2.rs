@@ -344,7 +344,7 @@ impl<'a> StatementPlanner2<'a> {
         // maps the columns to the right position.
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::Insert(LogicalNode::with_location(
+            root: LogicalOperator::Insert2(LogicalNode::with_location(
                 Insert {
                     catalog: reference.catalog.clone(),
                     schema: reference.schema.clone(),

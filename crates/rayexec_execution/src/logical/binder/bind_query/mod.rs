@@ -25,6 +25,13 @@ pub struct QueryBinder<'a> {
 }
 
 impl<'a> QueryBinder<'a> {
+    pub fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
+        QueryBinder {
+            current,
+            resolve_context,
+        }
+    }
+
     pub fn bind(
         &self,
         bind_context: &mut BindContext,

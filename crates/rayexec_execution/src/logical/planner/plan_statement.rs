@@ -9,7 +9,7 @@ use crate::logical::{
     operator::LogicalOperator,
 };
 
-use super::plan_query::QueryPlanner;
+use super::{plan_insert::InsertPlanner, plan_query::QueryPlanner};
 
 #[derive(Debug)]
 pub struct StatementPlanner<'a> {
@@ -34,6 +34,8 @@ impl<'a> StatementPlanner<'a> {
             BoundStatement::Detach(BoundDetach::Database(plan)) => {
                 Ok(LogicalOperator::DetachDatabase(plan))
             }
+            BoundStatement::Drop(plan) => Ok(LogicalOperator::Drop(plan)),
+            BoundStatement::Insert(insert) => InsertPlanner::new(self.bind_context).plan(insert),
         }
     }
 }

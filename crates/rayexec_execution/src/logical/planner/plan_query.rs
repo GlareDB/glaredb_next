@@ -5,11 +5,16 @@ use crate::logical::{
 };
 use rayexec_error::Result;
 
+#[derive(Debug)]
 pub struct QueryPlanner<'a> {
     pub bind_context: &'a BindContext,
 }
 
 impl<'a> QueryPlanner<'a> {
+    pub fn new(bind_context: &'a BindContext) -> Self {
+        QueryPlanner { bind_context }
+    }
+
     pub fn plan(&self, query: BoundQuery) -> Result<LogicalOperator> {
         match query {
             BoundQuery::Select(select) => {

@@ -1,5 +1,7 @@
 pub mod bind_attach;
 pub mod bind_context;
+pub mod bind_drop;
+pub mod bind_insert;
 pub mod bind_query;
 pub mod bind_set;
 pub mod bind_statement;
