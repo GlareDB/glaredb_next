@@ -1,7 +1,8 @@
 use crate::logical::{
     binder::{bind_context::BindContext, bind_insert::BoundInsert},
     logical_insert::LogicalInsert,
-    operator::{LogicalNode, LogicalOperator},
+    logical_project::LogicalProject,
+    operator::{LocationRequirement, LogicalNode, LogicalOperator},
 };
 use rayexec_error::Result;
 
@@ -17,9 +18,17 @@ impl<'a> InsertPlanner<'a> {
         InsertPlanner { bind_context }
     }
 
-    pub fn plan(&self, mut insert: BoundInsert) -> Result<LogicalOperator> {
+    pub fn plan(&self, insert: BoundInsert) -> Result<LogicalOperator> {
         let planner = QueryPlanner::new(self.bind_context);
-        let source = planner.plan(insert.source)?;
+        let mut source = planner.plan(insert.source)?;
+
+        if let Some(projections) = insert.projections {
+            source = LogicalOperator::Project(LogicalNode {
+                node: LogicalProject { projections },
+                location: LocationRequirement::Any,
+                children: vec![source],
+            })
+        }
 
         Ok(LogicalOperator::Insert(LogicalNode {
             node: LogicalInsert {
