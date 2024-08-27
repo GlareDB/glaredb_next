@@ -3,11 +3,12 @@ use crate::{
     logical::binder::bind_context::{BindContext, TableRef},
 };
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::{
     cast_expr::PhysicalCastExpr, column_expr::PhysicalColumnExpr,
     literal_expr::PhysicalLiteralExpr, scalar_function_expr::PhysicalScalarFunctionExpr,
+    PhysicalAggregateExpression,
 };
 
 /// Plans logical expressions into their physical equivalents.
@@ -123,6 +124,57 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             }
             other => Err(RayexecError::new(format!(
                 "Unsupported scalar expression: {other}"
+            ))),
+        }
+    }
+
+    /// Plan aggregate expressions.
+    ///
+    /// All aggregate input expression must reference a single pre-projection
+    /// table containing the true input expressions.
+    pub fn plan_aggregates(
+        &self,
+        table_ref: TableRef,
+        aggregates: &[Expression],
+    ) -> Result<Vec<PhysicalAggregateExpression>> {
+        aggregates
+            .iter()
+            .map(|agg| self.plan_aggregate(table_ref, agg))
+            .collect::<Result<Vec<_>>>()
+    }
+
+    fn plan_aggregate(
+        &self,
+        table_ref: TableRef,
+        aggregate: &Expression,
+    ) -> Result<PhysicalAggregateExpression> {
+        match aggregate {
+            Expression::Aggregate(agg) => {
+                if agg.filter.is_some() {
+                    not_implemented!("aggregate filter");
+                }
+
+                let columns = agg
+                    .inputs
+                    .iter()
+                    .map(|expr| match self.plan_scalar(&[table_ref], expr)? {
+                        PhysicalScalarExpression::Column(col) => Ok(col),
+                        other => {
+                            return Err(RayexecError::new(format!(
+                            "Expected column expression for physical aggregate input, got: {other}"
+                        )))
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                Ok(PhysicalAggregateExpression {
+                    function: agg.agg.clone(),
+                    columns,
+                    output_type: agg.datatype(self.bind_context)?,
+                })
+            }
+            other => Err(RayexecError::new(format!(
+                "Expected aggregate expression, got: {other}"
             ))),
         }
     }
