@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
+use std::fmt;
 
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -13,6 +14,12 @@ pub struct BindScopeRef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableRef {
     pub table_idx: usize,
+}
+
+impl fmt::Display for TableRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.table_idx)
+    }
 }
 
 #[derive(Debug)]
