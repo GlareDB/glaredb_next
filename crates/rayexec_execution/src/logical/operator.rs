@@ -4,7 +4,7 @@ use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
 use super::logical_aggregate::LogicalAggregate;
 use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
-use super::logical_create::LogicalCreateSchema;
+use super::logical_create::{LogicalCreateSchema, LogicalCreateTable};
 use super::logical_drop::LogicalDrop;
 use super::logical_empty::LogicalEmpty;
 use super::logical_filter::LogicalFilter;
@@ -170,7 +170,7 @@ pub enum LogicalOperator {
     ShowVar2(LogicalNode<ShowVar>),
     ResetVar2(LogicalNode<ResetVar>),
     CreateSchema2(LogicalNode<CreateSchema>),
-    CreateTable(LogicalNode<CreateTable>),
+    CreateTable2(LogicalNode<CreateTable>),
     AttachDatabase2(LogicalNode<AttachDatabase>),
     DetachDatabase2(LogicalNode<DetachDatabase>),
     Drop2(LogicalNode<DropEntry>),
@@ -194,6 +194,7 @@ pub enum LogicalOperator {
     Drop(LogicalNode<LogicalDrop>),
     Insert(LogicalNode<LogicalInsert>),
     CreateSchema(LogicalNode<LogicalCreateSchema>),
+    CreateTable(LogicalNode<LogicalCreateTable>),
 }
 
 impl LogicalOperator {
@@ -224,8 +225,7 @@ impl LogicalOperator {
             Self::ShowVar2(n) => n.as_ref().output_schema(outer),
             Self::ResetVar2(n) => n.as_ref().output_schema(outer),
             Self::CreateSchema2(n) => n.as_ref().output_schema(outer),
-            Self::CreateTable(n) => n.as_ref().output_schema(outer),
-            Self::CreateTableAs(_) => not_implemented!("create table as output schema"),
+            Self::CreateTable2(n) => n.as_ref().output_schema(outer),
             Self::AttachDatabase2(n) => n.as_ref().output_schema(outer),
             Self::DetachDatabase2(n) => n.as_ref().output_schema(outer),
             Self::Drop2(n) => n.as_ref().output_schema(outer),
@@ -258,8 +258,7 @@ impl LogicalOperator {
             Self::ShowVar2(n) => &n.location,
             Self::ResetVar2(n) => &n.location,
             Self::CreateSchema2(n) => &n.location,
-            Self::CreateTable(n) => &n.location,
-            Self::CreateTableAs(n) => &n.location,
+            Self::CreateTable2(n) => &n.location,
             Self::AttachDatabase2(n) => &n.location,
             Self::DetachDatabase2(n) => &n.location,
             Self::Drop2(n) => &n.location,
@@ -292,8 +291,7 @@ impl LogicalOperator {
             Self::ShowVar2(n) => &mut n.location,
             Self::ResetVar2(n) => &mut n.location,
             Self::CreateSchema2(n) => &mut n.location,
-            Self::CreateTable(n) => &mut n.location,
-            Self::CreateTableAs(n) => &mut n.location,
+            Self::CreateTable2(n) => &mut n.location,
             Self::AttachDatabase2(n) => &mut n.location,
             Self::DetachDatabase2(n) => &mut n.location,
             Self::Drop2(n) => &mut n.location,
@@ -349,8 +347,7 @@ impl LogicalOperator {
             Self::ShowVar2(_) => (),
             Self::ResetVar2(_) => (),
             Self::CreateSchema2(_) => (),
-            Self::CreateTable(_) => (),
-            Self::CreateTableAs(n) => f(&mut n.as_mut().input)?,
+            Self::CreateTable2(_) => (),
             Self::AttachDatabase2(_) => (),
             Self::DetachDatabase2(_) => (),
             Self::Drop2(_) => (),
@@ -458,11 +455,6 @@ impl LogicalOperator {
                 p.as_mut().bottom.walk_mut(pre, post)?;
                 post(&mut p.as_mut().bottom)?;
             }
-            LogicalOperator::CreateTableAs(p) => {
-                pre(&mut p.as_mut().input)?;
-                p.as_mut().input.walk_mut(pre, post)?;
-                post(&mut p.as_mut().input)?;
-            }
             LogicalOperator::Insert2(p) => {
                 pre(&mut p.as_mut().input)?;
                 p.as_mut().input.walk_mut(pre, post)?;
@@ -483,7 +475,7 @@ impl LogicalOperator {
             | LogicalOperator::SetVar2(_)
             | LogicalOperator::ShowVar2(_)
             | LogicalOperator::ResetVar2(_)
-            | LogicalOperator::CreateTable(_)
+            | LogicalOperator::CreateTable2(_)
             | LogicalOperator::CreateSchema2(_)
             | LogicalOperator::AttachDatabase2(_)
             | LogicalOperator::DetachDatabase2(_)
@@ -528,8 +520,7 @@ impl Explainable for LogicalOperator {
             Self::ShowVar2(p) => p.as_ref().explain_entry(conf),
             Self::ResetVar2(p) => p.as_ref().explain_entry(conf),
             Self::CreateSchema2(p) => p.as_ref().explain_entry(conf),
-            Self::CreateTable(p) => p.as_ref().explain_entry(conf),
-            Self::CreateTableAs(p) => p.as_ref().explain_entry(conf),
+            Self::CreateTable2(p) => p.as_ref().explain_entry(conf),
             Self::AttachDatabase2(n) => n.as_ref().explain_entry(conf),
             Self::DetachDatabase2(n) => n.as_ref().explain_entry(conf),
             Self::Drop2(p) => p.as_ref().explain_entry(conf),

@@ -17,12 +17,21 @@ use super::{
     bind_attach::{AttachBinder, BoundAttach, BoundDetach},
     bind_context::BindContext,
     bind_create_schema::CreateSchemaBinder,
+    bind_create_table::{BoundCreateTable, CreateTableBinder},
     bind_drop::DropBinder,
     bind_insert::BoundInsert,
     bind_query::BoundQuery,
     bind_set::SetVarBinder,
 };
 
+/// "Bound" variants for SQL statements that we support.
+///
+/// Many of these just produce logical plans, so the followup plan step should
+/// just use the logical plan directly.
+///
+/// The real benefit of this is for statements that contain queries (SELECT).
+/// The followup plan step takes bound queries to produce reasonable logical
+/// plans.
 #[derive(Debug)]
 pub enum BoundStatement {
     Query(BoundQuery),
@@ -34,6 +43,7 @@ pub enum BoundStatement {
     Drop(LogicalNode<LogicalDrop>),
     Insert(BoundInsert),
     CreateSchema(LogicalNode<LogicalCreateSchema>),
+    CreateTable(BoundCreateTable),
 }
 
 #[derive(Debug)]
@@ -78,6 +88,10 @@ impl<'a> StatementBinder<'a> {
             }
             Statement::CreateSchema(create) => BoundStatement::CreateSchema(
                 CreateSchemaBinder::new(root_scope).bind_create_schema(&mut context, create)?,
+            ),
+            Statement::CreateTable(create) => BoundStatement::CreateTable(
+                CreateTableBinder::new(root_scope, self.resolve_context)
+                    .bind_create_table(&mut context, create)?,
             ),
             _ => unimplemented!(),
         };

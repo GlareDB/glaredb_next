@@ -149,9 +149,6 @@ impl ExplainNode {
             LogicalOperator::Limit2(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
-            LogicalOperator::CreateTableAs(p) => {
-                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
-            }
             LogicalOperator::Insert2(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
@@ -181,7 +178,7 @@ impl ExplainNode {
             | LogicalOperator::AttachDatabase2(_)
             | LogicalOperator::DetachDatabase2(_)
             | LogicalOperator::CreateSchema2(_)
-            | LogicalOperator::CreateTable(_) => Vec::new(),
+            | LogicalOperator::CreateTable2(_) => Vec::new(),
             _ => unimplemented!(),
         };
 

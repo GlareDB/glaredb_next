@@ -34,6 +34,7 @@ pub mod scope;
 pub mod plan_statement;
 
 mod decorrelate;
+mod plan_create_table;
 mod plan_from;
 mod plan_insert;
 mod plan_query;

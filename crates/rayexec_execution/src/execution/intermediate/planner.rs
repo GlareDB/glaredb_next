@@ -317,7 +317,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 self.push_explain(id_gen, materializations, explain)
             }
             LogicalOperator::Describe(describe) => self.push_describe(id_gen, describe),
-            LogicalOperator::CreateTable(create) => {
+            LogicalOperator::CreateTable2(create) => {
                 self.push_create_table(id_gen, materializations, create)
             }
             LogicalOperator::CreateSchema2(create) => self.push_create_schema(id_gen, create),

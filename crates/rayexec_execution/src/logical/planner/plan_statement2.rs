@@ -478,7 +478,7 @@ impl<'a> StatementPlanner2<'a> {
         // referencing is a "stub", and hybrid execution is required).
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::CreateTable(LogicalNode::with_location(
+            root: LogicalOperator::CreateTable2(LogicalNode::with_location(
                 CreateTable {
                     catalog,
                     schema,

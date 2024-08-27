@@ -9,7 +9,9 @@ use crate::logical::{
     operator::LogicalOperator,
 };
 
-use super::{plan_insert::InsertPlanner, plan_query::QueryPlanner};
+use super::{
+    plan_create_table::CreateTablePlanner, plan_insert::InsertPlanner, plan_query::QueryPlanner,
+};
 
 #[derive(Debug)]
 pub struct StatementPlanner<'a> {
@@ -37,6 +39,9 @@ impl<'a> StatementPlanner<'a> {
             BoundStatement::Drop(plan) => Ok(LogicalOperator::Drop(plan)),
             BoundStatement::Insert(insert) => InsertPlanner::new(self.bind_context).plan(insert),
             BoundStatement::CreateSchema(plan) => Ok(LogicalOperator::CreateSchema(plan)),
+            BoundStatement::CreateTable(create) => {
+                CreateTablePlanner::new(self.bind_context).plan(create)
+            }
         }
     }
 }
