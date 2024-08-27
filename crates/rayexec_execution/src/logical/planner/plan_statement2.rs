@@ -167,7 +167,7 @@ impl<'a> StatementPlanner2<'a> {
                 );
 
                 LogicalQuery2 {
-                    root: LogicalOperator::Describe(LogicalNode::new(Describe { schema })),
+                    root: LogicalOperator::Describe2(LogicalNode::new(Describe { schema })),
                     scope: Scope::with_columns(None, ["column_name", "datatype"]),
                 }
             }

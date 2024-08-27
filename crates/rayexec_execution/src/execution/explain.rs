@@ -174,7 +174,7 @@ impl ExplainNode {
             | LogicalOperator::Scan2(_)
             | LogicalOperator::TableFunction(_)
             | LogicalOperator::Drop2(_)
-            | LogicalOperator::Describe(_)
+            | LogicalOperator::Describe2(_)
             | LogicalOperator::AttachDatabase2(_)
             | LogicalOperator::DetachDatabase2(_)
             | LogicalOperator::CreateSchema2(_)

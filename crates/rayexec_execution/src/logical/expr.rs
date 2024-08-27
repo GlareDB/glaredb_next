@@ -362,7 +362,7 @@ impl LogicalExpression {
                 LogicalOperator::Explain(_) => (),
                 LogicalOperator::Drop2(_) => (),
                 LogicalOperator::Empty2(_) => (),
-                LogicalOperator::Describe(_) => (),
+                LogicalOperator::Describe2(_) => (),
                 _ => unimplemented!(),
             }
             Ok(())

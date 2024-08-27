@@ -34,6 +34,7 @@ pub struct BoundInsert {
     pub projections: Option<Vec<Expression>>,
 }
 
+#[derive(Debug)]
 pub struct InsertBinder<'a> {
     pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,

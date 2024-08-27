@@ -42,6 +42,7 @@ impl<'a> StatementPlanner<'a> {
             BoundStatement::CreateTable(create) => {
                 CreateTablePlanner::new(self.bind_context).plan(create)
             }
+            BoundStatement::Describe(plan) => Ok(LogicalOperator::Describe(plan)),
         }
     }
 }

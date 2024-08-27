@@ -6,9 +6,10 @@ use crate::{
     logical::{
         binder::bind_query::QueryBinder,
         logical_create::LogicalCreateSchema,
+        logical_describe::LogicalDescribe,
         logical_drop::LogicalDrop,
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
-        operator::LogicalNode,
+        operator::{LogicalNode, LogicalOperator},
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
@@ -18,6 +19,7 @@ use super::{
     bind_context::BindContext,
     bind_create_schema::CreateSchemaBinder,
     bind_create_table::{BoundCreateTable, CreateTableBinder},
+    bind_describe::DescribeBinder,
     bind_drop::DropBinder,
     bind_insert::BoundInsert,
     bind_query::BoundQuery,
@@ -44,6 +46,7 @@ pub enum BoundStatement {
     Insert(BoundInsert),
     CreateSchema(LogicalNode<LogicalCreateSchema>),
     CreateTable(BoundCreateTable),
+    Describe(LogicalNode<LogicalDescribe>),
 }
 
 #[derive(Debug)]
@@ -92,6 +95,10 @@ impl<'a> StatementBinder<'a> {
             Statement::CreateTable(create) => BoundStatement::CreateTable(
                 CreateTableBinder::new(root_scope, self.resolve_context)
                     .bind_create_table(&mut context, create)?,
+            ),
+            Statement::Describe(describe) => BoundStatement::Describe(
+                DescribeBinder::new(root_scope, self.resolve_context)
+                    .bind_describe(&mut context, describe)?,
             ),
             _ => unimplemented!(),
         };
