@@ -8,6 +8,7 @@ use super::logical_create::{LogicalCreateSchema, LogicalCreateTable};
 use super::logical_describe::LogicalDescribe;
 use super::logical_drop::LogicalDrop;
 use super::logical_empty::LogicalEmpty;
+use super::logical_explain::LogicalExplain;
 use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
 use super::logical_limit::LogicalLimit;
@@ -177,7 +178,7 @@ pub enum LogicalOperator {
     Drop2(LogicalNode<DropEntry>),
     Insert2(LogicalNode<Insert>),
     CopyTo(LogicalNode<CopyTo>),
-    Explain(LogicalNode<Explain>),
+    Explain2(LogicalNode<Explain>),
     Describe2(LogicalNode<Describe>),
     // TODO
     Project(LogicalNode<LogicalProject>),
@@ -197,6 +198,7 @@ pub enum LogicalOperator {
     CreateSchema(LogicalNode<LogicalCreateSchema>),
     CreateTable(LogicalNode<LogicalCreateTable>),
     Describe(LogicalNode<LogicalDescribe>),
+    Explain(LogicalNode<LogicalExplain>),
 }
 
 impl LogicalOperator {
@@ -233,7 +235,7 @@ impl LogicalOperator {
             Self::Drop2(n) => n.as_ref().output_schema(outer),
             Self::Insert2(n) => n.as_ref().output_schema(outer),
             Self::CopyTo(n) => n.as_ref().output_schema(outer),
-            Self::Explain(n) => n.as_ref().output_schema(outer),
+            Self::Explain2(n) => n.as_ref().output_schema(outer),
             Self::Describe2(n) => n.as_ref().output_schema(outer),
             _ => unimplemented!(),
         }
@@ -266,7 +268,7 @@ impl LogicalOperator {
             Self::Drop2(n) => &n.location,
             Self::Insert2(n) => &n.location,
             Self::CopyTo(n) => &n.location,
-            Self::Explain(n) => &n.location,
+            Self::Explain2(n) => &n.location,
             Self::Describe2(n) => &n.location,
             _ => unimplemented!(),
         }
@@ -299,7 +301,7 @@ impl LogicalOperator {
             Self::Drop2(n) => &mut n.location,
             Self::Insert2(n) => &mut n.location,
             Self::CopyTo(n) => &mut n.location,
-            Self::Explain(n) => &mut n.location,
+            Self::Explain2(n) => &mut n.location,
             Self::Describe2(n) => &mut n.location,
             _ => unimplemented!(),
         }
@@ -355,7 +357,7 @@ impl LogicalOperator {
             Self::Drop2(_) => (),
             Self::Insert2(n) => f(&mut n.as_mut().input)?,
             Self::CopyTo(n) => f(&mut n.as_mut().source)?,
-            Self::Explain(n) => f(&mut n.as_mut().input)?,
+            Self::Explain2(n) => f(&mut n.as_mut().input)?,
             Self::Describe2(_) => (),
             _ => unimplemented!(),
         }
@@ -462,7 +464,7 @@ impl LogicalOperator {
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
             }
-            LogicalOperator::Explain(p) => {
+            LogicalOperator::Explain2(p) => {
                 pre(&mut p.as_mut().input)?;
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
@@ -527,7 +529,7 @@ impl Explainable for LogicalOperator {
             Self::DetachDatabase2(n) => n.as_ref().explain_entry(conf),
             Self::Drop2(p) => p.as_ref().explain_entry(conf),
             Self::Insert2(p) => p.as_ref().explain_entry(conf),
-            Self::Explain(p) => p.as_ref().explain_entry(conf),
+            Self::Explain2(p) => p.as_ref().explain_entry(conf),
             Self::CopyTo(p) => p.as_ref().explain_entry(conf),
             Self::Describe2(p) => p.as_ref().explain_entry(conf),
             _ => unimplemented!(),

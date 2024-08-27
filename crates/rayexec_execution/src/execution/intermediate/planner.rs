@@ -313,7 +313,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 self.push_global_sort(id_gen, materializations, order)
             }
             LogicalOperator::ShowVar2(show_var) => self.push_show_var(id_gen, show_var),
-            LogicalOperator::Explain(explain) => {
+            LogicalOperator::Explain2(explain) => {
                 self.push_explain(id_gen, materializations, explain)
             }
             LogicalOperator::Describe2(describe) => self.push_describe(id_gen, describe),

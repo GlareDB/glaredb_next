@@ -8,6 +8,7 @@ use crate::{
         logical_create::LogicalCreateSchema,
         logical_describe::LogicalDescribe,
         logical_drop::LogicalDrop,
+        logical_explain::LogicalExplain,
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
         operator::{LogicalNode, LogicalOperator},
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -21,6 +22,7 @@ use super::{
     bind_create_table::{BoundCreateTable, CreateTableBinder},
     bind_describe::DescribeBinder,
     bind_drop::DropBinder,
+    bind_explain::{BoundExplain, ExplainBinder},
     bind_insert::BoundInsert,
     bind_query::BoundQuery,
     bind_set::SetVarBinder,
@@ -47,6 +49,7 @@ pub enum BoundStatement {
     CreateSchema(LogicalNode<LogicalCreateSchema>),
     CreateTable(BoundCreateTable),
     Describe(LogicalNode<LogicalDescribe>),
+    Explain(BoundExplain),
 }
 
 #[derive(Debug)]
@@ -99,6 +102,10 @@ impl<'a> StatementBinder<'a> {
             Statement::Describe(describe) => BoundStatement::Describe(
                 DescribeBinder::new(root_scope, self.resolve_context)
                     .bind_describe(&mut context, describe)?,
+            ),
+            Statement::Explain(explain) => BoundStatement::Explain(
+                ExplainBinder::new(root_scope, self.resolve_context)
+                    .bind_explain(&mut context, explain)?,
             ),
             _ => unimplemented!(),
         };

@@ -359,7 +359,7 @@ impl LogicalExpression {
                 LogicalOperator::CreateTable2(_) => (),
                 LogicalOperator::AttachDatabase2(_) => (),
                 LogicalOperator::DetachDatabase2(_) => (),
-                LogicalOperator::Explain(_) => (),
+                LogicalOperator::Explain2(_) => (),
                 LogicalOperator::Drop2(_) => (),
                 LogicalOperator::Empty2(_) => (),
                 LogicalOperator::Describe2(_) => (),

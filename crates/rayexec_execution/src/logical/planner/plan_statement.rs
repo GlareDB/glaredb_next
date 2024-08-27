@@ -10,7 +10,8 @@ use crate::logical::{
 };
 
 use super::{
-    plan_create_table::CreateTablePlanner, plan_insert::InsertPlanner, plan_query::QueryPlanner,
+    plan_create_table::CreateTablePlanner, plan_explain::ExplainPlanner,
+    plan_insert::InsertPlanner, plan_query::QueryPlanner,
 };
 
 #[derive(Debug)]
@@ -43,6 +44,9 @@ impl<'a> StatementPlanner<'a> {
                 CreateTablePlanner::new(self.bind_context).plan(create)
             }
             BoundStatement::Describe(plan) => Ok(LogicalOperator::Describe(plan)),
+            BoundStatement::Explain(explain) => {
+                ExplainPlanner::new(self.bind_context).plan(explain)
+            }
         }
     }
 }

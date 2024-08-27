@@ -53,6 +53,7 @@ pub mod logical_create;
 pub mod logical_describe;
 pub mod logical_drop;
 pub mod logical_empty;
+pub mod logical_explain;
 pub mod logical_filter;
 pub mod logical_insert;
 pub mod logical_limit;

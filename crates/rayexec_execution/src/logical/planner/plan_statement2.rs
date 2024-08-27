@@ -85,7 +85,7 @@ impl<'a> StatementPlanner2<'a> {
                     None => ExplainFormat::Text,
                 };
                 LogicalQuery2 {
-                    root: LogicalOperator::Explain(LogicalNode::new(Explain {
+                    root: LogicalOperator::Explain2(LogicalNode::new(Explain {
                         analyze: explain.analyze,
                         verbose: explain.verbose,
                         format,

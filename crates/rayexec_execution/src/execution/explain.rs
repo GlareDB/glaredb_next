@@ -155,7 +155,7 @@ impl ExplainNode {
             LogicalOperator::CopyTo(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().source, conf)]
             }
-            LogicalOperator::Explain(p) => {
+            LogicalOperator::Explain2(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
             LogicalOperator::MaterializedScan(scan) => {
