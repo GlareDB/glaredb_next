@@ -299,7 +299,7 @@ impl<'a> StatementPlanner2<'a> {
             .clone();
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::CopyTo(LogicalNode::with_location(
+            root: LogicalOperator::CopyTo2(LogicalNode::with_location(
                 CopyTo {
                     source: Box::new(source.root),
                     source_schema,

@@ -142,7 +142,7 @@ impl<'a> FromBinder<'a> {
         Ok(())
     }
 
-    fn bind_table(
+    pub(crate) fn bind_table(
         &self,
         bind_context: &mut BindContext,
         table: ast::FromBaseTable<ResolvedMeta>,

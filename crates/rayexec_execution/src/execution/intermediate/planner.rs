@@ -323,7 +323,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::CreateSchema2(create) => self.push_create_schema(id_gen, create),
             LogicalOperator::Drop2(drop) => self.push_drop(id_gen, drop),
             LogicalOperator::Insert2(insert) => self.push_insert(id_gen, materializations, insert),
-            LogicalOperator::CopyTo(copy_to) => {
+            LogicalOperator::CopyTo2(copy_to) => {
                 self.push_copy_to(id_gen, materializations, copy_to)
             }
             LogicalOperator::MaterializedScan(scan) => {

@@ -18,12 +18,13 @@ use crate::{
 use super::{
     bind_attach::{AttachBinder, BoundAttach, BoundDetach},
     bind_context::BindContext,
+    bind_copy::{BoundCopyTo, CopyBinder},
     bind_create_schema::CreateSchemaBinder,
     bind_create_table::{BoundCreateTable, CreateTableBinder},
     bind_describe::DescribeBinder,
     bind_drop::DropBinder,
     bind_explain::{BoundExplain, ExplainBinder},
-    bind_insert::BoundInsert,
+    bind_insert::{BoundInsert, InsertBinder},
     bind_query::BoundQuery,
     bind_set::SetVarBinder,
 };
@@ -50,6 +51,7 @@ pub enum BoundStatement {
     CreateTable(BoundCreateTable),
     Describe(LogicalNode<LogicalDescribe>),
     Explain(BoundExplain),
+    CopyTo(BoundCopyTo),
 }
 
 #[derive(Debug)]
@@ -92,6 +94,10 @@ impl<'a> StatementBinder<'a> {
             Statement::Drop(drop) => {
                 BoundStatement::Drop(DropBinder::new(root_scope).bind_drop(&mut context, drop)?)
             }
+            Statement::Insert(insert) => BoundStatement::Insert(
+                InsertBinder::new(root_scope, self.resolve_context)
+                    .bind_insert(&mut context, insert)?,
+            ),
             Statement::CreateSchema(create) => BoundStatement::CreateSchema(
                 CreateSchemaBinder::new(root_scope).bind_create_schema(&mut context, create)?,
             ),
@@ -107,7 +113,10 @@ impl<'a> StatementBinder<'a> {
                 ExplainBinder::new(root_scope, self.resolve_context)
                     .bind_explain(&mut context, explain)?,
             ),
-            _ => unimplemented!(),
+            Statement::CopyTo(copy_to) => BoundStatement::CopyTo(
+                CopyBinder::new(root_scope, self.resolve_context)
+                    .bind_copy_to(&mut context, copy_to)?,
+            ),
         };
 
         Ok((statement, context))
