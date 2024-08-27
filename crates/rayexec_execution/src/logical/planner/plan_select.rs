@@ -74,6 +74,7 @@ impl<'a> SelectPlanner<'a> {
         plan = LogicalOperator::Project(LogicalNode {
             node: LogicalProject {
                 projections: select.select_list.projections,
+                projections_table: select.select_list.projections_table,
             },
             location: LocationRequirement::Any,
             children: vec![plan],
@@ -113,6 +114,7 @@ impl<'a> SelectPlanner<'a> {
             plan = LogicalOperator::Project(LogicalNode {
                 node: LogicalProject {
                     projections: pruned.expressions,
+                    projections_table: pruned.table,
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],

@@ -1,6 +1,7 @@
 use crate::expr::Expression;
 
 use super::{
+    binder::bind_context::TableRef,
     explainable::{ExplainConfig, ExplainEntry, Explainable},
     operator::LogicalNode,
 };
@@ -8,6 +9,7 @@ use super::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalProject {
     pub projections: Vec<Expression>,
+    pub projections_table: TableRef,
 }
 
 impl Explainable for LogicalNode<LogicalProject> {

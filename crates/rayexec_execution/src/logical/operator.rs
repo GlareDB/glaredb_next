@@ -138,6 +138,16 @@ impl<N> LogicalNode<N> {
         // }
         explain.with_value("location", self.location)
     }
+
+    pub fn pop_one_child_exact(&mut self) -> Result<LogicalOperator> {
+        if self.children.len() != 1 {
+            return Err(RayexecError::new(format!(
+                "Expected 1 child to operator, have {}",
+                self.children.len()
+            )));
+        }
+        Ok(self.children.pop().unwrap())
+    }
 }
 
 impl<N> AsRef<N> for LogicalNode<N> {

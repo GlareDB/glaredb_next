@@ -241,11 +241,10 @@ where
                 let pipelines = match logical.root {
                     LogicalOperator::AttachDatabase2(attach) => {
                         self.handle_attach_database(attach).await?;
-                        planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
+                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
                     LogicalOperator::DetachDatabase2(detach) => {
-                        let empty =
-                            planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?; // Here to avoid lifetime issues.
+                        let empty = planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?; // Here to avoid lifetime issues.
                         self.context.detach_database(&detach.as_ref().name)?;
                         empty
                     }
@@ -265,7 +264,7 @@ where
                             .vars
                             .try_cast_scalar_value(&set_var.name, set_var.value)?;
                         self.vars.set_var(&set_var.name, val)?;
-                        planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
+                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
                     LogicalOperator::ResetVar2(reset) => {
                         // Same TODO as above.
@@ -273,9 +272,9 @@ where
                             VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                             VariableOrAll::All => self.vars.reset_all(),
                         }
-                        planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
+                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
-                    root => planner.plan_pipelines(root, context)?,
+                    root => planner.plan_pipelines(root, bind_context)?,
                 };
 
                 if !pipelines.remote.is_empty() {

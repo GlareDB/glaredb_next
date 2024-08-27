@@ -1,6 +1,6 @@
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::database::DatabaseContext;
-use crate::expr::PhysicalScalarExpression;
+use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 use rayexec_bullet::batch::Batch;
@@ -43,25 +43,27 @@ impl DatabaseProtoConv for PhysicalProject {
     type ProtoType = rayexec_proto::generated::execution::PhysicalProject;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            exprs: self
-                .operation
-                .exprs
-                .iter()
-                .map(|e| e.to_proto_ctx(context))
-                .collect::<Result<Vec<_>>>()?,
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     exprs: self
+        //         .operation
+        //         .exprs
+        //         .iter()
+        //         .map(|e| e.to_proto_ctx(context))
+        //         .collect::<Result<Vec<_>>>()?,
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            operation: ProjectOperation {
-                exprs: proto
-                    .exprs
-                    .into_iter()
-                    .map(|e| PhysicalScalarExpression::from_proto_ctx(e, context))
-                    .collect::<Result<Vec<_>>>()?,
-            },
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     operation: ProjectOperation {
+        //         exprs: proto
+        //             .exprs
+        //             .into_iter()
+        //             .map(|e| PhysicalScalarExpression::from_proto_ctx(e, context))
+        //             .collect::<Result<Vec<_>>>()?,
+        //     },
+        // })
     }
 }

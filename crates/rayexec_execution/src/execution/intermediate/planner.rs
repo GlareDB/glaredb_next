@@ -28,10 +28,15 @@ use crate::{
             PhysicalOperator,
         },
     },
-    expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
+    expr::{
+        physical::planner::PhysicalExpressionPlanner, PhysicalAggregateExpression,
+        PhysicalScalarExpression, PhysicalSortExpression,
+    },
     logical::{
+        binder::bind_context::BindContext,
         context::QueryContext,
         grouping_set::GroupingSets,
+        logical_project::LogicalProject,
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
     },
 };
@@ -95,12 +100,15 @@ impl IntermediatePipelinePlanner {
     pub fn plan_pipelines(
         &self,
         root: operator::LogicalOperator,
-        context: QueryContext,
+        bind_context: BindContext,
     ) -> Result<PlannedPipelineGroups> {
-        let mut state = IntermediatePipelineBuildState::new(&self.config);
+        let mut state = IntermediatePipelineBuildState::new(&self.config, &bind_context);
         let mut id_gen = PipelineIdGen::new(self.query_id);
 
-        let mut materializations = state.plan_materializations(context, &mut id_gen)?;
+        let mut materializations = {
+            // state.plan_materializations(context, &mut id_gen)?;
+            unimplemented!()
+        };
         state.walk(&mut materializations, &mut id_gen, root)?;
 
         state.finish(&mut id_gen)?;
@@ -202,15 +210,26 @@ struct IntermediatePipelineBuildState<'a> {
     local_group: IntermediatePipelineGroup,
     /// Pipelines in the remote group.
     remote_group: IntermediatePipelineGroup,
+    /// Bind context used during logical planning.
+    ///
+    /// Used to generate physical expressions, and determined data types
+    /// returned from operators.
+    bind_context: &'a BindContext,
+    /// Expression planner for converting logical to physical expressions.
+    expr_planner: PhysicalExpressionPlanner<'a>,
 }
 
 impl<'a> IntermediatePipelineBuildState<'a> {
-    fn new(config: &'a IntermediateConfig) -> Self {
+    fn new(config: &'a IntermediateConfig, bind_context: &'a BindContext) -> Self {
+        let expr_planner = PhysicalExpressionPlanner::new(bind_context);
+
         IntermediatePipelineBuildState {
             config,
             in_progress: None,
             local_group: IntermediatePipelineGroup::default(),
             remote_group: IntermediatePipelineGroup::default(),
+            bind_context,
+            expr_planner,
         }
     }
 
@@ -293,7 +312,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         plan: LogicalOperator,
     ) -> Result<()> {
         match plan {
-            LogicalOperator::Projection(proj) => self.push_project(id_gen, materializations, proj),
+            LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter2(filter) => self.push_filter(id_gen, materializations, filter),
             LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
             LogicalOperator::CrossJoin(join) => {
@@ -584,7 +603,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.walk(materializations, id_gen, *setop.top)?;
 
         // Create new pipelines for bottom.
-        let mut bottom_builder = IntermediatePipelineBuildState::new(self.config);
+        let mut bottom_builder =
+            IntermediatePipelineBuildState::new(self.config, self.bind_context);
         bottom_builder.walk(materializations, id_gen, *setop.bottom)?;
         self.local_group
             .merge_from_other(&mut bottom_builder.local_group);
@@ -991,18 +1011,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        project: LogicalNode<operator::Projection>,
+        mut project: LogicalNode<LogicalProject>,
     ) -> Result<()> {
-        let input_schema = project.as_ref().input.output_schema(&[])?;
         let location = project.location;
-        let project = project.into_inner();
-        self.walk(materializations, id_gen, *project.input)?;
+        let input = project.pop_one_child_exact()?;
+        self.walk(materializations, id_gen, input)?;
 
-        let projections = project
-            .exprs
-            .into_iter()
-            .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &input_schema))
-            .collect::<Result<Vec<_>>>()?;
+        let projections = self
+            .expr_planner
+            .plan_scalars(&[project.node.projections_table], &project.node.projections)?;
+
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
                 ProjectOperation::new(projections),
@@ -1253,7 +1271,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Build up the left (build) side in a separate pipeline. This will feed
         // into the currently pipeline at the join operator.
-        let mut left_state = IntermediatePipelineBuildState::new(self.config);
+        let mut left_state = IntermediatePipelineBuildState::new(self.config, self.bind_context);
         left_state.walk(materializations, id_gen, *join.left)?;
 
         // Take any completed pipelines from the left side and put them in our
@@ -1363,7 +1381,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Create a completely independent pipeline (or pipelines) for left
         // side.
-        let mut left_state = IntermediatePipelineBuildState::new(self.config);
+        let mut left_state = IntermediatePipelineBuildState::new(self.config, self.bind_context);
         left_state.walk(materializations, id_gen, left)?;
 
         // Take completed pipelines from the left and merge them into this

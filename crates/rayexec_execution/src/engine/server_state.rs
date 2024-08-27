@@ -110,22 +110,23 @@ where
 
         let query_id = Uuid::new_v4();
 
-        let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default(), query_id);
-        let pipelines = planner.plan_pipelines(logical.root, query_context)?;
+        unimplemented!()
+        // let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default(), query_id);
+        // let pipelines = planner.plan_pipelines(logical.root, query_context)?;
 
-        self.pending_pipelines.insert(
-            query_id,
-            PendingPipelineState {
-                context,
-                group: pipelines.remote,
-            },
-        );
+        // self.pending_pipelines.insert(
+        //     query_id,
+        //     PendingPipelineState {
+        //         context,
+        //         group: pipelines.remote,
+        //     },
+        // );
 
-        Ok(HybridPlanResponse {
-            query_id,
-            pipelines: pipelines.local,
-            schema,
-        })
+        // Ok(HybridPlanResponse {
+        //     query_id,
+        //     pipelines: pipelines.local,
+        //     schema,
+        // })
     }
 
     pub fn execute_pending(&self, query_id: Uuid) -> Result<()> {
