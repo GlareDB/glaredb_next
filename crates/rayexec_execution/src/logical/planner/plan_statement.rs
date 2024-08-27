@@ -36,6 +36,7 @@ impl<'a> StatementPlanner<'a> {
             }
             BoundStatement::Drop(plan) => Ok(LogicalOperator::Drop(plan)),
             BoundStatement::Insert(insert) => InsertPlanner::new(self.bind_context).plan(insert),
+            BoundStatement::CreateSchema(plan) => Ok(LogicalOperator::CreateSchema(plan)),
         }
     }
 }

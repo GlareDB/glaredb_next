@@ -180,7 +180,7 @@ impl ExplainNode {
             | LogicalOperator::Describe(_)
             | LogicalOperator::AttachDatabase2(_)
             | LogicalOperator::DetachDatabase2(_)
-            | LogicalOperator::CreateSchema(_)
+            | LogicalOperator::CreateSchema2(_)
             | LogicalOperator::CreateTable(_) => Vec::new(),
             _ => unimplemented!(),
         };

@@ -4,6 +4,7 @@ use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
 use super::logical_aggregate::LogicalAggregate;
 use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
+use super::logical_create::LogicalCreateSchema;
 use super::logical_drop::LogicalDrop;
 use super::logical_empty::LogicalEmpty;
 use super::logical_filter::LogicalFilter;
@@ -168,9 +169,8 @@ pub enum LogicalOperator {
     SetVar2(LogicalNode<SetVar>),
     ShowVar2(LogicalNode<ShowVar>),
     ResetVar2(LogicalNode<ResetVar>),
-    CreateSchema(LogicalNode<CreateSchema>),
+    CreateSchema2(LogicalNode<CreateSchema>),
     CreateTable(LogicalNode<CreateTable>),
-    CreateTableAs(LogicalNode<CreateTableAs>),
     AttachDatabase2(LogicalNode<AttachDatabase>),
     DetachDatabase2(LogicalNode<DetachDatabase>),
     Drop2(LogicalNode<DropEntry>),
@@ -193,6 +193,7 @@ pub enum LogicalOperator {
     DetachDatabase(LogicalNode<LogicalDetachDatabase>),
     Drop(LogicalNode<LogicalDrop>),
     Insert(LogicalNode<LogicalInsert>),
+    CreateSchema(LogicalNode<LogicalCreateSchema>),
 }
 
 impl LogicalOperator {
@@ -222,7 +223,7 @@ impl LogicalOperator {
             Self::SetVar2(n) => n.as_ref().output_schema(outer),
             Self::ShowVar2(n) => n.as_ref().output_schema(outer),
             Self::ResetVar2(n) => n.as_ref().output_schema(outer),
-            Self::CreateSchema(n) => n.as_ref().output_schema(outer),
+            Self::CreateSchema2(n) => n.as_ref().output_schema(outer),
             Self::CreateTable(n) => n.as_ref().output_schema(outer),
             Self::CreateTableAs(_) => not_implemented!("create table as output schema"),
             Self::AttachDatabase2(n) => n.as_ref().output_schema(outer),
@@ -256,7 +257,7 @@ impl LogicalOperator {
             Self::SetVar2(n) => &n.location,
             Self::ShowVar2(n) => &n.location,
             Self::ResetVar2(n) => &n.location,
-            Self::CreateSchema(n) => &n.location,
+            Self::CreateSchema2(n) => &n.location,
             Self::CreateTable(n) => &n.location,
             Self::CreateTableAs(n) => &n.location,
             Self::AttachDatabase2(n) => &n.location,
@@ -290,7 +291,7 @@ impl LogicalOperator {
             Self::SetVar2(n) => &mut n.location,
             Self::ShowVar2(n) => &mut n.location,
             Self::ResetVar2(n) => &mut n.location,
-            Self::CreateSchema(n) => &mut n.location,
+            Self::CreateSchema2(n) => &mut n.location,
             Self::CreateTable(n) => &mut n.location,
             Self::CreateTableAs(n) => &mut n.location,
             Self::AttachDatabase2(n) => &mut n.location,
@@ -347,7 +348,7 @@ impl LogicalOperator {
             Self::SetVar2(_) => (),
             Self::ShowVar2(_) => (),
             Self::ResetVar2(_) => (),
-            Self::CreateSchema(_) => (),
+            Self::CreateSchema2(_) => (),
             Self::CreateTable(_) => (),
             Self::CreateTableAs(n) => f(&mut n.as_mut().input)?,
             Self::AttachDatabase2(_) => (),
@@ -483,7 +484,7 @@ impl LogicalOperator {
             | LogicalOperator::ShowVar2(_)
             | LogicalOperator::ResetVar2(_)
             | LogicalOperator::CreateTable(_)
-            | LogicalOperator::CreateSchema(_)
+            | LogicalOperator::CreateSchema2(_)
             | LogicalOperator::AttachDatabase2(_)
             | LogicalOperator::DetachDatabase2(_)
             | LogicalOperator::Drop2(_)
@@ -526,7 +527,7 @@ impl Explainable for LogicalOperator {
             Self::SetVar2(p) => p.as_ref().explain_entry(conf),
             Self::ShowVar2(p) => p.as_ref().explain_entry(conf),
             Self::ResetVar2(p) => p.as_ref().explain_entry(conf),
-            Self::CreateSchema(p) => p.as_ref().explain_entry(conf),
+            Self::CreateSchema2(p) => p.as_ref().explain_entry(conf),
             Self::CreateTable(p) => p.as_ref().explain_entry(conf),
             Self::CreateTableAs(p) => p.as_ref().explain_entry(conf),
             Self::AttachDatabase2(n) => n.as_ref().explain_entry(conf),
@@ -1052,19 +1053,6 @@ impl Explainable for CreateTable {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTable")
             .with_values("columns", self.columns.iter().map(|c| &c.name))
-    }
-}
-
-/// Dummy create table for testing.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CreateTableAs {
-    pub name: String,
-    pub input: Box<LogicalOperator>,
-}
-
-impl Explainable for CreateTableAs {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CreateTableAs")
     }
 }
 

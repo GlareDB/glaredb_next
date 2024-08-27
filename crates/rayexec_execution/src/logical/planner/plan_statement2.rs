@@ -397,7 +397,7 @@ impl<'a> StatementPlanner2<'a> {
         let [catalog, schema] = create.name.pop_2()?;
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::CreateSchema(LogicalNode::new(CreateSchema {
+            root: LogicalOperator::CreateSchema2(LogicalNode::new(CreateSchema {
                 catalog,
                 name: schema,
                 on_conflict,

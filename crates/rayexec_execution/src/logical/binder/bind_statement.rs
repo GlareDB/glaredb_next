@@ -5,6 +5,7 @@ use crate::{
     engine::vars::SessionVars,
     logical::{
         binder::bind_query::QueryBinder,
+        logical_create::LogicalCreateSchema,
         logical_drop::LogicalDrop,
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
         operator::LogicalNode,
@@ -15,6 +16,7 @@ use crate::{
 use super::{
     bind_attach::{AttachBinder, BoundAttach, BoundDetach},
     bind_context::BindContext,
+    bind_create_schema::CreateSchemaBinder,
     bind_drop::DropBinder,
     bind_insert::BoundInsert,
     bind_query::BoundQuery,
@@ -31,6 +33,7 @@ pub enum BoundStatement {
     Detach(BoundDetach),
     Drop(LogicalNode<LogicalDrop>),
     Insert(BoundInsert),
+    CreateSchema(LogicalNode<LogicalCreateSchema>),
 }
 
 #[derive(Debug)]
@@ -73,6 +76,9 @@ impl<'a> StatementBinder<'a> {
             Statement::Drop(drop) => {
                 BoundStatement::Drop(DropBinder::new(root_scope).bind_drop(&mut context, drop)?)
             }
+            Statement::CreateSchema(create) => BoundStatement::CreateSchema(
+                CreateSchemaBinder::new(root_scope).bind_create_schema(&mut context, create)?,
+            ),
             _ => unimplemented!(),
         };
 
