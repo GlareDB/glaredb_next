@@ -1,6 +1,9 @@
 use crate::{
     expr::{physical::PhysicalScalarExpression, Expression},
-    logical::binder::bind_context::{BindContext, TableRef},
+    logical::binder::{
+        bind_context::{BindContext, TableRef},
+        bind_query::bind_modifier::BoundOrderByExpr,
+    },
 };
 use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{not_implemented, RayexecError, Result};
@@ -8,7 +11,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use super::{
     cast_expr::PhysicalCastExpr, column_expr::PhysicalColumnExpr,
     literal_expr::PhysicalLiteralExpr, scalar_function_expr::PhysicalScalarFunctionExpr,
-    PhysicalAggregateExpression,
+    PhysicalAggregateExpression, PhysicalSortExpression,
 };
 
 /// Plans logical expressions into their physical equivalents.
@@ -176,6 +179,39 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             }
             other => Err(RayexecError::new(format!(
                 "Expected aggregate expression, got: {other}"
+            ))),
+        }
+    }
+
+    pub fn plan_sorts(
+        &self,
+        table_refs: &[TableRef],
+        exprs: &[BoundOrderByExpr],
+    ) -> Result<Vec<PhysicalSortExpression>> {
+        exprs
+            .iter()
+            .map(|expr| self.plan_sort(table_refs, expr))
+            .collect::<Result<Vec<_>>>()
+    }
+
+    /// Plan a sort expression.
+    ///
+    /// Sort expressions should be column expressions pointing to some
+    /// pre-projection.
+    pub fn plan_sort(
+        &self,
+        table_refs: &[TableRef],
+        expr: &BoundOrderByExpr,
+    ) -> Result<PhysicalSortExpression> {
+        let scalar = self.plan_scalar(table_refs, &expr.expr)?;
+        match scalar {
+            PhysicalScalarExpression::Column(column) => Ok(PhysicalSortExpression {
+                column,
+                desc: expr.desc,
+                nulls_first: expr.nulls_first,
+            }),
+            other => Err(RayexecError::new(format!(
+                "Expected column expression for sort expression, got: {other}"
             ))),
         }
     }

@@ -58,3 +58,13 @@ impl PhysicalAggregateExpression {
         self.columns.iter().any(|expr| expr.idx == column)
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct PhysicalSortExpression {
+    /// Column this expression is for.
+    pub column: PhysicalColumnExpr,
+    /// If sort should be descending.
+    pub desc: bool,
+    /// If nulls should be ordered first.
+    pub nulls_first: bool,
+}

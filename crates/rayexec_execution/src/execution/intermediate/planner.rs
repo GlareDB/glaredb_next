@@ -29,13 +29,12 @@ use crate::{
         },
     },
     expr::{
-        physical::planner::PhysicalExpressionPlanner, Expression, PhysicalAggregateExpression,
-        PhysicalScalarExpression, PhysicalSortExpression,
+        physical::planner::PhysicalExpressionPlanner, Expression, PhysicalScalarExpression,
+        PhysicalSortExpression,
     },
     logical::{
         binder::bind_context::BindContext,
         context::QueryContext,
-        grouping_set::GroupingSets,
         logical_aggregate::LogicalAggregate,
         logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
@@ -45,6 +44,7 @@ use crate::{
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
         logical_limit::LogicalLimit,
+        logical_order::LogicalOrder,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
@@ -336,9 +336,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
             LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
-            LogicalOperator::Order2(order) => {
-                self.push_global_sort(id_gen, materializations, order)
-            }
+            LogicalOperator::Order(order) => self.push_global_sort(id_gen, materializations, order),
             LogicalOperator::ShowVar2(show_var) => self.push_show_var(id_gen, show_var),
             LogicalOperator::Explain2(explain) => {
                 self.push_explain(id_gen, materializations, explain)
@@ -1064,26 +1062,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        order: LogicalNode<operator::Order>,
+        mut order: LogicalNode<LogicalOrder>,
     ) -> Result<()> {
         let location = order.location;
-        let order = order.into_inner();
 
-        let input_schema = order.input.output_schema(&[])?;
-        self.walk(materializations, id_gen, *order.input)?;
+        let input = order.pop_one_child_exact()?;
+        self.walk(materializations, id_gen, input)?;
 
-        let exprs = order
-            .exprs
-            .into_iter()
-            .map(|order_expr| {
-                PhysicalSortExpression::try_from_uncorrelated_expr(
-                    order_expr.expr,
-                    &input_schema,
-                    order_expr.desc,
-                    order_expr.nulls_first,
-                )
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let exprs = self
+            .expr_planner
+            .plan_sorts(&order.get_table_refs(), &order.node.exprs)?;
 
         // Partition-local sorting.
         let operator = IntermediateOperator {

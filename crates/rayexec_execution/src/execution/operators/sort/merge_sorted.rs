@@ -6,7 +6,7 @@ use crate::{
         sort::util::merger::IterState, ExecutableOperator, OperatorState, PartitionState, PollPull,
         PollPush,
     },
-    expr::PhysicalSortExpression,
+    expr::physical::PhysicalSortExpression,
 };
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -584,7 +584,7 @@ impl PhysicalMergeSortedInputs {
 
 impl Explainable for PhysicalMergeSortedInputs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("MergeSorted").with_values("sort_expressions", &self.exprs)
+        ExplainEntry::new("MergeSorted")
     }
 }
 
@@ -592,8 +592,11 @@ impl Explainable for PhysicalMergeSortedInputs {
 mod tests {
     use std::sync::Arc;
 
-    use crate::execution::operators::test_util::{
-        make_i32_batch, unwrap_poll_pull_batch, TestWakerContext,
+    use crate::{
+        execution::operators::test_util::{
+            make_i32_batch, unwrap_poll_pull_batch, TestWakerContext,
+        },
+        expr::physical::column_expr::PhysicalColumnExpr,
     };
 
     use super::*;
@@ -608,7 +611,7 @@ mod tests {
 
         let operator = Arc::new(PhysicalMergeSortedInputs::new(vec![
             PhysicalSortExpression {
-                column: 0,
+                column: PhysicalColumnExpr { idx: 0 },
                 desc: true,
                 nulls_first: true,
             },
@@ -702,7 +705,7 @@ mod tests {
 
         let operator = Arc::new(PhysicalMergeSortedInputs::new(vec![
             PhysicalSortExpression {
-                column: 0,
+                column: PhysicalColumnExpr { idx: 0 },
                 desc: true,
                 nulls_first: true,
             },
