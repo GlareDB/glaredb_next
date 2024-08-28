@@ -36,9 +36,12 @@ use crate::{
         binder::bind_context::BindContext,
         context::QueryContext,
         grouping_set::GroupingSets,
+        logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
         logical_describe::LogicalDescribe,
+        logical_drop::LogicalDrop,
         logical_filter::LogicalFilter,
+        logical_insert::LogicalInsert,
         logical_limit::LogicalLimit,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
@@ -343,9 +346,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 self.push_create_table(id_gen, materializations, create)
             }
             LogicalOperator::CreateSchema(create) => self.push_create_schema(id_gen, create),
-            LogicalOperator::Drop2(drop) => self.push_drop(id_gen, drop),
-            LogicalOperator::Insert2(insert) => self.push_insert(id_gen, materializations, insert),
-            LogicalOperator::CopyTo2(copy_to) => {
+            LogicalOperator::Drop(drop) => self.push_drop(id_gen, drop),
+            LogicalOperator::Insert(insert) => self.push_insert(id_gen, materializations, insert),
+            LogicalOperator::CopyTo(copy_to) => {
                 self.push_copy_to(id_gen, materializations, copy_to)
             }
             LogicalOperator::MaterializedScan(scan) => {
@@ -561,19 +564,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        copy_to: LogicalNode<operator::CopyTo>,
+        mut copy_to: LogicalNode<LogicalCopyTo>,
     ) -> Result<()> {
         let location = copy_to.location;
-        let copy_to = copy_to.into_inner();
+        let source = copy_to.pop_one_child_exact()?;
 
-        self.walk(materializations, id_gen, *copy_to.source)?;
+        self.walk(materializations, id_gen, source)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::CopyTo(SinkOperator::new(
                 CopyToOperation {
-                    copy_to: copy_to.copy_to,
-                    location: copy_to.location,
-                    schema: copy_to.source_schema,
+                    copy_to: copy_to.node.copy_to,
+                    location: copy_to.node.location,
+                    schema: copy_to.node.source_schema,
                 },
             ))),
             // This should be temporary until there's a better understanding of
@@ -652,10 +655,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_drop(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        drop: LogicalNode<operator::DropEntry>,
+        drop: LogicalNode<LogicalDrop>,
     ) -> Result<()> {
         let location = drop.location;
-        let drop = drop.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
@@ -663,8 +665,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Drop(PhysicalDrop::new(
-                drop.catalog,
-                drop.info,
+                drop.node.catalog,
+                drop.node.info,
             ))),
             partitioning_requirement: Some(1),
         };
@@ -683,19 +685,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        insert: LogicalNode<operator::Insert>,
+        mut insert: LogicalNode<LogicalInsert>,
     ) -> Result<()> {
         let location = insert.location;
-        let insert = insert.into_inner();
+        let input = insert.pop_one_child_exact()?;
 
-        self.walk(materializations, id_gen, *insert.input)?;
+        self.walk(materializations, id_gen, input)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Insert(SinkOperator::new(
                 InsertOperation {
-                    catalog: insert.catalog,
-                    schema: insert.schema,
-                    table: insert.table,
+                    catalog: insert.node.catalog,
+                    schema: insert.node.schema,
+                    table: insert.node.table,
                 },
             ))),
             partitioning_requirement: None,
