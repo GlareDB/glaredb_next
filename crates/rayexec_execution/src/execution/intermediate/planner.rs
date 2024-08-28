@@ -36,7 +36,9 @@ use crate::{
         binder::bind_context::BindContext,
         context::QueryContext,
         grouping_set::GroupingSets,
+        logical_describe::LogicalDescribe,
         logical_filter::LogicalFilter,
+        logical_limit::LogicalLimit,
         logical_project::LogicalProject,
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
     },
@@ -328,7 +330,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             )),
             LogicalOperator::Empty2(empty) => self.push_empty(id_gen, empty),
             LogicalOperator::Aggregate2(agg) => self.push_aggregate(id_gen, materializations, agg),
-            LogicalOperator::Limit2(limit) => self.push_limit(id_gen, materializations, limit),
+            LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
             LogicalOperator::Order2(order) => {
                 self.push_global_sort(id_gen, materializations, order)
             }
@@ -336,7 +338,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Explain2(explain) => {
                 self.push_explain(id_gen, materializations, explain)
             }
-            LogicalOperator::Describe2(describe) => self.push_describe(id_gen, describe),
+            LogicalOperator::Describe(describe) => self.push_describe(id_gen, describe),
             LogicalOperator::CreateTable2(create) => {
                 self.push_create_table(id_gen, materializations, create)
             }
@@ -356,13 +358,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::SetOperation(setop) => {
                 self.push_set_operation(id_gen, materializations, setop)
             }
-            LogicalOperator::SetVar2(_) => {
+            LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
-            LogicalOperator::ResetVar2(_) => {
+            LogicalOperator::ResetVar(_) => {
                 Err(RayexecError::new("RESET should be handled in the session"))
             }
-            LogicalOperator::DetachDatabase2(_) | LogicalOperator::AttachDatabase2(_) => Err(
+            LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
                 RayexecError::new("ATTACH/DETACH should be handled in the session"),
             ),
             other => not_implemented!("logical plan to pipeline: {other:?}"),
@@ -903,20 +905,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_describe(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        describe: LogicalNode<operator::Describe>,
+        describe: LogicalNode<LogicalDescribe>,
     ) -> Result<()> {
         let location = describe.location;
-        let describe = describe.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
         let names = Array::Utf8(Utf8Array::from_iter(
-            describe.schema.iter().map(|f| f.name.as_str()),
+            describe.node.schema.iter().map(|f| f.name.as_str()),
         ));
         let datatypes = Array::Utf8(Utf8Array::from_iter(
-            describe.schema.iter().map(|f| f.datatype.to_string()),
+            describe.node.schema.iter().map(|f| f.datatype.to_string()),
         ));
         let batch = Batch::try_new(vec![names, datatypes])?;
 
@@ -1145,19 +1146,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        limit: LogicalNode<operator::Limit>,
+        mut limit: LogicalNode<LogicalLimit>,
     ) -> Result<()> {
         let location = limit.location;
-        let limit = limit.into_inner();
+        let input = limit.pop_one_child_exact()?;
 
-        self.walk(materializations, id_gen, *limit.input)?;
+        self.walk(materializations, id_gen, input)?;
 
         // TODO: Who sets partitioning? How was that working before?
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit::new(
-                limit.limit,
-                limit.offset,
+                limit.node.limit,
+                limit.node.offset,
             ))),
             partitioning_requirement: None,
         };
