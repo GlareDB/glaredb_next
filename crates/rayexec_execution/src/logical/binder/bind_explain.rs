@@ -43,7 +43,7 @@ impl<'a> ExplainBinder<'a> {
     ) -> Result<BoundExplain> {
         bind_context.push_table(
             self.current,
-            "",
+            None,
             vec![DataType::Utf8, DataType::Utf8],
             vec!["plan_type".to_string(), "plan".to_string()],
         )?;

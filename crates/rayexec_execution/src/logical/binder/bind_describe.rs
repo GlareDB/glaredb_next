@@ -35,7 +35,7 @@ impl<'a> DescribeBinder<'a> {
     ) -> Result<LogicalNode<LogicalDescribe>> {
         bind_context.push_table(
             self.current,
-            "",
+            None,
             vec![DataType::Utf8, DataType::Utf8],
             vec!["column_name".to_string(), "datatype".to_string()],
         )?;

@@ -28,6 +28,7 @@ use crate::{
             PhysicalOperator,
         },
     },
+    explain::{explainable::ExplainConfig, formatter::ExplainFormatter},
     expr::{
         physical::planner::PhysicalExpressionPlanner, Expression, PhysicalScalarExpression,
         PhysicalSortExpression,
@@ -41,6 +42,7 @@ use crate::{
         logical_describe::LogicalDescribe,
         logical_drop::LogicalDrop,
         logical_empty::LogicalEmpty,
+        logical_explain::LogicalExplain,
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
         logical_limit::LogicalLimit,
@@ -339,7 +341,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
             LogicalOperator::Order(order) => self.push_global_sort(id_gen, materializations, order),
             LogicalOperator::ShowVar2(show_var) => self.push_show_var(id_gen, show_var),
-            LogicalOperator::Explain2(explain) => {
+            LogicalOperator::Explain(explain) => {
                 self.push_explain(id_gen, materializations, explain)
             }
             LogicalOperator::Describe(describe) => self.push_describe(id_gen, describe),
@@ -800,7 +802,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             source: PipelineSource::InPipeline,
         });
 
-        unimplemented!()
+        Ok(())
     }
 
     fn push_create_schema(
@@ -938,7 +940,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         _materializations: &mut Materializations,
-        explain: LogicalNode<operator::Explain>,
+        explain: LogicalNode<LogicalExplain>,
     ) -> Result<()> {
         let location = explain.location;
         let explain = explain.into_inner();
@@ -947,15 +949,31 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             not_implemented!("explain analyze")
         }
 
-        let formatted_logical =
-            format_logical_plan_for_explain(None, &explain.input, explain.format, explain.verbose)?;
+        let formatter = ExplainFormatter::new(
+            self.bind_context,
+            ExplainConfig {
+                verbose: explain.verbose,
+            },
+            explain.format,
+        );
 
-        // TODO: Executable, intermediate (w/ location)
+        let mut type_strings = Vec::new();
+        let mut plan_strings = Vec::new();
+
+        type_strings.push("unoptimized".to_string());
+        plan_strings.push(formatter.format_logical_plan(&explain.logical_unoptimized)?);
+
+        if let Some(optimized) = explain.logical_optimized {
+            type_strings.push("optimized".to_string());
+            plan_strings.push(formatter.format_logical_plan(&optimized)?);
+        }
+
+        // TODO: Pipeline stuff
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
             Batch::try_new(vec![
-                Array::Utf8(Utf8Array::from_iter(["logical"])),
-                Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
+                Array::Utf8(Utf8Array::from(type_strings)),
+                Array::Utf8(Utf8Array::from(plan_strings)),
             ])?,
         ])));
 

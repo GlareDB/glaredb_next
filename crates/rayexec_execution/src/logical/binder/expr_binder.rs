@@ -29,7 +29,7 @@ use crate::{
     },
 };
 
-use super::bind_context::{BindContext, BindScopeRef, TableRef};
+use super::bind_context::{BindContext, BindScopeRef, TableAlias, TableRef};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {
@@ -71,7 +71,7 @@ impl<'a> ExpressionBinder<'a> {
     ) -> Result<Expression> {
         match expr {
             ast::Expr::Ident(ident) => self.bind_ident(bind_context, ident),
-            ast::Expr::CompoundIdent(idents) => self.bind_idents(idents),
+            ast::Expr::CompoundIdent(idents) => self.bind_idents(bind_context, idents),
             ast::Expr::Literal(literal) => Self::bind_literal(literal),
             ast::Expr::Array(arr) => {
                 let exprs = arr
@@ -285,16 +285,15 @@ impl<'a> ExpressionBinder<'a> {
         })
     }
 
-    pub(crate) fn bind_ident(
+    fn bind_column(
         &self,
         bind_context: &mut BindContext,
-        ident: &ast::Ident,
+        alias: Option<TableAlias>,
+        col: &str,
     ) -> Result<Expression> {
-        let col = ident.as_normalized_string();
-
         let mut current = self.current;
         loop {
-            let table = bind_context.find_table_for_column(current, &col)?;
+            let table = bind_context.find_table_for_column(current, alias.as_ref(), &col)?;
             match table {
                 Some((table, col_idx)) => {
                     let table = table.reference;
@@ -339,52 +338,57 @@ impl<'a> ExpressionBinder<'a> {
         }
     }
 
+    pub(crate) fn bind_ident(
+        &self,
+        bind_context: &mut BindContext,
+        ident: &ast::Ident,
+    ) -> Result<Expression> {
+        let col = ident.as_normalized_string();
+        self.bind_column(bind_context, None, &col)
+    }
+
     /// Plan a compound identifier.
     ///
     /// Assumed to be a reference to a column either in the current scope or one
     /// of the outer scopes.
-    fn bind_idents(&self, idents: &[ast::Ident]) -> Result<Expression> {
-        unimplemented!()
-        // fn format_err(table_ref: &TableReference, col: &str) -> String {
-        //     format!("Missing column for reference: {table_ref}.{col}")
-        // }
+    fn bind_idents(
+        &self,
+        bind_context: &mut BindContext,
+        idents: &[ast::Ident],
+    ) -> Result<Expression> {
+        match idents.len() {
+            0 => Err(RayexecError::new("Empty identifier")),
+            1 => {
+                // Single column.
+                self.bind_ident(bind_context, &idents[0])
+            }
+            2..=4 => {
+                // Qualified column.
+                // 2 => 'table.column'
+                // 3 => 'schema.table.column'
+                // 4 => 'database.schema.table.column'
+                // TODO: Struct fields.
 
-        // match idents.len() {
-        //     0 => Err(RayexecError::new("Empty identifier")),
-        //     1 => {
-        //         // Single column.
-        //         let ident = idents.pop().unwrap();
-        //         self.plan_ident(ident)
-        //     }
-        //     2..=4 => {
-        //         // Qualified column.
-        //         // 2 => 'table.column'
-        //         // 3 => 'schema.table.column'
-        //         // 4 => 'database.schema.table.column'
-        //         // TODO: Struct fields.
-        //         let col = idents.pop().unwrap().into_normalized_string();
-        //         let table_ref = TableReference {
-        //             table: idents
-        //                 .pop()
-        //                 .map(|ident| ident.into_normalized_string())
-        //                 .unwrap(), // Must exist
-        //             schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
-        //             database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
-        //         };
-        //         match self.scope.resolve_column(
-        //             &self.planner.outer_scopes,
-        //             Some(&table_ref),
-        //             &col,
-        //         )? {
-        //             Some(col) => Ok(LogicalExpression::ColumnRef(col)),
-        //             None => Err(RayexecError::new(format_err(&table_ref, &col))), // Struct fields here.
-        //         }
-        //     }
-        //     _ => Err(RayexecError::new(format!(
-        //         "Too many identifier parts in {}",
-        //         ast::ObjectReference(idents),
-        //     ))), // TODO: Struct fields.
-        // }
+                let mut idents = idents.to_vec();
+
+                let col = idents.pop().unwrap().into_normalized_string();
+
+                let alias = TableAlias {
+                    table: idents
+                        .pop()
+                        .map(|ident| ident.into_normalized_string())
+                        .unwrap(), // Must exist
+                    schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+                    database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+                };
+
+                self.bind_column(bind_context, Some(alias), &col)
+            }
+            _ => Err(RayexecError::new(format!(
+                "Too many identifier parts in {}",
+                ast::ObjectReference(idents.to_vec()),
+            ))), // TODO: Struct fields.
+        }
     }
 
     /// Applies casts to an input expression based on the signatures for a

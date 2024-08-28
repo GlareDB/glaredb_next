@@ -55,7 +55,7 @@ impl<'a> InsertBinder<'a> {
     ) -> Result<BoundInsert> {
         bind_context.push_table(
             self.current,
-            "",
+            None,
             vec![DataType::UInt64],
             vec!["rows_inserted".to_string()],
         )?;

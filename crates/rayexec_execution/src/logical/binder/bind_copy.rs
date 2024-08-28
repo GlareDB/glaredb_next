@@ -54,7 +54,7 @@ impl<'a> CopyBinder<'a> {
     ) -> Result<BoundCopyTo> {
         bind_context.push_table(
             self.current,
-            "",
+            None,
             vec![DataType::UInt64],
             vec!["rows_copied".to_string()],
         )?;

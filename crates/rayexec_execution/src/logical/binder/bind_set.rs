@@ -83,7 +83,7 @@ impl<'a> SetVarBinder<'a> {
         let name = show.reference.pop()?; // TODO: Allow compound references?
         let var = self.vars.get_var(&name)?;
 
-        bind_context.push_table(self.current, "", vec![DataType::Utf8], vec![name])?;
+        bind_context.push_table(self.current, None, vec![DataType::Utf8], vec![name])?;
 
         Ok(LogicalNode {
             node: LogicalShowVar { var: var.clone() },

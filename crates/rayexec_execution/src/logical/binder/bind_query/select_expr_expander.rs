@@ -1,5 +1,5 @@
 use crate::logical::{
-    binder::bind_context::{BindContext, BindScopeRef},
+    binder::bind_context::{BindContext, BindScopeRef, TableAlias},
     resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
 use rayexec_error::{RayexecError, Result};
@@ -49,12 +49,16 @@ impl<'a> SelectExprExpander<'a> {
                 // TODO: Exclude, replace
                 let mut exprs = Vec::new();
                 for scope in self.bind_context.iter_tables(self.current)? {
-                    let table = &scope.alias;
+                    let alias_idents = match &scope.alias {
+                        Some(alias) => vec![ast::Ident::from_string(&alias.table)], // TODO: Schema + database too
+                        None => Vec::new(),
+                    };
+
                     for column in &scope.column_names {
-                        exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                            ast::Ident::from_string(table),
-                            ast::Ident::from_string(column),
-                        ])))
+                        let mut idents = alias_idents.clone();
+                        idents.push(ast::Ident::from_string(column));
+
+                        exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(idents)))
                     }
                 }
 
@@ -68,22 +72,32 @@ impl<'a> SelectExprExpander<'a> {
                     ));
                 }
 
+                // TODO: Get schema + catalog too if they exist.
                 let table = reference.base()?.into_normalized_string();
+                let alias = TableAlias {
+                    database: None,
+                    schema: None,
+                    table,
+                };
 
-                let scope = self
+                let table = self
                     .bind_context
                     .iter_tables(self.current)?
-                    .find(|s| s.alias == table)
+                    .find(|t| match &t.alias {
+                        Some(have_alias) => have_alias.matches(&alias),
+                        None => false,
+                    })
                     .ok_or_else(|| {
                         RayexecError::new(format!(
-                            "Missing table '{table}', cannot expand wildcard"
+                            "Missing table '{alias}', cannot expand wildcard"
                         ))
                     })?;
 
                 let mut exprs = Vec::new();
-                for column in &scope.column_names {
+                for column in &table.column_names {
+                    // TODO: Include shcema + database too.
                     exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                        ast::Ident::from_string(&table),
+                        ast::Ident::from_string(&alias.table),
                         ast::Ident::from_string(column),
                     ])))
                 }

@@ -7,7 +7,7 @@ use crate::{
     database::catalog_entry::CatalogEntry,
     expr::Expression,
     logical::{
-        binder::bind_context::{BindContext, BindScopeRef, CorrelatedColumn},
+        binder::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias},
         operator::{JoinType, LocationRequirement},
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
@@ -96,14 +96,18 @@ impl<'a> FromBinder<'a> {
     fn push_table_scope_with_from_alias(
         &self,
         bind_context: &mut BindContext,
-        mut default_alias: String,
+        mut default_alias: TableAlias,
         mut default_column_aliases: Vec<String>,
         column_types: Vec<DataType>,
         from_alias: Option<ast::FromAlias>,
     ) -> Result<()> {
         match from_alias {
             Some(ast::FromAlias { alias, columns }) => {
-                default_alias = alias.into_normalized_string();
+                default_alias = TableAlias {
+                    database: None,
+                    schema: None,
+                    table: alias.into_normalized_string(),
+                };
 
                 // If column aliases are provided as well, apply those to the
                 // columns in the scope.
@@ -134,7 +138,7 @@ impl<'a> FromBinder<'a> {
 
         let _ = bind_context.push_table(
             self.current,
-            default_alias,
+            Some(default_alias),
             column_types,
             default_column_aliases,
         )?;
@@ -165,9 +169,15 @@ impl<'a> FromBinder<'a> {
                     .map(|c| c.name.clone())
                     .collect();
 
+                let default_alias = TableAlias {
+                    database: Some(table.catalog.clone()),
+                    schema: Some(table.schema.clone()),
+                    table: table.entry.name.clone(),
+                };
+
                 self.push_table_scope_with_from_alias(
                     bind_context,
-                    table.entry.name.clone(),
+                    default_alias,
                     column_names,
                     column_types,
                     alias,

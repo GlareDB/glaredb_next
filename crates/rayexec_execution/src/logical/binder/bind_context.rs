@@ -56,6 +56,41 @@ struct BindScope {
     tables: Vec<TableRef>,
 }
 
+/// Reference to a table inside a scope.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TableAlias {
+    pub database: Option<String>,
+    pub schema: Option<String>,
+    pub table: String,
+}
+
+impl TableAlias {
+    pub fn matches(&self, other: &TableAlias) -> bool {
+        match (&self.database, &other.database) {
+            (Some(a), Some(b)) if a != b => return false,
+            _ => (),
+        }
+        match (&self.schema, &other.schema) {
+            (Some(a), Some(b)) if a != b => return false,
+            _ => (),
+        }
+
+        self.table == other.table
+    }
+}
+
+impl fmt::Display for TableAlias {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(database) = &self.database {
+            write!(f, "{database}")?;
+        }
+        if let Some(schema) = &self.schema {
+            write!(f, "{schema}")?;
+        }
+        write!(f, "{}", self.table)
+    }
+}
+
 /// A "table" in the context.
 ///
 /// These may have a direct relationship to an underlying base table, but may
@@ -68,7 +103,7 @@ struct BindScope {
 #[derive(Debug)]
 pub struct Table {
     pub reference: TableRef,
-    pub alias: String,
+    pub alias: Option<TableAlias>,
     pub column_types: Vec<DataType>,
     pub column_names: Vec<String>,
 }
@@ -137,12 +172,16 @@ impl BindContext {
     ///
     /// Errors on duplicate table aliases.
     pub fn append_context(&mut self, current: BindScopeRef, other: BindScopeRef) -> Result<()> {
-        let left_aliases: HashSet<_> = self.iter_tables(current)?.map(|t| &t.alias).collect();
-        for table in self.iter_tables(other)? {
-            if left_aliases.contains(&table.alias) {
+        let left_aliases: HashSet<_> = self
+            .iter_tables(current)?
+            .filter_map(|t| t.alias.as_ref())
+            .collect();
+
+        for right_alias in self.iter_tables(other)?.filter_map(|t| t.alias.as_ref()) {
+            if left_aliases.contains(right_alias) {
                 return Err(RayexecError::new(format!(
                     "Duplicate table name: {}",
-                    table.alias
+                    right_alias
                 )));
             }
         }
@@ -207,7 +246,7 @@ impl BindContext {
         let reference = TableRef { table_idx };
         let scope = Table {
             reference,
-            alias: String::new(),
+            alias: None,
             column_types,
             column_names,
         };
@@ -238,15 +277,19 @@ impl BindContext {
     pub fn push_table(
         &mut self,
         idx: BindScopeRef,
-        alias: impl Into<String>,
+        alias: Option<TableAlias>,
         column_types: Vec<DataType>,
         column_names: Vec<String>,
     ) -> Result<TableRef> {
         let alias = alias.into();
 
-        for scope in self.iter_tables(idx)? {
-            if scope.alias == alias {
-                return Err(RayexecError::new(format!("Duplicate table name: {alias}")));
+        if let Some(alias) = &alias {
+            // If we have multiple tables in scope, they need to have unique
+            // alias (e.g. by ensure one is more qualified than the other)
+            for have_alias in self.iter_tables(idx)?.filter_map(|t| t.alias.as_ref()) {
+                if have_alias == alias {
+                    return Err(RayexecError::new(format!("Duplicate table name: {alias}")));
+                }
             }
         }
 
@@ -292,10 +335,22 @@ impl BindContext {
     pub fn find_table_for_column(
         &self,
         current: BindScopeRef,
+        alias: Option<&TableAlias>,
         column: &str,
     ) -> Result<Option<(&Table, usize)>> {
         let mut found = None;
+
         for table in self.iter_tables(current)? {
+            match (&table.alias, &alias) {
+                (Some(a1), Some(a2)) => {
+                    if !a1.matches(a2) {
+                        continue;
+                    }
+                }
+                (None, Some(_)) => continue,
+                _ => (),
+            }
+
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
                 if col_name == column {
                     if found.is_some() {

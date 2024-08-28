@@ -34,7 +34,7 @@ use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::ScalarFunctionExpr;
 use std::fmt::{self, Debug};
@@ -61,9 +61,18 @@ pub enum Expression {
 impl Expression {
     pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
         Ok(match self {
+            Self::Aggregate(expr) => expr.agg.return_type(),
+            Self::Between(_) => DataType::Boolean,
+            Self::Case(_) => not_implemented!("CASE"), // Union data type
             Self::Cast(expr) => expr.to.clone(),
+            Self::Column(expr) => expr.datatype(bind_context)?,
+            Self::Comparison(_) => DataType::Boolean,
+            Self::Conjunction(_) => DataType::Boolean,
+            Self::Is(_) => DataType::Boolean,
             Self::Literal(expr) => expr.literal.datatype(),
-            _ => unimplemented!(),
+            Self::ScalarFunction(expr) => expr.function.return_type(),
+            Self::Subquery(_) => unimplemented!(),
+            Self::Window(_) => not_implemented!("WINDOW"),
         })
     }
 
