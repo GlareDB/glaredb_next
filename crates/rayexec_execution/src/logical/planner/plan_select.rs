@@ -34,8 +34,8 @@ impl<'a> SelectPlanner<'a> {
         // Handle GROUP BY/aggregates
         if !select.select_list.aggregates.is_empty() {
             let (mut group_exprs, grouping_sets) = match select.group_by {
-                Some(group_by) => (group_by.expressions, group_by.grouping_sets),
-                None => (Vec::new(), Vec::new()),
+                Some(group_by) => (group_by.expressions, Some(group_by.grouping_sets)),
+                None => (Vec::new(), None),
             };
 
             for expr in &mut group_exprs {

@@ -36,10 +36,12 @@ use crate::{
         binder::bind_context::BindContext,
         context::QueryContext,
         grouping_set::GroupingSets,
+        logical_aggregate::LogicalAggregate,
         logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
         logical_describe::LogicalDescribe,
         logical_drop::LogicalDrop,
+        logical_empty::LogicalEmpty,
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
         logical_limit::LogicalLimit,
@@ -331,8 +333,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
                 "Dependent joins cannot be made into a pipeline",
             )),
-            LogicalOperator::Empty2(empty) => self.push_empty(id_gen, empty),
-            LogicalOperator::Aggregate2(agg) => self.push_aggregate(id_gen, materializations, agg),
+            LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
+            LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
             LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
             LogicalOperator::Order2(order) => {
                 self.push_global_sort(id_gen, materializations, order)
@@ -634,14 +636,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // Make output distinct by grouping on all columns. No output
         // aggregates, so the output schema remains the same.
         if !setop.all {
-            let grouping_sets =
-                GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
+            let grouping_sets = vec![(0..top_schema.types.len()).collect()];
             let group_types = top_schema.types;
 
             let operator =
                 IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(group_types, grouping_sets, Vec::new()),
+                        PhysicalHashAggregate::new(group_types, Vec::new(), grouping_sets),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1170,34 +1171,31 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        agg: LogicalNode<operator::Aggregate>,
+        mut agg: LogicalNode<LogicalAggregate>,
     ) -> Result<()> {
         let location = agg.location;
-        let agg = agg.into_inner();
 
-        let input_schema = agg.input.output_schema(&[])?;
-        self.walk(materializations, id_gen, *agg.input)?;
+        let input = agg.pop_one_child_exact()?;
+        self.walk(materializations, id_gen, input)?;
 
-        let mut agg_exprs = Vec::with_capacity(agg.aggregates.len());
-        for expr in agg.aggregates.into_iter() {
-            let agg_expr =
-                PhysicalAggregateExpression::try_from_logical_expression(expr, &input_schema)?;
-            agg_exprs.push(agg_expr);
-        }
+        let agg_exprs = self
+            .expr_planner
+            .plan_aggregates(&agg.get_table_refs(), &agg.node.aggregates)?;
 
-        match agg.grouping_sets {
+        match agg.node.grouping_sets {
             Some(grouping_sets) => {
                 // If we're working with groups, push a hash aggregate operator.
 
-                let group_types: Vec<_> = grouping_sets
-                    .columns()
+                let group_types = agg
+                    .node
+                    .group_exprs
                     .iter()
-                    .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
-                    .collect();
+                    .map(|expr| expr.datatype(self.bind_context))
+                    .collect::<Result<Vec<_>>>()?;
 
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(group_types, grouping_sets, agg_exprs),
+                        PhysicalHashAggregate::new(group_types, agg_exprs, grouping_sets),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1219,7 +1217,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_empty(&mut self, id_gen: &mut PipelineIdGen, empty: LogicalNode<()>) -> Result<()> {
+    fn push_empty(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        empty: LogicalNode<LogicalEmpty>,
+    ) -> Result<()> {
         // "Empty" is a source of data by virtue of emitting a batch consisting
         // of no columns and 1 row.
         //

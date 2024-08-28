@@ -52,3 +52,9 @@ pub struct PhysicalAggregateExpression {
     pub output_type: DataType,
     // TODO: Filter
 }
+
+impl PhysicalAggregateExpression {
+    pub fn contains_column_idx(&self, column: usize) -> bool {
+        self.columns.iter().any(|expr| expr.idx == column)
+    }
+}

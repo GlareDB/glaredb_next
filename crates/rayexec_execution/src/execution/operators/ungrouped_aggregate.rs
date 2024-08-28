@@ -1,6 +1,6 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
-use crate::expr::PhysicalAggregateExpression;
+use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::{multi_array_drain, GroupedStates};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry};
 use crate::proto::DatabaseProtoConv;
@@ -141,9 +141,9 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                 for (agg_idx, agg) in self.aggregates.iter().enumerate() {
                     let cols: Vec<_> = agg
-                        .column_indices
+                        .columns
                         .iter()
-                        .map(|idx| batch.column(*idx).expect("column to exist").as_ref())
+                        .map(|expr| batch.column(expr.idx).expect("column to exist").as_ref())
                         .collect();
 
                     agg_states[agg_idx].update_states(&row_selection, &cols, &mapping)?;
@@ -268,7 +268,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
 impl Explainable for PhysicalUngroupedAggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("PhysicalUngroupedAggregate").with_values("aggregates", &self.aggregates)
+        ExplainEntry::new("PhysicalUngroupedAggregate")
     }
 }
 
@@ -276,22 +276,24 @@ impl DatabaseProtoConv for PhysicalUngroupedAggregate {
     type ProtoType = rayexec_proto::generated::execution::PhysicalUngroupedAggregate;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            aggregates: self
-                .aggregates
-                .iter()
-                .map(|a| a.to_proto_ctx(context))
-                .collect::<Result<Vec<_>>>()?,
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     aggregates: self
+        //         .aggregates
+        //         .iter()
+        //         .map(|a| a.to_proto_ctx(context))
+        //         .collect::<Result<Vec<_>>>()?,
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            aggregates: proto
-                .aggregates
-                .into_iter()
-                .map(|a| PhysicalAggregateExpression::from_proto_ctx(a, context))
-                .collect::<Result<Vec<_>>>()?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     aggregates: proto
+        //         .aggregates
+        //         .into_iter()
+        //         .map(|a| PhysicalAggregateExpression::from_proto_ctx(a, context))
+        //         .collect::<Result<Vec<_>>>()?,
+        // })
     }
 }

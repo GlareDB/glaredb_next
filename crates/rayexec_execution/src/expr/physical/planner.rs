@@ -131,22 +131,22 @@ impl<'a> PhysicalExpressionPlanner<'a> {
 
     /// Plan aggregate expressions.
     ///
-    /// All aggregate input expression must reference a single pre-projection
-    /// table containing the true input expressions.
+    /// All aggregate input expression should be column expressions referencing
+    /// a pre-projection.
     pub fn plan_aggregates(
         &self,
-        table_ref: TableRef,
+        table_refs: &[TableRef],
         aggregates: &[Expression],
     ) -> Result<Vec<PhysicalAggregateExpression>> {
         aggregates
             .iter()
-            .map(|agg| self.plan_aggregate(table_ref, agg))
+            .map(|agg| self.plan_aggregate(table_refs, agg))
             .collect::<Result<Vec<_>>>()
     }
 
     fn plan_aggregate(
         &self,
-        table_ref: TableRef,
+        table_refs: &[TableRef],
         aggregate: &Expression,
     ) -> Result<PhysicalAggregateExpression> {
         match aggregate {
@@ -158,7 +158,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 let columns = agg
                     .inputs
                     .iter()
-                    .map(|expr| match self.plan_scalar(&[table_ref], expr)? {
+                    .map(|expr| match self.plan_scalar(table_refs, expr)? {
                         PhysicalScalarExpression::Column(col) => Ok(col),
                         other => {
                             return Err(RayexecError::new(format!(

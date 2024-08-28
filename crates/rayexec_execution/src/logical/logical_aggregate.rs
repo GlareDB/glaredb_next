@@ -11,7 +11,7 @@ use super::{
 pub struct LogicalAggregate {
     pub aggregates: Vec<Expression>,
     pub group_exprs: Vec<Expression>,
-    pub grouping_sets: Vec<BTreeSet<usize>>,
+    pub grouping_sets: Option<Vec<BTreeSet<usize>>>,
 }
 
 impl Explainable for LogicalNode<LogicalAggregate> {
