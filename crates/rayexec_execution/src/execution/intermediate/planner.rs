@@ -36,6 +36,7 @@ use crate::{
         binder::bind_context::BindContext,
         context::QueryContext,
         grouping_set::GroupingSets,
+        logical_create::{LogicalCreateSchema, LogicalCreateTable},
         logical_describe::LogicalDescribe,
         logical_filter::LogicalFilter,
         logical_limit::LogicalLimit,
@@ -317,7 +318,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
-            // LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
@@ -339,10 +339,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 self.push_explain(id_gen, materializations, explain)
             }
             LogicalOperator::Describe(describe) => self.push_describe(id_gen, describe),
-            LogicalOperator::CreateTable2(create) => {
+            LogicalOperator::CreateTable(create) => {
                 self.push_create_table(id_gen, materializations, create)
             }
-            LogicalOperator::CreateSchema2(create) => self.push_create_schema(id_gen, create),
+            LogicalOperator::CreateSchema(create) => self.push_create_schema(id_gen, create),
             LogicalOperator::Drop2(drop) => self.push_drop(id_gen, drop),
             LogicalOperator::Insert2(insert) => self.push_insert(id_gen, materializations, insert),
             LogicalOperator::CopyTo2(copy_to) => {
@@ -804,10 +804,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_create_schema(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        create: LogicalNode<operator::CreateSchema>,
+        create: LogicalNode<LogicalCreateSchema>,
     ) -> Result<()> {
         let location = create.location;
-        let create = create.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
@@ -815,10 +814,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::CreateSchema(PhysicalCreateSchema::new(
-                create.catalog,
+                create.node.catalog,
                 CreateSchemaInfo {
-                    name: create.name,
-                    on_conflict: create.on_conflict,
+                    name: create.node.name,
+                    on_conflict: create.node.on_conflict,
                 },
             ))),
             partitioning_requirement: Some(1),
@@ -838,20 +837,29 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        create: LogicalNode<operator::CreateTable>,
+        mut create: LogicalNode<LogicalCreateTable>,
     ) -> Result<()> {
         let location = create.location;
-        let create = create.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let is_ctas = create.input.is_some();
-        match create.input {
+        let input = match create.children.len() {
+            1 | 0 => create.children.pop(),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Create table has more than one child: {}",
+                    create.children.len(),
+                )))
+            }
+        };
+
+        let is_ctas = input.is_some();
+        match input {
             Some(input) => {
                 // CTAS, plan the input. It'll be the source of this pipeline.
-                self.walk(materializations, id_gen, *input)?;
+                self.walk(materializations, id_gen, input)?;
             }
             None => {
                 // No input, just have an empty operator as the source.
@@ -872,12 +880,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::CreateTable(SinkOperator::new(
                 CreateTableSinkOperation {
-                    catalog: create.catalog,
-                    schema: create.schema,
+                    catalog: create.node.catalog,
+                    schema: create.node.schema,
                     info: CreateTableInfo {
-                        name: create.name,
-                        columns: create.columns,
-                        on_conflict: create.on_conflict,
+                        name: create.node.name,
+                        columns: create.node.columns,
+                        on_conflict: create.node.on_conflict,
                     },
                     is_ctas,
                 },
