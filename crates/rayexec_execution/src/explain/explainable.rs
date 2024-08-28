@@ -4,8 +4,6 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 /// An entry in an output for explaining a query.
-// TODO: Maybe allow serializing this with serde to enable json output of
-// explain queries.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExplainEntry {
     /// Name of the node.
@@ -84,7 +82,7 @@ pub struct ExplainConfig {
     pub verbose: bool,
 }
 
-/// Trait for explaining nodes in a query tree.
+/// Trait for explaining a single node in the query tree.
 pub trait Explainable {
     /// Create an ExplainEntry for this node.
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry;

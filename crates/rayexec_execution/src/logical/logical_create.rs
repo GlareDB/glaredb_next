@@ -1,11 +1,9 @@
 use rayexec_bullet::field::Field;
 
 use crate::database::create::OnConflict;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::{LogicalNode, LogicalOperator},
-};
+use super::operator::{LogicalNode, LogicalOperator};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCreateSchema {
@@ -14,9 +12,9 @@ pub struct LogicalCreateSchema {
     pub on_conflict: OnConflict,
 }
 
-impl Explainable for LogicalNode<LogicalCreateSchema> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("CreateSchema"), conf)
+impl Explainable for LogicalCreateSchema {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateSchema")
     }
 }
 
@@ -29,8 +27,8 @@ pub struct LogicalCreateTable {
     pub on_conflict: OnConflict,
 }
 
-impl Explainable for LogicalNode<LogicalCreateTable> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("CreateTable"), conf)
+impl Explainable for LogicalCreateTable {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateTable")
     }
 }

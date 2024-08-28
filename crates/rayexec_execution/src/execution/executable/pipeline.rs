@@ -1,6 +1,6 @@
 use crate::{
     execution::operators::PollFinalize,
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
 use crate::execution::operators::{

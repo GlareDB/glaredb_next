@@ -1,11 +1,9 @@
 use rayexec_bullet::scalar::OwnedScalarValue;
 
 use crate::engine::vars::SessionVar;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::LogicalNode,
-};
+use super::operator::LogicalNode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalSetVar {
@@ -13,9 +11,9 @@ pub struct LogicalSetVar {
     pub value: OwnedScalarValue,
 }
 
-impl Explainable for LogicalNode<LogicalSetVar> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Set"), conf)
+impl Explainable for LogicalSetVar {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Set")
     }
 }
 
@@ -31,8 +29,8 @@ pub struct LogicalResetVar {
 }
 
 impl Explainable for LogicalNode<LogicalResetVar> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Reset"), conf)
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Reset")
     }
 }
 
@@ -41,8 +39,8 @@ pub struct LogicalShowVar {
     pub var: SessionVar,
 }
 
-impl Explainable for LogicalNode<LogicalShowVar> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Show"), conf)
+impl Explainable for LogicalShowVar {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Show")
     }
 }

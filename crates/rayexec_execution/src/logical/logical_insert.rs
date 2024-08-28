@@ -1,11 +1,9 @@
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use std::sync::Arc;
 
 use crate::database::catalog_entry::CatalogEntry;
 
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::{LogicalNode, LogicalOperator},
-};
+use super::operator::{LogicalNode, LogicalOperator};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalInsert {
@@ -14,8 +12,8 @@ pub struct LogicalInsert {
     pub table: Arc<CatalogEntry>,
 }
 
-impl Explainable for LogicalNode<LogicalInsert> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Insert"), conf)
+impl Explainable for LogicalInsert {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Insert")
     }
 }

@@ -12,7 +12,7 @@ use crate::execution::operators::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::operator::JoinType;
 
 use super::join_hash_table::{LeftBatchVisitBitmaps, PartitionJoinHashTable};

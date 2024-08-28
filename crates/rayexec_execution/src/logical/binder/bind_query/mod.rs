@@ -2,12 +2,12 @@ pub mod bind_from;
 pub mod bind_group_by;
 pub mod bind_modifier;
 pub mod bind_select;
+pub mod bind_values;
 pub mod select_expr_expander;
 pub mod select_list;
 
 use rayexec_error::Result;
 use rayexec_parser::ast;
-use select_list::PrunedProjectionTable;
 
 use crate::logical::resolver::{resolve_context::ResolveContext, ResolvedMeta};
 use bind_select::{BoundSelect, SelectBinder};
@@ -53,13 +53,11 @@ impl<'a> QueryBinder<'a> {
 
         match query.body {
             ast::QueryNodeBody::Select(select) => {
-                let binder = SelectBinder {
-                    current: self.current,
-                    resolve_context: self.resolve_context,
-                };
+                let binder = SelectBinder::new(self.current, self.resolve_context);
                 let select = binder.bind(bind_context, *select, query.order_by, query.limit)?;
                 Ok(BoundQuery::Select(select))
             }
+            ast::QueryNodeBody::Nested(query) => self.bind(bind_context, *query),
             _ => unimplemented!(),
         }
     }

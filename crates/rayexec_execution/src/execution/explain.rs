@@ -1,8 +1,8 @@
 use crate::{
     execution::executable::pipeline::ExecutablePipeline,
+    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     logical::{
         context::QueryContext,
-        explainable::{ExplainConfig, ExplainEntry, Explainable},
         operator::{ExplainFormat, LogicalOperator},
     },
 };

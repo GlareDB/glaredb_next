@@ -1,18 +1,15 @@
 use crate::expr::Expression;
 
-use super::{
-    binder::bind_context::TableRef,
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::LogicalNode,
-};
+use super::{binder::bind_context::TableRef, operator::LogicalNode};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalProject {
     pub projections: Vec<Expression>,
 }
 
-impl Explainable for LogicalNode<LogicalProject> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Project"), conf)
+impl Explainable for LogicalProject {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Project")
     }
 }

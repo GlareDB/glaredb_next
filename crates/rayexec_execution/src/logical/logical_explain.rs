@@ -1,7 +1,5 @@
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::{LogicalNode, LogicalOperator},
-};
+use super::operator::{LogicalNode, LogicalOperator};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplainFormat {
@@ -18,8 +16,8 @@ pub struct LogicalExplain {
     pub logical_optimized: Option<Box<LogicalOperator>>,
 }
 
-impl Explainable for LogicalNode<LogicalExplain> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Explain"), conf)
+impl Explainable for LogicalExplain {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Explain")
     }
 }

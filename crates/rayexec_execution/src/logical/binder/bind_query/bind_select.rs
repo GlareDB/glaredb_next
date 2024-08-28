@@ -44,6 +44,13 @@ pub struct SelectBinder<'a> {
 }
 
 impl<'a> SelectBinder<'a> {
+    pub fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
+        SelectBinder {
+            current,
+            resolve_context,
+        }
+    }
+
     pub fn bind(
         &self,
         bind_context: &mut BindContext,

@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::scalar::OwnedScalarValue;
 
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::LogicalNode,
-};
+use super::operator::LogicalNode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAttachDatabase {
@@ -14,9 +12,9 @@ pub struct LogicalAttachDatabase {
     pub options: HashMap<String, OwnedScalarValue>,
 }
 
-impl Explainable for LogicalNode<LogicalAttachDatabase> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("AttachDatabase"), conf)
+impl Explainable for LogicalAttachDatabase {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("AttachDatabase")
     }
 }
 
@@ -25,8 +23,8 @@ pub struct LogicalDetachDatabase {
     pub name: String,
 }
 
-impl Explainable for LogicalNode<LogicalDetachDatabase> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("DetachDatabase"), conf)
+impl Explainable for LogicalDetachDatabase {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("DetachDatabase")
     }
 }

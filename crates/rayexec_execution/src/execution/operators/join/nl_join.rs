@@ -13,8 +13,8 @@ use crate::execution::operators::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::PhysicalScalarExpression;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
 /// Partition-local state on the build side.

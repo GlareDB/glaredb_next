@@ -1,7 +1,5 @@
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::LogicalNode,
-};
+use super::operator::LogicalNode;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalLimit {
@@ -9,8 +7,8 @@ pub struct LogicalLimit {
     pub limit: usize,
 }
 
-impl Explainable for LogicalNode<LogicalLimit> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Limit"), conf)
+impl Explainable for LogicalLimit {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Limit")
     }
 }

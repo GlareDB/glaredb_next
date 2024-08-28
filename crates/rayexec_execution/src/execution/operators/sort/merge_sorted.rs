@@ -1,6 +1,6 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
         sort::util::merger::IterState, ExecutableOperator, OperatorState, PartitionState, PollPull,

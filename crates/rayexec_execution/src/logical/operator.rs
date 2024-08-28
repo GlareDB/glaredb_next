@@ -1,6 +1,5 @@
 use super::binder::bind_context::TableRef;
 use super::context::QueryContext;
-use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
 use super::logical_aggregate::LogicalAggregate;
@@ -23,6 +22,7 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::engine::vars::SessionVar;
 use crate::execution::explain::format_logical_plan_for_explain;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::PlannedTableFunction;
@@ -143,16 +143,6 @@ impl<N> LogicalNode<N> {
         self.node
     }
 
-    pub fn annotate_explain(&self, explain: ExplainEntry, _conf: ExplainConfig) -> ExplainEntry {
-        // if !self.expressions.is_empty() {
-        //     explain = explain.with_values(
-        //         "expressions",
-        //         self.expressions.iter().map(|expr| format!("{expr}")),
-        //     );
-        // }
-        explain.with_value("location", self.location)
-    }
-
     pub fn pop_one_child_exact(&mut self) -> Result<LogicalOperator> {
         if self.children.len() != 1 {
             return Err(RayexecError::new(format!(
@@ -175,6 +165,14 @@ impl<N> LogicalNode<N> {
         }
 
         refs
+    }
+}
+
+impl<N: Explainable> Explainable for LogicalNode<N> {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.node
+            .explain_entry(conf)
+            .with_value("location", self.location)
     }
 }
 
@@ -559,7 +557,6 @@ impl Explainable for LogicalOperator {
             Self::Scan2(p) => p.as_ref().explain_entry(conf),
             Self::TableFunction(p) => p.as_ref().explain_entry(conf),
             Self::ExpressionList(p) => p.as_ref().explain_entry(conf),
-            Self::Empty2(_) => ExplainEntry::new("Empty"),
             Self::SetVar2(p) => p.as_ref().explain_entry(conf),
             Self::ShowVar2(p) => p.as_ref().explain_entry(conf),
             Self::ResetVar2(p) => p.as_ref().explain_entry(conf),
@@ -740,10 +737,7 @@ impl SchemaNode for EqualityJoin {
 
 impl Explainable for EqualityJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("EqualityJoin")
-            .with_value("join", self.join_type)
-            .with_value("left_cols", ColumnIndexes(&self.left_on))
-            .with_value("right_cols", ColumnIndexes(&self.right_on))
+        ExplainEntry::new("EqualityJoin").with_value("join", self.join_type)
     }
 }
 

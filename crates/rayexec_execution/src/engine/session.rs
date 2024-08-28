@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
+use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
 use uuid::Uuid;
@@ -17,7 +18,9 @@ use crate::{
     logical::{
         binder::bind_statement::StatementBinder,
         context::QueryContext,
-        operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
+        logical_attach::LogicalAttachDatabase,
+        logical_set::VariableOrAll,
+        operator::{AttachDatabase, LogicalNode, LogicalOperator},
         planner::{plan_statement::StatementPlanner, plan_statement2::StatementPlanner2},
         resolver::{ResolveMode, Resolver},
     },
@@ -210,27 +213,48 @@ where
                 };
                 let mut logical = planner.plan(bound_stmt)?;
 
-                let cols: Vec<_> = bind_context
-                    .iter_tables(bind_context.root_scope_ref())?
-                    .flat_map(|t| {
-                        t.column_names
-                            .iter()
-                            .cloned()
-                            .zip(t.column_types.iter().cloned())
-                            .into_iter()
-                    })
-                    .collect();
+                // let cols: Vec<_> = bind_context
+                //     .iter_tables(bind_context.root_scope_ref())?
+                //     .flat_map(|t| {
+                //         t.column_names
+                //             .iter()
+                //             .cloned()
+                //             .zip(t.column_types.iter().cloned())
+                //             .into_iter()
+                //     })
+                //     .collect();
 
-                return Err(RayexecError::new(format!(
-                    "COMPLETE\n{logical:#?}\nCOLS: {cols:?}"
-                )));
+                // return Err(RayexecError::new(format!(
+                //     "COMPLETE\n{logical:#?}\nCOLS: {cols:?}"
+                // )));
 
-                let (mut logical, context) = StatementPlanner2::new(&self.vars, &resolve_context)
-                    .plan_statement(resolved_stmt)?;
+                // let (mut logical, context) = StatementPlanner2::new(&self.vars, &resolve_context)
+                //     .plan_statement(resolved_stmt)?;
 
-                let optimizer = Optimizer::new();
-                logical.root = optimizer.optimize(logical.root)?;
-                let schema = logical.schema()?;
+                // TODO:
+                // let optimizer = Optimizer::new();
+                // logical = optimizer.optimize(logical)?;
+
+                // If we're an explain, put a copy of the optimized plan on the
+                // node.
+                if let LogicalOperator::Explain(explain) = &mut logical {
+                    let child = explain
+                        .children
+                        .first()
+                        .ok_or_else(|| RayexecError::new("Missing explain child"))?;
+                    explain.node.logical_optimized = Some(Box::new(child.clone()));
+                }
+
+                let schema = Schema::new(
+                    bind_context
+                        .iter_tables(bind_context.root_scope_ref())?
+                        .flat_map(|t| {
+                            t.column_names
+                                .iter()
+                                .zip(&t.column_types)
+                                .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+                        }),
+                );
 
                 let query_id = Uuid::new_v4();
                 let planner = IntermediatePipelinePlanner::new(
@@ -238,17 +262,17 @@ where
                     query_id,
                 );
 
-                let pipelines = match logical.root {
-                    LogicalOperator::AttachDatabase2(attach) => {
+                let pipelines = match logical {
+                    LogicalOperator::AttachDatabase(attach) => {
                         self.handle_attach_database(attach).await?;
                         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
-                    LogicalOperator::DetachDatabase2(detach) => {
+                    LogicalOperator::DetachDatabase(detach) => {
                         let empty = planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?; // Here to avoid lifetime issues.
                         self.context.detach_database(&detach.as_ref().name)?;
                         empty
                     }
-                    LogicalOperator::SetVar2(set_var) => {
+                    LogicalOperator::SetVar(set_var) => {
                         // TODO: Do we want this logic to exist here?
                         //
                         // SET seems fine, but what happens with things like wanting to
@@ -266,7 +290,7 @@ where
                         self.vars.set_var(&set_var.name, val)?;
                         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
-                    LogicalOperator::ResetVar2(reset) => {
+                    LogicalOperator::ResetVar(reset) => {
                         // Same TODO as above.
                         match &reset.as_ref().var {
                             VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
@@ -308,7 +332,10 @@ where
         })
     }
 
-    async fn handle_attach_database(&mut self, attach: LogicalNode<AttachDatabase>) -> Result<()> {
+    async fn handle_attach_database(
+        &mut self,
+        attach: LogicalNode<LogicalAttachDatabase>,
+    ) -> Result<()> {
         // TODO: This should always be client local. Is there a case where we
         // want to have that not be the cases? What would the behavior be.
         let attach = attach.into_inner();

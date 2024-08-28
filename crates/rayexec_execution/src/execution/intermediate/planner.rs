@@ -115,8 +115,9 @@ impl IntermediatePipelinePlanner {
         let mut id_gen = PipelineIdGen::new(self.query_id);
 
         let mut materializations = {
+            // TODO
             // state.plan_materializations(context, &mut id_gen)?;
-            unimplemented!()
+            Materializations::default()
         };
         state.walk(&mut materializations, &mut id_gen, root)?;
 

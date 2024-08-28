@@ -1,15 +1,13 @@
 use std::sync::Arc;
 
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::datatype::DataType;
 
 use crate::{
     database::catalog_entry::CatalogEntry, expr::Expression, functions::table::PlannedTableFunction,
 };
 
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::LogicalNode,
-};
+use super::operator::LogicalNode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanSource {
@@ -47,8 +45,8 @@ pub struct LogicalScan {
     pub source: ScanSource,
 }
 
-impl Explainable for LogicalNode<LogicalScan> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Scan"), conf)
+impl Explainable for LogicalScan {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Scan")
     }
 }

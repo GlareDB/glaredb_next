@@ -1,12 +1,10 @@
 use rayexec_bullet::field::Schema;
 use rayexec_io::location::FileLocation;
 
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{expr::Expression, functions::copy::CopyToFunction};
 
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::LogicalNode,
-};
+use super::operator::LogicalNode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCopyTo {
@@ -19,8 +17,8 @@ pub struct LogicalCopyTo {
     pub copy_to: Box<dyn CopyToFunction>,
 }
 
-impl Explainable for LogicalNode<LogicalCopyTo> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("CopyTo"), conf)
+impl Explainable for LogicalCopyTo {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CopyTo")
     }
 }

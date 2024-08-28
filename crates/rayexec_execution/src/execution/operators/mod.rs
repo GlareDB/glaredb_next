@@ -65,7 +65,7 @@ use values::PhysicalValues;
 
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
 use self::empty::EmptyPartitionState;

@@ -1,13 +1,11 @@
-use super::{
-    explainable::{ExplainConfig, ExplainEntry, Explainable},
-    operator::LogicalNode,
-};
+use super::operator::LogicalNode;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LogicalEmpty;
 
-impl Explainable for LogicalNode<LogicalEmpty> {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.annotate_explain(ExplainEntry::new("Empty"), conf)
+impl Explainable for LogicalEmpty {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Empty")
     }
 }

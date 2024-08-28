@@ -51,6 +51,18 @@ impl<'a> ExpressionBinder<'a> {
         }
     }
 
+    pub fn bind_expressions(
+        &self,
+        bind_context: &mut BindContext,
+        exprs: &[ast::Expr<ResolvedMeta>],
+        recur: RecursionContext,
+    ) -> Result<Vec<Expression>> {
+        exprs
+            .iter()
+            .map(|expr| self.bind_expression(bind_context, expr, recur))
+            .collect::<Result<Vec<_>>>()
+    }
+
     pub fn bind_expression(
         &self,
         bind_context: &mut BindContext,

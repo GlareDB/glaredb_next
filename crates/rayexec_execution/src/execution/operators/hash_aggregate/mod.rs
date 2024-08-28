@@ -15,8 +15,8 @@ use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
     ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
 

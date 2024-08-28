@@ -1,8 +1,8 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::{multi_array_drain, GroupedStates};
-use crate::logical::explainable::{ExplainConfig, ExplainEntry};
 use crate::proto::DatabaseProtoConv;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -11,8 +11,6 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::{Context, Waker};
-
-use crate::logical::explainable::Explainable;
 
 use super::{
     ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
