@@ -40,6 +40,7 @@ impl<'a> CopyPlanner<'a> {
             },
             location: LocationRequirement::ClientLocal,
             children: vec![source],
+            input_table_refs: None,
         }))
     }
 }

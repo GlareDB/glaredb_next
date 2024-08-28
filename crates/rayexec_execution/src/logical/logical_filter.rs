@@ -1,6 +1,7 @@
 use crate::expr::Expression;
 
 use super::{
+    binder::bind_context::TableRef,
     explainable::{ExplainConfig, ExplainEntry, Explainable},
     operator::LogicalNode,
 };

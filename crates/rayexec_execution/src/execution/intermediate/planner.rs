@@ -36,6 +36,7 @@ use crate::{
         binder::bind_context::BindContext,
         context::QueryContext,
         grouping_set::GroupingSets,
+        logical_filter::LogicalFilter,
         logical_project::LogicalProject,
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
     },
@@ -313,7 +314,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
-            LogicalOperator::Filter2(filter) => self.push_filter(id_gen, materializations, filter),
+            LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
             LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
@@ -1019,7 +1020,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let projections = self
             .expr_planner
-            .plan_scalars(&[project.node.projections_table], &project.node.projections)?;
+            .plan_scalars(&project.get_table_refs(), &project.node.projections)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
@@ -1037,15 +1038,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        filter: LogicalNode<operator::Filter>,
+        mut filter: LogicalNode<LogicalFilter>,
     ) -> Result<()> {
-        let input_schema = filter.as_ref().input.output_schema(&[])?;
         let location = filter.location;
-        let filter = filter.into_inner();
-        self.walk(materializations, id_gen, *filter.input)?;
+        let input = filter.pop_one_child_exact()?;
+        self.walk(materializations, id_gen, input)?;
 
-        let predicate =
-            PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate, &input_schema)?;
+        let predicate = self
+            .expr_planner
+            .plan_scalar(&filter.get_table_refs(), &filter.node.filter)?;
+
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
                 FilterOperation::new(predicate),

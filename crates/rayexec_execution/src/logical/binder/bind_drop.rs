@@ -46,6 +46,7 @@ impl DropBinder {
                     },
                     location: LocationRequirement::ClientLocal,
                     children: Vec::new(),
+                    input_table_refs: None,
                 })
             }
             other => not_implemented!("drop {other:?}"),

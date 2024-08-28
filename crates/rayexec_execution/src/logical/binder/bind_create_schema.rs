@@ -43,6 +43,7 @@ impl CreateSchemaBinder {
             },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
+            input_table_refs: None,
         })
     }
 }

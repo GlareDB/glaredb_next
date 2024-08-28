@@ -1,5 +1,5 @@
 use crate::logical::{
-    binder::{bind_context::BindContext, bind_insert::BoundInsert},
+    binder::{bind_context::BindContext, bind_insert::BoundInsert, bind_query::BoundQuery},
     logical_insert::LogicalInsert,
     logical_project::LogicalProject,
     operator::{LocationRequirement, LogicalNode, LogicalOperator},
@@ -27,6 +27,7 @@ impl<'a> InsertPlanner<'a> {
                 node: LogicalProject { projections },
                 location: LocationRequirement::Any,
                 children: vec![source],
+                input_table_refs: None,
             })
         }
 
@@ -38,6 +39,7 @@ impl<'a> InsertPlanner<'a> {
             },
             location: insert.table_location,
             children: vec![source],
+            input_table_refs: None,
         }))
     }
 }

@@ -1,3 +1,4 @@
+use super::binder::bind_context::TableRef;
 use super::context::QueryContext;
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::expr::LogicalExpression;
@@ -101,9 +102,20 @@ impl fmt::Display for LocationRequirement {
 /// the node.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalNode<N> {
+    /// Node specific logic.
     pub node: N,
+    /// Location where this node should be executed.
+    ///
+    /// May be 'Any' if there's no requirement that this node executes on the
+    /// client or server.
     pub location: LocationRequirement,
+    /// Inputs to this node.
     pub children: Vec<LogicalOperator>,
+    /// Input table refs that this node's expressions should reference _after_
+    /// all subquery decorrelation happens.
+    ///
+    /// If None, this node's children's table refs will be used.
+    pub input_table_refs: Option<Vec<TableRef>>,
 }
 
 impl<N> LogicalNode<N> {
@@ -113,6 +125,7 @@ impl<N> LogicalNode<N> {
             node,
             location: LocationRequirement::Any,
             children: Vec::new(),
+            input_table_refs: None,
         }
     }
 
@@ -122,6 +135,7 @@ impl<N> LogicalNode<N> {
             node,
             location,
             children: Vec::new(),
+            input_table_refs: None,
         }
     }
 
@@ -147,6 +161,20 @@ impl<N> LogicalNode<N> {
             )));
         }
         Ok(self.children.pop().unwrap())
+    }
+
+    pub fn get_table_refs(&self) -> Vec<TableRef> {
+        if let Some(refs) = self.input_table_refs.clone() {
+            return refs;
+        }
+
+        let mut refs = Vec::new();
+        for child in &self.children {
+            // TODO
+            unimplemented!()
+        }
+
+        refs
     }
 }
 

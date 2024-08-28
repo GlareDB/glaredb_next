@@ -22,18 +22,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         PhysicalExpressionPlanner { bind_context }
     }
 
-    /// Plans physical scalar expressions.
-    ///
-    /// Tables refs is a list of table references that represent valid
-    /// expression inputs into some plan. For example, a join will have two
-    /// table refs, left and right. Column expression may reference either the
-    /// left or right table. If the expression does not reference a table, it
-    /// indicates we didn't properly decorrelate the expression, and we error.
-    ///
-    /// The output expression list assumes that the input into an operator is a
-    /// flat batch of columns. This means for a join, the batch will represent
-    /// [left, right] table refs, and so column references on the right will
-    /// take into account the number of columns on left.
+    /// Plan more than one scalar expression.
     pub fn plan_scalars(
         &self,
         table_refs: &[TableRef],
@@ -45,7 +34,19 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             .collect::<Result<Vec<_>>>()
     }
 
-    fn plan_scalar(
+    /// Plans a physical scalar expressions.
+    ///
+    /// Tables refs is a list of table references that represent valid
+    /// expression inputs into some plan. For example, a join will have two
+    /// table refs, left and right. Column expression may reference either the
+    /// left or right table. If the expression does not reference a table, it
+    /// indicates we didn't properly decorrelate the expression, and we error.
+    ///
+    /// The output expression list assumes that the input into an operator is a
+    /// flat batch of columns. This means for a join, the batch will represent
+    /// [left, right] table refs, and so column references on the right will
+    /// take into account the number of columns on left.
+    pub fn plan_scalar(
         &self,
         table_refs: &[TableRef],
         expr: &Expression,

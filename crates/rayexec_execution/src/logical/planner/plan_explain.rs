@@ -30,6 +30,7 @@ impl<'a> ExplainPlanner<'a> {
             },
             location: LocationRequirement::Any,
             children: vec![plan],
+            input_table_refs: None,
         }))
     }
 }

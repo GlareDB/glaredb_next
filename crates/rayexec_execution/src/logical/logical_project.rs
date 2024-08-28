@@ -9,7 +9,6 @@ use super::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalProject {
     pub projections: Vec<Expression>,
-    pub projections_table: TableRef,
 }
 
 impl Explainable for LogicalNode<LogicalProject> {
