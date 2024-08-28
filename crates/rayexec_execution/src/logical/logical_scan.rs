@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use rayexec_bullet::datatype::DataType;
 
-use crate::{database::catalog_entry::CatalogEntry, functions::table::PlannedTableFunction};
+use crate::{
+    database::catalog_entry::CatalogEntry, expr::Expression, functions::table::PlannedTableFunction,
+};
 
 use super::{
     explainable::{ExplainConfig, ExplainEntry, Explainable},
-    expr::LogicalExpression,
     operator::LogicalNode,
 };
 
@@ -21,7 +22,7 @@ pub enum ScanSource {
         function: Box<dyn PlannedTableFunction>,
     },
     ExpressionList {
-        rows: Vec<Vec<LogicalExpression>>,
+        rows: Vec<Vec<Expression>>,
     },
     View {
         catalog: String,

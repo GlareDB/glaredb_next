@@ -29,7 +29,7 @@ use crate::{
         },
     },
     expr::{
-        physical::planner::PhysicalExpressionPlanner, PhysicalAggregateExpression,
+        physical::planner::PhysicalExpressionPlanner, Expression, PhysicalAggregateExpression,
         PhysicalScalarExpression, PhysicalSortExpression,
     },
     logical::{
@@ -40,6 +40,7 @@ use crate::{
         logical_filter::LogicalFilter,
         logical_limit::LogicalLimit,
         logical_project::LogicalProject,
+        logical_scan::{LogicalScan, ScanSource},
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
     },
 };
@@ -47,7 +48,6 @@ use rayexec_bullet::{
     array::{Array, Utf8Array},
     batch::Batch,
     compute::concat::concat,
-    field::TypeSchema,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
@@ -317,7 +317,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
-            LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
+            // LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
@@ -351,10 +351,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::MaterializedScan(scan) => {
                 self.push_materialized_scan(materializations, id_gen, scan)
             }
-            LogicalOperator::Scan2(scan) => self.push_scan(id_gen, scan),
-            LogicalOperator::TableFunction(table_func) => {
-                self.push_table_function(id_gen, table_func)
-            }
+            LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
             LogicalOperator::SetOperation(setop) => {
                 self.push_set_operation(id_gen, materializations, setop)
             }
@@ -709,35 +706,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_table_function(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        table_func: LogicalNode<operator::TableFunction>,
-    ) -> Result<()> {
-        let location = table_func.location;
-        let table_func = table_func.into_inner();
-
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new("Expected in progress to be None"));
-        }
-
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
-                table_func.function,
-            ))),
-            partitioning_requirement: None,
-        };
-
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
-
-        Ok(())
-    }
-
     fn push_materialized_scan(
         &mut self,
         materializations: &mut Materializations,
@@ -785,22 +753,42 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_scan(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        scan: LogicalNode<operator::Scan>,
+        scan: LogicalNode<LogicalScan>,
     ) -> Result<()> {
         let location = scan.location;
-        let scan = scan.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
-                scan.catalog,
-                scan.schema,
-                scan.source,
-            ))),
-            partitioning_requirement: None,
+        // TODO: use this.
+        let _projections = scan.node.projection;
+
+        let operator = match scan.node.source {
+            ScanSource::Table {
+                catalog,
+                schema,
+                source,
+            } => IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
+                    catalog, schema, source,
+                ))),
+                partitioning_requirement: None,
+            },
+            ScanSource::TableFunction { function } => IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
+                    function,
+                ))),
+                partitioning_requirement: None,
+            },
+            ScanSource::ExpressionList { rows } => {
+                let batch = self.create_batch_for_row_values(rows)?;
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
+                    partitioning_requirement: None,
+                }
+            }
+            ScanSource::View { .. } => not_implemented!("view physical planning"),
         };
 
         self.in_progress = Some(InProgressPipeline {
@@ -810,7 +798,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             source: PipelineSource::InPipeline,
         });
 
-        Ok(())
+        unimplemented!()
     }
 
     fn push_create_schema(
@@ -1417,31 +1405,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_values(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        values: LogicalNode<operator::ExpressionList>,
-    ) -> Result<()> {
+    fn create_batch_for_row_values(&self, rows: Vec<Vec<Expression>>) -> Result<Batch> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
         // TODO: This could probably be simplified.
 
-        let location = values.location;
-        let values = values.into_inner();
-
         let mut row_arrs: Vec<Vec<Arc<Array>>> = Vec::new(); // Row oriented.
         let dummy_batch = Batch::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
-        for row_exprs in values.rows {
-            let exprs = row_exprs
-                .into_iter()
-                .map(|expr| {
-                    PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &TypeSchema::empty())
-                })
-                .collect::<Result<Vec<_>>>()?;
+        for row_exprs in rows {
+            let exprs = self.expr_planner.plan_scalars(&[], &row_exprs)?;
             let arrs = exprs
                 .into_iter()
                 .map(|expr| expr.eval(&dummy_batch))
@@ -1470,20 +1446,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             cols.push(col);
         }
 
-        let batch = Batch::try_new(cols)?;
-
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
-            partitioning_requirement: None,
-        };
-
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
-
-        Ok(())
+        Batch::try_new(cols)
     }
 }
