@@ -23,7 +23,6 @@ use crate::database::drop::DropInfo;
 use crate::engine::vars::SessionVar;
 use crate::execution::explain::format_logical_plan_for_explain;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::Expression;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::PlannedTableFunction;
 use rayexec_bullet::datatype::DataType;
@@ -170,9 +169,16 @@ impl<N> LogicalNode<N> {
 
 impl<N: Explainable> Explainable for LogicalNode<N> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.node
+        let mut ent = self
+            .node
             .explain_entry(conf)
-            .with_value("location", self.location)
+            .with_value("location", self.location);
+
+        if conf.verbose {
+            ent = ent.with_values("table_refs", self.get_table_refs());
+        }
+
+        ent
     }
 }
 

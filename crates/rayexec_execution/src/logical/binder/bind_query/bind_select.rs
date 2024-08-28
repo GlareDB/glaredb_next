@@ -64,9 +64,8 @@ impl<'a> SelectBinder<'a> {
             FromBinder::new(from_bind_ref, self.resolve_context).bind(bind_context, select.from)?;
 
         // Expand SELECT
-        let projections =
-            SelectExprExpander::new(from_bind_ref, self.resolve_context, bind_context)
-                .expand_all_select_exprs(select.projections)?;
+        let projections = SelectExprExpander::new(from_bind_ref, bind_context)
+            .expand_all_select_exprs(select.projections)?;
 
         if projections.is_empty() {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));

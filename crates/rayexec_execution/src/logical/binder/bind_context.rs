@@ -281,8 +281,6 @@ impl BindContext {
         column_types: Vec<DataType>,
         column_names: Vec<String>,
     ) -> Result<TableRef> {
-        let alias = alias.into();
-
         if let Some(alias) = &alias {
             // If we have multiple tables in scope, they need to have unique
             // alias (e.g. by ensure one is more qualified than the other)

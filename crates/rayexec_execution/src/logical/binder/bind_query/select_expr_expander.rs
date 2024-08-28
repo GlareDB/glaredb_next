@@ -11,19 +11,13 @@ use rayexec_parser::ast;
 #[derive(Debug)]
 pub struct SelectExprExpander<'a> {
     pub current: BindScopeRef,
-    pub resolve_context: &'a ResolveContext,
     pub bind_context: &'a BindContext,
 }
 
 impl<'a> SelectExprExpander<'a> {
-    pub fn new(
-        current: BindScopeRef,
-        resolve_context: &'a ResolveContext,
-        bind_context: &'a BindContext,
-    ) -> Self {
+    pub fn new(current: BindScopeRef, bind_context: &'a BindContext) -> Self {
         SelectExprExpander {
             current,
-            resolve_context,
             bind_context,
         }
     }
@@ -48,13 +42,13 @@ impl<'a> SelectExprExpander<'a> {
             ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
                 let mut exprs = Vec::new();
-                for scope in self.bind_context.iter_tables(self.current)? {
-                    let alias_idents = match &scope.alias {
+                for table in self.bind_context.iter_tables(self.current)? {
+                    let alias_idents = match &table.alias {
                         Some(alias) => vec![ast::Ident::from_string(&alias.table)], // TODO: Schema + database too
                         None => Vec::new(),
                     };
 
-                    for column in &scope.column_names {
+                    for column in &table.column_names {
                         let mut idents = alias_idents.clone();
                         idents.push(ast::Ident::from_string(column));
 
@@ -106,5 +100,118 @@ impl<'a> SelectExprExpander<'a> {
             }
             other => vec![other],
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ast::ObjectReference;
+    use rayexec_bullet::datatype::DataType;
+
+    use super::*;
+
+    #[test]
+    fn expand_none() {
+        let bind_context = BindContext::new();
+        let expander = SelectExprExpander::new(bind_context.root_scope_ref(), &bind_context);
+
+        let exprs = vec![
+            ast::SelectExpr::Expr(ast::Expr::Literal(ast::Literal::Number("1".to_string()))),
+            ast::SelectExpr::Expr(ast::Expr::Literal(ast::Literal::Number("2".to_string()))),
+        ];
+
+        // Unchanged.
+        let expected = exprs.clone();
+        let expanded = expander.expand_all_select_exprs(exprs).unwrap();
+
+        assert_eq!(expected, expanded);
+    }
+
+    #[test]
+    fn expand_unqualified() {
+        let mut bind_context = BindContext::new();
+        bind_context
+            .push_table(
+                bind_context.root_scope_ref(),
+                Some(TableAlias {
+                    database: Some("d1".to_string()),
+                    schema: Some("s1".to_string()),
+                    table: "t1".to_string(),
+                }),
+                vec![DataType::Utf8, DataType::Utf8],
+                vec!["c1".to_string(), "c2".to_string()],
+            )
+            .unwrap();
+
+        let expander = SelectExprExpander::new(bind_context.root_scope_ref(), &bind_context);
+
+        let exprs = vec![ast::SelectExpr::Wildcard(ast::Wildcard::default())];
+
+        let expected = vec![
+            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
+                ast::Ident::from_string("t1"),
+                ast::Ident::from_string("c1"),
+            ])),
+            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
+                ast::Ident::from_string("t1"),
+                ast::Ident::from_string("c2"),
+            ])),
+        ];
+        let expanded = expander.expand_all_select_exprs(exprs).unwrap();
+
+        assert_eq!(expected, expanded);
+    }
+
+    #[test]
+    fn expand_qualified() {
+        let mut bind_context = BindContext::new();
+        // Add 't1'
+        bind_context
+            .push_table(
+                bind_context.root_scope_ref(),
+                Some(TableAlias {
+                    database: Some("d1".to_string()),
+                    schema: Some("s1".to_string()),
+                    table: "t1".to_string(),
+                }),
+                vec![DataType::Utf8, DataType::Utf8],
+                vec!["c1".to_string(), "c2".to_string()],
+            )
+            .unwrap();
+        // Add 't2'
+        bind_context
+            .push_table(
+                bind_context.root_scope_ref(),
+                Some(TableAlias {
+                    database: Some("d1".to_string()),
+                    schema: Some("s1".to_string()),
+                    table: "t2".to_string(),
+                }),
+                vec![DataType::Utf8, DataType::Utf8],
+                vec!["c3".to_string(), "c4".to_string()],
+            )
+            .unwrap();
+
+        let expander = SelectExprExpander::new(bind_context.root_scope_ref(), &bind_context);
+
+        // Expand just 't1'
+        let exprs = vec![ast::SelectExpr::QualifiedWildcard(
+            ObjectReference(vec![ast::Ident::from_string("t1")]),
+            ast::Wildcard::default(),
+        )];
+
+        let expected = vec![
+            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
+                ast::Ident::from_string("t1"),
+                ast::Ident::from_string("c1"),
+            ])),
+            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
+                ast::Ident::from_string("t1"),
+                ast::Ident::from_string("c2"),
+            ])),
+        ];
+        let expanded = expander.expand_all_select_exprs(exprs).unwrap();
+
+        assert_eq!(expected, expanded);
     }
 }
