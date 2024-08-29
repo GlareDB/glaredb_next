@@ -1,7 +1,7 @@
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-use super::{binder::bind_context::TableRef, operator::LogicalNode};
+use super::{binder::bind_context::TableRef, operator::Node};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalFilter {

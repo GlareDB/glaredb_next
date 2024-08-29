@@ -4,7 +4,7 @@ use crate::logical::{
         bind_copy::{BoundCopyTo, BoundCopyToSource},
     },
     logical_copy::LogicalCopyTo,
-    operator::{LocationRequirement, LogicalNode, LogicalOperator},
+    operator::{LocationRequirement, LogicalOperator, Node},
     planner::{plan_from::FromPlanner, plan_query::QueryPlanner},
 };
 use rayexec_error::Result;
@@ -32,7 +32,7 @@ impl<'a> CopyPlanner<'a> {
 
         // Currently only support copying to local.
 
-        Ok(LogicalOperator::CopyTo(LogicalNode {
+        Ok(LogicalOperator::CopyTo(Node {
             node: LogicalCopyTo {
                 source_schema: copy_to.source_schema,
                 location: copy_to.location,

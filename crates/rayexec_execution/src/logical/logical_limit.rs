@@ -1,4 +1,4 @@
-use super::operator::LogicalNode;
+use super::operator::Node;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

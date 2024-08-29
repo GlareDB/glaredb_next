@@ -1,7 +1,7 @@
 use crate::logical::{
     binder::{bind_context::BindContext, bind_create_table::BoundCreateTable},
     logical_create::LogicalCreateTable,
-    operator::{LocationRequirement, LogicalNode, LogicalOperator},
+    operator::{LocationRequirement, LogicalOperator, Node},
     planner::plan_query::QueryPlanner,
 };
 use rayexec_error::Result;
@@ -24,7 +24,7 @@ impl<'a> CreateTablePlanner<'a> {
             Vec::new()
         };
 
-        Ok(LogicalOperator::CreateTable(LogicalNode {
+        Ok(LogicalOperator::CreateTable(Node {
             node: LogicalCreateTable {
                 catalog: create.catalog,
                 schema: create.schema,

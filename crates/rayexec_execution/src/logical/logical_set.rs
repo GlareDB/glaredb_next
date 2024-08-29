@@ -3,7 +3,7 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use crate::engine::vars::SessionVar;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::operator::LogicalNode;
+use super::operator::Node;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalSetVar {
@@ -28,7 +28,7 @@ pub struct LogicalResetVar {
     pub var: VariableOrAll,
 }
 
-impl Explainable for LogicalNode<LogicalResetVar> {
+impl Explainable for Node<LogicalResetVar> {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Reset")
     }

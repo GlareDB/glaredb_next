@@ -5,7 +5,7 @@ use rayexec_parser::ast;
 
 use crate::logical::{
     logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase},
-    operator::{LocationRequirement, LogicalNode},
+    operator::{LocationRequirement, Node},
     resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
 
@@ -16,12 +16,12 @@ use super::{
 
 #[derive(Debug)]
 pub enum BoundAttach {
-    Database(LogicalNode<LogicalAttachDatabase>),
+    Database(Node<LogicalAttachDatabase>),
 }
 
 #[derive(Debug)]
 pub enum BoundDetach {
-    Database(LogicalNode<LogicalDetachDatabase>),
+    Database(Node<LogicalDetachDatabase>),
 }
 
 #[derive(Debug)]
@@ -82,7 +82,7 @@ impl AttachBinder {
                 // cloud-based catalog. Even then, this logic can still make
                 // sense where the client calls a remote endpoint for persisting
                 // catalog changes.
-                Ok(BoundAttach::Database(LogicalNode {
+                Ok(BoundAttach::Database(Node {
                     node: LogicalAttachDatabase {
                         datasource: datasource.into_normalized_string(),
                         name,
@@ -112,7 +112,7 @@ impl AttachBinder {
                 }
                 let name = detach.alias.pop()?;
 
-                Ok(BoundDetach::Database(LogicalNode {
+                Ok(BoundDetach::Database(Node {
                     node: LogicalDetachDatabase { name },
                     location: LocationRequirement::ClientLocal,
                     children: Vec::new(),

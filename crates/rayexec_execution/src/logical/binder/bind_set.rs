@@ -7,7 +7,7 @@ use crate::{
     logical::{
         binder::expr_binder::{ExpressionBinder, RecursionContext},
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll},
-        operator::{LocationRequirement, LogicalNode},
+        operator::{LocationRequirement, Node},
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
@@ -29,7 +29,7 @@ impl<'a> SetVarBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         mut set: ast::SetVariable<ResolvedMeta>,
-    ) -> Result<LogicalNode<LogicalSetVar>> {
+    ) -> Result<Node<LogicalSetVar>> {
         let expr = ExpressionBinder::new(self.current, &ResolveContext::empty()).bind_expression(
             bind_context,
             &set.value,
@@ -45,7 +45,7 @@ impl<'a> SetVarBinder<'a> {
         // Verify exists.
         let _ = self.vars.get_var(&name)?;
 
-        Ok(LogicalNode {
+        Ok(Node {
             node: LogicalSetVar { name, value },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
@@ -57,7 +57,7 @@ impl<'a> SetVarBinder<'a> {
         &self,
         _bind_context: &mut BindContext,
         reset: ast::ResetVariable<ResolvedMeta>,
-    ) -> Result<LogicalNode<LogicalResetVar>> {
+    ) -> Result<Node<LogicalResetVar>> {
         let var = match reset.var {
             ast::VariableOrAll::Variable(mut v) => {
                 let name = v.pop()?; // TODO: Allow compound references?
@@ -67,7 +67,7 @@ impl<'a> SetVarBinder<'a> {
             ast::VariableOrAll::All => VariableOrAll::All,
         };
 
-        Ok(LogicalNode {
+        Ok(Node {
             node: LogicalResetVar { var },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
@@ -79,13 +79,13 @@ impl<'a> SetVarBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         mut show: ast::ShowVariable<ResolvedMeta>,
-    ) -> Result<LogicalNode<LogicalShowVar>> {
+    ) -> Result<Node<LogicalShowVar>> {
         let name = show.reference.pop()?; // TODO: Allow compound references?
         let var = self.vars.get_var(&name)?;
 
         bind_context.push_table(self.current, None, vec![DataType::Utf8], vec![name])?;
 
-        Ok(LogicalNode {
+        Ok(Node {
             node: LogicalShowVar { var: var.clone() },
             location: LocationRequirement::ClientLocal, // Technically could be any since the variable is copied.
             children: Vec::new(),

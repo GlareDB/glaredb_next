@@ -49,7 +49,7 @@ use crate::{
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
-        operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
+        operator::{self, LocationRequirement, LogicalOperator, Node},
     },
 };
 use rayexec_bullet::{
@@ -567,7 +567,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut copy_to: LogicalNode<LogicalCopyTo>,
+        mut copy_to: Node<LogicalCopyTo>,
     ) -> Result<()> {
         let location = copy_to.location;
         let source = copy_to.pop_one_child_exact()?;
@@ -596,7 +596,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        setop: LogicalNode<operator::SetOperation>,
+        setop: Node<operator::SetOperation>,
     ) -> Result<()> {
         let location = setop.location;
         let setop = setop.into_inner();
@@ -654,11 +654,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_drop(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        drop: LogicalNode<LogicalDrop>,
-    ) -> Result<()> {
+    fn push_drop(&mut self, id_gen: &mut PipelineIdGen, drop: Node<LogicalDrop>) -> Result<()> {
         let location = drop.location;
 
         if self.in_progress.is_some() {
@@ -687,7 +683,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut insert: LogicalNode<LogicalInsert>,
+        mut insert: Node<LogicalInsert>,
     ) -> Result<()> {
         let location = insert.location;
         let input = insert.pop_one_child_exact()?;
@@ -714,7 +710,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         materializations: &mut Materializations,
         id_gen: &mut PipelineIdGen,
-        scan: LogicalNode<operator::MaterializedScan>,
+        scan: Node<operator::MaterializedScan>,
     ) -> Result<()> {
         // TODO: Do we care? Currently just defaulting to the materialization
         // location.
@@ -754,11 +750,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_scan(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        scan: LogicalNode<LogicalScan>,
-    ) -> Result<()> {
+    fn push_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {
         let location = scan.location;
 
         if self.in_progress.is_some() {
@@ -808,7 +800,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_create_schema(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        create: LogicalNode<LogicalCreateSchema>,
+        create: Node<LogicalCreateSchema>,
     ) -> Result<()> {
         let location = create.location;
 
@@ -841,7 +833,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut create: LogicalNode<LogicalCreateTable>,
+        mut create: Node<LogicalCreateTable>,
     ) -> Result<()> {
         let location = create.location;
 
@@ -905,7 +897,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_describe(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        describe: LogicalNode<LogicalDescribe>,
+        describe: Node<LogicalDescribe>,
     ) -> Result<()> {
         let location = describe.location;
 
@@ -940,7 +932,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         _materializations: &mut Materializations,
-        explain: LogicalNode<LogicalExplain>,
+        explain: Node<LogicalExplain>,
     ) -> Result<()> {
         let location = explain.location;
         let explain = explain.into_inner();
@@ -995,7 +987,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_show_var(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        show: LogicalNode<operator::ShowVar>,
+        show: Node<operator::ShowVar>,
     ) -> Result<()> {
         let location = show.location;
         let show = show.into_inner();
@@ -1029,7 +1021,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut project: LogicalNode<LogicalProject>,
+        mut project: Node<LogicalProject>,
     ) -> Result<()> {
         let location = project.location;
         let input = project.pop_one_child_exact()?;
@@ -1055,7 +1047,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut filter: LogicalNode<LogicalFilter>,
+        mut filter: Node<LogicalFilter>,
     ) -> Result<()> {
         let location = filter.location;
         let input = filter.pop_one_child_exact()?;
@@ -1081,7 +1073,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut order: LogicalNode<LogicalOrder>,
+        mut order: Node<LogicalOrder>,
     ) -> Result<()> {
         let location = order.location;
 
@@ -1152,7 +1144,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut limit: LogicalNode<LogicalLimit>,
+        mut limit: Node<LogicalLimit>,
     ) -> Result<()> {
         let location = limit.location;
         let input = limit.pop_one_child_exact()?;
@@ -1178,7 +1170,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut agg: LogicalNode<LogicalAggregate>,
+        mut agg: Node<LogicalAggregate>,
     ) -> Result<()> {
         let location = agg.location;
 
@@ -1224,11 +1216,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_empty(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        empty: LogicalNode<LogicalEmpty>,
-    ) -> Result<()> {
+    fn push_empty(&mut self, id_gen: &mut PipelineIdGen, empty: Node<LogicalEmpty>) -> Result<()> {
         // "Empty" is a source of data by virtue of emitting a batch consisting
         // of no columns and 1 row.
         //
@@ -1267,7 +1255,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: LogicalNode<operator::EqualityJoin>,
+        join: Node<operator::EqualityJoin>,
     ) -> Result<()> {
         let location = join.location;
         let join = join.into_inner();
@@ -1319,7 +1307,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: LogicalNode<operator::AnyJoin>,
+        join: Node<operator::AnyJoin>,
     ) -> Result<()> {
         let location = join.location;
         let join = join.into_inner();
@@ -1354,7 +1342,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: LogicalNode<operator::CrossJoin>,
+        join: Node<operator::CrossJoin>,
     ) -> Result<()> {
         let location = join.location;
         let join = join.into_inner();

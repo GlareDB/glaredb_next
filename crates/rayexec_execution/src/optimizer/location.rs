@@ -66,7 +66,7 @@ mod tests {
 
     use crate::{
         database::catalog_entry::{CatalogEntry, CatalogEntryInner, TableEntry},
-        logical::operator::{LogicalNode, Projection, Scan},
+        logical::operator::{Node, Projection, Scan},
     };
 
     use super::*;
@@ -82,9 +82,9 @@ mod tests {
             child: None,
         });
 
-        let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
+        let plan = LogicalOperator::Projection(Node::new(Projection {
             exprs: Vec::new(),
-            input: Box::new(LogicalOperator::Scan2(LogicalNode::with_location(
+            input: Box::new(LogicalOperator::Scan2(Node::with_location(
                 Scan {
                     catalog: "catalog".to_string(),
                     schema: "schema".to_string(),
@@ -109,9 +109,9 @@ mod tests {
             child: None,
         });
 
-        let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
+        let plan = LogicalOperator::Projection(Node::new(Projection {
             exprs: Vec::new(),
-            input: Box::new(LogicalOperator::Scan2(LogicalNode::with_location(
+            input: Box::new(LogicalOperator::Scan2(Node::with_location(
                 Scan {
                     catalog: "catalog".to_string(),
                     schema: "schema".to_string(),

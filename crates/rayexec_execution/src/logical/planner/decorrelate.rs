@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use crate::logical::{
     context::QueryContext,
     expr::{LogicalExpression, Subquery},
-    operator::{CrossJoin, EqualityJoin, JoinType, LogicalNode, LogicalOperator},
+    operator::{CrossJoin, EqualityJoin, JoinType, LogicalOperator, Node},
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -49,8 +49,8 @@ impl SubqueryDecorrelator {
                 // down.
 
                 // TODO: NULL == NULL when available
-                *input = LogicalOperator::EqualityJoin(LogicalNode::new(EqualityJoin {
-                    left: Box::new(LogicalOperator::MaterializedScan(LogicalNode::new(scan))),
+                *input = LogicalOperator::EqualityJoin(Node::new(EqualityJoin {
+                    left: Box::new(LogicalOperator::MaterializedScan(Node::new(scan))),
                     right: Box::new(root),
                     join_type: JoinType::Inner,
                     left_on: vec![0],  // TODO
@@ -266,9 +266,9 @@ impl DependentJoinPushDown {
             // with the materialized outer plan.
             let scan = context.generate_scan_for_idx(materialized_idx, &[])?;
             let orig = plan.take();
-            *plan = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
+            *plan = LogicalOperator::CrossJoin(Node::new(CrossJoin {
                 left: Box::new(orig),
-                right: Box::new(LogicalOperator::MaterializedScan(LogicalNode::new(scan))),
+                right: Box::new(LogicalOperator::MaterializedScan(Node::new(scan))),
             }));
 
             return Ok(());

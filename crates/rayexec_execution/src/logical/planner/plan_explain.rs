@@ -1,7 +1,7 @@
 use crate::logical::{
     binder::{bind_context::BindContext, bind_explain::BoundExplain},
     logical_explain::LogicalExplain,
-    operator::{LocationRequirement, LogicalNode, LogicalOperator},
+    operator::{LocationRequirement, LogicalOperator, Node},
     planner::plan_query::QueryPlanner,
 };
 use rayexec_error::Result;
@@ -20,7 +20,7 @@ impl<'a> ExplainPlanner<'a> {
         let planner = QueryPlanner::new(self.bind_context);
         let plan = planner.plan(explain.query)?;
 
-        Ok(LogicalOperator::Explain(LogicalNode {
+        Ok(LogicalOperator::Explain(Node {
             node: LogicalExplain {
                 analyze: explain.analyze,
                 verbose: explain.verbose,

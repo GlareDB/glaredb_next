@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::scalar::OwnedScalarValue;
 
-use super::operator::LogicalNode;
+use super::operator::Node;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAttachDatabase {

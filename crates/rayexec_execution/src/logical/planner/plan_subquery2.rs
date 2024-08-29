@@ -4,7 +4,7 @@ use crate::{
     logical::{
         context::QueryContext,
         expr::{LogicalExpression, Subquery},
-        operator::{Aggregate, CrossJoin, Limit, LogicalNode, LogicalOperator, Projection},
+        operator::{Aggregate, CrossJoin, Limit, LogicalOperator, Node, Projection},
     },
 };
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
@@ -107,14 +107,14 @@ impl SubqueryPlanner {
                 // column around here.
 
                 // LIMIT the original subquery to 1
-                let subquery = LogicalOperator::Limit2(LogicalNode::new(Limit {
+                let subquery = LogicalOperator::Limit2(Node::new(Limit {
                     offset: None,
                     limit: 1,
                     input: root,
                 }));
 
                 let orig_input = Box::new(input.take());
-                *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
+                *input = LogicalOperator::CrossJoin(Node::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),
                 }));
@@ -151,7 +151,7 @@ impl SubqueryPlanner {
                 };
 
                 // COUNT(*) and LIMIT the original query.
-                let subquery = LogicalOperator::Aggregate2(LogicalNode::new(Aggregate {
+                let subquery = LogicalOperator::Aggregate2(Node::new(Aggregate {
                     // TODO: Replace with CountStar once that's in.
                     //
                     // This currently just includes a 'true'
@@ -164,22 +164,20 @@ impl SubqueryPlanner {
                     }],
                     grouping_sets: None,
                     group_exprs: Vec::new(),
-                    input: Box::new(LogicalOperator::Limit2(LogicalNode::new(Limit {
+                    input: Box::new(LogicalOperator::Limit2(Node::new(Limit {
                         offset: None,
                         limit: 1,
-                        input: Box::new(LogicalOperator::Projection(LogicalNode::new(
-                            Projection {
-                                exprs: vec![LogicalExpression::Literal(OwnedScalarValue::Boolean(
-                                    true,
-                                ))],
-                                input: root,
-                            },
-                        ))),
+                        input: Box::new(LogicalOperator::Projection(Node::new(Projection {
+                            exprs: vec![LogicalExpression::Literal(OwnedScalarValue::Boolean(
+                                true,
+                            ))],
+                            input: root,
+                        }))),
                     }))),
                 }));
 
                 let orig_input = Box::new(input.take());
-                *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
+                *input = LogicalOperator::CrossJoin(Node::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),
                 }));

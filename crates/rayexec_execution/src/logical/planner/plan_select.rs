@@ -5,7 +5,7 @@ use crate::logical::{
     logical_limit::LogicalLimit,
     logical_order::LogicalOrder,
     logical_project::LogicalProject,
-    operator::{LocationRequirement, LogicalNode, LogicalOperator},
+    operator::{LocationRequirement, LogicalOperator, Node},
     planner::{plan_from::FromPlanner, plan_subquery::SubqueryPlanner},
 };
 use rayexec_error::Result;
@@ -23,7 +23,7 @@ impl<'a> SelectPlanner<'a> {
         // Handle WHERE
         if let Some(mut filter) = select.filter {
             plan = SubqueryPlanner::new(self.bind_context).plan(&mut filter, plan)?;
-            plan = LogicalOperator::Filter(LogicalNode {
+            plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter { filter },
                 location: LocationRequirement::Any,
                 children: vec![plan],
@@ -52,7 +52,7 @@ impl<'a> SelectPlanner<'a> {
                 grouping_sets,
             };
 
-            plan = LogicalOperator::Aggregate(LogicalNode {
+            plan = LogicalOperator::Aggregate(Node {
                 node: agg,
                 location: LocationRequirement::Any,
                 children: vec![plan],
@@ -62,7 +62,7 @@ impl<'a> SelectPlanner<'a> {
 
         // Handle HAVING
         if let Some(expr) = select.having {
-            plan = LogicalOperator::Filter(LogicalNode {
+            plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter { filter: expr },
                 location: LocationRequirement::Any,
                 children: vec![plan],
@@ -74,7 +74,7 @@ impl<'a> SelectPlanner<'a> {
         for expr in &mut select.select_list.projections {
             plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
         }
-        plan = LogicalOperator::Project(LogicalNode {
+        plan = LogicalOperator::Project(Node {
             node: LogicalProject {
                 projections: select.select_list.projections,
             },
@@ -85,7 +85,7 @@ impl<'a> SelectPlanner<'a> {
 
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {
-            plan = LogicalOperator::Order(LogicalNode {
+            plan = LogicalOperator::Order(Node {
                 node: LogicalOrder {
                     exprs: order_by.exprs,
                 },
@@ -97,7 +97,7 @@ impl<'a> SelectPlanner<'a> {
 
         // Handle LIMIT
         if let Some(limit) = select.limit {
-            plan = LogicalOperator::Limit(LogicalNode {
+            plan = LogicalOperator::Limit(Node {
                 node: LogicalLimit {
                     offset: limit.offset,
                     limit: limit.limit,
@@ -116,7 +116,7 @@ impl<'a> SelectPlanner<'a> {
 
         // Omit any columns that shouldn't be in the output.
         if let Some(pruned) = select.select_list.pruned {
-            plan = LogicalOperator::Project(LogicalNode {
+            plan = LogicalOperator::Project(Node {
                 node: LogicalProject {
                     projections: pruned.expressions,
                 },

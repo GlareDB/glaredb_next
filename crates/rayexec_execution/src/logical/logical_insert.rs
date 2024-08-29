@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::database::catalog_entry::CatalogEntry;
 
-use super::operator::{LogicalNode, LogicalOperator};
+use super::operator::{LogicalOperator, Node};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalInsert {

@@ -7,7 +7,7 @@ use crate::{
     database::catalog_entry::CatalogEntry, expr::Expression, functions::table::PlannedTableFunction,
 };
 
-use super::operator::LogicalNode;
+use super::operator::Node;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanSource {

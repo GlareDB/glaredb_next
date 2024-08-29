@@ -8,7 +8,7 @@ use rayexec_parser::ast;
 use crate::logical::{
     binder::bind_query::{bind_from::FromBinder, QueryBinder},
     logical_describe::LogicalDescribe,
-    operator::{LocationRequirement, LogicalNode},
+    operator::{LocationRequirement, Node},
     resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
 
@@ -32,7 +32,7 @@ impl<'a> DescribeBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         describe: ast::Describe<ResolvedMeta>,
-    ) -> Result<LogicalNode<LogicalDescribe>> {
+    ) -> Result<Node<LogicalDescribe>> {
         bind_context.push_table(
             self.current,
             None,
@@ -62,7 +62,7 @@ impl<'a> DescribeBinder<'a> {
                 .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
         });
 
-        Ok(LogicalNode {
+        Ok(Node {
             node: LogicalDescribe {
                 schema: Schema::new(fields),
             },

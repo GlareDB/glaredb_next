@@ -20,7 +20,7 @@ use crate::{
         context::QueryContext,
         logical_attach::LogicalAttachDatabase,
         logical_set::VariableOrAll,
-        operator::{AttachDatabase, LogicalNode, LogicalOperator},
+        operator::{AttachDatabase, LogicalOperator, Node},
         planner::{plan_statement::StatementPlanner, plan_statement2::StatementPlanner2},
         resolver::{ResolveMode, Resolver},
     },
@@ -332,10 +332,7 @@ where
         })
     }
 
-    async fn handle_attach_database(
-        &mut self,
-        attach: LogicalNode<LogicalAttachDatabase>,
-    ) -> Result<()> {
+    async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {
         // TODO: This should always be client local. Is there a case where we
         // want to have that not be the cases? What would the behavior be.
         let attach = attach.into_inner();

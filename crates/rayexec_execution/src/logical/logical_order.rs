@@ -1,4 +1,4 @@
-use super::{binder::bind_query::bind_modifier::BoundOrderByExpr, operator::LogicalNode};
+use super::{binder::bind_query::bind_modifier::BoundOrderByExpr, operator::Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, PartialEq)]

@@ -6,7 +6,7 @@ use crate::{
     expr::scalar::{BinaryOperator, PlannedBinaryOperator},
     logical::{
         expr::LogicalExpression,
-        operator::{EqualityJoin, LogicalNode, LogicalOperator, Projection},
+        operator::{EqualityJoin, LogicalOperator, Node, Projection},
     },
 };
 use rayexec_error::{RayexecError, Result};
@@ -67,8 +67,7 @@ impl JoinOrderRule {
                         let orig = join.right.take_boxed();
                         let projection = Projection { exprs, input: orig };
 
-                        join.right =
-                            Box::new(LogicalOperator::Projection(LogicalNode::new(projection)));
+                        join.right = Box::new(LogicalOperator::Projection(Node::new(projection)));
                     }
 
                     let mut conjunctives = Vec::with_capacity(1);
@@ -136,7 +135,7 @@ impl JoinOrderRule {
                     // to be an equality join.
                     if remaining.is_empty() {
                         // TODO: Should use location from original join.
-                        *plan = LogicalOperator::EqualityJoin(LogicalNode::new(EqualityJoin {
+                        *plan = LogicalOperator::EqualityJoin(Node::new(EqualityJoin {
                             left: join.left.take_boxed(),
                             right: join.right.take_boxed(),
                             join_type: join.join_type,

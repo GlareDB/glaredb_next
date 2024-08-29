@@ -5,7 +5,7 @@ use crate::{
     database::create::OnConflict,
     logical::{
         logical_create::LogicalCreateSchema,
-        operator::{LocationRequirement, LogicalNode},
+        operator::{LocationRequirement, Node},
         resolver::ResolvedMeta,
     },
 };
@@ -26,7 +26,7 @@ impl CreateSchemaBinder {
         &self,
         _bind_context: &mut BindContext,
         mut create: ast::CreateSchema<ResolvedMeta>,
-    ) -> Result<LogicalNode<LogicalCreateSchema>> {
+    ) -> Result<Node<LogicalCreateSchema>> {
         let on_conflict = if create.if_not_exists {
             OnConflict::Ignore
         } else {
@@ -35,7 +35,7 @@ impl CreateSchemaBinder {
 
         let [catalog, schema] = create.name.pop_2()?;
 
-        Ok(LogicalNode {
+        Ok(Node {
             node: LogicalCreateSchema {
                 catalog,
                 name: schema,

@@ -7,7 +7,7 @@ use crate::logical::{
     },
     logical_empty::LogicalEmpty,
     logical_scan::{LogicalScan, ScanSource},
-    operator::{LocationRequirement, LogicalNode, LogicalOperator},
+    operator::{LocationRequirement, LogicalOperator, Node},
 };
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ impl<'a> FromPlanner<'a> {
 
                 let projection = (0..types.len()).collect();
 
-                Ok(LogicalOperator::Scan(LogicalNode {
+                Ok(LogicalOperator::Scan(Node {
                     node: LogicalScan {
                         types,
                         names,
@@ -49,7 +49,7 @@ impl<'a> FromPlanner<'a> {
                 }))
             }
             BoundFromItem::Join(_) => unimplemented!(),
-            BoundFromItem::Empty => Ok(LogicalOperator::Empty(LogicalNode {
+            BoundFromItem::Empty => Ok(LogicalOperator::Empty(Node {
                 node: LogicalEmpty,
                 location: LocationRequirement::Any,
                 children: Vec::new(),

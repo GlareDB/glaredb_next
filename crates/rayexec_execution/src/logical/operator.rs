@@ -100,7 +100,7 @@ impl fmt::Display for LocationRequirement {
 /// Wrapper around nodes in the logical plan to holds additional metadata for
 /// the node.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LogicalNode<N> {
+pub struct Node<N> {
     /// Node specific logic.
     pub node: N,
     /// Location where this node should be executed.
@@ -117,10 +117,10 @@ pub struct LogicalNode<N> {
     pub input_table_refs: Option<Vec<TableRef>>,
 }
 
-impl<N> LogicalNode<N> {
+impl<N> Node<N> {
     /// Create a new logical node without an explicit location requirement.
     pub const fn new(node: N) -> Self {
-        LogicalNode {
+        Node {
             node,
             location: LocationRequirement::Any,
             children: Vec::new(),
@@ -130,7 +130,7 @@ impl<N> LogicalNode<N> {
 
     /// Create a logical node with a specified location requirement.
     pub fn with_location(node: N, location: LocationRequirement) -> Self {
-        LogicalNode {
+        Node {
             node,
             location,
             children: Vec::new(),
@@ -167,7 +167,7 @@ impl<N> LogicalNode<N> {
     }
 }
 
-impl<N: Explainable> Explainable for LogicalNode<N> {
+impl<N: Explainable> Explainable for Node<N> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let mut ent = self
             .node
@@ -182,13 +182,13 @@ impl<N: Explainable> Explainable for LogicalNode<N> {
     }
 }
 
-impl<N> AsRef<N> for LogicalNode<N> {
+impl<N> AsRef<N> for Node<N> {
     fn as_ref(&self) -> &N {
         &self.node
     }
 }
 
-impl<N> AsMut<N> for LogicalNode<N> {
+impl<N> AsMut<N> for Node<N> {
     fn as_mut(&mut self) -> &mut N {
         &mut self.node
     }
@@ -196,57 +196,57 @@ impl<N> AsMut<N> for LogicalNode<N> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalOperator {
-    Projection(LogicalNode<Projection>),
-    Filter2(LogicalNode<Filter>),
-    Aggregate2(LogicalNode<Aggregate>),
-    Order2(LogicalNode<Order>),
-    AnyJoin(LogicalNode<AnyJoin>),
-    EqualityJoin(LogicalNode<EqualityJoin>),
-    CrossJoin(LogicalNode<CrossJoin>),
-    DependentJoin(LogicalNode<DependentJoin>),
-    Limit2(LogicalNode<Limit>),
-    SetOperation(LogicalNode<SetOperation>),
-    MaterializedScan(LogicalNode<MaterializedScan>),
-    Scan2(LogicalNode<Scan>),
-    TableFunction(LogicalNode<TableFunction>),
-    ExpressionList(LogicalNode<ExpressionList>),
-    Empty2(LogicalNode<()>),
-    SetVar2(LogicalNode<SetVar>),
-    ShowVar2(LogicalNode<ShowVar>),
-    ResetVar2(LogicalNode<ResetVar>),
-    CreateSchema2(LogicalNode<CreateSchema>),
-    CreateTable2(LogicalNode<CreateTable>),
-    AttachDatabase2(LogicalNode<AttachDatabase>),
-    DetachDatabase2(LogicalNode<DetachDatabase>),
-    Drop2(LogicalNode<DropEntry>),
-    Insert2(LogicalNode<Insert>),
-    CopyTo2(LogicalNode<CopyTo>),
-    Explain2(LogicalNode<Explain>),
-    Describe2(LogicalNode<Describe>),
+    Projection(Node<Projection>),
+    Filter2(Node<Filter>),
+    Aggregate2(Node<Aggregate>),
+    Order2(Node<Order>),
+    AnyJoin(Node<AnyJoin>),
+    EqualityJoin(Node<EqualityJoin>),
+    CrossJoin(Node<CrossJoin>),
+    DependentJoin(Node<DependentJoin>),
+    Limit2(Node<Limit>),
+    SetOperation(Node<SetOperation>),
+    MaterializedScan(Node<MaterializedScan>),
+    Scan2(Node<Scan>),
+    TableFunction(Node<TableFunction>),
+    ExpressionList(Node<ExpressionList>),
+    Empty2(Node<()>),
+    SetVar2(Node<SetVar>),
+    ShowVar2(Node<ShowVar>),
+    ResetVar2(Node<ResetVar>),
+    CreateSchema2(Node<CreateSchema>),
+    CreateTable2(Node<CreateTable>),
+    AttachDatabase2(Node<AttachDatabase>),
+    DetachDatabase2(Node<DetachDatabase>),
+    Drop2(Node<DropEntry>),
+    Insert2(Node<Insert>),
+    CopyTo2(Node<CopyTo>),
+    Explain2(Node<Explain>),
+    Describe2(Node<Describe>),
     // TODO
-    Project(LogicalNode<LogicalProject>),
-    Filter(LogicalNode<LogicalFilter>),
-    Limit(LogicalNode<LogicalLimit>),
-    Order(LogicalNode<LogicalOrder>),
-    Aggregate(LogicalNode<LogicalAggregate>),
-    Scan(LogicalNode<LogicalScan>),
-    Empty(LogicalNode<LogicalEmpty>),
-    SetVar(LogicalNode<LogicalSetVar>),
-    ResetVar(LogicalNode<LogicalResetVar>),
-    ShowVar(LogicalNode<LogicalShowVar>),
-    AttachDatabase(LogicalNode<LogicalAttachDatabase>),
-    DetachDatabase(LogicalNode<LogicalDetachDatabase>),
-    Drop(LogicalNode<LogicalDrop>),
-    Insert(LogicalNode<LogicalInsert>),
-    CreateSchema(LogicalNode<LogicalCreateSchema>),
-    CreateTable(LogicalNode<LogicalCreateTable>),
-    Describe(LogicalNode<LogicalDescribe>),
-    Explain(LogicalNode<LogicalExplain>),
-    CopyTo(LogicalNode<LogicalCopyTo>),
+    Project(Node<LogicalProject>),
+    Filter(Node<LogicalFilter>),
+    Limit(Node<LogicalLimit>),
+    Order(Node<LogicalOrder>),
+    Aggregate(Node<LogicalAggregate>),
+    Scan(Node<LogicalScan>),
+    Empty(Node<LogicalEmpty>),
+    SetVar(Node<LogicalSetVar>),
+    ResetVar(Node<LogicalResetVar>),
+    ShowVar(Node<LogicalShowVar>),
+    AttachDatabase(Node<LogicalAttachDatabase>),
+    DetachDatabase(Node<LogicalDetachDatabase>),
+    Drop(Node<LogicalDrop>),
+    Insert(Node<LogicalInsert>),
+    CreateSchema(Node<LogicalCreateSchema>),
+    CreateTable(Node<LogicalCreateTable>),
+    Describe(Node<LogicalDescribe>),
+    Explain(Node<LogicalExplain>),
+    CopyTo(Node<LogicalCopyTo>),
 }
 
 impl LogicalOperator {
-    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty2(LogicalNode::new(()));
+    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty2(Node::new(()));
 
     /// Get the output type schema of the operator.
     ///
@@ -1282,11 +1282,11 @@ mod tests {
 
     #[test]
     fn walk_plan_pre_post() {
-        let mut plan = LogicalOperator::Projection(LogicalNode::new(Projection {
+        let mut plan = LogicalOperator::Projection(Node::new(Projection {
             exprs: Vec::new(),
-            input: Box::new(LogicalOperator::Filter2(LogicalNode::new(Filter {
+            input: Box::new(LogicalOperator::Filter2(Node::new(Filter {
                 predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
-                input: Box::new(LogicalOperator::Empty2(LogicalNode::new(()))),
+                input: Box::new(LogicalOperator::Empty2(Node::new(()))),
             }))),
         }));
 

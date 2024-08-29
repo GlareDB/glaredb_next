@@ -5,7 +5,7 @@ use crate::{
     database::drop::{DropInfo, DropObject},
     logical::{
         logical_drop::LogicalDrop,
-        operator::{LocationRequirement, LogicalNode},
+        operator::{LocationRequirement, Node},
         resolver::ResolvedMeta,
     },
 };
@@ -26,7 +26,7 @@ impl DropBinder {
         &self,
         _bind_context: &mut BindContext,
         mut drop: ast::DropStatement<ResolvedMeta>,
-    ) -> Result<LogicalNode<LogicalDrop>> {
+    ) -> Result<Node<LogicalDrop>> {
         match drop.drop_type {
             ast::DropType::Schema => {
                 let [catalog, schema] = drop.name.pop_2()?;
@@ -34,7 +34,7 @@ impl DropBinder {
                 // Dropping defaults to restricting (erroring) on dependencies.
                 let deps = drop.deps.unwrap_or(ast::DropDependents::Restrict);
 
-                Ok(LogicalNode {
+                Ok(Node {
                     node: LogicalDrop {
                         catalog,
                         info: DropInfo {

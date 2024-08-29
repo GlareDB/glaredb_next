@@ -3,7 +3,7 @@ use rayexec_bullet::field::Field;
 use crate::database::create::OnConflict;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::operator::{LogicalNode, LogicalOperator};
+use super::operator::{LogicalOperator, Node};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCreateSchema {

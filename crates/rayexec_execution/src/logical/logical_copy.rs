@@ -4,7 +4,7 @@ use rayexec_io::location::FileLocation;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{expr::Expression, functions::copy::CopyToFunction};
 
-use super::operator::LogicalNode;
+use super::operator::Node;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCopyTo {

@@ -12,8 +12,8 @@ use crate::{
         expr::LogicalExpression,
         operator::{
             AttachDatabase, CopyTo, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
-            Explain, ExplainFormat, Insert, LocationRequirement, LogicalNode, LogicalOperator,
-            Projection, ResetVar, Scan, SetVar, ShowVar, VariableOrAll,
+            Explain, ExplainFormat, Insert, LocationRequirement, LogicalOperator, Node, Projection,
+            ResetVar, Scan, SetVar, ShowVar, VariableOrAll,
         },
         planner::{plan_expr::ExpressionContext, plan_query2::QueryNodePlanner},
         resolver::{
@@ -85,7 +85,7 @@ impl<'a> StatementPlanner2<'a> {
                     None => ExplainFormat::Text,
                 };
                 LogicalQuery2 {
-                    root: LogicalOperator::Explain2(LogicalNode::new(Explain {
+                    root: LogicalOperator::Explain2(Node::new(Explain {
                         analyze: explain.analyze,
                         verbose: explain.verbose,
                         format,
@@ -111,7 +111,7 @@ impl<'a> StatementPlanner2<'a> {
                 let expr_ctx = ExpressionContext::new(&planner, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(&mut context, value)?;
                 LogicalQuery2 {
-                    root: LogicalOperator::SetVar2(LogicalNode::new(SetVar {
+                    root: LogicalOperator::SetVar2(Node::new(SetVar {
                         name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
                     })),
@@ -123,7 +123,7 @@ impl<'a> StatementPlanner2<'a> {
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 LogicalQuery2 {
-                    root: LogicalOperator::ShowVar2(LogicalNode::new(ShowVar { var: var.clone() })),
+                    root: LogicalOperator::ShowVar2(Node::new(ShowVar { var: var.clone() })),
                     scope,
                 }
             }
@@ -137,7 +137,7 @@ impl<'a> StatementPlanner2<'a> {
                     ast::VariableOrAll::All => VariableOrAll::All,
                 };
                 LogicalQuery2 {
-                    root: LogicalOperator::ResetVar2(LogicalNode::new(ResetVar { var })),
+                    root: LogicalOperator::ResetVar2(Node::new(ResetVar { var })),
                     scope: Scope::empty(),
                 }
             }
@@ -167,7 +167,7 @@ impl<'a> StatementPlanner2<'a> {
                 );
 
                 LogicalQuery2 {
-                    root: LogicalOperator::Describe2(LogicalNode::new(Describe { schema })),
+                    root: LogicalOperator::Describe2(Node::new(Describe { schema })),
                     scope: Scope::with_columns(None, ["column_name", "datatype"]),
                 }
             }
@@ -211,7 +211,7 @@ impl<'a> StatementPlanner2<'a> {
                 let datasource = attach.datasource_name;
 
                 Ok(LogicalQuery2 {
-                    root: LogicalOperator::AttachDatabase2(LogicalNode::new(AttachDatabase {
+                    root: LogicalOperator::AttachDatabase2(Node::new(AttachDatabase {
                         datasource: datasource.into_normalized_string(),
                         name,
                         options,
@@ -235,9 +235,7 @@ impl<'a> StatementPlanner2<'a> {
                 let name = detach.alias.pop()?;
 
                 Ok(LogicalQuery2 {
-                    root: LogicalOperator::DetachDatabase2(LogicalNode::new(DetachDatabase {
-                        name,
-                    })),
+                    root: LogicalOperator::DetachDatabase2(Node::new(DetachDatabase { name })),
                     scope: Scope::empty(),
                 })
             }
@@ -277,7 +275,7 @@ impl<'a> StatementPlanner2<'a> {
                 );
 
                 LogicalQuery2 {
-                    root: LogicalOperator::Scan2(LogicalNode::with_location(
+                    root: LogicalOperator::Scan2(Node::with_location(
                         Scan {
                             catalog: reference.catalog.clone(),
                             schema: reference.schema.clone(),
@@ -299,7 +297,7 @@ impl<'a> StatementPlanner2<'a> {
             .clone();
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::CopyTo2(LogicalNode::with_location(
+            root: LogicalOperator::CopyTo2(Node::with_location(
                 CopyTo {
                     source: Box::new(source.root),
                     source_schema,
@@ -344,7 +342,7 @@ impl<'a> StatementPlanner2<'a> {
         // maps the columns to the right position.
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::Insert2(LogicalNode::with_location(
+            root: LogicalOperator::Insert2(Node::with_location(
                 Insert {
                     catalog: reference.catalog.clone(),
                     schema: reference.schema.clone(),
@@ -365,7 +363,7 @@ impl<'a> StatementPlanner2<'a> {
                 // Dropping defaults to restricting (erroring) on dependencies.
                 let deps = drop.deps.unwrap_or(ast::DropDependents::Restrict);
 
-                let plan = LogicalOperator::Drop2(LogicalNode::new(DropEntry {
+                let plan = LogicalOperator::Drop2(Node::new(DropEntry {
                     catalog,
                     info: DropInfo {
                         schema,
@@ -397,7 +395,7 @@ impl<'a> StatementPlanner2<'a> {
         let [catalog, schema] = create.name.pop_2()?;
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::CreateSchema2(LogicalNode::new(CreateSchema {
+            root: LogicalOperator::CreateSchema2(Node::new(CreateSchema {
                 catalog,
                 name: schema,
                 on_conflict,
@@ -478,7 +476,7 @@ impl<'a> StatementPlanner2<'a> {
         // referencing is a "stub", and hybrid execution is required).
 
         Ok(LogicalQuery2 {
-            root: LogicalOperator::CreateTable2(LogicalNode::with_location(
+            root: LogicalOperator::CreateTable2(Node::with_location(
                 CreateTable {
                     catalog,
                     schema,
@@ -542,7 +540,7 @@ impl<'a> StatementPlanner2<'a> {
         }
 
         // Otherwise apply projection.
-        Ok(LogicalOperator::Projection(LogicalNode::new(Projection {
+        Ok(LogicalOperator::Projection(Node::new(Projection {
             exprs: projections,
             input: Box::new(root),
         })))

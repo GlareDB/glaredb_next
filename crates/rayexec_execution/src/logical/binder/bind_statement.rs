@@ -10,7 +10,7 @@ use crate::{
         logical_drop::LogicalDrop,
         logical_explain::LogicalExplain,
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
-        operator::{LogicalNode, LogicalOperator},
+        operator::{LogicalOperator, Node},
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
@@ -40,16 +40,16 @@ use super::{
 #[derive(Debug)]
 pub enum BoundStatement {
     Query(BoundQuery),
-    SetVar(LogicalNode<LogicalSetVar>),
-    ResetVar(LogicalNode<LogicalResetVar>),
-    ShowVar(LogicalNode<LogicalShowVar>),
+    SetVar(Node<LogicalSetVar>),
+    ResetVar(Node<LogicalResetVar>),
+    ShowVar(Node<LogicalShowVar>),
     Attach(BoundAttach),
     Detach(BoundDetach),
-    Drop(LogicalNode<LogicalDrop>),
+    Drop(Node<LogicalDrop>),
     Insert(BoundInsert),
-    CreateSchema(LogicalNode<LogicalCreateSchema>),
+    CreateSchema(Node<LogicalCreateSchema>),
     CreateTable(BoundCreateTable),
-    Describe(LogicalNode<LogicalDescribe>),
+    Describe(Node<LogicalDescribe>),
     Explain(BoundExplain),
     CopyTo(BoundCopyTo),
 }

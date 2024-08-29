@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::logical::{
     context::QueryContext,
     expr::LogicalExpression,
-    operator::{EqualityJoin, LogicalNode, SetOpKind, SetOperation},
+    operator::{EqualityJoin, Node, SetOpKind, SetOperation},
     resolver::{
         resolve_context::ResolveContext,
         resolved_table::{CteIndex, ResolvedTableOrCteReference, ResolvedTableReference},
@@ -90,7 +90,7 @@ impl<'a> QueryNodePlanner<'a> {
             };
 
             // Update plan, does not change scope.
-            planned.root = LogicalOperator::Limit2(LogicalNode::new(Limit {
+            planned.root = LogicalOperator::Limit2(Node::new(Limit {
                 offset,
                 limit,
                 input: Box::new(planned.root),
@@ -131,7 +131,7 @@ impl<'a> QueryNodePlanner<'a> {
                     ast::SetOperation::Intersect => SetOpKind::Intersect,
                 };
 
-                let plan = LogicalOperator::SetOperation(LogicalNode::new(SetOperation {
+                let plan = LogicalOperator::SetOperation(Node::new(SetOperation {
                     top: Box::new(top),
                     bottom: Box::new(bottom),
                     kind,
@@ -176,7 +176,7 @@ impl<'a> QueryNodePlanner<'a> {
             // SubqueryPlanner.plan_subquery_expr(&mut expr, &mut plan.root)?;
 
             // Add filter to the plan, does not change the scope.
-            plan.root = LogicalOperator::Filter2(LogicalNode::new(Filter {
+            plan.root = LogicalOperator::Filter2(Node::new(Filter {
                 predicate: expr,
                 input: Box::new(plan.root),
             }));
@@ -273,7 +273,7 @@ impl<'a> QueryNodePlanner<'a> {
 
         // Project the full select list.
         plan = LogicalQuery2 {
-            root: LogicalOperator::Projection(LogicalNode::new(Projection {
+            root: LogicalOperator::Projection(Node::new(Projection {
                 exprs: select_exprs.clone(),
                 input: Box::new(plan.root),
             })),
@@ -283,7 +283,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Add filter for HAVING.
         if let Some(expr) = having_expr {
             plan = LogicalQuery2 {
-                root: LogicalOperator::Filter2(LogicalNode::new(Filter {
+                root: LogicalOperator::Filter2(Node::new(Filter {
                     predicate: expr,
                     input: Box::new(plan.root),
                 })),
@@ -294,7 +294,7 @@ impl<'a> QueryNodePlanner<'a> {
         // Add order by node.
         if !order_by_exprs.is_empty() {
             plan = LogicalQuery2 {
-                root: LogicalOperator::Order2(LogicalNode::new(Order {
+                root: LogicalOperator::Order2(Node::new(Order {
                     exprs: order_by_exprs,
                     input: Box::new(plan.root),
                 })),
@@ -310,7 +310,7 @@ impl<'a> QueryNodePlanner<'a> {
             let projections = (0..output_len).map(LogicalExpression::new_column).collect();
 
             plan = LogicalQuery2 {
-                root: LogicalOperator::Projection(LogicalNode::new(Projection {
+                root: LogicalOperator::Projection(Node::new(Projection {
                     exprs: projections,
                     input: Box::new(plan.root),
                 })),
@@ -364,7 +364,7 @@ impl<'a> QueryNodePlanner<'a> {
                                 .map(|f| f.name.clone()),
                         );
                         LogicalQuery2 {
-                            root: LogicalOperator::Scan2(LogicalNode::with_location(
+                            root: LogicalOperator::Scan2(Node::with_location(
                                 Scan {
                                     catalog: catalog.clone(),
                                     schema: schema.clone(),
@@ -398,7 +398,7 @@ impl<'a> QueryNodePlanner<'a> {
                     func.schema().fields.into_iter().map(|f| f.name),
                 );
 
-                let operator = LogicalOperator::TableFunction(LogicalNode::with_location(
+                let operator = LogicalOperator::TableFunction(Node::with_location(
                     TableFunction { function: func },
                     location,
                 ));
@@ -458,7 +458,7 @@ impl<'a> QueryNodePlanner<'a> {
                         };
 
                         LogicalQuery2 {
-                            root: LogicalOperator::AnyJoin(LogicalNode::new(AnyJoin {
+                            root: LogicalOperator::AnyJoin(Node::new(AnyJoin {
                                 left: Box::new(left_plan.root),
                                 right: Box::new(right_plan.root),
                                 join_type,
@@ -472,7 +472,7 @@ impl<'a> QueryNodePlanner<'a> {
                             let merged = left_plan.scope.merge(right_plan.scope)?;
 
                             LogicalQuery2 {
-                                root: LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
+                                root: LogicalOperator::CrossJoin(Node::new(CrossJoin {
                                     left: Box::new(left_plan.root),
                                     right: Box::new(right_plan.root),
                                 })),
@@ -593,9 +593,9 @@ impl<'a> QueryNodePlanner<'a> {
                         };
 
                         LogicalQuery2 {
-                            root: LogicalOperator::Projection(LogicalNode::new(Projection {
+                            root: LogicalOperator::Projection(Node::new(Projection {
                                 exprs: projections,
-                                input: Box::new(LogicalOperator::EqualityJoin(LogicalNode::new(
+                                input: Box::new(LogicalOperator::EqualityJoin(Node::new(
                                     EqualityJoin {
                                         left: Box::new(left_plan.root),
                                         right: Box::new(right_plan.root),
@@ -649,7 +649,7 @@ impl<'a> QueryNodePlanner<'a> {
                 // TODO: I _think_ "any" location is fine for this, but
                 // definitely needs to be double checked.
                 return Ok(LogicalQuery2 {
-                    root: LogicalOperator::MaterializedScan(LogicalNode::new(scan)),
+                    root: LogicalOperator::MaterializedScan(Node::new(scan)),
                     scope: reference.scope,
                 });
             }
@@ -695,7 +695,7 @@ impl<'a> QueryNodePlanner<'a> {
             let idx = context.push_materialized_cte(bound, query.root, query.scope.clone());
             let scan = context.generate_scan_for_idx(idx, &[])?; // TODO: Again not sure about outer.
             return Ok(LogicalQuery2 {
-                root: LogicalOperator::MaterializedScan(LogicalNode::new(scan)),
+                root: LogicalOperator::MaterializedScan(Node::new(scan)),
                 scope: query.scope,
             });
         }
@@ -771,8 +771,7 @@ impl<'a> QueryNodePlanner<'a> {
             })
             .collect::<Result<Vec<Vec<LogicalExpression>>>>()?;
 
-        let operator =
-            LogicalOperator::ExpressionList(LogicalNode::new(ExpressionList { rows: exprs }));
+        let operator = LogicalOperator::ExpressionList(Node::new(ExpressionList { rows: exprs }));
 
         // Generate output scope with appropriate column names.
         let mut scope = Scope::empty();
@@ -912,7 +911,7 @@ impl<'a> QueryNodePlanner<'a> {
                 }
             }
 
-            top = LogicalOperator::Projection(LogicalNode::new(Projection {
+            top = LogicalOperator::Projection(Node::new(Projection {
                 exprs: projections,
                 input: Box::new(top),
             }))
@@ -931,7 +930,7 @@ impl<'a> QueryNodePlanner<'a> {
                 }
             }
 
-            bottom = LogicalOperator::Projection(LogicalNode::new(Projection {
+            bottom = LogicalOperator::Projection(Node::new(Projection {
                 exprs: projections,
                 input: Box::new(bottom),
             }))

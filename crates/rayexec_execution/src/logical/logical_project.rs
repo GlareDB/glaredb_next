@@ -1,6 +1,6 @@
 use crate::expr::Expression;
 
-use super::{binder::bind_context::TableRef, operator::LogicalNode};
+use super::{binder::bind_context::TableRef, operator::Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, PartialEq)]

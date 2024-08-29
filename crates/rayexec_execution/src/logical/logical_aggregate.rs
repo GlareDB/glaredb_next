@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-use super::operator::LogicalNode;
+use super::operator::Node;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAggregate {
