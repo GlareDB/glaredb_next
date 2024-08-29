@@ -73,7 +73,7 @@ impl<'a> ValuesBinder<'a> {
 
         // TODO: What should happen with limit/order by?
 
-        let table_ref = bind_context.new_ephemeral_table_with_columns(types, names)?;
+        let table_ref = bind_context.push_table(self.current, None, types, names)?;
 
         Ok(BoundValues {
             rows,
