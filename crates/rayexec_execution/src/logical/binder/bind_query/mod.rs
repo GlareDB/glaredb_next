@@ -6,6 +6,7 @@ pub mod bind_values;
 pub mod select_expr_expander;
 pub mod select_list;
 
+use bind_values::{BoundValues, ValuesBinder};
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
@@ -17,6 +18,7 @@ use super::bind_context::{BindContext, BindScopeRef, TableRef};
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundQuery {
     Select(BoundSelect),
+    Values(BoundValues),
 }
 
 impl BoundQuery {
@@ -26,6 +28,7 @@ impl BoundQuery {
                 Some(pruned) => pruned.table,
                 None => select.select_list.projections_table,
             },
+            BoundQuery::Values(values) => values.expressions_table,
         }
     }
 }
@@ -58,6 +61,11 @@ impl<'a> QueryBinder<'a> {
                 Ok(BoundQuery::Select(select))
             }
             ast::QueryNodeBody::Nested(query) => self.bind(bind_context, *query),
+            ast::QueryNodeBody::Values(values) => {
+                let binder = ValuesBinder::new(self.current, self.resolve_context);
+                let values = binder.bind(bind_context, values, query.order_by, query.limit)?;
+                Ok(BoundQuery::Values(values))
+            }
             other => unimplemented!("{other:?}"),
         }
     }

@@ -1,16 +1,22 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::logical::{
-    binder::{
-        bind_context::{BindContext, BindScopeRef},
-        expr_binder::{ExpressionBinder, RecursionContext},
+use crate::{
+    expr::Expression,
+    logical::{
+        binder::{
+            bind_context::{BindContext, BindScopeRef, TableRef},
+            expr_binder::{ExpressionBinder, RecursionContext},
+        },
+        resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
 };
 
-#[derive(Debug)]
-pub struct BoundValues {}
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundValues {
+    pub rows: Vec<Vec<Expression>>,
+    pub expressions_table: TableRef,
+}
 
 #[derive(Debug)]
 pub struct ValuesBinder<'a> {
@@ -30,13 +36,9 @@ impl<'a> ValuesBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         values: ast::Values<ResolvedMeta>,
-        order_by: Option<ast::OrderByModifier<ResolvedMeta>>,
-        limit: ast::LimitModifier<ResolvedMeta>,
+        _order_by: Option<ast::OrderByModifier<ResolvedMeta>>,
+        _limit: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<BoundValues> {
-        if values.rows.is_empty() {
-            return Err(RayexecError::new("Empty VALUES expression"));
-        }
-
         // TODO: This could theoretically bind expressions as correlated
         // columns. TBD if that's desired.
         let expr_binder = ExpressionBinder::new(self.current, self.resolve_context);
@@ -55,8 +57,27 @@ impl<'a> ValuesBinder<'a> {
             })
             .collect::<Result<Vec<Vec<_>>>>()?;
 
+        let first = match rows.first() {
+            Some(first) => first,
+            None => return Err(RayexecError::new("Empty VALUES statement")),
+        };
+
+        let types = first
+            .iter()
+            .map(|expr| expr.datatype(bind_context))
+            .collect::<Result<Vec<_>>>()?;
+
+        let names = (0..first.len())
+            .map(|idx| format!("column{}", idx + 1))
+            .collect();
+
         // TODO: What should happen with limit/order by?
 
-        unimplemented!()
+        let table_ref = bind_context.new_ephemeral_table_with_columns(types, names)?;
+
+        Ok(BoundValues {
+            rows,
+            expressions_table: table_ref,
+        })
     }
 }
