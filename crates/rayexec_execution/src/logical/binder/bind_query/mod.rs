@@ -58,7 +58,7 @@ impl<'a> QueryBinder<'a> {
                 Ok(BoundQuery::Select(select))
             }
             ast::QueryNodeBody::Nested(query) => self.bind(bind_context, *query),
-            _ => unimplemented!(),
+            other => unimplemented!("{other:?}"),
         }
     }
 }

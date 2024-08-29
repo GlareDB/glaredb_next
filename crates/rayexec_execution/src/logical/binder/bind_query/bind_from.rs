@@ -112,9 +112,7 @@ impl<'a> FromBinder<'a> {
                 self.bind_function(bind_context, func, from.alias)
             }
             ast::FromNodeBody::Subquery(subquery) => {
-                let nested_scope = bind_context.new_child_scope(self.current);
-                let binder = QueryBinder::new(nested_scope, self.resolve_context);
-                unimplemented!()
+                self.bind_subquery(bind_context, subquery, from.alias)
             }
             ast::FromNodeBody::File(_) => Err(RayexecError::new(
                 "Resolver should have replaced file path with a table function",
