@@ -10,6 +10,8 @@ use crate::logical::{
     operator::{LocationRequirement, LogicalOperator, Node},
 };
 
+use super::plan_query::QueryPlanner;
+
 #[derive(Debug)]
 pub struct FromPlanner<'a> {
     pub bind_context: &'a BindContext,
@@ -49,6 +51,34 @@ impl<'a> FromPlanner<'a> {
                 }))
             }
             BoundFromItem::Join(_) => unimplemented!(),
+            BoundFromItem::TableFunction(func) => {
+                let mut types = Vec::new();
+                let mut names = Vec::new();
+                for table in self.bind_context.iter_tables(from.bind_ref)? {
+                    types.extend(table.column_types.iter().cloned());
+                    names.extend(table.column_names.iter().cloned());
+                }
+
+                let projection = (0..types.len()).collect();
+
+                Ok(LogicalOperator::Scan(Node {
+                    node: LogicalScan {
+                        table_ref: func.table_ref,
+                        types,
+                        names,
+                        projection,
+                        source: ScanSource::TableFunction {
+                            function: func.function,
+                        },
+                    },
+                    location: func.location,
+                    children: Vec::new(),
+                }))
+            }
+            BoundFromItem::Subquery(subquery) => {
+                let planner = QueryPlanner::new(self.bind_context);
+                planner.plan(*subquery.subquery)
+            }
             BoundFromItem::Empty => Ok(LogicalOperator::Empty(Node {
                 node: LogicalEmpty,
                 location: LocationRequirement::Any,

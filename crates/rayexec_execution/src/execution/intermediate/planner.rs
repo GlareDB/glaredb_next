@@ -49,6 +49,7 @@ use crate::{
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
+        logical_set::LogicalShowVar,
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
 };
@@ -340,7 +341,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
             LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
             LogicalOperator::Order(order) => self.push_global_sort(id_gen, materializations, order),
-            LogicalOperator::ShowVar2(show_var) => self.push_show_var(id_gen, show_var),
+            LogicalOperator::ShowVar(show_var) => self.push_show_var(id_gen, show_var),
             LogicalOperator::Explain(explain) => {
                 self.push_explain(id_gen, materializations, explain)
             }
@@ -987,7 +988,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_show_var(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        show: Node<operator::ShowVar>,
+        show: Node<LogicalShowVar>,
     ) -> Result<()> {
         let location = show.location;
         let show = show.into_inner();

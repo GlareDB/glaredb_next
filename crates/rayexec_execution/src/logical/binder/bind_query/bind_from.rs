@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::{
     database::catalog_entry::CatalogEntry,
     expr::Expression,
+    functions::table::PlannedTableFunction,
     logical::{
         binder::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef},
         operator::{JoinType, LocationRequirement},
@@ -15,6 +16,8 @@ use crate::{
         },
     },
 };
+
+use super::{BoundQuery, QueryBinder};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundFrom {
@@ -26,6 +29,8 @@ pub struct BoundFrom {
 pub enum BoundFromItem {
     BaseTable(BoundBaseTable),
     Join(BoundJoin),
+    TableFunction(BoundTableFunction),
+    Subquery(BoundSubquery),
     Empty,
 }
 
@@ -36,6 +41,19 @@ pub struct BoundBaseTable {
     pub catalog: String,
     pub schema: String,
     pub entry: Arc<CatalogEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundTableFunction {
+    pub table_ref: TableRef,
+    pub location: LocationRequirement,
+    pub function: Box<dyn PlannedTableFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundSubquery {
+    pub table_ref: TableRef,
+    pub subquery: Box<BoundQuery>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,25 +108,35 @@ impl<'a> FromBinder<'a> {
         match from.body {
             ast::FromNodeBody::BaseTable(table) => self.bind_table(bind_context, table, from.alias),
             ast::FromNodeBody::Join(join) => self.bind_join(bind_context, join), // TODO: What to do with alias?
-            _ => unimplemented!(),
+            ast::FromNodeBody::TableFunction(func) => {
+                self.bind_function(bind_context, func, from.alias)
+            }
+            ast::FromNodeBody::Subquery(subquery) => {
+                let nested_scope = bind_context.new_child_scope(self.current);
+                let binder = QueryBinder::new(nested_scope, self.resolve_context);
+                unimplemented!()
+            }
+            ast::FromNodeBody::File(_) => Err(RayexecError::new(
+                "Resolver should have replaced file path with a table function",
+            )),
         }
     }
 
     fn push_table_scope_with_from_alias(
         &self,
         bind_context: &mut BindContext,
-        mut default_alias: TableAlias,
+        mut default_alias: Option<TableAlias>,
         mut default_column_aliases: Vec<String>,
         column_types: Vec<DataType>,
         from_alias: Option<ast::FromAlias>,
     ) -> Result<TableRef> {
         match from_alias {
             Some(ast::FromAlias { alias, columns }) => {
-                default_alias = TableAlias {
+                default_alias = Some(TableAlias {
                     database: None,
                     schema: None,
                     table: alias.into_normalized_string(),
-                };
+                });
 
                 // If column aliases are provided as well, apply those to the
                 // columns in the scope.
@@ -139,7 +167,7 @@ impl<'a> FromBinder<'a> {
 
         bind_context.push_table(
             self.current,
-            Some(default_alias),
+            default_alias,
             column_types,
             default_column_aliases,
         )
@@ -176,7 +204,7 @@ impl<'a> FromBinder<'a> {
 
                 let table_ref = self.push_table_scope_with_from_alias(
                     bind_context,
-                    default_alias,
+                    Some(default_alias),
                     column_names,
                     column_types,
                     alias,
@@ -195,9 +223,84 @@ impl<'a> FromBinder<'a> {
             }
             (ResolvedTableOrCteReference::Cte(cte_idx), _location) => {
                 // TODO: Does location matter here?
-                unimplemented!()
+                unimplemented!("CTE REF")
             }
         }
+    }
+
+    fn bind_subquery(
+        &self,
+        bind_context: &mut BindContext,
+        subquery: ast::FromSubquery<ResolvedMeta>,
+        alias: Option<ast::FromAlias>,
+    ) -> Result<BoundFrom> {
+        let nested_scope = bind_context.new_child_scope(self.current);
+        let binder = QueryBinder::new(nested_scope, self.resolve_context);
+
+        let bound = binder.bind(bind_context, subquery.query)?;
+
+        let mut names = Vec::new();
+        let mut types = Vec::new();
+        for table in bind_context.iter_tables(nested_scope)? {
+            types.extend(table.column_types.iter().cloned());
+            names.extend(table.column_names.iter().cloned());
+        }
+
+        let table_ref =
+            self.push_table_scope_with_from_alias(bind_context, None, names, types, alias)?;
+
+        Ok(BoundFrom {
+            bind_ref: self.current,
+            item: BoundFromItem::Subquery(BoundSubquery {
+                table_ref,
+                subquery: Box::new(bound),
+            }),
+        })
+    }
+
+    fn bind_function(
+        &self,
+        bind_context: &mut BindContext,
+        function: ast::FromTableFunction<ResolvedMeta>,
+        alias: Option<ast::FromAlias>,
+    ) -> Result<BoundFrom> {
+        let (reference, location) = self
+            .resolve_context
+            .table_functions
+            .try_get_bound(function.reference)?;
+
+        // TODO: For table funcs that are reading files, it'd be nice to have
+        // the default alias be the base file path, not the function name.
+        let default_alias = TableAlias {
+            database: None,
+            schema: None,
+            table: reference.name.clone(),
+        };
+
+        let (names, types) = reference
+            .func
+            .schema()
+            .fields
+            .iter()
+            .map(|f| (f.name.clone(), f.datatype.clone()))
+            .unzip();
+
+        let table_ref = self.push_table_scope_with_from_alias(
+            bind_context,
+            Some(default_alias),
+            names,
+            types,
+            alias,
+        )?;
+
+        Ok(BoundFrom {
+            bind_ref: self.current,
+            item: BoundFromItem::TableFunction(BoundTableFunction {
+                table_ref,
+                location,
+                function: reference.func.clone(),
+            }),
+        })
     }
 
     fn bind_join(

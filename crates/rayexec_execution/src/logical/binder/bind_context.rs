@@ -50,10 +50,8 @@ struct BindScope {
     ///
     /// Will be None if this is the root context.
     parent: Option<BindScopeRef>,
-
     /// Correlated columns in the query at this depth.
     correlated_columns: Vec<CorrelatedColumn>,
-
     /// Tables currently in scope.
     tables: Vec<TableRef>,
 }

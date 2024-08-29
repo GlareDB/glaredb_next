@@ -257,7 +257,11 @@ pub enum LogicalOperator {
 }
 
 impl LogicalOperator {
-    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty2(Node::new(()));
+    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty(Node {
+        node: LogicalEmpty,
+        location: LocationRequirement::Any,
+        children: Vec::new(),
+    });
 
     /// Get the output type schema of the operator.
     ///
