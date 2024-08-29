@@ -177,7 +177,7 @@ impl<N> Node<N> {
     }
 
     /// Get all table refs from the immediate children of this node.
-    pub(crate) fn get_children_table_refs(&self) -> Vec<TableRef> {
+    pub fn get_children_table_refs(&self) -> Vec<TableRef> {
         self.children.iter().fold(Vec::new(), |mut refs, child| {
             refs.append(&mut child.get_output_table_refs());
             refs
@@ -559,7 +559,28 @@ impl LogicalOperator {
 
 impl LogicalNode for LogicalOperator {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        unimplemented!()
+        match self {
+            LogicalOperator::Project(n) => n.get_output_table_refs(),
+            LogicalOperator::Filter(n) => n.get_output_table_refs(),
+            LogicalOperator::Scan(n) => n.get_output_table_refs(),
+            LogicalOperator::Aggregate(n) => n.get_output_table_refs(),
+            LogicalOperator::Empty(n) => n.get_output_table_refs(),
+            LogicalOperator::Limit(n) => n.get_output_table_refs(),
+            LogicalOperator::Order(n) => n.get_output_table_refs(),
+            LogicalOperator::SetVar(n) => n.get_output_table_refs(),
+            LogicalOperator::ResetVar(n) => n.get_output_table_refs(),
+            LogicalOperator::ShowVar(n) => n.get_output_table_refs(),
+            LogicalOperator::AttachDatabase(n) => n.get_output_table_refs(),
+            LogicalOperator::DetachDatabase(n) => n.get_output_table_refs(),
+            LogicalOperator::Drop(n) => n.get_output_table_refs(),
+            LogicalOperator::Insert(n) => n.get_output_table_refs(),
+            LogicalOperator::CreateSchema(n) => n.get_output_table_refs(),
+            LogicalOperator::CreateTable(n) => n.get_output_table_refs(),
+            LogicalOperator::Describe(n) => n.get_output_table_refs(),
+            LogicalOperator::Explain(n) => n.get_output_table_refs(),
+            LogicalOperator::CopyTo(n) => n.get_output_table_refs(),
+            _ => unimplemented!(),
+        }
     }
 }
 

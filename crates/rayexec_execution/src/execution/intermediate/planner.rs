@@ -1024,12 +1024,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         mut project: Node<LogicalProject>,
     ) -> Result<()> {
         let location = project.location;
+
         let input = project.pop_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
         let projections = self
             .expr_planner
-            .plan_scalars(&project.get_output_table_refs(), &project.node.projections)?;
+            .plan_scalars(&input_refs, &project.node.projections)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
@@ -1050,12 +1052,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         mut filter: Node<LogicalFilter>,
     ) -> Result<()> {
         let location = filter.location;
+
         let input = filter.pop_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
         let predicate = self
             .expr_planner
-            .plan_scalar(&filter.get_output_table_refs(), &filter.node.filter)?;
+            .plan_scalar(&input_refs, &filter.node.filter)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
@@ -1078,11 +1082,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = order.location;
 
         let input = order.pop_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
         let exprs = self
             .expr_planner
-            .plan_sorts(&order.get_output_table_refs(), &order.node.exprs)?;
+            .plan_sorts(&input_refs, &order.node.exprs)?;
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
@@ -1175,11 +1180,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = agg.location;
 
         let input = agg.pop_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
         let agg_exprs = self
             .expr_planner
-            .plan_aggregates(&agg.get_output_table_refs(), &agg.node.aggregates)?;
+            .plan_aggregates(&input_refs, &agg.node.aggregates)?;
 
         match agg.node.grouping_sets {
             Some(grouping_sets) => {

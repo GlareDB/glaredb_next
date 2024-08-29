@@ -3,7 +3,8 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use crate::engine::vars::SessionVar;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::operator::Node;
+use super::binder::bind_context::TableRef;
+use super::operator::{LogicalNode, Node};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalSetVar {
@@ -14,6 +15,12 @@ pub struct LogicalSetVar {
 impl Explainable for LogicalSetVar {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Set")
+    }
+}
+
+impl LogicalNode for Node<LogicalSetVar> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }
 
@@ -34,6 +41,12 @@ impl Explainable for Node<LogicalResetVar> {
     }
 }
 
+impl LogicalNode for Node<LogicalResetVar> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalShowVar {
     pub var: SessionVar,
@@ -42,5 +55,11 @@ pub struct LogicalShowVar {
 impl Explainable for LogicalShowVar {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Show")
+    }
+}
+
+impl LogicalNode for Node<LogicalShowVar> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }
