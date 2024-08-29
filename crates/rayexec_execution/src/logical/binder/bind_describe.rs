@@ -33,7 +33,7 @@ impl<'a> DescribeBinder<'a> {
         bind_context: &mut BindContext,
         describe: ast::Describe<ResolvedMeta>,
     ) -> Result<Node<LogicalDescribe>> {
-        bind_context.push_table(
+        let table_ref = bind_context.push_table(
             self.current,
             None,
             vec![DataType::Utf8, DataType::Utf8],
@@ -65,6 +65,7 @@ impl<'a> DescribeBinder<'a> {
         Ok(Node {
             node: LogicalDescribe {
                 schema: Schema::new(fields),
+                table_ref,
             },
             location: LocationRequirement::Any,
             children: Vec::new(),

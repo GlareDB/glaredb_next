@@ -7,7 +7,7 @@ use crate::{
     database::catalog_entry::CatalogEntry,
     expr::Expression,
     logical::{
-        binder::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias},
+        binder::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef},
         operator::{JoinType, LocationRequirement},
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
@@ -31,6 +31,7 @@ pub enum BoundFromItem {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundBaseTable {
+    pub table_ref: TableRef,
     pub location: LocationRequirement,
     pub catalog: String,
     pub schema: String,
@@ -100,7 +101,7 @@ impl<'a> FromBinder<'a> {
         mut default_column_aliases: Vec<String>,
         column_types: Vec<DataType>,
         from_alias: Option<ast::FromAlias>,
-    ) -> Result<()> {
+    ) -> Result<TableRef> {
         match from_alias {
             Some(ast::FromAlias { alias, columns }) => {
                 default_alias = TableAlias {
@@ -136,14 +137,12 @@ impl<'a> FromBinder<'a> {
             }
         }
 
-        let _ = bind_context.push_table(
+        bind_context.push_table(
             self.current,
             Some(default_alias),
             column_types,
             default_column_aliases,
-        )?;
-
-        Ok(())
+        )
     }
 
     pub(crate) fn bind_table(
@@ -175,7 +174,7 @@ impl<'a> FromBinder<'a> {
                     table: table.entry.name.clone(),
                 };
 
-                self.push_table_scope_with_from_alias(
+                let table_ref = self.push_table_scope_with_from_alias(
                     bind_context,
                     default_alias,
                     column_names,
@@ -186,6 +185,7 @@ impl<'a> FromBinder<'a> {
                 Ok(BoundFrom {
                     bind_ref: self.current,
                     item: BoundFromItem::BaseTable(BoundBaseTable {
+                        table_ref,
                         location,
                         catalog: table.catalog.clone(),
                         schema: table.schema.clone(),

@@ -1,4 +1,7 @@
-use super::operator::{LogicalOperator, Node};
+use super::{
+    binder::bind_context::TableRef,
+    operator::{LogicalNode, LogicalOperator, Node},
+};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,5 +22,11 @@ pub struct LogicalExplain {
 impl Explainable for LogicalExplain {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Explain")
+    }
+}
+
+impl LogicalNode for Node<LogicalExplain> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }

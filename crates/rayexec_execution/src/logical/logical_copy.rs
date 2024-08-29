@@ -4,7 +4,8 @@ use rayexec_io::location::FileLocation;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{expr::Expression, functions::copy::CopyToFunction};
 
-use super::operator::Node;
+use super::binder::bind_context::TableRef;
+use super::operator::{LogicalNode, Node};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCopyTo {
@@ -20,5 +21,11 @@ pub struct LogicalCopyTo {
 impl Explainable for LogicalCopyTo {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CopyTo")
+    }
+}
+
+impl LogicalNode for Node<LogicalCopyTo> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }

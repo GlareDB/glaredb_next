@@ -3,7 +3,8 @@ use rayexec_bullet::field::Field;
 use crate::database::create::OnConflict;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::operator::{LogicalOperator, Node};
+use super::binder::bind_context::TableRef;
+use super::operator::{LogicalNode, LogicalOperator, Node};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCreateSchema {
@@ -15,6 +16,12 @@ pub struct LogicalCreateSchema {
 impl Explainable for LogicalCreateSchema {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateSchema")
+    }
+}
+
+impl LogicalNode for Node<LogicalCreateSchema> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }
 
@@ -30,5 +37,11 @@ pub struct LogicalCreateTable {
 impl Explainable for LogicalCreateTable {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTable")
+    }
+}
+
+impl LogicalNode for Node<LogicalCreateTable> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }

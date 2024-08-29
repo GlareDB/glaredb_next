@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use crate::database::catalog_entry::CatalogEntry;
 
-use super::operator::{LogicalOperator, Node};
+use super::{
+    binder::bind_context::TableRef,
+    operator::{LogicalNode, LogicalOperator, Node},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalInsert {
@@ -15,5 +18,11 @@ pub struct LogicalInsert {
 impl Explainable for LogicalInsert {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Insert")
+    }
+}
+
+impl LogicalNode for Node<LogicalInsert> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }

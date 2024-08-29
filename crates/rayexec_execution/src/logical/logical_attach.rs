@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::scalar::OwnedScalarValue;
 
-use super::operator::Node;
+use super::{
+    binder::bind_context::TableRef,
+    operator::{LogicalNode, Node},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAttachDatabase {
@@ -18,6 +21,12 @@ impl Explainable for LogicalAttachDatabase {
     }
 }
 
+impl LogicalNode for Node<LogicalAttachDatabase> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalDetachDatabase {
     pub name: String,
@@ -26,5 +35,11 @@ pub struct LogicalDetachDatabase {
 impl Explainable for LogicalDetachDatabase {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("DetachDatabase")
+    }
+}
+
+impl LogicalNode for Node<LogicalDetachDatabase> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
     }
 }

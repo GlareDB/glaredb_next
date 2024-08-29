@@ -34,6 +34,7 @@ impl<'a> FromPlanner<'a> {
 
                 Ok(LogicalOperator::Scan(Node {
                     node: LogicalScan {
+                        table_ref: table.table_ref,
                         types,
                         names,
                         projection,

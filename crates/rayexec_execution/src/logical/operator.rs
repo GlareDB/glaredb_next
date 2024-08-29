@@ -176,42 +176,20 @@ impl<N> Node<N> {
         Ok(&self.children[0])
     }
 
-    /// Get all table refs from the immedidate children of this node.
+    /// Get all table refs from the immediate children of this node.
     pub(crate) fn get_children_table_refs(&self) -> Vec<TableRef> {
         self.children.iter().fold(Vec::new(), |mut refs, child| {
             refs.append(&mut child.get_output_table_refs());
             refs
         })
     }
-
-    pub fn get_table_refs2(&self) -> Vec<TableRef> {
-        unimplemented!()
-        // if let Some(refs) = self.input_table_refs.clone() {
-        //     return refs;
-        // }
-
-        // let mut refs = Vec::new();
-        // for child in &self.children {
-        //     // TODO
-        //     unimplemented!()
-        // }
-
-        // refs
-    }
 }
 
 impl<N: Explainable> Explainable for Node<N> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = self
-            .node
+        self.node
             .explain_entry(conf)
-            .with_value("location", self.location);
-
-        if conf.verbose {
-            ent = ent.with_values("table_refs", self.get_table_refs2());
-        }
-
-        ent
+            .with_value("location", self.location)
     }
 }
 

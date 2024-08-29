@@ -371,7 +371,9 @@ impl BindContext {
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
                 if col_name == column {
                     if found.is_some() {
-                        return Err(RayexecError::new(format!("Ambiguous column name {column}")));
+                        return Err(RayexecError::new(format!(
+                            "Ambiguous column name '{column}'"
+                        )));
                     }
                     found = Some((table, col_idx));
                 }

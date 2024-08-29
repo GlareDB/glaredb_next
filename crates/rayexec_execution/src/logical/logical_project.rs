@@ -13,8 +13,14 @@ pub struct LogicalProject {
 }
 
 impl Explainable for LogicalProject {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Project")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        let mut ent = ExplainEntry::new("Project");
+
+        if conf.verbose {
+            ent = ent.with_value("table_ref", self.projection_table)
+        }
+
+        ent
     }
 }
 
