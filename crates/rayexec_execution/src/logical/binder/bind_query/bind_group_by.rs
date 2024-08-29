@@ -1,7 +1,7 @@
 use crate::{
     expr::{column_expr::ColumnExpr, Expression},
     logical::{
-        binder::bind_context::{BindContext, BindScopeRef},
+        binder::bind_context::{BindContext, BindScopeRef, TableRef},
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
@@ -14,6 +14,7 @@ use super::select_list::SelectList;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundGroupBy {
     pub expressions: Vec<Expression>,
+    pub group_table: TableRef,
     pub grouping_sets: Vec<BTreeSet<usize>>,
 }
 
@@ -33,7 +34,7 @@ impl<'a> GroupByBinder<'a> {
 
     pub fn bind(
         &self,
-        _bind_context: &mut BindContext,
+        bind_context: &mut BindContext,
         select_list: &mut SelectList,
         group_by: ast::GroupByNode<ResolvedMeta>,
     ) -> Result<BoundGroupBy> {
@@ -49,8 +50,12 @@ impl<'a> GroupByBinder<'a> {
             })
             .collect::<Result<Vec<_>>>()?;
 
+        let group_table = bind_context
+            .new_ephemeral_table_from_expressions("__generated_group_expr", &expressions)?;
+
         Ok(BoundGroupBy {
             expressions,
+            group_table,
             grouping_sets: sets.grouping_sets,
         })
     }

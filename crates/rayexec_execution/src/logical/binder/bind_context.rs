@@ -4,6 +4,8 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
+use crate::expr::Expression;
+
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BindScopeRef {
@@ -253,6 +255,23 @@ impl BindContext {
         self.tables.push(scope);
 
         Ok(reference)
+    }
+
+    /// Creates a new table with generated columns from a list of expressions.
+    pub fn new_ephemeral_table_from_expressions(
+        &mut self,
+        generated_prefix: &str,
+        exprs: &[Expression],
+    ) -> Result<TableRef> {
+        let column_types = exprs
+            .iter()
+            .map(|expr| expr.datatype(self))
+            .collect::<Result<Vec<_>>>()?;
+        let column_names = (0..exprs.len())
+            .map(|idx| format!("{generated_prefix}_{idx}"))
+            .collect();
+
+        self.new_ephemeral_table_with_columns(column_types, column_names)
     }
 
     pub fn push_column_for_table(

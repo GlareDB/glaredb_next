@@ -99,7 +99,10 @@ impl fmt::Display for LocationRequirement {
 
 /// Common operations across all logical nodes in a plan.
 ///
-/// This should be implemented on `Node<T>` and not `T`
+/// For individual operators, this should be implemented on `Node<T>` and not
+/// `T`.
+///
+/// This is implemented on `LogicalOperator` for convenience.
 pub trait LogicalNode {
     /// Returns a list of table refs represent the output of this operator.
     ///
@@ -171,6 +174,14 @@ impl<N> Node<N> {
             )));
         }
         Ok(&self.children[0])
+    }
+
+    /// Get all table refs from the immedidate children of this node.
+    pub(crate) fn get_children_table_refs(&self) -> Vec<TableRef> {
+        self.children.iter().fold(Vec::new(), |mut refs, child| {
+            refs.append(&mut child.get_output_table_refs());
+            refs
+        })
     }
 
     pub fn get_table_refs2(&self) -> Vec<TableRef> {
@@ -565,6 +576,12 @@ impl LogicalOperator {
     #[allow(dead_code)]
     pub(crate) fn debug_explain(&self, context: Option<&QueryContext>) -> String {
         format_logical_plan_for_explain(context, self, ExplainFormat::Text, true).unwrap()
+    }
+}
+
+impl LogicalNode for LogicalOperator {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        unimplemented!()
     }
 }
 
