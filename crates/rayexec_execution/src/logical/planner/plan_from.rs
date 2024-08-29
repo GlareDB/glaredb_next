@@ -45,7 +45,6 @@ impl<'a> FromPlanner<'a> {
                     },
                     location: table.location,
                     children: Vec::new(),
-                    input_table_refs: None,
                 }))
             }
             BoundFromItem::Join(_) => unimplemented!(),
@@ -53,7 +52,6 @@ impl<'a> FromPlanner<'a> {
                 node: LogicalEmpty,
                 location: LocationRequirement::Any,
                 children: Vec::new(),
-                input_table_refs: None,
             })),
         }
     }

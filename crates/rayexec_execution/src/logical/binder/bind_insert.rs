@@ -21,6 +21,12 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct InsertProjections {
+    pub projections: Vec<Expression>,
+    pub projection_table: TableRef,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoundInsert {
     /// Source of the insert.
     pub source: BoundQuery,
@@ -31,7 +37,7 @@ pub struct BoundInsert {
     /// Optional projections to apply to the source.
     ///
     /// None if no casts are needed.
-    pub projections: Option<Vec<Expression>>,
+    pub projections: Option<InsertProjections>,
 }
 
 #[derive(Debug)]
@@ -127,7 +133,24 @@ impl<'a> InsertBinder<'a> {
         }
 
         // Only use projections if there's a cast.
-        let projections = if has_cast { Some(projections) } else { None };
+        let projections = if has_cast {
+            let projection_table = bind_context.new_ephemeral_table_with_columns(
+                projections
+                    .iter()
+                    .map(|p| p.datatype(bind_context))
+                    .collect::<Result<Vec<_>>>()?,
+                (0..projections.len())
+                    .map(|idx| format!("__generated_insert_project_{idx}"))
+                    .collect(),
+            )?;
+
+            Some(InsertProjections {
+                projections,
+                projection_table,
+            })
+        } else {
+            None
+        };
 
         Ok(BoundInsert {
             source: bound_query,

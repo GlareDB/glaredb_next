@@ -1,5 +1,5 @@
 use rayexec_error::Result;
-use rayexec_parser::{ast, statement::Statement};
+use rayexec_parser::statement::Statement;
 
 use crate::{
     engine::vars::SessionVars,
@@ -8,9 +8,8 @@ use crate::{
         logical_create::LogicalCreateSchema,
         logical_describe::LogicalDescribe,
         logical_drop::LogicalDrop,
-        logical_explain::LogicalExplain,
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
-        operator::{LogicalOperator, Node},
+        operator::Node,
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };

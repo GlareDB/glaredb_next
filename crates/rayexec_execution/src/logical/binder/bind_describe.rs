@@ -68,7 +68,6 @@ impl<'a> DescribeBinder<'a> {
             },
             location: LocationRequirement::Any,
             children: Vec::new(),
-            input_table_refs: None,
         })
     }
 }

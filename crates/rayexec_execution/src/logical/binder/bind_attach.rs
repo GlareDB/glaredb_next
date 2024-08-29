@@ -90,7 +90,6 @@ impl AttachBinder {
                     },
                     location: LocationRequirement::ClientLocal,
                     children: Vec::new(),
-                    input_table_refs: None,
                 }))
             }
             ast::AttachType::Table => Err(RayexecError::new("Attach tables not yet supported")),
@@ -116,7 +115,6 @@ impl AttachBinder {
                     node: LogicalDetachDatabase { name },
                     location: LocationRequirement::ClientLocal,
                     children: Vec::new(),
-                    input_table_refs: None,
                 }))
             }
             ast::AttachType::Table => Err(RayexecError::new("Detach tables not yet supported")),

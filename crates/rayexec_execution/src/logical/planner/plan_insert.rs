@@ -24,10 +24,12 @@ impl<'a> InsertPlanner<'a> {
 
         if let Some(projections) = insert.projections {
             source = LogicalOperator::Project(Node {
-                node: LogicalProject { projections },
+                node: LogicalProject {
+                    projections: projections.projections,
+                    projection_table: projections.projection_table,
+                },
                 location: LocationRequirement::Any,
                 children: vec![source],
-                input_table_refs: None,
             })
         }
 
@@ -39,7 +41,6 @@ impl<'a> InsertPlanner<'a> {
             },
             location: insert.table_location,
             children: vec![source],
-            input_table_refs: None,
         }))
     }
 }

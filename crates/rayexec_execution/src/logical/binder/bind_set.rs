@@ -49,7 +49,6 @@ impl<'a> SetVarBinder<'a> {
             node: LogicalSetVar { name, value },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
-            input_table_refs: None,
         })
     }
 
@@ -71,7 +70,6 @@ impl<'a> SetVarBinder<'a> {
             node: LogicalResetVar { var },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
-            input_table_refs: None,
         })
     }
 
@@ -89,7 +87,6 @@ impl<'a> SetVarBinder<'a> {
             node: LogicalShowVar { var: var.clone() },
             location: LocationRequirement::ClientLocal, // Technically could be any since the variable is copied.
             children: Vec::new(),
-            input_table_refs: None,
         })
     }
 }

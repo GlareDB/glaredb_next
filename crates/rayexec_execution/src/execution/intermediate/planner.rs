@@ -1029,7 +1029,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let projections = self
             .expr_planner
-            .plan_scalars(&project.get_table_refs(), &project.node.projections)?;
+            .plan_scalars(&project.get_table_refs2(), &project.node.projections)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
@@ -1055,7 +1055,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let predicate = self
             .expr_planner
-            .plan_scalar(&filter.get_table_refs(), &filter.node.filter)?;
+            .plan_scalar(&filter.get_table_refs2(), &filter.node.filter)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
@@ -1082,7 +1082,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let exprs = self
             .expr_planner
-            .plan_sorts(&order.get_table_refs(), &order.node.exprs)?;
+            .plan_sorts(&order.get_table_refs2(), &order.node.exprs)?;
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
@@ -1179,7 +1179,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let agg_exprs = self
             .expr_planner
-            .plan_aggregates(&agg.get_table_refs(), &agg.node.aggregates)?;
+            .plan_aggregates(&agg.get_table_refs2(), &agg.node.aggregates)?;
 
         match agg.node.grouping_sets {
             Some(grouping_sets) => {

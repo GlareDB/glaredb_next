@@ -27,7 +27,6 @@ impl<'a> SelectPlanner<'a> {
                 node: LogicalFilter { filter },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                input_table_refs: None,
             });
         }
 
@@ -56,7 +55,6 @@ impl<'a> SelectPlanner<'a> {
                 node: agg,
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                input_table_refs: None, // TODO:
             })
         }
 
@@ -66,7 +64,6 @@ impl<'a> SelectPlanner<'a> {
                 node: LogicalFilter { filter: expr },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                input_table_refs: None,
             })
         }
 
@@ -77,10 +74,10 @@ impl<'a> SelectPlanner<'a> {
         plan = LogicalOperator::Project(Node {
             node: LogicalProject {
                 projections: select.select_list.projections,
+                projection_table: select.select_list.projections_table,
             },
             location: LocationRequirement::Any,
             children: vec![plan],
-            input_table_refs: Some(vec![select.select_list.projections_table]),
         });
 
         // Handle ORDER BY
@@ -91,7 +88,6 @@ impl<'a> SelectPlanner<'a> {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                input_table_refs: None, // TODO
             })
         }
 
@@ -104,7 +100,6 @@ impl<'a> SelectPlanner<'a> {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                input_table_refs: None,
             });
         }
 
@@ -119,10 +114,10 @@ impl<'a> SelectPlanner<'a> {
             plan = LogicalOperator::Project(Node {
                 node: LogicalProject {
                     projections: pruned.expressions,
+                    projection_table: pruned.table,
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
-                input_table_refs: None, // TODO: ?
             })
         }
 

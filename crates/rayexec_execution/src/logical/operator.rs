@@ -97,6 +97,23 @@ impl fmt::Display for LocationRequirement {
     }
 }
 
+/// Common operations across all logical nodes in a plan.
+///
+/// This should be implemented on `Node<T>` and not `T`
+pub trait LogicalNode {
+    /// Returns a list of table refs represent the output of this operator.
+    ///
+    /// After all planning and optimization, a logical operator should only be
+    /// referencing the table refs of its direct children. If this holds, we can
+    /// then just generate column indexes when referencing batch columns in
+    /// physical operators.
+    ///
+    /// If a logical operator references a table ref that isn't the output of
+    /// any of its immediate children, then we messed up planning (e.g. didn't
+    /// fully decorrelate).
+    fn get_output_table_refs(&self) -> Vec<TableRef>;
+}
+
 /// Wrapper around nodes in the logical plan to holds additional metadata for
 /// the node.
 #[derive(Debug, Clone, PartialEq)]
@@ -110,21 +127,16 @@ pub struct Node<N> {
     pub location: LocationRequirement,
     /// Inputs to this node.
     pub children: Vec<LogicalOperator>,
-    /// Input table refs that this node's expressions should reference _after_
-    /// all subquery decorrelation happens.
-    ///
-    /// If None, this node's children's table refs will be used.
-    pub input_table_refs: Option<Vec<TableRef>>,
 }
 
 impl<N> Node<N> {
     /// Create a new logical node without an explicit location requirement.
+    // TODO: Remove, should be explicit with everything
     pub const fn new(node: N) -> Self {
         Node {
             node,
             location: LocationRequirement::Any,
             children: Vec::new(),
-            input_table_refs: None,
         }
     }
 
@@ -134,7 +146,6 @@ impl<N> Node<N> {
             node,
             location,
             children: Vec::new(),
-            input_table_refs: None,
         }
     }
 
@@ -152,18 +163,29 @@ impl<N> Node<N> {
         Ok(self.children.pop().unwrap())
     }
 
-    pub fn get_table_refs(&self) -> Vec<TableRef> {
-        if let Some(refs) = self.input_table_refs.clone() {
-            return refs;
+    pub fn get_one_child_exact(&self) -> Result<&LogicalOperator> {
+        if self.children.len() != 1 {
+            return Err(RayexecError::new(format!(
+                "Expected 1 child to operator, have {}",
+                self.children.len()
+            )));
         }
+        Ok(&self.children[0])
+    }
 
-        let mut refs = Vec::new();
-        for child in &self.children {
-            // TODO
-            unimplemented!()
-        }
+    pub fn get_table_refs2(&self) -> Vec<TableRef> {
+        unimplemented!()
+        // if let Some(refs) = self.input_table_refs.clone() {
+        //     return refs;
+        // }
 
-        refs
+        // let mut refs = Vec::new();
+        // for child in &self.children {
+        //     // TODO
+        //     unimplemented!()
+        // }
+
+        // refs
     }
 }
 
@@ -175,7 +197,7 @@ impl<N: Explainable> Explainable for Node<N> {
             .with_value("location", self.location);
 
         if conf.verbose {
-            ent = ent.with_values("table_refs", self.get_table_refs());
+            ent = ent.with_values("table_refs", self.get_table_refs2());
         }
 
         ent

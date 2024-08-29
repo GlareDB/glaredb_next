@@ -34,7 +34,6 @@ impl<'a> CreateTablePlanner<'a> {
             },
             location: LocationRequirement::ClientLocal,
             children,
-            input_table_refs: None,
         }))
     }
 }
