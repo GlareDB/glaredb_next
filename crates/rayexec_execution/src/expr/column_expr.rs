@@ -26,6 +26,6 @@ impl ColumnExpr {
 
 impl fmt::Display for ColumnExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}.{}]", self.table_scope, self.column)
+        write!(f, "{}.{}", self.table_scope, self.column)
     }
 }

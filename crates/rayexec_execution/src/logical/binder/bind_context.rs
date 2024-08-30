@@ -20,7 +20,7 @@ pub struct TableRef {
 
 impl fmt::Display for TableRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.table_idx)
+        write!(f, "#{}", self.table_idx)
     }
 }
 

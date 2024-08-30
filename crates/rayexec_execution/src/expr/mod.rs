@@ -223,7 +223,10 @@ impl Expression {
 
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unimplemented!()
+        match self {
+            Self::Column(col) => write!(f, "{}", col),
+            _ => unimplemented!(),
+        }
     }
 }
 

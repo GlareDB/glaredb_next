@@ -11,7 +11,7 @@ pub struct LogicalOrder {
 
 impl Explainable for LogicalOrder {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Order")
+        ExplainEntry::new("Order").with_values("expressions", &self.exprs)
     }
 }
 

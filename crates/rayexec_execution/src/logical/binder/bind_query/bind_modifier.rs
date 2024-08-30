@@ -1,5 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
+use std::fmt;
 
 use crate::{
     expr::{column_expr::ColumnExpr, Expression},
@@ -19,6 +20,22 @@ pub struct BoundOrderByExpr {
     pub expr: Expression,
     pub desc: bool,
     pub nulls_first: bool,
+}
+
+impl fmt::Display for BoundOrderByExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.expr,
+            if self.desc { "desc" } else { "asc" },
+            if self.nulls_first {
+                "nulls_first"
+            } else {
+                "nulls_last"
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
