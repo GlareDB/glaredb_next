@@ -126,6 +126,21 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                     },
                 ))
             }
+            Expression::Arith(expr) => {
+                let scalar = expr.op.scalar_function();
+                let function =
+                    scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
+
+                Ok(PhysicalScalarExpression::ScalarFunction(
+                    PhysicalScalarFunctionExpr {
+                        function,
+                        inputs: vec![
+                            self.plan_scalar(table_refs, &expr.left)?,
+                            self.plan_scalar(table_refs, &expr.right)?,
+                        ],
+                    },
+                ))
+            }
             other => Err(RayexecError::new(format!(
                 "Unsupported scalar expression: {other}"
             ))),

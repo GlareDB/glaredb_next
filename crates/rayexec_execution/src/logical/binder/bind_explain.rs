@@ -41,13 +41,6 @@ impl<'a> ExplainBinder<'a> {
         bind_context: &mut BindContext,
         explain: ast::ExplainNode<ResolvedMeta>,
     ) -> Result<BoundExplain> {
-        bind_context.push_table(
-            self.current,
-            None,
-            vec![DataType::Utf8, DataType::Utf8],
-            vec!["plan_type".to_string(), "plan".to_string()],
-        )?;
-
         // TODO: Allow other inputs to the explain.
         let query = match explain.body {
             ast::ExplainBody::Query(query) => {
@@ -62,6 +55,16 @@ impl<'a> ExplainBinder<'a> {
             Some(ast::ExplainOutput::Json) => ExplainFormat::Json,
             None => ExplainFormat::Text,
         };
+
+        // Note this is done after the child planning to ensure consistent table
+        // refs when running a query with and explain and without an explain
+        // since this creates a table ref for the explain output.
+        bind_context.push_table(
+            self.current,
+            None,
+            vec![DataType::Utf8, DataType::Utf8],
+            vec!["plan_type".to_string(), "plan".to_string()],
+        )?;
 
         Ok(BoundExplain {
             query,

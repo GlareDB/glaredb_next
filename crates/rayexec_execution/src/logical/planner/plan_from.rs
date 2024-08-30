@@ -1,13 +1,17 @@
 use rayexec_error::Result;
 
-use crate::logical::{
-    binder::{
-        bind_context::BindContext,
-        bind_query::bind_from::{BoundFrom, BoundFromItem},
+use crate::{
+    expr::{column_expr::ColumnExpr, Expression},
+    logical::{
+        binder::{
+            bind_context::BindContext,
+            bind_query::bind_from::{BoundFrom, BoundFromItem},
+        },
+        logical_empty::LogicalEmpty,
+        logical_project::LogicalProject,
+        logical_scan::{LogicalScan, ScanSource},
+        operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
-    logical_empty::LogicalEmpty,
-    logical_scan::{LogicalScan, ScanSource},
-    operator::{LocationRequirement, LogicalOperator, Node},
 };
 
 use super::plan_query::QueryPlanner;
@@ -77,7 +81,32 @@ impl<'a> FromPlanner<'a> {
             }
             BoundFromItem::Subquery(subquery) => {
                 let planner = QueryPlanner::new(self.bind_context);
-                planner.plan(*subquery.subquery)
+                let plan = planner.plan(*subquery.subquery)?;
+
+                // Project subquery columns into this scope.
+                //
+                // The binding scope for a subquery is nested relative to a
+                // parent scope, so this project lets us resolve all columns
+                // without special-casing from binding.
+                let mut projections = Vec::new();
+                for table_ref in plan.get_output_table_refs() {
+                    let table = self.bind_context.get_table(table_ref)?;
+                    for col_idx in 0..table.num_columns() {
+                        projections.push(Expression::Column(ColumnExpr {
+                            table_scope: table_ref,
+                            column: col_idx,
+                        }));
+                    }
+                }
+
+                Ok(LogicalOperator::Project(Node {
+                    node: LogicalProject {
+                        projections,
+                        projection_table: subquery.table_ref,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![plan],
+                }))
             }
             BoundFromItem::Empty => Ok(LogicalOperator::Empty(Node {
                 node: LogicalEmpty,
