@@ -1,4 +1,5 @@
 pub mod aggregate_expr;
+pub mod arith_expr;
 pub mod between_expr;
 pub mod case_expr;
 pub mod cast_expr;
@@ -21,6 +22,7 @@ use crate::logical::binder::bind_context::BindContext;
 use crate::logical::expr::LogicalExpression;
 use crate::proto::DatabaseProtoConv;
 use aggregate_expr::AggregateExpr;
+use arith_expr::ArithExpr;
 use between_expr::BetweenExpr;
 use case_expr::CaseExpr;
 use cast_expr::CastExpr;
@@ -45,6 +47,7 @@ use window_expr::WindowExpr;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Aggregate(AggregateExpr),
+    Arith(ArithExpr),
     Between(BetweenExpr),
     Case(CaseExpr),
     Cast(CastExpr),
@@ -62,6 +65,13 @@ impl Expression {
     pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
         Ok(match self {
             Self::Aggregate(expr) => expr.agg.return_type(),
+            Self::Arith(expr) => {
+                let func = expr
+                    .op
+                    .scalar_function()
+                    .plan_from_expressions(bind_context, &[&expr.left, &expr.right])?;
+                func.return_type()
+            }
             Self::Between(_) => DataType::Boolean,
             Self::Case(_) => not_implemented!("CASE"), // Union data type
             Self::Cast(expr) => expr.to.clone(),
@@ -88,6 +98,10 @@ impl Expression {
                 if let Some(filter) = agg.filter.as_mut() {
                     func(filter)?;
                 }
+            }
+            Self::Arith(arith) => {
+                func(&mut arith.left)?;
+                func(&mut arith.right)?;
             }
             Self::Between(between) => {
                 func(&mut between.lower)?;
@@ -146,6 +160,10 @@ impl Expression {
                 if let Some(filter) = agg.filter.as_ref() {
                     func(filter)?;
                 }
+            }
+            Self::Arith(arith) => {
+                func(&arith.left)?;
+                func(&arith.right)?;
             }
             Self::Between(between) => {
                 func(&between.lower)?;
@@ -224,8 +242,10 @@ impl Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Column(col) => write!(f, "{}", col),
-            _ => unimplemented!(),
+            Self::Column(expr) => write!(f, "{}", expr),
+            Self::Arith(expr) => write!(f, "{}", expr),
+            Self::Literal(expr) => write!(f, "{}", expr),
+            other => unimplemented!("{other:?}"),
         }
     }
 }

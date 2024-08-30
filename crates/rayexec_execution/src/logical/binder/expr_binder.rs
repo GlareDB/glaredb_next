@@ -1,11 +1,12 @@
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::{
     expr::{
         aggregate_expr::AggregateExpr,
+        arith_expr::{ArithExpr, ArithOperator},
         cast_expr::CastExpr,
         column_expr::ColumnExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
@@ -164,8 +165,32 @@ impl<'a> ExpressionBinder<'a> {
                         right: Box::new(right),
                         op: ComparisonOperator::GtEq,
                     }),
-
-                    _ => unimplemented!(),
+                    ast::BinaryOperator::Plus => Expression::Arith(ArithExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ArithOperator::Add,
+                    }),
+                    ast::BinaryOperator::Minus => Expression::Arith(ArithExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ArithOperator::Sub,
+                    }),
+                    ast::BinaryOperator::Multiply => Expression::Arith(ArithExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ArithOperator::Mul,
+                    }),
+                    ast::BinaryOperator::Divide => Expression::Arith(ArithExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ArithOperator::Div,
+                    }),
+                    ast::BinaryOperator::Modulo => Expression::Arith(ArithExpr {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        op: ArithOperator::Mod,
+                    }),
+                    other => not_implemented!("Binary operator: {other:?}"),
                 })
             }
             ast::Expr::Function(func) => {
