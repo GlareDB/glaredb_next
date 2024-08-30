@@ -606,7 +606,7 @@ impl<'a> ExpressionContext<'a> {
                 return Err(RayexecError::new(format!(
                     "Invalid inputs to '{}': {}",
                     scalar.name(),
-                    input_datatypes.displayable(),
+                    input_datatypes.display_with_brackets(),
                 )));
             }
 
@@ -660,7 +660,7 @@ impl<'a> ExpressionContext<'a> {
                 return Err(RayexecError::new(format!(
                     "Invalid inputs to '{}': {}",
                     agg.name(),
-                    input_datatypes.displayable(),
+                    input_datatypes.display_with_brackets(),
                 )));
             }
 

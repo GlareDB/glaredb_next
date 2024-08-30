@@ -1,4 +1,5 @@
 use crate::functions::scalar::{boolean, ScalarFunction};
+use std::fmt;
 
 use super::Expression;
 
@@ -17,9 +18,24 @@ impl Conjunction {
     }
 }
 
+impl fmt::Display for Conjunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::And => write!(f, "AND"),
+            Self::Or => write!(f, "OR"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConjunctionExpr {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub conjunction: Conjunction,
+}
+
+impl fmt::Display for ConjunctionExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.left, self.right, self.conjunction)
+    }
 }

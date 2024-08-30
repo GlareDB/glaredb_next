@@ -306,7 +306,7 @@ where
     // determine that is stil tbd.
     RayexecError::new(format!(
         "Got invalid type(s) '{}' for '{}'",
-        got.displayable(),
+        got.display_with_brackets(),
         func.name()
     ))
 }

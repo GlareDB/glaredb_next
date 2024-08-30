@@ -73,7 +73,7 @@ impl Expression {
                 func.return_type()
             }
             Self::Between(_) => DataType::Boolean,
-            Self::Case(_) => not_implemented!("CASE"), // Union data type
+            Self::Case(expr) => expr.datatype(bind_context)?,
             Self::Cast(expr) => expr.to.clone(),
             Self::Column(expr) => expr.datatype(bind_context)?,
             Self::Comparison(_) => DataType::Boolean,
@@ -116,7 +116,9 @@ impl Expression {
                     func(&mut when_then.when)?;
                     func(&mut when_then.then)?;
                 }
-                func(&mut case.else_expr)?;
+                if let Some(else_expr) = case.else_expr.as_mut() {
+                    func(else_expr)?;
+                }
             }
             Self::Column(_) => (),
             Self::Comparison(comp) => {
@@ -178,7 +180,9 @@ impl Expression {
                     func(&when_then.when)?;
                     func(&when_then.then)?;
                 }
-                func(&case.else_expr)?;
+                if let Some(else_expr) = case.else_expr.as_ref() {
+                    func(else_expr)?;
+                }
             }
             Self::Column(_) => (),
             Self::Comparison(comp) => {
@@ -242,10 +246,19 @@ impl Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Column(expr) => write!(f, "{}", expr),
+            Self::Aggregate(expr) => write!(f, "{}", expr),
             Self::Arith(expr) => write!(f, "{}", expr),
+            Self::Between(expr) => write!(f, "{}", expr),
+            Self::Case(expr) => write!(f, "{}", expr),
+            Self::Cast(expr) => write!(f, "{}", expr),
+            Self::Column(expr) => write!(f, "{}", expr),
+            Self::Comparison(expr) => write!(f, "{}", expr),
+            Self::Conjunction(expr) => write!(f, "{}", expr),
+            Self::Is(expr) => write!(f, "{}", expr),
             Self::Literal(expr) => write!(f, "{}", expr),
-            other => unimplemented!("{other:?}"),
+            Self::ScalarFunction(expr) => write!(f, "{}", expr),
+            Self::Subquery(expr) => write!(f, "{}", expr),
+            Self::Window(expr) => write!(f, "{}", expr),
         }
     }
 }
@@ -525,7 +538,7 @@ impl fmt::Display for PhysicalAggregateExpression {
             f,
             "{:?}({})",
             self.function,
-            self.column_indices.displayable(),
+            self.column_indices.display_with_brackets(),
         )
     }
 }

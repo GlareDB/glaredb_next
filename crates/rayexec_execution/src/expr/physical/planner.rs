@@ -77,7 +77,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 Err(RayexecError::new(
                     format!(
                         "Column expr not referencing a valid table ref, column: {col}, valid tables: {}",
-                        table_refs.displayable(),
+                        table_refs.display_with_brackets(),
                     )
                 ))
             }
