@@ -87,7 +87,7 @@ impl<'a> SetOpBinder<'a> {
         )?;
 
         let right_scope = bind_context.new_child_scope(self.current);
-        let right = QueryBinder::new(left_scope, self.resolve_context).bind_body(
+        let right = QueryBinder::new(right_scope, self.resolve_context).bind_body(
             bind_context,
             *setop.right,
             None,
