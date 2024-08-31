@@ -556,20 +556,20 @@ impl<'a> Resolver<'a> {
             ast::QueryNodeBody::Values(values) => {
                 ast::QueryNodeBody::Values(self.resolve_values(values, resolve_context).await?)
             }
-            ast::QueryNodeBody::Set {
+            ast::QueryNodeBody::Set(ast::SetOp {
                 left,
                 right,
                 operation,
                 all,
-            } => {
+            }) => {
                 let left = Box::pin(self.resolve_query_node_body(*left, resolve_context)).await?;
                 let right = Box::pin(self.resolve_query_node_body(*right, resolve_context)).await?;
-                ast::QueryNodeBody::Set {
+                ast::QueryNodeBody::Set(ast::SetOp {
                     left: Box::new(left),
                     right: Box::new(right),
                     operation,
                     all,
-                }
+                })
             }
         })
     }

@@ -2,6 +2,7 @@ pub mod bind_from;
 pub mod bind_group_by;
 pub mod bind_modifier;
 pub mod bind_select;
+pub mod bind_setop;
 pub mod bind_values;
 pub mod select_expr_expander;
 pub mod select_list;
@@ -54,16 +55,26 @@ impl<'a> QueryBinder<'a> {
     ) -> Result<BoundQuery> {
         // TODO: CTEs
 
-        match query.body {
+        self.bind_body(bind_context, query.body, query.order_by, query.limit)
+    }
+
+    pub fn bind_body(
+        &self,
+        bind_context: &mut BindContext,
+        body: ast::QueryNodeBody<ResolvedMeta>,
+        order_by: Option<ast::OrderByModifier<ResolvedMeta>>,
+        limit: ast::LimitModifier<ResolvedMeta>,
+    ) -> Result<BoundQuery> {
+        match body {
             ast::QueryNodeBody::Select(select) => {
                 let binder = SelectBinder::new(self.current, self.resolve_context);
-                let select = binder.bind(bind_context, *select, query.order_by, query.limit)?;
+                let select = binder.bind(bind_context, *select, order_by, limit)?;
                 Ok(BoundQuery::Select(select))
             }
             ast::QueryNodeBody::Nested(query) => self.bind(bind_context, *query),
             ast::QueryNodeBody::Values(values) => {
                 let binder = ValuesBinder::new(self.current, self.resolve_context);
-                let values = binder.bind(bind_context, values, query.order_by, query.limit)?;
+                let values = binder.bind(bind_context, values, order_by, limit)?;
                 Ok(BoundQuery::Values(values))
             }
             other => unimplemented!("{other:?}"),

@@ -53,7 +53,7 @@ impl CaseExpr {
 
 impl fmt::Display for CaseExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CASE ");
+        write!(f, "CASE ")?;
         for case in &self.cases {
             write!(f, "{}", case)?;
         }

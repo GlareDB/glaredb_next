@@ -71,12 +71,7 @@ impl QueryNode<Raw> {
 pub enum QueryNodeBody<T: AstMeta> {
     Select(Box<SelectNode<T>>),
     Nested(Box<QueryNode<T>>),
-    Set {
-        left: Box<QueryNodeBody<T>>,
-        right: Box<QueryNodeBody<T>>,
-        operation: SetOperation,
-        all: bool,
-    },
+    Set(SetOp<T>),
     Values(Values<T>),
 }
 
@@ -116,16 +111,24 @@ impl QueryNodeBody<Raw> {
             let _ = parser.next();
             let all = parser.parse_keyword(Keyword::ALL);
 
-            body = QueryNodeBody::Set {
+            body = QueryNodeBody::Set(SetOp {
                 left: Box::new(body),
                 right: Box::new(Self::parse_inner(parser, next_precedence)?),
                 operation: op,
                 all,
-            };
+            });
         }
 
         Ok(body)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SetOp<T: AstMeta> {
+    pub left: Box<QueryNodeBody<T>>,
+    pub right: Box<QueryNodeBody<T>>,
+    pub operation: SetOperation,
+    pub all: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

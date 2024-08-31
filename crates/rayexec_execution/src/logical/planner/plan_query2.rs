@@ -109,12 +109,12 @@ impl<'a> QueryNodePlanner<'a> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => self.plan_select(context, *select, order_by)?,
             ast::QueryNodeBody::Nested(nested) => self.plan_query(context, *nested)?,
-            ast::QueryNodeBody::Set {
+            ast::QueryNodeBody::Set(ast::SetOp {
                 left,
                 right,
                 operation,
                 all,
-            } => {
+            }) => {
                 let top = self.plan_query_body(context, *left, None)?;
                 let bottom = self.plan_query_body(context, *right, None)?;
 
