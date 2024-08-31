@@ -61,3 +61,4 @@ pub mod logical_order;
 pub mod logical_project;
 pub mod logical_scan;
 pub mod logical_set;
+pub mod logical_setop;

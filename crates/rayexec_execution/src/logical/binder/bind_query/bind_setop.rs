@@ -18,23 +18,30 @@ use super::{
     BoundQuery,
 };
 
+/// Cast requirements for the set operation.
+///
+/// If a cast is required, a table ref is generated which should be used by the
+/// casting projection during planning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetOpCastRequirement {
     /// Need to cast the left side to match expected types.
-    LeftNeedsCast,
+    LeftNeedsCast(TableRef),
     /// Need to cast the right side to match expected types.
-    RightNeedsCast,
+    RightNeedsCast(TableRef),
     /// Both sides need casting.
-    BothNeedsCast,
+    BothNeedsCast {
+        left_cast_ref: TableRef,
+        right_cast_ref: TableRef,
+    },
     /// No sides need casting.
     None,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundSetOp {
-    pub left: BoundQuery,
+    pub left: Box<BoundQuery>,
     pub left_scope: BindScopeRef,
-    pub right: BoundQuery,
+    pub right: Box<BoundQuery>,
     pub right_scope: BindScopeRef,
     pub setop_table: TableRef,
     pub kind: SetOpKind,
@@ -134,9 +141,20 @@ impl<'a> SetOpBinder<'a> {
         }
 
         let cast_req = match (left_needs_cast, right_needs_cast) {
-            (true, true) => SetOpCastRequirement::BothNeedsCast,
-            (true, false) => SetOpCastRequirement::LeftNeedsCast,
-            (false, true) => SetOpCastRequirement::RightNeedsCast,
+            (true, true) => SetOpCastRequirement::BothNeedsCast {
+                left_cast_ref: bind_context
+                    .new_ephemeral_table_from_types("__generated_left", output_types.clone())?,
+                right_cast_ref: bind_context
+                    .new_ephemeral_table_from_types("__generated_right", output_types.clone())?,
+            },
+            (true, false) => SetOpCastRequirement::LeftNeedsCast(
+                bind_context
+                    .new_ephemeral_table_from_types("__generated_left", output_types.clone())?,
+            ),
+            (false, true) => SetOpCastRequirement::RightNeedsCast(
+                bind_context
+                    .new_ephemeral_table_from_types("__generated_right", output_types.clone())?,
+            ),
             (false, false) => SetOpCastRequirement::None,
         };
 
@@ -166,9 +184,9 @@ impl<'a> SetOpBinder<'a> {
         };
 
         Ok(BoundSetOp {
-            left,
+            left: Box::new(left),
             left_scope,
-            right,
+            right: Box::new(right),
             right_scope,
             setop_table: table_ref,
             kind,

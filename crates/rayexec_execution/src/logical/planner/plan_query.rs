@@ -6,6 +6,8 @@ use crate::logical::{
 };
 use rayexec_error::Result;
 
+use super::plan_setop::SetOpPlanner;
+
 #[derive(Debug)]
 pub struct QueryPlanner<'a> {
     pub bind_context: &'a BindContext,
@@ -23,6 +25,10 @@ impl<'a> QueryPlanner<'a> {
                     bind_context: self.bind_context,
                 };
                 planner.plan(select)
+            }
+            BoundQuery::Setop(setop) => {
+                let planner = SetOpPlanner::new(self.bind_context);
+                planner.plan(setop)
             }
             BoundQuery::Values(values) => {
                 let table = self.bind_context.get_table(values.expressions_table)?;

@@ -131,7 +131,7 @@ impl<'a> QueryNodePlanner<'a> {
                     ast::SetOperation::Intersect => SetOpKind::Intersect,
                 };
 
-                let plan = LogicalOperator::SetOperation(Node::new(SetOperation {
+                let plan = LogicalOperator::SetOperation2(Node::new(SetOperation {
                     top: Box::new(top),
                     bottom: Box::new(bottom),
                     kind,

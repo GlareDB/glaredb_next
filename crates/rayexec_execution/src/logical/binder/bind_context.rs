@@ -265,11 +265,21 @@ impl BindContext {
             .iter()
             .map(|expr| expr.datatype(self))
             .collect::<Result<Vec<_>>>()?;
-        let column_names = (0..exprs.len())
+
+        self.new_ephemeral_table_from_types(generated_prefix, column_types)
+    }
+
+    /// Creates a new table with generated column from a list of datatypes.
+    pub fn new_ephemeral_table_from_types(
+        &mut self,
+        generated_prefix: &str,
+        types: Vec<DataType>,
+    ) -> Result<TableRef> {
+        let names = (0..types.len())
             .map(|idx| format!("{generated_prefix}_{idx}"))
             .collect();
 
-        self.new_ephemeral_table_with_columns(column_types, column_names)
+        self.new_ephemeral_table_with_columns(types, names)
     }
 
     pub fn push_column_for_table(

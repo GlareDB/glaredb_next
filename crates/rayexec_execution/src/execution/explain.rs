@@ -139,7 +139,7 @@ impl ExplainNode {
                     Self::walk_logical(context, &p.as_ref().right, conf),
                 ]
             }
-            LogicalOperator::SetOperation(p) => {
+            LogicalOperator::SetOperation2(p) => {
                 vec![
                     Self::walk_logical(context, &p.as_ref().top, conf),
                     Self::walk_logical(context, &p.as_ref().bottom, conf),

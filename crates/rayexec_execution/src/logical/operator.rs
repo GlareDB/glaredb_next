@@ -17,6 +17,7 @@ use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
+use super::logical_setop::LogicalSetop;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
@@ -156,7 +157,7 @@ impl<N> Node<N> {
         self.node
     }
 
-    pub fn pop_one_child_exact(&mut self) -> Result<LogicalOperator> {
+    pub fn take_one_child_exact(&mut self) -> Result<LogicalOperator> {
         if self.children.len() != 1 {
             return Err(RayexecError::new(format!(
                 "Expected 1 child to operator, have {}",
@@ -164,6 +165,20 @@ impl<N> Node<N> {
             )));
         }
         Ok(self.children.pop().unwrap())
+    }
+
+    pub fn take_two_children_exact(&mut self) -> Result<[LogicalOperator; 2]> {
+        if self.children.len() != 2 {
+            return Err(RayexecError::new(format!(
+                "Expected 2 children to operator, have {}",
+                self.children.len()
+            )));
+        }
+
+        let second = self.children.pop().unwrap();
+        let first = self.children.pop().unwrap();
+
+        Ok([first, second])
     }
 
     pub fn get_one_child_exact(&self) -> Result<&LogicalOperator> {
@@ -216,7 +231,7 @@ pub enum LogicalOperator {
     CrossJoin(Node<CrossJoin>),
     DependentJoin(Node<DependentJoin>),
     Limit2(Node<Limit>),
-    SetOperation(Node<SetOperation>),
+    SetOperation2(Node<SetOperation>),
     MaterializedScan(Node<MaterializedScan>),
     Scan2(Node<Scan>),
     TableFunction(Node<TableFunction>),
@@ -240,6 +255,7 @@ pub enum LogicalOperator {
     Limit(Node<LogicalLimit>),
     Order(Node<LogicalOrder>),
     Aggregate(Node<LogicalAggregate>),
+    SetOp(Node<LogicalSetop>),
     Scan(Node<LogicalScan>),
     Empty(Node<LogicalEmpty>),
     SetVar(Node<LogicalSetVar>),
@@ -278,7 +294,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => n.as_ref().output_schema(outer),
             Self::DependentJoin(n) => n.as_ref().output_schema(outer),
             Self::Limit2(n) => n.as_ref().output_schema(outer),
-            Self::SetOperation(n) => n.as_ref().output_schema(outer),
+            Self::SetOperation2(n) => n.as_ref().output_schema(outer),
             Self::MaterializedScan(n) => n.as_ref().output_schema(outer),
             Self::Scan2(n) => n.as_ref().output_schema(outer),
             Self::TableFunction(n) => n.as_ref().output_schema(outer),
@@ -311,7 +327,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => &n.location,
             Self::DependentJoin(n) => &n.location,
             Self::Limit2(n) => &n.location,
-            Self::SetOperation(n) => &n.location,
+            Self::SetOperation2(n) => &n.location,
             Self::MaterializedScan(n) => &n.location,
             Self::Scan2(n) => &n.location,
             Self::TableFunction(n) => &n.location,
@@ -344,7 +360,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => &mut n.location,
             Self::DependentJoin(n) => &mut n.location,
             Self::Limit2(n) => &mut n.location,
-            Self::SetOperation(n) => &mut n.location,
+            Self::SetOperation2(n) => &mut n.location,
             Self::MaterializedScan(n) => &mut n.location,
             Self::Scan2(n) => &mut n.location,
             Self::TableFunction(n) => &mut n.location,
@@ -400,7 +416,7 @@ impl LogicalOperator {
                 f(&mut n.as_mut().right)?;
             }
             Self::Limit2(n) => f(&mut n.as_mut().input)?,
-            Self::SetOperation(_) => (),
+            Self::SetOperation2(_) => (),
             Self::MaterializedScan(_) => (),
             Self::Scan2(_) => (),
             Self::TableFunction(_) => (),
@@ -509,7 +525,7 @@ impl LogicalOperator {
                 p.as_mut().right.walk_mut(pre, post)?;
                 post(&mut p.as_mut().right)?;
             }
-            LogicalOperator::SetOperation(p) => {
+            LogicalOperator::SetOperation2(p) => {
                 pre(&mut p.as_mut().top)?;
                 p.as_mut().top.walk_mut(pre, post)?;
                 post(&mut p.as_mut().top)?;
@@ -568,6 +584,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Filter(n) => n.get_output_table_refs(),
             LogicalOperator::Scan(n) => n.get_output_table_refs(),
             LogicalOperator::Aggregate(n) => n.get_output_table_refs(),
+            LogicalOperator::SetOp(n) => n.get_children_table_refs(),
             LogicalOperator::Empty(n) => n.get_output_table_refs(),
             LogicalOperator::Limit(n) => n.get_output_table_refs(),
             LogicalOperator::Order(n) => n.get_output_table_refs(),
@@ -600,7 +617,7 @@ impl Explainable for LogicalOperator {
             Self::CrossJoin(p) => p.as_ref().explain_entry(conf),
             Self::DependentJoin(p) => p.as_ref().explain_entry(conf),
             Self::Limit2(p) => p.as_ref().explain_entry(conf),
-            Self::SetOperation(p) => p.as_ref().explain_entry(conf),
+            Self::SetOperation2(p) => p.as_ref().explain_entry(conf),
             Self::MaterializedScan(p) => p.as_ref().explain_entry(conf),
             Self::Scan2(p) => p.as_ref().explain_entry(conf),
             Self::TableFunction(p) => p.as_ref().explain_entry(conf),

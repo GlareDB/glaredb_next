@@ -48,7 +48,7 @@ struct SharedPartitionState {
 /// The "bottom" input operator treats this operator as a sink, and will only
 /// push. Every push from bottom will be writing to the global state.
 ///
-/// The current implemenation prefers taking from the "top".
+/// The current implementation prefers taking from the "top".
 ///
 /// "top" and "bottom" are expected to have the same number of partitions.
 #[derive(Debug)]

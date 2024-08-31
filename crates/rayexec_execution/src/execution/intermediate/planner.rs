@@ -50,6 +50,7 @@ use crate::{
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
         logical_set::LogicalShowVar,
+        logical_setop::LogicalSetop,
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
 };
@@ -359,7 +360,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 self.push_materialized_scan(materializations, id_gen, scan)
             }
             LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
-            LogicalOperator::SetOperation(setop) => {
+            LogicalOperator::SetOp(setop) => {
                 self.push_set_operation(id_gen, materializations, setop)
             }
             LogicalOperator::SetVar(_) => {
@@ -571,7 +572,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         mut copy_to: Node<LogicalCopyTo>,
     ) -> Result<()> {
         let location = copy_to.location;
-        let source = copy_to.pop_one_child_exact()?;
+        let source = copy_to.take_one_child_exact()?;
 
         self.walk(materializations, id_gen, source)?;
 
@@ -597,22 +598,21 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        setop: Node<operator::SetOperation>,
+        mut setop: Node<LogicalSetop>,
     ) -> Result<()> {
         let location = setop.location;
-        let setop = setop.into_inner();
 
-        // Schema from the top. Used as the input to a GROUP BY if ALL is
-        // omitted.
-        let top_schema = setop.top.output_schema(&[])?;
+        let [left, right] = setop.take_two_children_exact()?;
+        let top = left;
+        let bottom = right;
 
-        // Continue building top.
-        self.walk(materializations, id_gen, *setop.top)?;
+        // Continue building left/top.
+        self.walk(materializations, id_gen, top)?;
 
         // Create new pipelines for bottom.
         let mut bottom_builder =
             IntermediatePipelineBuildState::new(self.config, self.bind_context);
-        bottom_builder.walk(materializations, id_gen, *setop.bottom)?;
+        bottom_builder.walk(materializations, id_gen, bottom)?;
         self.local_group
             .merge_from_other(&mut bottom_builder.local_group);
         self.remote_group
@@ -620,7 +620,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let bottom_in_progress = bottom_builder.take_in_progress_pipeline()?;
 
-        match setop.kind {
+        match setop.node.kind {
             operator::SetOpKind::Union => {
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::Union(PhysicalUnion)),
@@ -637,14 +637,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Make output distinct by grouping on all columns. No output
         // aggregates, so the output schema remains the same.
-        if !setop.all {
-            let grouping_sets = vec![(0..top_schema.types.len()).collect()];
-            let group_types = top_schema.types;
+        if !setop.node.all {
+            let output_types = self
+                .bind_context
+                .get_table(setop.node.table_ref)?
+                .column_types
+                .clone();
+
+            let grouping_sets = vec![(0..output_types.len()).collect()];
 
             let operator =
                 IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(group_types, Vec::new(), grouping_sets),
+                        PhysicalHashAggregate::new(output_types, Vec::new(), grouping_sets),
                     )),
                     partitioning_requirement: None,
                 };
@@ -687,7 +692,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         mut insert: Node<LogicalInsert>,
     ) -> Result<()> {
         let location = insert.location;
-        let input = insert.pop_one_child_exact()?;
+        let input = insert.take_one_child_exact()?;
 
         self.walk(materializations, id_gen, input)?;
 
@@ -1026,7 +1031,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let location = project.location;
 
-        let input = project.pop_one_child_exact()?;
+        let input = project.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
@@ -1054,7 +1059,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let location = filter.location;
 
-        let input = filter.pop_one_child_exact()?;
+        let input = filter.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
@@ -1082,7 +1087,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let location = order.location;
 
-        let input = order.pop_one_child_exact()?;
+        let input = order.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
@@ -1153,7 +1158,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         mut limit: Node<LogicalLimit>,
     ) -> Result<()> {
         let location = limit.location;
-        let input = limit.pop_one_child_exact()?;
+        let input = limit.take_one_child_exact()?;
 
         self.walk(materializations, id_gen, input)?;
 
@@ -1180,7 +1185,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let location = agg.location;
 
-        let input = agg.pop_one_child_exact()?;
+        let input = agg.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
