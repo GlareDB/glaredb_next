@@ -71,16 +71,12 @@ impl<'a> SelectBinder<'a> {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
         }
 
-        let mut select_list = SelectList::try_new(bind_context, projections)?;
-
-        // Track aliases to allow referencing them in GROUP BY and ORDER BY.
-        for (idx, projection) in select_list.projections.iter().enumerate() {
-            if let Some(alias) = projection.get_alias() {
-                select_list
-                    .alias_map
-                    .insert(alias.as_normalized_string(), idx);
-            }
-        }
+        let mut select_list = SelectList::try_new(
+            from_bind_ref,
+            bind_context,
+            self.resolve_context,
+            projections,
+        )?;
 
         // Handle WHERE
         let where_expr = select
@@ -133,7 +129,7 @@ impl<'a> SelectBinder<'a> {
             .transpose()?;
 
         // Finalize projections.
-        let select_list = select_list.bind(from_bind_ref, bind_context, self.resolve_context)?;
+        let select_list = select_list.finalize(bind_context)?;
 
         // Move output select columns into current scope.
         match &select_list.pruned {

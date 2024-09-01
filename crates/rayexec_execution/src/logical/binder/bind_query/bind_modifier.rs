@@ -70,7 +70,7 @@ impl<'a> ModifierBinder<'a> {
 
     pub fn bind_order_by(
         &self,
-        _bind_context: &mut BindContext,
+        bind_context: &mut BindContext,
         select_list: &mut SelectList,
         order_by: ast::OrderByModifier<ResolvedMeta>,
     ) -> Result<BoundOrderBy> {
@@ -78,8 +78,11 @@ impl<'a> ModifierBinder<'a> {
             .order_by_nodes
             .into_iter()
             .map(|order_by| {
-                let expr =
-                    Expression::Column(self.bind_to_select_list(select_list, order_by.expr)?);
+                let expr = Expression::Column(self.bind_to_select_list(
+                    bind_context,
+                    select_list,
+                    order_by.expr,
+                )?);
 
                 Ok(BoundOrderByExpr {
                     expr,
@@ -101,26 +104,32 @@ impl<'a> ModifierBinder<'a> {
     /// Generates a column epxression referencing the output of the select list.
     fn bind_to_select_list(
         &self,
+        bind_context: &mut BindContext,
         select_list: &mut SelectList,
         expr: ast::Expr<ResolvedMeta>,
     ) -> Result<ColumnExpr> {
         // Check if there's already something in the list that we're
         // referencing.
-        if let Some(idx) = select_list.get_projection_reference(&expr)? {
-            return Ok(ColumnExpr {
-                table_scope: select_list.projections_table,
-                column: idx,
-            });
+        if let Some(expr) = select_list.get_projection_reference(&expr)? {
+            return Ok(expr);
         }
 
-        // Append our expression to the select list. We'll generate a column
-        // expression that references this column.
-        let idx = select_list.append_expression(ast::SelectExpr::Expr(expr));
+        // TODO: What do here?
+        let current = match self.current.first() {
+            Some(&current) => current,
+            None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
+        };
 
-        Ok(ColumnExpr {
-            table_scope: select_list.projections_table,
-            column: idx,
-        })
+        let expr = ExpressionBinder::new(current, self.resolve_context).bind_expression(
+            bind_context,
+            &expr,
+            RecursionContext {
+                allow_window: false,
+                allow_aggregate: false,
+            },
+        )?;
+
+        select_list.append_expression(bind_context, expr)
     }
 
     pub fn bind_limit(

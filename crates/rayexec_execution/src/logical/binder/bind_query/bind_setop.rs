@@ -164,7 +164,8 @@ impl<'a> SetOpBinder<'a> {
         // ORDER BY and LIMIT on output of the setop.
         let modifier_binder = ModifierBinder::new(vec![self.current], self.resolve_context);
         // TODO: This select list should be able to reference aliases in the output.
-        let mut empty_select_list = SelectList::try_new(bind_context, Vec::new())?;
+        let mut empty_select_list =
+            SelectList::try_new(self.current, bind_context, self.resolve_context, Vec::new())?;
         let order_by = order_by
             .map(|order_by| {
                 modifier_binder.bind_order_by(bind_context, &mut empty_select_list, order_by)

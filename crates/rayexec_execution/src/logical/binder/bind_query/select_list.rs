@@ -55,25 +55,21 @@ pub struct SelectList {
     ///
     /// Remains empty during binding.
     pub projections_table: TableRef,
-
     /// Mapping from explicit user-provided alias to column index in the output.
     pub alias_map: HashMap<String, usize>,
-
     /// Expanded projections that will be shown in the output.
-    pub projections: Vec<ast::SelectExpr<ResolvedMeta>>,
-
+    pub projections: Vec<Expression>,
     /// Projections that are appended to the right of the output projects.
     ///
     /// This is for appending expressions used for ORDER BY and GROUP BY.
-    pub appended: Vec<ast::SelectExpr<ResolvedMeta>>,
+    pub appended: Vec<Expression>,
 }
 
 impl SelectList {
-    /// Create a new select list from the provided select expressions.
-    ///
-    /// Select expressions should have already been expanded.
     pub fn try_new(
+        bind_ref: BindScopeRef,
         bind_context: &mut BindContext,
+        resolve_context: &ResolveContext,
         projections: Vec<SelectExpr<ResolvedMeta>>,
     ) -> Result<Self> {
         let mut alias_map = HashMap::new();
@@ -85,111 +81,99 @@ impl SelectList {
             }
         }
 
-        Ok(SelectList {
-            projections_table: bind_context.new_ephemeral_table()?,
-            alias_map,
-            projections,
-            appended: Vec::new(),
-        })
-    }
+        let ast_exprs = projections
+            .into_iter()
+            .map(|expr| match expr {
+                SelectExpr::Expr(expr) | SelectExpr::AliasedExpr(expr, _) => Ok(expr),
+                other => Err(RayexecError::new(format!(
+                    "Encountered unexpanded wildcard: {other:?}",
+                ))),
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-    /// Binds the select expressions in this to the provided bind context.
-    pub fn bind(
-        &self,
-        bind_ref: BindScopeRef,
-        bind_context: &mut BindContext,
-        resolve_context: &ResolveContext,
-    ) -> Result<BoundSelectList> {
-        let expr_binder = ExpressionBinder::new(bind_ref, resolve_context);
+        // Generate column names from ast expressions.
+        let mut names = ast_exprs
+            .iter()
+            .map(|expr| {
+                Ok(match expr {
+                    ast::Expr::Ident(ident) => ident.as_normalized_string(),
+                    ast::Expr::CompoundIdent(idents) => idents
+                        .last()
+                        .map(|i| i.as_normalized_string())
+                        .unwrap_or_else(|| "?column?".to_string()),
+                    ast::Expr::Function(ast::Function { reference, .. }) => {
+                        let (func, _) = resolve_context.functions.try_get_bound(*reference)?;
+                        func.name().to_string()
+                    }
+                    _ => "?column?".to_string(),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        let mut ast_exprs = Vec::with_capacity(self.projections.len() + self.appended.len());
-        for expr in self.projections.iter().chain(&self.appended) {
-            let expr = match expr {
-                ast::SelectExpr::Expr(expr) => expr,
-                ast::SelectExpr::AliasedExpr(expr, _) => expr,
-                ast::SelectExpr::QualifiedWildcard(_, _) | ast::SelectExpr::Wildcard(_) => {
-                    return Err(RayexecError::new(
-                        "Encountered unexpanded wildcard in select list",
-                    ))
-                }
-            };
-            ast_exprs.push(expr);
-        }
-
-        // Bind both user projections and appended projections.
-        let mut expressions = Vec::with_capacity(self.projections.len());
-        for &expr in ast_exprs.iter() {
-            let bound = expr_binder.bind_expression(
-                bind_context,
-                expr,
-                RecursionContext {
-                    allow_window: true,
-                    allow_aggregate: true,
-                },
-            )?;
-            expressions.push(bound);
-        }
-
-        // Generate projection names. Appended columns receive generated names.
-        let mut names: Vec<_> = (0..self.projections.len())
-            .map(|_| String::new())
-            .chain((0..self.appended.len()).map(|idx| format!("__generated_{idx}")))
-            .collect();
-
-        // Init with user provided aliases.
-        for (alias, idx) in &self.alias_map {
+        // Update with user provided aliases
+        for (alias, idx) in &alias_map {
             names[*idx] = alias.clone();
         }
 
-        // Generate names from user expressions.
-        for (name, expr) in names.iter_mut().zip(&ast_exprs) {
-            if !name.is_empty() {
-                continue;
-            }
+        // Bind the expressions.
+        let expr_binder = ExpressionBinder::new(bind_ref, resolve_context);
+        let exprs = expr_binder.bind_expressions(
+            bind_context,
+            &ast_exprs,
+            RecursionContext {
+                allow_window: true,
+                allow_aggregate: true,
+            },
+        )?;
 
-            match expr {
-                ast::Expr::Ident(ident) => *name = ident.as_normalized_string(),
-                ast::Expr::CompoundIdent(idents) => {
-                    *name = idents
-                        .last()
-                        .map(|i| i.as_normalized_string())
-                        .unwrap_or_else(|| "?column?".to_string())
-                }
-                ast::Expr::Function(ast::Function { reference, .. }) => {
-                    let (func, _) = resolve_context.functions.try_get_bound(*reference)?;
-                    *name = func.name().to_string();
-                }
-                _ => *name = "?column?".to_string(),
-            }
-        }
-
-        let types = expressions
+        let types = exprs
             .iter()
             .map(|expr| expr.datatype(bind_context))
             .collect::<Result<Vec<_>>>()?;
 
-        debug_assert_eq!(names.len(), types.len());
+        // Create table with columns. Now things can bind to the select list if
+        // needed (ORDERY BY, GROUP BY).
+        let projections_table = bind_context.new_ephemeral_table_with_columns(types, names)?;
 
-        let projections_table = bind_context.get_table_mut(self.projections_table)?;
-        // TODO: Probably assert these are still empty before writing over them.
-        projections_table.column_names = names.clone();
-        projections_table.column_types = types.clone();
+        Ok(SelectList {
+            projections_table,
+            alias_map,
+            projections: exprs,
+            appended: Vec::new(),
+        })
+    }
 
+    /// Finalizes the select list, producing a bound variant.
+    ///
+    /// This will extract aggregates from the list, placing them in their own
+    /// table, and add pruning projections if needed.
+    pub fn finalize(mut self, bind_context: &mut BindContext) -> Result<BoundSelectList> {
         // Extract aggregates into separate table.
         let aggregates_table = bind_context.new_ephemeral_table()?;
         let mut aggregates = Vec::new();
-        for expr in &mut expressions {
+        for expr in &mut self.projections {
             Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
         }
 
         // If we had appended column, ensure we have a pruned table that only
         // contains the original projections.
-        let pruned_table = if expressions.len() > self.projections.len() {
+        let pruned_table = if !self.appended.is_empty() {
             let len = self.projections.len();
 
+            let projections_table = bind_context.get_table(self.projections_table)?;
             let table_ref = bind_context.new_ephemeral_table_with_columns(
-                types.iter().take(len).cloned().collect(),
-                names.iter().take(len).cloned().collect(),
+                projections_table
+                    .column_types
+                    .iter()
+                    .take(len)
+                    .cloned()
+                    .collect(),
+                projections_table
+                    .column_names
+                    .iter()
+                    .take(len)
+                    .cloned()
+                    .collect(),
             )?;
 
             let expressions = (0..len)
@@ -212,8 +196,8 @@ impl SelectList {
         Ok(BoundSelectList {
             pruned: pruned_table,
             projections_table: self.projections_table,
-            projections: expressions,
             output_column_count: self.projections.len(),
+            projections: self.projections,
             aggregates_table,
             aggregates,
             windows_table: bind_context.new_ephemeral_table()?, // TODO
@@ -253,14 +237,21 @@ impl SelectList {
         Ok(())
     }
 
-    /// Appends an expression to the select list for later binding.
-    ///
-    /// Logically this places the expression to the right of existing columns.
-    // TODO: Can this allow aliases?
-    pub fn append_expression(&mut self, expr: ast::SelectExpr<ResolvedMeta>) -> usize {
-        let idx = self.projections.len() + self.appended.len();
+    /// Appends an expression to the select list.
+    pub fn append_expression(
+        &mut self,
+        bind_context: &mut BindContext,
+        expr: Expression,
+    ) -> Result<ColumnExpr> {
+        let datatype = expr.datatype(bind_context)?;
         self.appended.push(expr);
-        idx
+        let idx =
+            bind_context.push_column_for_table(self.projections_table, "__appended", datatype)?;
+
+        Ok(ColumnExpr {
+            table_scope: self.projections_table,
+            column: idx,
+        })
     }
 
     /// Attempt to get an expression with the possibility of it pointing to an
@@ -271,7 +262,7 @@ impl SelectList {
     pub fn get_projection_reference(
         &self,
         expr: &ast::Expr<ResolvedMeta>,
-    ) -> Result<Option<usize>> {
+    ) -> Result<Option<ColumnExpr>> {
         // Check constant first.
         //
         // e.g. ORDER BY 1
@@ -286,13 +277,19 @@ impl SelectList {
                 )))?;
             }
 
-            return Ok(Some(n as usize));
+            return Ok(Some(ColumnExpr {
+                table_scope: self.projections_table,
+                column: n as usize,
+            }));
         }
 
         // Alias reference
         if let ast::Expr::Ident(ident) = expr {
             if let Some(idx) = self.alias_map.get(&ident.as_normalized_string()) {
-                return Ok(Some(*idx));
+                return Ok(Some(ColumnExpr {
+                    table_scope: self.projections_table,
+                    column: *idx,
+                }));
             }
         }
 

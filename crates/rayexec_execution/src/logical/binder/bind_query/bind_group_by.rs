@@ -1,7 +1,10 @@
 use crate::{
     expr::{column_expr::ColumnExpr, Expression},
     logical::{
-        binder::bind_context::{BindContext, BindScopeRef, TableRef},
+        binder::{
+            bind_context::{BindContext, BindScopeRef, TableRef},
+            expr_binder::{ExpressionBinder, RecursionContext},
+        },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
@@ -44,9 +47,11 @@ impl<'a> GroupByBinder<'a> {
             .expressions
             .into_iter()
             .map(|expr| {
-                Ok(Expression::Column(
-                    self.bind_to_select_list(select_list, expr)?,
-                ))
+                Ok(Expression::Column(self.bind_to_select_list(
+                    bind_context,
+                    select_list,
+                    expr,
+                )?))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -63,26 +68,26 @@ impl<'a> GroupByBinder<'a> {
     // TODO: Duplicated with order binder.
     fn bind_to_select_list(
         &self,
+        bind_context: &mut BindContext,
         select_list: &mut SelectList,
         expr: ast::Expr<ResolvedMeta>,
     ) -> Result<ColumnExpr> {
         // Check if there's already something in the list that we're
         // referencing.
-        if let Some(idx) = select_list.get_projection_reference(&expr)? {
-            return Ok(ColumnExpr {
-                table_scope: select_list.projections_table,
-                column: idx,
-            });
+        if let Some(expr) = select_list.get_projection_reference(&expr)? {
+            return Ok(expr);
         }
 
-        // Append our expression to the select list. We'll generate a column
-        // expression that references this column.
-        let idx = select_list.append_expression(ast::SelectExpr::Expr(expr));
+        let expr = ExpressionBinder::new(self.current, self.resolve_context).bind_expression(
+            bind_context,
+            &expr,
+            RecursionContext {
+                allow_window: false,
+                allow_aggregate: false,
+            },
+        )?;
 
-        Ok(ColumnExpr {
-            table_scope: select_list.projections_table,
-            column: idx,
-        })
+        select_list.append_expression(bind_context, expr)
     }
 }
 
