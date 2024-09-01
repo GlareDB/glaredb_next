@@ -16,7 +16,7 @@ use crate::{
             join::{hash_join::PhysicalHashJoin, nl_join::PhysicalNestedLoopJoin},
             limit::PhysicalLimit,
             materialize::PhysicalMaterialize,
-            project::ProjectOperation,
+            project::{PhysicalProject, ProjectOperation},
             scan::PhysicalScan,
             simple::SimpleOperator,
             sink::SinkOperator,
@@ -30,8 +30,11 @@ use crate::{
     },
     explain::{explainable::ExplainConfig, formatter::ExplainFormatter},
     expr::{
-        physical::planner::PhysicalExpressionPlanner, Expression, PhysicalScalarExpression,
-        PhysicalSortExpression,
+        physical::{
+            column_expr::PhysicalColumnExpr, planner::PhysicalExpressionPlanner,
+            PhysicalAggregateExpression,
+        },
+        Expression, PhysicalScalarExpression, PhysicalSortExpression,
     },
     logical::{
         binder::bind_context::BindContext,
@@ -1189,24 +1192,64 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
 
-        let agg_exprs = self
-            .expr_planner
-            .plan_aggregates(&input_refs, &agg.node.aggregates)?;
+        let mut phys_aggs = Vec::new();
+
+        // Extract arg expressions, place in their own pre-projection.
+        let mut preproject_exprs = Vec::new();
+        for agg_expr in agg.node.aggregates {
+            let agg = match agg_expr {
+                Expression::Aggregate(agg) => agg,
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected aggregate, got: {other}"
+                    )))
+                }
+            };
+
+            let start_col_index = preproject_exprs.len();
+            for arg in &agg.inputs {
+                let scalar = self.expr_planner.plan_scalar(&input_refs, arg)?;
+                preproject_exprs.push(scalar);
+            }
+            let end_col_index = preproject_exprs.len();
+
+            let phys_agg = PhysicalAggregateExpression {
+                output_type: agg.agg.return_type(),
+                function: agg.agg,
+                columns: (start_col_index..end_col_index)
+                    .map(|idx| PhysicalColumnExpr { idx })
+                    .collect(),
+            };
+
+            phys_aggs.push(phys_agg);
+        }
+
+        // Place group by expressions in pre-projection as well.
+        let mut group_types = Vec::with_capacity(agg.node.group_exprs.len());
+        for group_expr in agg.node.group_exprs {
+            group_types.push(group_expr.datatype(self.bind_context)?);
+            let scalar = self.expr_planner.plan_scalar(&input_refs, &group_expr)?;
+            preproject_exprs.push(scalar);
+        }
+
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
+                    operation: ProjectOperation::new(preproject_exprs),
+                })),
+                partitioning_requirement: None,
+            },
+            location,
+            id_gen,
+        )?;
 
         match agg.node.grouping_sets {
             Some(grouping_sets) => {
                 // If we're working with groups, push a hash aggregate operator.
 
-                let group_types = agg
-                    .node
-                    .group_exprs
-                    .iter()
-                    .map(|expr| expr.datatype(self.bind_context))
-                    .collect::<Result<Vec<_>>>()?;
-
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(group_types, agg_exprs, grouping_sets),
+                        PhysicalHashAggregate::new(group_types, phys_aggs, grouping_sets),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1217,7 +1260,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::UngroupedAggregate(
-                        PhysicalUngroupedAggregate::new(agg_exprs),
+                        PhysicalUngroupedAggregate::new(phys_aggs),
                     )),
                     partitioning_requirement: None,
                 };
