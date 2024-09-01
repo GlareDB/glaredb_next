@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{
@@ -18,5 +19,11 @@ impl PhysicalCastExpr {
         let input = self.expr.eval(batch)?;
         let out = cast_array(&input, &self.to)?;
         Ok(Arc::new(out))
+    }
+}
+
+impl fmt::Display for PhysicalCastExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CAST({} TO {})", self.expr, self.to)
     }
 }

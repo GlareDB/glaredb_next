@@ -170,9 +170,31 @@ impl SelectList {
 
         debug_assert_eq!(names.len(), types.len());
 
+        let projections_table = bind_context.get_table_mut(self.projections_table)?;
+        // TODO: Probably assert these are still empty before writing over them.
+        projections_table.column_names = names.clone();
+        projections_table.column_types = types.clone();
+
+        // Extract aggregates into separate table.
+        let aggregates_table = bind_context.new_ephemeral_table()?;
+        let mut aggregates = Vec::new();
+        let mut extra_projections = Vec::new(); // Get appended to end of expressions, represent additional pre-projections for aggregates.
+        for expr in &mut expressions {
+            Self::extract_aggregates(
+                aggregates_table,
+                self.projections_table,
+                bind_context,
+                expr,
+                &mut aggregates,
+                &mut extra_projections,
+            )?;
+        }
+
+        expressions.append(&mut extra_projections);
+
         // If we had appended column, ensure we have a pruned table that only
         // contains the original projections.
-        let pruned_table = if !self.appended.is_empty() {
+        let pruned_table = if expressions.len() > self.projections.len() {
             let len = self.projections.len();
 
             let table_ref = bind_context.new_ephemeral_table_with_columns(
@@ -197,19 +219,6 @@ impl SelectList {
             None
         };
 
-        let projections_table = bind_context.get_table_mut(self.projections_table)?;
-        // TODO: Probably assert these are still empty before writing over them.
-        projections_table.column_names = names;
-        projections_table.column_types = types;
-
-        // Extract aggregates into separate table.
-        let aggregates_table = bind_context.new_ephemeral_table()?;
-        let mut aggregates = Vec::new();
-
-        for expr in &mut expressions {
-            Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
-        }
-
         Ok(BoundSelectList {
             pruned: pruned_table,
             projections_table: self.projections_table,
@@ -222,29 +231,68 @@ impl SelectList {
         })
     }
 
+    /// Extracts aggregates from `expression` into `aggregates`.
     fn extract_aggregates(
         aggregates_table: TableRef,
+        projections_table: TableRef,
         bind_context: &mut BindContext,
         expression: &mut Expression,
         aggregates: &mut Vec<Expression>,
+        extra_projections: &mut Vec<Expression>,
     ) -> Result<()> {
         if let Expression::Aggregate(agg) = expression {
+            // Replace inputs to aggregate if not simple column expressions.
+            //
+            // Original inputs get added to the projection table, and get
+            // replaced with a column expression that reference the projections
+            // table.
+            for input in &mut agg.inputs {
+                if !input.is_column_expr() {
+                    let datatype = input.datatype(bind_context)?;
+                    let col_idx = bind_context.push_column_for_table(
+                        projections_table,
+                        "__generated_agg_input",
+                        datatype,
+                    )?;
+
+                    let orig = std::mem::replace(
+                        input,
+                        Expression::Column(ColumnExpr {
+                            table_scope: projections_table,
+                            column: col_idx,
+                        }),
+                    );
+
+                    extra_projections.push(orig);
+                }
+            }
+
+            // Replace the aggregate in the projections list with a column
+            // reference that points to the extracted aggregate.
             let datatype = agg.datatype(bind_context)?;
             let col_idx =
                 bind_context.push_column_for_table(aggregates_table, "__generated", datatype)?;
+            let agg = std::mem::replace(
+                expression,
+                Expression::Column(ColumnExpr {
+                    table_scope: aggregates_table,
+                    column: col_idx,
+                }),
+            );
 
-            let col_ref = Expression::Column(ColumnExpr {
-                table_scope: aggregates_table,
-                column: col_idx,
-            });
-
-            let agg = std::mem::replace(expression, col_ref);
             aggregates.push(agg);
             return Ok(());
         }
 
         expression.for_each_child_mut(&mut |expr| {
-            Self::extract_aggregates(aggregates_table, bind_context, expr, aggregates)
+            Self::extract_aggregates(
+                aggregates_table,
+                projections_table,
+                bind_context,
+                expr,
+                aggregates,
+                extra_projections,
+            )
         })?;
 
         Ok(())

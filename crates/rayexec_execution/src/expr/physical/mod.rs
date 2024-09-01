@@ -38,7 +38,12 @@ impl PhysicalScalarExpression {
 
 impl fmt::Display for PhysicalScalarExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unimplemented!()
+        match self {
+            Self::Cast(expr) => expr.fmt(f),
+            Self::Column(expr) => expr.fmt(f),
+            Self::Literal(expr) => expr.fmt(f),
+            Self::ScalarFunction(expr) => expr.fmt(f),
+        }
     }
 }
 

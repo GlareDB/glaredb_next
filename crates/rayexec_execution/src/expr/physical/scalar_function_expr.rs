@@ -1,8 +1,8 @@
+use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::{
-    array::Array, batch::Batch, compute::cast::array::cast_array, datatype::DataType,
-};
+use fmtutil::IntoDisplayableSlice;
+use rayexec_bullet::{array::Array, batch::Batch};
 use rayexec_error::{RayexecError, Result};
 
 use crate::functions::scalar::PlannedScalarFunction;
@@ -42,5 +42,16 @@ impl PhysicalScalarFunctionExpr {
         // TODO: Do we want to Arc here? Should we allow batches to be mutable?
 
         Ok(Arc::new(out))
+    }
+}
+
+impl fmt::Display for PhysicalScalarFunctionExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}({})",
+            self.function.scalar_function().name(),
+            self.inputs.display_as_list()
+        )
     }
 }

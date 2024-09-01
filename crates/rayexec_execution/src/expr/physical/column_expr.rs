@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{array::Array, batch::Batch};
@@ -20,5 +21,11 @@ impl PhysicalColumnExpr {
                 ))
             })
             .cloned()
+    }
+}
+
+impl fmt::Display for PhysicalColumnExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "@{}", self.idx)
     }
 }

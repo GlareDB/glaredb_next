@@ -233,6 +233,10 @@ impl Expression {
         unimplemented!()
     }
 
+    pub const fn is_column_expr(&self) -> bool {
+        matches!(self, Self::Column(_))
+    }
+
     /// Try to get a top-level literal from this expression, erroring if it's
     /// not one.
     pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
