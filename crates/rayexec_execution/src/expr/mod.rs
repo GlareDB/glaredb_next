@@ -17,7 +17,7 @@ pub mod physical;
 
 use crate::database::DatabaseContext;
 use crate::functions::aggregate::PlannedAggregateFunction;
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::expr::LogicalExpression;
 use crate::proto::DatabaseProtoConv;
@@ -68,7 +68,7 @@ impl Expression {
             Self::Arith(expr) => {
                 let func = expr
                     .op
-                    .scalar_function()
+                    .as_scalar_function()
                     .plan_from_expressions(bind_context, &[&expr.left, &expr.right])?;
                 func.return_type()
             }
@@ -265,6 +265,11 @@ impl fmt::Display for Expression {
             Self::Window(expr) => write!(f, "{}", expr),
         }
     }
+}
+
+pub trait AsScalarFunction {
+    /// Returns the scalar function that implements the expression.
+    fn as_scalar_function(&self) -> &dyn ScalarFunction;
 }
 
 #[derive(Debug, Clone)]

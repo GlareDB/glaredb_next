@@ -1,9 +1,9 @@
 use crate::functions::scalar::{comparison, ScalarFunction};
 use std::fmt;
 
-use super::Expression;
+use super::{AsScalarFunction, Expression};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComparisonOperator {
     Eq,
     NotEq,
@@ -13,8 +13,8 @@ pub enum ComparisonOperator {
     GtEq,
 }
 
-impl ComparisonOperator {
-    pub fn scalar_function(&self) -> &dyn ScalarFunction {
+impl AsScalarFunction for ComparisonOperator {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction {
         match self {
             Self::Eq => &comparison::Eq,
             Self::NotEq => &comparison::Neq,

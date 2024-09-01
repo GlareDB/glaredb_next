@@ -1,6 +1,6 @@
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_parser::ast;
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         literal_expr::LiteralExpr,
         scalar_function_expr::ScalarFunctionExpr,
-        Expression,
+        AsScalarFunction, Expression,
     },
     functions::{
         aggregate::AggregateFunction,
@@ -135,62 +135,117 @@ impl<'a> ExpressionBinder<'a> {
                 let right = self.bind_expression(bind_context, right, recur)?;
 
                 Ok(match op {
-                    ast::BinaryOperator::NotEq => Expression::Comparison(ComparisonExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ComparisonOperator::NotEq,
-                    }),
-                    ast::BinaryOperator::Eq => Expression::Comparison(ComparisonExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ComparisonOperator::Eq,
-                    }),
-                    ast::BinaryOperator::Lt => Expression::Comparison(ComparisonExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ComparisonOperator::Lt,
-                    }),
-                    ast::BinaryOperator::LtEq => Expression::Comparison(ComparisonExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ComparisonOperator::LtEq,
-                    }),
-                    ast::BinaryOperator::Gt => Expression::Comparison(ComparisonExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ComparisonOperator::Gt,
-                    }),
-                    ast::BinaryOperator::GtEq => Expression::Comparison(ComparisonExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ComparisonOperator::GtEq,
-                    }),
-                    ast::BinaryOperator::Plus => Expression::Arith(ArithExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ArithOperator::Add,
-                    }),
-                    ast::BinaryOperator::Minus => Expression::Arith(ArithExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ArithOperator::Sub,
-                    }),
-                    ast::BinaryOperator::Multiply => Expression::Arith(ArithExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ArithOperator::Mul,
-                    }),
-                    ast::BinaryOperator::Divide => Expression::Arith(ArithExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ArithOperator::Div,
-                    }),
-                    ast::BinaryOperator::Modulo => Expression::Arith(ArithExpr {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op: ArithOperator::Mod,
-                    }),
-                    other => not_implemented!("Binary operator: {other:?}"),
+                    ast::BinaryOperator::NotEq => {
+                        let op = ComparisonOperator::NotEq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Eq => {
+                        let op = ComparisonOperator::Eq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Lt => {
+                        let op = ComparisonOperator::Lt;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::LtEq => {
+                        let op = ComparisonOperator::LtEq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Gt => {
+                        let op = ComparisonOperator::Gt;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::GtEq => {
+                        let op = ComparisonOperator::GtEq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Plus => {
+                        let op = ArithOperator::Add;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Minus => {
+                        let op = ArithOperator::Sub;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Multiply => {
+                        let op = ArithOperator::Mul;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Divide => {
+                        let op = ArithOperator::Div;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Modulo => {
+                        let op = ArithOperator::Mod;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    other => not_implemented!("binary operator {other:?}"),
                 })
             }
             ast::Expr::Function(func) => {
@@ -235,11 +290,15 @@ impl<'a> ExpressionBinder<'a> {
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
                     (ResolvedFunction::Scalar(scalar), _) => {
+                        println!("INPUTS: {inputs:?}");
+
                         let inputs = self.apply_casts_for_scalar_function(
                             bind_context,
                             scalar.as_ref(),
                             inputs,
                         )?;
+
+                        println!("CASTS: {inputs:?}");
 
                         let refs: Vec<_> = inputs.iter().collect();
                         let function = scalar.plan_from_expressions(bind_context, &refs)?;
@@ -267,8 +326,7 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             }
-
-            _ => unimplemented!(),
+            other => unimplemented!("{other:?}"),
         }
     }
 
@@ -414,6 +472,22 @@ impl<'a> ExpressionBinder<'a> {
                 ast::ObjectReference(idents.to_vec()),
             ))), // TODO: Struct fields.
         }
+    }
+
+    fn apply_cast_for_operator<const N: usize>(
+        &self,
+        bind_context: &BindContext,
+        operator: impl AsScalarFunction,
+        inputs: [Expression; N],
+    ) -> Result<[Expression; N]> {
+        let inputs = self.apply_casts_for_scalar_function(
+            bind_context,
+            operator.as_scalar_function(),
+            inputs.to_vec(),
+        )?;
+        inputs
+            .try_into()
+            .map_err(|_| RayexecError::new("Number of casted inputs incorrect"))
     }
 
     /// Applies casts to an input expression based on the signatures for a

@@ -1,5 +1,5 @@
 use crate::{
-    expr::{physical::PhysicalScalarExpression, Expression},
+    expr::{physical::PhysicalScalarExpression, AsScalarFunction, Expression},
     logical::binder::{
         bind_context::{BindContext, TableRef},
         bind_query::bind_modifier::BoundOrderByExpr,
@@ -97,7 +97,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 expr: Box::new(self.plan_scalar(table_refs, &expr.expr)?),
             })),
             Expression::Comparison(expr) => {
-                let scalar = expr.op.scalar_function();
+                let scalar = expr.op.as_scalar_function();
                 let function =
                     scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
 
@@ -127,7 +127,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 ))
             }
             Expression::Arith(expr) => {
-                let scalar = expr.op.scalar_function();
+                let scalar = expr.op.as_scalar_function();
                 let function =
                     scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
 

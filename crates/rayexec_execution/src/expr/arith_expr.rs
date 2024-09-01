@@ -1,7 +1,7 @@
 use crate::functions::scalar::{arith, ScalarFunction};
 use std::fmt;
 
-use super::Expression;
+use super::{AsScalarFunction, Expression};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArithOperator {
@@ -12,8 +12,8 @@ pub enum ArithOperator {
     Mod,
 }
 
-impl ArithOperator {
-    pub fn scalar_function(&self) -> &dyn ScalarFunction {
+impl AsScalarFunction for ArithOperator {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction {
         match self {
             Self::Add => &arith::Add,
             Self::Sub => &arith::Sub,

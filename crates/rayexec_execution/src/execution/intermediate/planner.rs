@@ -1246,7 +1246,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match agg.node.grouping_sets {
             Some(grouping_sets) => {
                 // If we're working with groups, push a hash aggregate operator.
-
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
                         PhysicalHashAggregate::new(group_types, phys_aggs, grouping_sets),

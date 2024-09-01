@@ -119,7 +119,8 @@ impl PhysicalHashAggregate {
 
         let mut distinct_group_cols = BTreeSet::new();
         for set in &grouping_sets {
-            distinct_group_cols.extend(set.iter());
+            // Account for agg inputs offset.
+            distinct_group_cols.extend(set.iter().map(|col| col + agg_input_cols.len()));
         }
 
         let null_masks = grouping_sets
