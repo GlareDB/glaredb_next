@@ -584,7 +584,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Filter(n) => n.get_output_table_refs(),
             LogicalOperator::Scan(n) => n.get_output_table_refs(),
             LogicalOperator::Aggregate(n) => n.get_output_table_refs(),
-            LogicalOperator::SetOp(n) => n.get_children_table_refs(),
+            LogicalOperator::SetOp(n) => n.get_output_table_refs(),
             LogicalOperator::Empty(n) => n.get_output_table_refs(),
             LogicalOperator::Limit(n) => n.get_output_table_refs(),
             LogicalOperator::Order(n) => n.get_output_table_refs(),
