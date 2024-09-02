@@ -327,6 +327,37 @@ impl SelectList {
         Ok(None)
     }
 
+    /// Replaces all columns in the projections list with a new column
+    /// expression.
+    ///
+    /// This should be replacing the column expression with one that is
+    /// logically equivalent.
+    pub fn replace_columns_in_projection(
+        &mut self,
+        old: ColumnExpr,
+        new: ColumnExpr,
+    ) -> Result<()> {
+        fn inner(expr: &mut Expression, old: &ColumnExpr, new: &ColumnExpr) -> Result<()> {
+            match expr {
+                Expression::Column(col) => {
+                    if col == old {
+                        *col = new.clone();
+                    }
+                }
+                other => {
+                    other.for_each_child_mut(&mut |child| inner(child, old, new))?;
+                }
+            }
+            Ok(())
+        }
+
+        for proj in &mut self.projections {
+            inner(proj, &old, &new)?;
+        }
+
+        Ok(())
+    }
+
     pub fn get_projection(&mut self, idx: usize) -> Result<&Expression> {
         self.projections
             .get(idx)

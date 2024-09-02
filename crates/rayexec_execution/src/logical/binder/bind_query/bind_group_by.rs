@@ -127,11 +127,27 @@ impl<'a> GroupByBinder<'a> {
                 )?;
 
                 let datatype = expr.datatype(bind_context)?;
-                bind_context.push_column_for_table(
+                let col_idx = bind_context.push_column_for_table(
                     group_table,
                     "__generated_group_expr",
                     datatype,
                 )?;
+
+                // If expression is a column reference, go ahead and replace all
+                // equivalent columns in the projection list with an expression
+                // that point to the expression in the GROUP BY.
+                //
+                // TODO: Might make sense to do this in planning instead.
+                //
+                // TODO: We can get fancier here and extract out all columns
+                // instead of just doing the top-level column check.
+                if let Expression::Column(col_expr) = &expr {
+                    let replacement = ColumnExpr {
+                        table_scope: group_table,
+                        column: col_idx,
+                    };
+                    select_list.replace_columns_in_projection(col_expr.clone(), replacement)?;
+                }
 
                 Ok(expr)
             }
