@@ -31,7 +31,7 @@ impl<'a> SelectPlanner<'a> {
         }
 
         // Handle GROUP BY/aggregates
-        if !select.select_list.aggregates.is_empty() {
+        if !select.select_list.aggregates.is_empty() || select.group_by.is_some() {
             let (mut group_exprs, group_table, grouping_sets) = match select.group_by {
                 Some(group_by) => (
                     group_by.expressions,

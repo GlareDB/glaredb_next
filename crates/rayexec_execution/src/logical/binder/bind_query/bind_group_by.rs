@@ -83,8 +83,6 @@ impl<'a> GroupByBinder<'a> {
         // referencing.
         match select_list.column_expr_for_reference(bind_context, &expr)? {
             Some(col_expr) => {
-                println!("COL EXPR: {col_expr}");
-
                 if self.referenced_select_exprs.contains(&col_expr) {
                     // Another expression in the GROUP BY is already referencing
                     // this column, can just replace with a constant.
