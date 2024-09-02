@@ -13,6 +13,12 @@ use rayexec_parser::ast::{self, SelectExpr};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Preprojection {
+    pub table: TableRef,
+    pub expressions: Vec<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrunedProjectionTable {
     /// Table containing just column references.
     pub table: TableRef,
@@ -111,6 +117,9 @@ impl SelectList {
             .collect::<Result<Vec<_>>>()?;
 
         // Update with user provided aliases
+        //
+        // TODO: This should be updated in finalize, GROUP BY may reference an
+        // unaliased column.
         for (alias, idx) in &alias_map {
             names[*idx] = alias.clone();
         }
@@ -259,8 +268,9 @@ impl SelectList {
     ///
     /// This allows GROUP BY and ORDER BY to reference columns in the output by
     /// either its alias, or by its ordinal.
-    pub fn get_projection_reference(
+    pub fn column_expr_for_reference(
         &self,
+        bind_context: &BindContext,
         expr: &ast::Expr<ResolvedMeta>,
     ) -> Result<Option<ColumnExpr>> {
         // Check constant first.
@@ -285,14 +295,39 @@ impl SelectList {
 
         // Alias reference
         if let ast::Expr::Ident(ident) = expr {
-            if let Some(idx) = self.alias_map.get(&ident.as_normalized_string()) {
+            let name = ident.as_normalized_string();
+
+            // Check user provided alias first.
+            if let Some(idx) = self.alias_map.get(&name) {
                 return Ok(Some(ColumnExpr {
                     table_scope: self.projections_table,
                     column: *idx,
                 }));
             }
+
+            // Check the projection table.
+            let table = bind_context.get_table(self.projections_table)?;
+            let idx = match table
+                .column_names
+                .iter()
+                .position(|col_name| col_name == &name)
+            {
+                Some(idx) => idx,
+                None => return Ok(None),
+            };
+
+            return Ok(Some(ColumnExpr {
+                table_scope: self.projections_table,
+                column: idx,
+            }));
         }
 
         Ok(None)
+    }
+
+    pub fn get_projection_mut(&mut self, idx: usize) -> Result<&mut Expression> {
+        self.projections
+            .get_mut(idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing projection at index {idx}")))
     }
 }

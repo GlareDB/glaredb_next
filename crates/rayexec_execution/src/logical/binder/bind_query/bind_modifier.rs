@@ -110,7 +110,7 @@ impl<'a> ModifierBinder<'a> {
     ) -> Result<ColumnExpr> {
         // Check if there's already something in the list that we're
         // referencing.
-        if let Some(expr) = select_list.get_projection_reference(&expr)? {
+        if let Some(expr) = select_list.column_expr_for_reference(bind_context, &expr)? {
             return Ok(expr);
         }
 

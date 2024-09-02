@@ -102,15 +102,10 @@ impl<'a> SelectBinder<'a> {
         let limit = modifier_binder.bind_limit(bind_context, limit)?;
 
         // Handle GROUP BY
+        let mut group_by_binder = GroupByBinder::new(from_bind_ref, self.resolve_context);
         let group_by = select
             .group_by
-            .map(|g| {
-                GroupByBinder::new(from_bind_ref, self.resolve_context).bind(
-                    bind_context,
-                    &mut select_list,
-                    g,
-                )
-            })
+            .map(|g| group_by_binder.bind(bind_context, &mut select_list, g))
             .transpose()?;
 
         // Handle HAVING

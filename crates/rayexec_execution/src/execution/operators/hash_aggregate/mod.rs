@@ -117,16 +117,17 @@ impl PhysicalHashAggregate {
             agg_input_cols.extend(expr.columns.iter().map(|expr| expr.idx));
         }
 
+        // Used to generate intial null masks. This doesn't take into account
+        // the physical column offset.
         let mut distinct_group_cols = BTreeSet::new();
         for set in &grouping_sets {
-            // Account for agg inputs offset.
-            distinct_group_cols.extend(set.iter().map(|col| col + agg_input_cols.len()));
+            distinct_group_cols.extend(set.iter());
         }
 
         let null_masks = grouping_sets
             .iter()
             .map(|set| {
-                let mut mask = Bitmap::all_true(distinct_group_cols.len());
+                let mut mask = Bitmap::all_false(distinct_group_cols.len());
                 for (idx, col_idx) in distinct_group_cols.iter().enumerate() {
                     mask.set(idx, !set.contains(col_idx))
                 }
@@ -134,9 +135,15 @@ impl PhysicalHashAggregate {
             })
             .collect();
 
+        // Adjust group cols to take into account physical column index.
+        let group_columns = distinct_group_cols
+            .into_iter()
+            .map(|col| col + agg_input_cols.len())
+            .collect();
+
         PhysicalHashAggregate {
             null_masks,
-            group_columns: distinct_group_cols.into_iter().collect(),
+            group_columns,
             group_types,
             aggregate_columns: agg_input_cols.into_iter().collect(),
             exprs,

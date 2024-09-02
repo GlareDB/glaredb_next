@@ -5,7 +5,7 @@ use crate::logical::binder::bind_context::{BindContext, TableRef};
 use std::fmt;
 
 /// Reference to a column in a query.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnExpr {
     /// Scope this column is in.
     pub table_scope: TableRef,
