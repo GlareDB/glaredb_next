@@ -327,6 +327,12 @@ impl SelectList {
         Ok(None)
     }
 
+    pub fn get_projection(&mut self, idx: usize) -> Result<&Expression> {
+        self.projections
+            .get(idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing projection at index {idx}")))
+    }
+
     pub fn get_projection_mut(&mut self, idx: usize) -> Result<&mut Expression> {
         self.projections
             .get_mut(idx)

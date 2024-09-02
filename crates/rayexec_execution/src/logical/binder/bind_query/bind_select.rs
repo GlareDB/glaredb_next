@@ -15,6 +15,7 @@ use rayexec_parser::ast;
 use super::{
     bind_from::{BoundFrom, FromBinder},
     bind_group_by::{BoundGroupBy, GroupByBinder},
+    bind_having::HavingBinder,
     bind_modifier::{BoundLimit, BoundOrderBy, ModifierBinder},
     select_expr_expander::SelectExprExpander,
     select_list::{BoundSelectList, SelectList},
@@ -114,15 +115,7 @@ impl<'a> SelectBinder<'a> {
         let having = select
             .having
             .map(|h| {
-                ExpressionBinder::new(self.resolve_context).bind_expression(
-                    bind_context,
-                    &h,
-                    &mut DefaultColumnBinder::new(from_bind_ref),
-                    RecursionContext {
-                        allow_aggregate: true,
-                        allow_window: false,
-                    },
-                )
+                HavingBinder::new(self.resolve_context, group_by.as_ref()).bind(bind_context, h)
             })
             .transpose()?;
 

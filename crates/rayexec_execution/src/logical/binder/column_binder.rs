@@ -9,6 +9,7 @@ use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlia
 ///
 /// Implementations should typically implement custom logic first, then fall
 /// back to the default binder.
+// TODO: Literal binder.
 pub trait ExpressionColumnBinder {
     fn bind_from_ident(
         &mut self,
@@ -49,39 +50,8 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
     ) -> Result<Expression> {
-        match idents.len() {
-            0 => Err(RayexecError::new("Empty identifier")),
-            1 => {
-                // Single column.
-                self.bind_from_ident(bind_context, &idents[0])
-            }
-            2..=4 => {
-                // Qualified column.
-                // 2 => 'table.column'
-                // 3 => 'schema.table.column'
-                // 4 => 'database.schema.table.column'
-                // TODO: Struct fields.
-
-                let mut idents = idents.to_vec();
-
-                let col = idents.pop().unwrap().into_normalized_string();
-
-                let alias = TableAlias {
-                    table: idents
-                        .pop()
-                        .map(|ident| ident.into_normalized_string())
-                        .unwrap(), // Must exist
-                    schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
-                    database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
-                };
-
-                self.bind_column(bind_context, Some(alias), &col)
-            }
-            _ => Err(RayexecError::new(format!(
-                "Too many identifier parts in {}",
-                ast::ObjectReference(idents.to_vec()),
-            ))), // TODO: Struct fields.
-        }
+        let (alias, col) = idents_to_alias_and_column(idents)?;
+        self.bind_column(bind_context, alias, &col)
     }
 }
 
@@ -141,6 +111,46 @@ impl DefaultColumnBinder {
                 }
             }
         }
+    }
+}
+
+/// Try to convert idents into a table alias and column pair.
+///
+/// If only one ident is provided, table alias will be None.
+///
+/// Errors if no idents are provided.
+pub fn idents_to_alias_and_column(idents: &[ast::Ident]) -> Result<(Option<TableAlias>, String)> {
+    match idents.len() {
+        0 => Err(RayexecError::new("Empty identifier")),
+        1 => {
+            // Single column.
+            Ok((None, idents[0].as_normalized_string()))
+        }
+        2..=4 => {
+            // Qualified column.
+            // 2 => 'table.column'
+            // 3 => 'schema.table.column'
+            // 4 => 'database.schema.table.column'
+            // TODO: Struct fields.
+
+            let mut idents = idents.to_vec();
+            let col = idents.pop().unwrap().into_normalized_string();
+
+            let alias = TableAlias {
+                table: idents
+                    .pop()
+                    .map(|ident| ident.into_normalized_string())
+                    .unwrap(), // Must exist
+                schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+                database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+            };
+
+            Ok((Some(alias), col))
+        }
+        _ => Err(RayexecError::new(format!(
+            "Too many identifier parts in {}",
+            ast::ObjectReference(idents.to_vec()),
+        ))), // TODO: Struct fields.
     }
 }
 

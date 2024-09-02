@@ -1,6 +1,9 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_bullet::{
+    datatype::DataType,
+    scalar::{interval::Interval, OwnedScalarValue, ScalarValue},
+};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::{
@@ -8,25 +11,23 @@ use crate::{
         aggregate_expr::AggregateExpr,
         arith_expr::{ArithExpr, ArithOperator},
         cast_expr::CastExpr,
-        column_expr::ColumnExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         literal_expr::LiteralExpr,
+        negate_expr::{NegateExpr, NegateOperator},
         scalar_function_expr::ScalarFunctionExpr,
         AsScalarFunction, Expression,
     },
     functions::{
         aggregate::AggregateFunction,
         scalar::{
+            like,
             list::{ListExtract, ListValues},
             ScalarFunction,
         },
         CastType,
     },
-    logical::{
-        binder::bind_context::CorrelatedColumn,
-        resolver::{
-            resolve_context::ResolveContext, resolved_function::ResolvedFunction, ResolvedMeta,
-        },
+    logical::resolver::{
+        resolve_context::ResolveContext, resolved_function::ResolvedFunction, ResolvedMeta,
     },
 };
 
@@ -76,6 +77,9 @@ impl<'a> ExpressionBinder<'a> {
             ast::Expr::CompoundIdent(idents) => {
                 column_binder.bind_from_idents(bind_context, idents)
             }
+            ast::Expr::QualifiedWildcard(_) => Err(RayexecError::new(
+                "Qualified wildcard not a valid expression to bind",
+            )),
             ast::Expr::Literal(literal) => Self::bind_literal(literal),
             ast::Expr::Array(arr) => {
                 let exprs = arr
@@ -132,8 +136,20 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             }
-            ast::Expr::UnaryExpr { .. } => {
-                unimplemented!()
+            ast::Expr::UnaryExpr { op, expr } => {
+                let expr = self.bind_expression(bind_context, expr, column_binder, recur)?;
+
+                Ok(match op {
+                    ast::UnaryOperator::Plus => expr,
+                    ast::UnaryOperator::Not => Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(expr),
+                    }),
+                    ast::UnaryOperator::Minus => Expression::Negate(NegateExpr {
+                        op: NegateOperator::Negate,
+                        expr: Box::new(expr),
+                    }),
+                })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
                 let left = self.bind_expression(bind_context, left, column_binder, recur)?;
@@ -298,15 +314,11 @@ impl<'a> ExpressionBinder<'a> {
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
                     (ResolvedFunction::Scalar(scalar), _) => {
-                        println!("INPUTS: {inputs:?}");
-
                         let inputs = self.apply_casts_for_scalar_function(
                             bind_context,
                             scalar.as_ref(),
                             inputs,
                         )?;
-
-                        println!("CASTS: {inputs:?}");
 
                         let refs: Vec<_> = inputs.iter().collect();
                         let function = scalar.plan_from_expressions(bind_context, &refs)?;
@@ -334,7 +346,119 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             }
-            other => unimplemented!("{other:?}"),
+            ast::Expr::Nested(nested) => {
+                self.bind_expression(bind_context, nested, column_binder, recur)
+            }
+            ast::Expr::Subquery(_) => unimplemented!(),
+            ast::Expr::Tuple(_) => not_implemented!("tuple expressions"),
+            ast::Expr::Collate { .. } => not_implemented!("COLLATE"),
+            ast::Expr::Exists { .. } => unimplemented!(),
+            ast::Expr::TypedString { datatype, value } => {
+                let scalar = OwnedScalarValue::Utf8(value.clone().into());
+                // TODO: Add this back. Currently doing this to avoid having to
+                // update cast rules for arrays and scalars at the same time.
+                //
+                // let scalar = cast_scalar(scalar, &datatype)?;
+                Ok(Expression::Cast(CastExpr {
+                    to: datatype.clone(),
+                    expr: Box::new(Expression::Literal(LiteralExpr { literal: scalar })),
+                }))
+            }
+            ast::Expr::Cast { datatype, expr } => {
+                let expr = self.bind_expression(bind_context, expr, column_binder, recur)?;
+                Ok(Expression::Cast(CastExpr {
+                    to: datatype.clone(),
+                    expr: Box::new(expr),
+                }))
+            }
+            ast::Expr::Like {
+                expr,
+                pattern,
+                not_like,
+                case_insensitive,
+            } => {
+                if *not_like {
+                    not_implemented!("NOT LIKE")
+                }
+                if *case_insensitive {
+                    not_implemented!("case insensitive LIKE")
+                }
+
+                let expr = self.bind_expression(bind_context, expr, column_binder, recur)?;
+                let pattern = self.bind_expression(bind_context, pattern, column_binder, recur)?;
+
+                let scalar = like::Like.plan_from_expressions(bind_context, &[&expr, &pattern])?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: scalar,
+                    inputs: vec![expr, pattern],
+                }))
+            }
+            ast::Expr::Interval(ast::Interval {
+                value,
+                leading,
+                trailing,
+            }) => {
+                if leading.is_some() {
+                    return Err(RayexecError::new(
+                        "Leading unit in interval not yet supported",
+                    ));
+                }
+                let expr = self.bind_expression(bind_context, value, column_binder, recur)?;
+
+                match trailing {
+                    Some(trailing) => {
+                        // If a user provides a unit like `INTERVAL 3 YEARS`, we
+                        // go ahead an multiply 3 with the a constant interval
+                        // representing 1 YEAR.
+                        //
+                        // This builds on top of our existing casting/function
+                        // dispatch rules. It's assumed that we have a
+                        // `mul(interval, int64)` function (and similar).
+
+                        let const_interval = match trailing {
+                            ast::IntervalUnit::Year => Interval::new(12, 0, 0),
+                            ast::IntervalUnit::Month => Interval::new(1, 0, 0),
+                            ast::IntervalUnit::Week => Interval::new(0, 7, 0),
+                            ast::IntervalUnit::Day => Interval::new(0, 1, 0),
+                            ast::IntervalUnit::Hour => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_HOUR)
+                            }
+                            ast::IntervalUnit::Minute => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MINUTE)
+                            }
+                            ast::IntervalUnit::Second => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_SECOND)
+                            }
+                            ast::IntervalUnit::Millisecond => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MILLISECOND)
+                            }
+                            other => {
+                                // TODO: Got lazy, add the rest.
+                                return Err(RayexecError::new(format!(
+                                    "Missing interval constant for {other:?}"
+                                )));
+                            }
+                        };
+
+                        let interval = Expression::Literal(LiteralExpr {
+                            literal: ScalarValue::Interval(const_interval),
+                        });
+
+                        let op = ArithOperator::Mul;
+                        // Plan `mul(<interval>, <expr>)`
+                        Ok(Expression::Arith(ArithExpr {
+                            op,
+                            left: Box::new(interval),
+                            right: Box::new(expr),
+                        }))
+                    }
+                    None => Ok(Expression::Cast(CastExpr {
+                        to: DataType::Interval,
+                        expr: Box::new(expr),
+                    })),
+                }
+            }
         }
     }
 

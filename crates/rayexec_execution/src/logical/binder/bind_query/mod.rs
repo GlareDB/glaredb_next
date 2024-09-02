@@ -1,5 +1,6 @@
 pub mod bind_from;
 pub mod bind_group_by;
+pub mod bind_having;
 pub mod bind_modifier;
 pub mod bind_select;
 pub mod bind_setop;

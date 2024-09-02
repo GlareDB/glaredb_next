@@ -8,6 +8,7 @@ pub mod comparison_expr;
 pub mod conjunction_expr;
 pub mod is_expr;
 pub mod literal_expr;
+pub mod negate_expr;
 pub mod scalar;
 pub mod scalar_function_expr;
 pub mod subquery_expr;
@@ -32,6 +33,7 @@ use conjunction_expr::ConjunctionExpr;
 use fmtutil::IntoDisplayableSlice;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
+use negate_expr::NegateExpr;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
@@ -56,6 +58,7 @@ pub enum Expression {
     Conjunction(ConjunctionExpr),
     Is(IsExpr),
     Literal(LiteralExpr),
+    Negate(NegateExpr),
     ScalarFunction(ScalarFunctionExpr),
     Subquery(SubqueryExpr),
     Window(WindowExpr),
@@ -80,6 +83,7 @@ impl Expression {
             Self::Conjunction(_) => DataType::Boolean,
             Self::Is(_) => DataType::Boolean,
             Self::Literal(expr) => expr.literal.datatype(),
+            Self::Negate(expr) => expr.datatype(bind_context)?,
             Self::ScalarFunction(expr) => expr.function.return_type(),
             Self::Subquery(_) => unimplemented!(),
             Self::Window(_) => not_implemented!("WINDOW"),
@@ -131,6 +135,7 @@ impl Expression {
             }
             Self::Is(is) => func(&mut is.input)?,
             Self::Literal(_) => (),
+            Self::Negate(negate) => func(&mut negate.expr)?,
             Self::ScalarFunction(scalar) => {
                 for input in &mut scalar.inputs {
                     func(input)?;
@@ -195,6 +200,7 @@ impl Expression {
             }
             Self::Is(is) => func(&is.input)?,
             Self::Literal(_) => (),
+            Self::Negate(negate) => func(&negate.expr)?,
             Self::ScalarFunction(scalar) => {
                 for input in &scalar.inputs {
                     func(input)?;
@@ -260,6 +266,7 @@ impl fmt::Display for Expression {
             Self::Conjunction(expr) => write!(f, "{}", expr),
             Self::Is(expr) => write!(f, "{}", expr),
             Self::Literal(expr) => write!(f, "{}", expr),
+            Self::Negate(expr) => write!(f, "{}", expr),
             Self::ScalarFunction(expr) => write!(f, "{}", expr),
             Self::Subquery(expr) => write!(f, "{}", expr),
             Self::Window(expr) => write!(f, "{}", expr),
