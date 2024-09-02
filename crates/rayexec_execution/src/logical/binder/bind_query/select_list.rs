@@ -3,6 +3,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
+            column_binder::DefaultColumnBinder,
             expr_binder::{ExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -125,10 +126,11 @@ impl SelectList {
         }
 
         // Bind the expressions.
-        let expr_binder = ExpressionBinder::new(bind_ref, resolve_context);
+        let expr_binder = ExpressionBinder::new(resolve_context);
         let exprs = expr_binder.bind_expressions(
             bind_context,
             &ast_exprs,
+            &mut DefaultColumnBinder::new(bind_ref),
             RecursionContext {
                 allow_window: true,
                 allow_aggregate: true,

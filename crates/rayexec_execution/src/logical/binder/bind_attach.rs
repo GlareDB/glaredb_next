@@ -11,6 +11,7 @@ use crate::logical::{
 
 use super::{
     bind_context::{BindContext, BindScopeRef},
+    column_binder::ErroringColumnBinder,
     expr_binder::{ExpressionBinder, RecursionContext},
 };
 
@@ -45,15 +46,15 @@ impl AttachBinder {
 
                 for (k, v) in attach.options {
                     let k = k.into_normalized_string();
-                    let expr = ExpressionBinder::new(self.current, &ResolveContext::empty())
-                        .bind_expression(
-                            bind_context,
-                            &v,
-                            RecursionContext {
-                                allow_window: false,
-                                allow_aggregate: false,
-                            },
-                        )?;
+                    let expr = ExpressionBinder::new(&ResolveContext::empty()).bind_expression(
+                        bind_context,
+                        &v,
+                        &mut ErroringColumnBinder,
+                        RecursionContext {
+                            allow_window: false,
+                            allow_aggregate: false,
+                        },
+                    )?;
                     let v = expr.try_into_scalar()?;
 
                     if options.contains_key(&k) {

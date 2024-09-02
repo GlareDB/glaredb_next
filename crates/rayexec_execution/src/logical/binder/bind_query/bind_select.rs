@@ -3,6 +3,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef},
+            column_binder::DefaultColumnBinder,
             expr_binder::{ExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -82,10 +83,11 @@ impl<'a> SelectBinder<'a> {
         let where_expr = select
             .where_expr
             .map(|expr| {
-                let binder = ExpressionBinder::new(from_bind_ref, self.resolve_context);
+                let binder = ExpressionBinder::new(self.resolve_context);
                 binder.bind_expression(
                     bind_context,
                     &expr,
+                    &mut DefaultColumnBinder::new(from_bind_ref),
                     RecursionContext {
                         allow_window: false,
                         allow_aggregate: false,
@@ -112,9 +114,10 @@ impl<'a> SelectBinder<'a> {
         let having = select
             .having
             .map(|h| {
-                ExpressionBinder::new(from_bind_ref, self.resolve_context).bind_expression(
+                ExpressionBinder::new(self.resolve_context).bind_expression(
                     bind_context,
                     &h,
+                    &mut DefaultColumnBinder::new(from_bind_ref),
                     RecursionContext {
                         allow_aggregate: true,
                         allow_window: false,

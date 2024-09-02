@@ -12,7 +12,10 @@ use crate::{
     },
 };
 
-use super::bind_context::{BindContext, BindScopeRef};
+use super::{
+    bind_context::{BindContext, BindScopeRef},
+    column_binder::ErroringColumnBinder,
+};
 
 #[derive(Debug)]
 pub struct SetVarBinder<'a> {
@@ -30,9 +33,10 @@ impl<'a> SetVarBinder<'a> {
         bind_context: &mut BindContext,
         mut set: ast::SetVariable<ResolvedMeta>,
     ) -> Result<Node<LogicalSetVar>> {
-        let expr = ExpressionBinder::new(self.current, &ResolveContext::empty()).bind_expression(
+        let expr = ExpressionBinder::new(&ResolveContext::empty()).bind_expression(
             bind_context,
             &set.value,
+            &mut ErroringColumnBinder,
             RecursionContext {
                 allow_window: false,
                 allow_aggregate: false,

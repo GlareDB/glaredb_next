@@ -3,6 +3,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
+            column_binder::DefaultColumnBinder,
             expr_binder::{ExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -115,15 +116,15 @@ impl<'a> GroupByBinder<'a> {
                 Ok(orig)
             }
             None => {
-                let expr = ExpressionBinder::new(self.current, self.resolve_context)
-                    .bind_expression(
-                        bind_context,
-                        &expr,
-                        RecursionContext {
-                            allow_window: false,
-                            allow_aggregate: false,
-                        },
-                    )?;
+                let expr = ExpressionBinder::new(self.resolve_context).bind_expression(
+                    bind_context,
+                    &expr,
+                    &mut DefaultColumnBinder::new(self.current),
+                    RecursionContext {
+                        allow_window: false,
+                        allow_aggregate: false,
+                    },
+                )?;
 
                 let datatype = expr.datatype(bind_context)?;
                 bind_context.push_column_for_table(

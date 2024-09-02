@@ -7,6 +7,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef},
+            column_binder::DefaultColumnBinder,
             expr_binder::{ExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -120,9 +121,10 @@ impl<'a> ModifierBinder<'a> {
             None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
         };
 
-        let expr = ExpressionBinder::new(current, self.resolve_context).bind_expression(
+        let expr = ExpressionBinder::new(self.resolve_context).bind_expression(
             bind_context,
             &expr,
+            &mut DefaultColumnBinder::new(current),
             RecursionContext {
                 allow_window: false,
                 allow_aggregate: false,
@@ -137,12 +139,13 @@ impl<'a> ModifierBinder<'a> {
         bind_context: &mut BindContext,
         limit_mod: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<Option<BoundLimit>> {
-        let expr_binder = ExpressionBinder::new(self.current[0], self.resolve_context);
+        let expr_binder = ExpressionBinder::new(self.resolve_context);
 
         let limit = match limit_mod.limit {
             Some(limit) => expr_binder.bind_expression(
                 bind_context,
                 &limit,
+                &mut DefaultColumnBinder::new(self.current[0]),
                 RecursionContext {
                     allow_window: false,
                     allow_aggregate: false,
@@ -168,6 +171,7 @@ impl<'a> ModifierBinder<'a> {
                 let offset = expr_binder.bind_expression(
                     bind_context,
                     &offset,
+                    &mut DefaultColumnBinder::new(self.current[0]),
                     RecursionContext {
                         allow_window: false,
                         allow_aggregate: false,

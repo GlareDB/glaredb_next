@@ -30,7 +30,10 @@ use crate::{
     },
 };
 
-use super::bind_context::{BindContext, BindScopeRef, TableAlias, TableRef};
+use super::{
+    bind_context::{BindContext, BindScopeRef, TableAlias},
+    column_binder::ExpressionColumnBinder,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {
@@ -40,27 +43,24 @@ pub struct RecursionContext {
 
 #[derive(Debug)]
 pub struct ExpressionBinder<'a> {
-    pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> ExpressionBinder<'a> {
-    pub const fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
-        ExpressionBinder {
-            current,
-            resolve_context,
-        }
+    pub const fn new(resolve_context: &'a ResolveContext) -> Self {
+        ExpressionBinder { resolve_context }
     }
 
     pub fn bind_expressions(
         &self,
         bind_context: &mut BindContext,
         exprs: &[ast::Expr<ResolvedMeta>],
+        column_binder: &mut impl ExpressionColumnBinder,
         recur: RecursionContext,
     ) -> Result<Vec<Expression>> {
         exprs
             .iter()
-            .map(|expr| self.bind_expression(bind_context, expr, recur))
+            .map(|expr| self.bind_expression(bind_context, expr, column_binder, recur))
             .collect::<Result<Vec<_>>>()
     }
 
@@ -68,16 +68,19 @@ impl<'a> ExpressionBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         expr: &ast::Expr<ResolvedMeta>,
+        column_binder: &mut impl ExpressionColumnBinder,
         recur: RecursionContext,
     ) -> Result<Expression> {
         match expr {
-            ast::Expr::Ident(ident) => self.bind_ident(bind_context, ident),
-            ast::Expr::CompoundIdent(idents) => self.bind_idents(bind_context, idents),
+            ast::Expr::Ident(ident) => column_binder.bind_from_ident(bind_context, ident),
+            ast::Expr::CompoundIdent(idents) => {
+                column_binder.bind_from_idents(bind_context, idents)
+            }
             ast::Expr::Literal(literal) => Self::bind_literal(literal),
             ast::Expr::Array(arr) => {
                 let exprs = arr
                     .into_iter()
-                    .map(|v| self.bind_expression(bind_context, v, recur))
+                    .map(|v| self.bind_expression(bind_context, v, column_binder, recur))
                     .collect::<Result<Vec<_>>>()?;
 
                 let scalar = Box::new(ListValues);
@@ -93,12 +96,14 @@ impl<'a> ExpressionBinder<'a> {
                 }))
             }
             ast::Expr::ArraySubscript { expr, subscript } => {
-                let expr = self.bind_expression(bind_context, expr.as_ref(), recur)?;
+                let expr =
+                    self.bind_expression(bind_context, expr.as_ref(), column_binder, recur)?;
                 match subscript.as_ref() {
                     ast::ArraySubscript::Index(index) => {
                         let index = self.bind_expression(
                             bind_context,
                             index,
+                            column_binder,
                             RecursionContext {
                                 allow_window: false,
                                 allow_aggregate: false,
@@ -131,8 +136,8 @@ impl<'a> ExpressionBinder<'a> {
                 unimplemented!()
             }
             ast::Expr::BinaryExpr { left, op, right } => {
-                let left = self.bind_expression(bind_context, left, recur)?;
-                let right = self.bind_expression(bind_context, right, recur)?;
+                let left = self.bind_expression(bind_context, left, column_binder, recur)?;
+                let right = self.bind_expression(bind_context, right, column_binder, recur)?;
 
                 Ok(match op {
                     ast::BinaryOperator::NotEq => {
@@ -268,9 +273,12 @@ impl<'a> ExpressionBinder<'a> {
                     .iter()
                     .map(|arg| match arg {
                         ast::FunctionArg::Unnamed { arg } => match arg {
-                            ast::FunctionArgExpr::Expr(expr) => {
-                                Ok(self.bind_expression(bind_context, &expr, recur)?)
-                            }
+                            ast::FunctionArgExpr::Expr(expr) => Ok(self.bind_expression(
+                                bind_context,
+                                &expr,
+                                column_binder,
+                                recur,
+                            )?),
                             ast::FunctionArgExpr::Wildcard => {
                                 // Resolver should have handled removing '*'
                                 // from function calls.
@@ -366,112 +374,6 @@ impl<'a> ExpressionBinder<'a> {
                 )))
             }
         })
-    }
-
-    fn bind_column(
-        &self,
-        bind_context: &mut BindContext,
-        alias: Option<TableAlias>,
-        col: &str,
-    ) -> Result<Expression> {
-        let mut current = self.current;
-        loop {
-            let table = bind_context.find_table_for_column(current, alias.as_ref(), &col)?;
-            match table {
-                Some((table, col_idx)) => {
-                    let table = table.reference;
-
-                    // Table containing column found. Check if it's correlated
-                    // (referencing an outer context).
-                    let is_correlated = current != self.current;
-
-                    if is_correlated {
-                        // Column is correlated, Push correlation to current
-                        // bind context.
-                        let correlated = CorrelatedColumn {
-                            outer: current,
-                            table,
-                            col_idx,
-                        };
-
-                        // Note `self.current`, not `current`. We want to store
-                        // the context containing the expression.
-                        bind_context.push_correlation(self.current, correlated)?;
-                    }
-
-                    return Ok(Expression::Column(ColumnExpr {
-                        table_scope: table,
-                        column: col_idx,
-                    }));
-                }
-                None => {
-                    // Table not found in current context, go to parent context
-                    // relative the context we just searched.
-                    match bind_context.get_parent_ref(current)? {
-                        Some(parent) => current = parent,
-                        None => {
-                            // We're at root, no column with this ident in query.
-                            return Err(RayexecError::new(format!(
-                                "Missing column for reference: {col}",
-                            )));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    pub(crate) fn bind_ident(
-        &self,
-        bind_context: &mut BindContext,
-        ident: &ast::Ident,
-    ) -> Result<Expression> {
-        let col = ident.as_normalized_string();
-        self.bind_column(bind_context, None, &col)
-    }
-
-    /// Plan a compound identifier.
-    ///
-    /// Assumed to be a reference to a column either in the current scope or one
-    /// of the outer scopes.
-    fn bind_idents(
-        &self,
-        bind_context: &mut BindContext,
-        idents: &[ast::Ident],
-    ) -> Result<Expression> {
-        match idents.len() {
-            0 => Err(RayexecError::new("Empty identifier")),
-            1 => {
-                // Single column.
-                self.bind_ident(bind_context, &idents[0])
-            }
-            2..=4 => {
-                // Qualified column.
-                // 2 => 'table.column'
-                // 3 => 'schema.table.column'
-                // 4 => 'database.schema.table.column'
-                // TODO: Struct fields.
-
-                let mut idents = idents.to_vec();
-
-                let col = idents.pop().unwrap().into_normalized_string();
-
-                let alias = TableAlias {
-                    table: idents
-                        .pop()
-                        .map(|ident| ident.into_normalized_string())
-                        .unwrap(), // Must exist
-                    schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
-                    database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
-                };
-
-                self.bind_column(bind_context, Some(alias), &col)
-            }
-            _ => Err(RayexecError::new(format!(
-                "Too many identifier parts in {}",
-                ast::ObjectReference(idents.to_vec()),
-            ))), // TODO: Struct fields.
-        }
     }
 
     fn apply_cast_for_operator<const N: usize>(

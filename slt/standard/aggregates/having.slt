@@ -1,6 +1,6 @@
 # HAVING
 #
-# (Taken from duckdb's test_having.test, incomlete)
+# (Taken from duckdb's test_having.test, incomplete)
 
 statement ok
 create temp table test (a bigint, b bigint)

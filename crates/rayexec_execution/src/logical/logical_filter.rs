@@ -11,7 +11,7 @@ pub struct LogicalFilter {
 
 impl Explainable for LogicalFilter {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Filter")
+        ExplainEntry::new("Filter").with_value("predicate", &self.filter)
     }
 }
 

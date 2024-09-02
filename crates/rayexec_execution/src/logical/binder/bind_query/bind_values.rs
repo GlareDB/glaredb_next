@@ -6,6 +6,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
+            column_binder::DefaultColumnBinder,
             expr_binder::{ExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -41,7 +42,7 @@ impl<'a> ValuesBinder<'a> {
     ) -> Result<BoundValues> {
         // TODO: This could theoretically bind expressions as correlated
         // columns. TBD if that's desired.
-        let expr_binder = ExpressionBinder::new(self.current, self.resolve_context);
+        let expr_binder = ExpressionBinder::new(self.resolve_context);
         let rows = values
             .rows
             .into_iter()
@@ -49,6 +50,7 @@ impl<'a> ValuesBinder<'a> {
                 expr_binder.bind_expressions(
                     bind_context,
                     &row,
+                    &mut DefaultColumnBinder::new(self.current),
                     RecursionContext {
                         allow_window: false,
                         allow_aggregate: false,
