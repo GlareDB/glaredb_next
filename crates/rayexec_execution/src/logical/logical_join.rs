@@ -42,6 +42,20 @@ pub struct ComparisonCondition {
     pub op: ComparisonOperator,
 }
 
+impl ComparisonCondition {
+    pub fn flip_sides(&mut self) {
+        self.op = match self.op {
+            ComparisonOperator::Eq => ComparisonOperator::Eq,
+            ComparisonOperator::NotEq => ComparisonOperator::NotEq,
+            ComparisonOperator::Lt => ComparisonOperator::Gt,
+            ComparisonOperator::LtEq => ComparisonOperator::LtEq,
+            ComparisonOperator::Gt => ComparisonOperator::Lt,
+            ComparisonOperator::GtEq => ComparisonOperator::GtEq,
+        };
+        std::mem::swap(&mut self.left, &mut self.right);
+    }
+}
+
 impl fmt::Display for ComparisonCondition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.left, self.op, self.right)
@@ -69,18 +83,18 @@ impl LogicalNode for Node<LogicalComparisonJoin> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LogicalAnyJoin {
+pub struct LogicalArbitraryJoin {
     pub join_type: JoinType,
     pub condition: Expression,
 }
 
-impl Explainable for LogicalAnyJoin {
+impl Explainable for LogicalArbitraryJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("AnyJoin").with_value("join_type", self.join_type)
+        ExplainEntry::new("ArbitraryJoin").with_value("join_type", self.join_type)
     }
 }
 
-impl LogicalNode for Node<LogicalAnyJoin> {
+impl LogicalNode for Node<LogicalArbitraryJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.get_children_table_refs()
     }

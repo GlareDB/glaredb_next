@@ -1,14 +1,22 @@
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::{
-    expr::{column_expr::ColumnExpr, Expression},
+    expr::{
+        column_expr::ColumnExpr, comparison_expr::ComparisonExpr, literal_expr::LiteralExpr,
+        Expression,
+    },
     logical::{
         binder::{
             bind_context::BindContext,
-            bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin},
+            bind_query::{
+                bind_from::{BoundFrom, BoundFromItem, BoundJoin},
+                condition_extractor::JoinConditionExtractor,
+            },
         },
         logical_empty::LogicalEmpty,
-        logical_join::{ComparisonCondition, JoinType, LogicalCrossJoin},
+        logical_filter::LogicalFilter,
+        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -55,7 +63,7 @@ impl<'a> FromPlanner<'a> {
                     children: Vec::new(),
                 }))
             }
-            BoundFromItem::Join(_) => unimplemented!(),
+            BoundFromItem::Join(join) => self.plan_join(join),
             BoundFromItem::TableFunction(func) => {
                 let mut types = Vec::new();
                 let mut names = Vec::new();
@@ -122,8 +130,8 @@ impl<'a> FromPlanner<'a> {
             not_implemented!("LATERAL join")
         }
 
-        let left = self.plan(*join.left)?;
-        let right = self.plan(*join.right)?;
+        let mut left = self.plan(*join.left)?;
+        let mut right = self.plan(*join.right)?;
 
         // Cross join.
         if join.conditions.is_empty() {
@@ -137,6 +145,94 @@ impl<'a> FromPlanner<'a> {
             }));
         }
 
-        unimplemented!()
+        let extractor = JoinConditionExtractor::new(
+            self.bind_context,
+            join.left_bind_ref,
+            join.right_bind_ref,
+            join.join_type,
+        );
+
+        let extracted = extractor.extract(join.conditions)?;
+
+        if !extracted.left_filter.is_empty() {
+            left = LogicalOperator::Filter(Node {
+                node: LogicalFilter {
+                    filter: Expression::and_all(extracted.left_filter)
+                        .expect("at least one expression"),
+                },
+                location: LocationRequirement::Any,
+                children: vec![left],
+            })
+        }
+
+        if !extracted.right_filter.is_empty() {
+            right = LogicalOperator::Filter(Node {
+                node: LogicalFilter {
+                    filter: Expression::and_all(extracted.right_filter)
+                        .expect("at least one expression"),
+                },
+                location: LocationRequirement::Any,
+                children: vec![right],
+            })
+        }
+
+        // Need to use an arbitrary join if:
+        //
+        // - We didn't extract any comparison conditions.
+        // - We're not an INNER join and we have arbitrary expressions.
+        let use_arbitrary_join = extracted.comparisons.is_empty()
+            || (join.join_type != JoinType::Inner && !extracted.arbitrary.is_empty());
+
+        if use_arbitrary_join {
+            let mut expressions = extracted.arbitrary;
+            for condition in extracted.comparisons {
+                expressions.push(Expression::Comparison(ComparisonExpr {
+                    left: Box::new(condition.left),
+                    right: Box::new(condition.right),
+                    op: condition.op,
+                }));
+            }
+
+            // Possible if we were able to push filters to left/right
+            // completely.
+            if expressions.is_empty() {
+                expressions.push(Expression::Literal(LiteralExpr {
+                    literal: ScalarValue::Boolean(true),
+                }));
+            }
+
+            return Ok(LogicalOperator::ArbitraryJoin(Node {
+                node: LogicalArbitraryJoin {
+                    join_type: join.join_type,
+                    condition: Expression::and_all(expressions).expect("at least one expression"),
+                },
+                location: LocationRequirement::Any,
+                children: vec![left, right],
+            }));
+        }
+
+        // Otherwise we're able to use a comparison join.
+        let mut plan = LogicalOperator::ComparisonJoin(Node {
+            node: LogicalComparisonJoin {
+                join_type: join.join_type,
+                conditions: extracted.comparisons,
+            },
+            location: LocationRequirement::Any,
+            children: vec![left, right],
+        });
+
+        // Push filter if we have arbitrary expressions.
+        if !extracted.arbitrary.is_empty() {
+            plan = LogicalOperator::Filter(Node {
+                node: LogicalFilter {
+                    filter: Expression::and_all(extracted.arbitrary)
+                        .expect("at least one expression"),
+                },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+            })
+        }
+
+        Ok(plan)
     }
 }

@@ -12,7 +12,7 @@ use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
 use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
-use super::logical_join::{LogicalAnyJoin, LogicalComparisonJoin, LogicalCrossJoin};
+use super::logical_join::{LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin};
 use super::logical_limit::LogicalLimit;
 use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
@@ -273,7 +273,7 @@ pub enum LogicalOperator {
     CopyTo(Node<LogicalCopyTo>),
     CrossJoin(Node<LogicalCrossJoin>),
     ComparisonJoin(Node<LogicalComparisonJoin>),
-    AnyJoin(Node<LogicalAnyJoin>),
+    ArbitraryJoin(Node<LogicalArbitraryJoin>),
 }
 
 impl LogicalOperator {

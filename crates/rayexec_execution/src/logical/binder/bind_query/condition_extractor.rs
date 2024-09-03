@@ -1,16 +1,17 @@
 use crate::{
     expr::{
+        comparison_expr::ComparisonExpr,
         conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
         Expression,
     },
     logical::{
         binder::bind_context::{BindContext, BindScopeRef},
-        logical_join::ComparisonCondition,
+        logical_join::{ComparisonCondition, JoinType},
     },
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ExtractedConditions {
     /// Join conditions successfully extracted from expressions.
     pub comparisons: Vec<ComparisonCondition>,
@@ -55,6 +56,7 @@ pub struct JoinConditionExtractor<'a> {
     pub bind_context: &'a BindContext,
     pub left_scope: BindScopeRef,
     pub right_scope: BindScopeRef,
+    pub join_type: JoinType,
 }
 
 impl<'a> JoinConditionExtractor<'a> {
@@ -62,14 +64,20 @@ impl<'a> JoinConditionExtractor<'a> {
         bind_context: &'a BindContext,
         left_scope: BindScopeRef,
         right_scope: BindScopeRef,
+        join_type: JoinType,
     ) -> Self {
         JoinConditionExtractor {
             bind_context,
             left_scope,
             right_scope,
+            join_type,
         }
     }
 
+    /// Extracts expressions in join conditions, and pre-join filters.
+    ///
+    /// Extracted pre-join filters take into account the join type, and so
+    /// should be able to be used in a LogicalFilter without additional checks.
     pub fn extract(&self, exprs: Vec<Expression>) -> Result<ExtractedConditions> {
         // Split on AND first.
         let mut split_exprs = Vec::with_capacity(exprs.len());
@@ -77,7 +85,68 @@ impl<'a> JoinConditionExtractor<'a> {
             split_conjunction(expr, &mut split_exprs);
         }
 
-        unimplemented!()
+        let mut extracted = ExtractedConditions::default();
+
+        for expr in split_exprs {
+            let side = self.join_side(&expr)?;
+            match side {
+                ExprJoinSide::Both => {
+                    // If we have a comparison expr, try to split it with each
+                    // child expression referencing one side of the join.
+                    match expr {
+                        Expression::Comparison(ComparisonExpr { left, right, op }) => {
+                            let left_side = self.join_side(&left)?;
+                            let right_side = self.join_side(&right)?;
+
+                            // If left and right expressions don't reference both
+                            // sides, we can create a join condition for this.
+                            if left_side != ExprJoinSide::Both && right_side != ExprJoinSide::Both {
+                                debug_assert_ne!(left_side, right_side);
+
+                                let mut condition = ComparisonCondition {
+                                    left: *left,
+                                    right: *right,
+                                    op,
+                                };
+
+                                // If left expression is actually referencing right
+                                // side, flip the condition.
+                                if left_side == ExprJoinSide::Right {
+                                    condition.flip_sides();
+                                }
+
+                                extracted.comparisons.push(condition);
+                                continue;
+                            }
+                        }
+                        other => {
+                            extracted.arbitrary.push(other);
+                        }
+                    }
+                }
+                ExprJoinSide::Right => {
+                    if self.join_type == JoinType::Left {
+                        // Filter right input into LEFT join.
+                        extracted.left_filter.push(expr);
+                    } else {
+                        extracted.arbitrary.push(expr);
+                    }
+                }
+                ExprJoinSide::Left => {
+                    if self.join_type == JoinType::Right {
+                        // Filter left input into RIGHT join.
+                        extracted.right_filter.push(expr);
+                    } else {
+                        extracted.arbitrary.push(expr);
+                    }
+                }
+                _ => {
+                    extracted.arbitrary.push(expr);
+                }
+            }
+        }
+
+        Ok(extracted)
     }
 
     /// Finds the side of a join an expression is referencing.
