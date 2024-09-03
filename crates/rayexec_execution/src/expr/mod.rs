@@ -29,7 +29,7 @@ use case_expr::CaseExpr;
 use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
 use comparison_expr::ComparisonExpr;
-use conjunction_expr::ConjunctionExpr;
+use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use fmtutil::IntoDisplayableSlice;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
@@ -88,6 +88,21 @@ impl Expression {
             Self::Subquery(_) => unimplemented!(),
             Self::Window(_) => not_implemented!("WINDOW"),
         })
+    }
+
+    /// ANDs all expressions, only returning None if iterator contains no
+    /// expressions.
+    pub fn and_all(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
+        let mut exprs = exprs.into_iter();
+        let left = exprs.next()?;
+
+        Some(exprs.fold(left, |left, right| {
+            Expression::Conjunction(ConjunctionExpr {
+                left: Box::new(left),
+                right: Box::new(right),
+                op: ConjunctionOperator::And,
+            })
+        }))
     }
 
     pub fn for_each_child_mut<F>(&mut self, func: &mut F) -> Result<()>

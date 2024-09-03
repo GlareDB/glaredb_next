@@ -13,6 +13,8 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, SelectExpr};
 use std::collections::HashMap;
 
+use super::select_expr_expander::ExpandedSelectExpr;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Preprojection {
     pub table: TableRef,
@@ -77,42 +79,35 @@ impl SelectList {
         bind_ref: BindScopeRef,
         bind_context: &mut BindContext,
         resolve_context: &ResolveContext,
-        projections: Vec<SelectExpr<ResolvedMeta>>,
+        projections: Vec<ExpandedSelectExpr>,
     ) -> Result<Self> {
         let mut alias_map = HashMap::new();
 
         // Track aliases to allow referencing them in GROUP BY and ORDER BY.
         for (idx, projection) in projections.iter().enumerate() {
             if let Some(alias) = projection.get_alias() {
-                alias_map.insert(alias.as_normalized_string(), idx);
+                alias_map.insert(alias.to_string(), idx);
             }
         }
 
-        let ast_exprs = projections
-            .into_iter()
-            .map(|expr| match expr {
-                SelectExpr::Expr(expr) | SelectExpr::AliasedExpr(expr, _) => Ok(expr),
-                other => Err(RayexecError::new(format!(
-                    "Encountered unexpanded wildcard: {other:?}",
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
         // Generate column names from ast expressions.
-        let mut names = ast_exprs
+        let mut names = projections
             .iter()
             .map(|expr| {
                 Ok(match expr {
-                    ast::Expr::Ident(ident) => ident.as_normalized_string(),
-                    ast::Expr::CompoundIdent(idents) => idents
-                        .last()
-                        .map(|i| i.as_normalized_string())
-                        .unwrap_or_else(|| "?column?".to_string()),
-                    ast::Expr::Function(ast::Function { reference, .. }) => {
-                        let (func, _) = resolve_context.functions.try_get_bound(*reference)?;
-                        func.name().to_string()
-                    }
-                    _ => "?column?".to_string(),
+                    ExpandedSelectExpr::Expr { expr, .. } => match expr {
+                        ast::Expr::Ident(ident) => ident.as_normalized_string(),
+                        ast::Expr::CompoundIdent(idents) => idents
+                            .last()
+                            .map(|i| i.as_normalized_string())
+                            .unwrap_or_else(|| "?column?".to_string()),
+                        ast::Expr::Function(ast::Function { reference, .. }) => {
+                            let (func, _) = resolve_context.functions.try_get_bound(*reference)?;
+                            func.name().to_string()
+                        }
+                        _ => "?column?".to_string(),
+                    },
+                    ExpandedSelectExpr::Column { name, .. } => name.clone(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -127,15 +122,26 @@ impl SelectList {
 
         // Bind the expressions.
         let expr_binder = ExpressionBinder::new(resolve_context);
-        let exprs = expr_binder.bind_expressions(
-            bind_context,
-            &ast_exprs,
-            &mut DefaultColumnBinder::new(bind_ref),
-            RecursionContext {
-                allow_window: true,
-                allow_aggregate: true,
-            },
-        )?;
+        let mut exprs = Vec::with_capacity(projections.len());
+        for proj in projections {
+            match proj {
+                ExpandedSelectExpr::Expr { expr, .. } => {
+                    let expr = expr_binder.bind_expression(
+                        bind_context,
+                        &expr,
+                        &mut DefaultColumnBinder::new(bind_ref),
+                        RecursionContext {
+                            allow_window: true,
+                            allow_aggregate: true,
+                        },
+                    )?;
+                    exprs.push(expr);
+                }
+                ExpandedSelectExpr::Column { expr, .. } => {
+                    exprs.push(Expression::Column(expr));
+                }
+            }
+        }
 
         let types = exprs
             .iter()

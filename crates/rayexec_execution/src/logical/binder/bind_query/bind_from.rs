@@ -5,10 +5,17 @@ use std::sync::Arc;
 
 use crate::{
     database::catalog_entry::CatalogEntry,
-    expr::Expression,
+    expr::{
+        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
+        Expression,
+    },
     functions::table::PlannedTableFunction,
     logical::{
-        binder::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef},
+        binder::{
+            bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef},
+            column_binder::DefaultColumnBinder,
+            expr_binder::{ExpressionBinder, RecursionContext},
+        },
         operator::{JoinType, LocationRequirement},
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
@@ -354,11 +361,17 @@ impl<'a> FromBinder<'a> {
         bind_context.append_context(self.current, left_idx)?;
         bind_context.append_context(self.current, right_idx)?;
 
-        let condition = {
-            let _ = conditions;
-            // TODO
-            not_implemented!("CONDITION");
-        };
+        let condition_binder = ExpressionBinder::new(self.resolve_context);
+        let conditions = condition_binder.bind_expressions(
+            bind_context,
+            &conditions,
+            &mut DefaultColumnBinder::new(self.current),
+            RecursionContext {
+                allow_window: false,
+                allow_aggregate: false,
+            },
+        )?;
+        let condition = Expression::and_all(conditions);
 
         Ok(BoundFrom {
             bind_ref: self.current,

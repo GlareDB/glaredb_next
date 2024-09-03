@@ -1,9 +1,44 @@
-use crate::logical::{
-    binder::bind_context::{BindContext, BindScopeRef, TableAlias},
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
+use crate::{
+    expr::column_expr::ColumnExpr,
+    logical::{
+        binder::bind_context::{BindContext, BindScopeRef, TableAlias},
+        resolver::{resolve_context::ResolveContext, ResolvedMeta},
+    },
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
+
+/// An expanded select expression.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpandedSelectExpr {
+    /// A typical expression. Can be a reference to a column, or a more complex
+    /// expression.
+    Expr {
+        /// The original AST expression that should go through regular
+        /// expression binding.
+        expr: ast::Expr<ResolvedMeta>,
+        /// Optional user-provided alias.
+        alias: Option<String>,
+    },
+    /// An index of a column in the current scope. This is needed for wildcards
+    /// since they're expanded to match some number of columns in the current
+    /// scope.
+    Column {
+        /// The column expression representing a column in some scope.
+        expr: ColumnExpr,
+        /// Name as it existed in the bind scope.
+        name: String,
+    },
+}
+
+impl ExpandedSelectExpr {
+    pub fn get_alias(&self) -> Option<&str> {
+        match self {
+            Self::Expr { alias, .. } => alias.as_ref().map(|a| a.as_str()),
+            Self::Column { .. } => None,
+        }
+    }
+}
 
 /// Expands wildcards in expressions found in the select list.
 ///
@@ -25,7 +60,7 @@ impl<'a> SelectExprExpander<'a> {
     pub fn expand_all_select_exprs(
         &self,
         exprs: impl IntoIterator<Item = ast::SelectExpr<ResolvedMeta>>,
-    ) -> Result<Vec<ast::SelectExpr<ResolvedMeta>>> {
+    ) -> Result<Vec<ExpandedSelectExpr>> {
         let mut expanded = Vec::new();
         for expr in exprs {
             let mut ex = self.expand_select_expr(expr)?;
@@ -37,22 +72,20 @@ impl<'a> SelectExprExpander<'a> {
     pub fn expand_select_expr(
         &self,
         expr: ast::SelectExpr<ResolvedMeta>,
-    ) -> Result<Vec<ast::SelectExpr<ResolvedMeta>>> {
+    ) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
             ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
                 let mut exprs = Vec::new();
                 for table in self.bind_context.iter_tables(self.current)? {
-                    let alias_idents = match &table.alias {
-                        Some(alias) => vec![ast::Ident::from_string(&alias.table)], // TODO: Schema + database too
-                        None => Vec::new(),
-                    };
-
-                    for column in &table.column_names {
-                        let mut idents = alias_idents.clone();
-                        idents.push(ast::Ident::from_string(column));
-
-                        exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(idents)))
+                    for (col_idx, name) in table.column_names.iter().enumerate() {
+                        exprs.push(ExpandedSelectExpr::Column {
+                            expr: ColumnExpr {
+                                table_scope: table.reference,
+                                column: col_idx,
+                            },
+                            name: name.clone(),
+                        })
                     }
                 }
 
@@ -88,17 +121,27 @@ impl<'a> SelectExprExpander<'a> {
                     })?;
 
                 let mut exprs = Vec::new();
-                for column in &table.column_names {
-                    // TODO: Include shcema + database too.
-                    exprs.push(ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                        ast::Ident::from_string(&alias.table),
-                        ast::Ident::from_string(column),
-                    ])))
+                for (col_idx, name) in table.column_names.iter().enumerate() {
+                    exprs.push(ExpandedSelectExpr::Column {
+                        expr: ColumnExpr {
+                            table_scope: table.reference,
+                            column: col_idx,
+                        },
+                        name: name.clone(),
+                    })
                 }
 
                 exprs
             }
-            other => vec![other],
+            ast::SelectExpr::AliasedExpr(expr, alias) => {
+                vec![ExpandedSelectExpr::Expr {
+                    expr,
+                    alias: Some(alias.into_normalized_string()),
+                }]
+            }
+            ast::SelectExpr::Expr(expr) => {
+                vec![ExpandedSelectExpr::Expr { expr, alias: None }]
+            }
         })
     }
 }
@@ -120,8 +163,16 @@ mod tests {
             ast::SelectExpr::Expr(ast::Expr::Literal(ast::Literal::Number("2".to_string()))),
         ];
 
-        // Unchanged.
-        let expected = exprs.clone();
+        let expected = vec![
+            ExpandedSelectExpr::Expr {
+                expr: ast::Expr::Literal(ast::Literal::Number("1".to_string())),
+                alias: None,
+            },
+            ExpandedSelectExpr::Expr {
+                expr: ast::Expr::Literal(ast::Literal::Number("2".to_string())),
+                alias: None,
+            },
+        ];
         let expanded = expander.expand_all_select_exprs(exprs).unwrap();
 
         assert_eq!(expected, expanded);
@@ -130,7 +181,7 @@ mod tests {
     #[test]
     fn expand_unqualified() {
         let mut bind_context = BindContext::new();
-        bind_context
+        let table_ref = bind_context
             .push_table(
                 bind_context.root_scope_ref(),
                 Some(TableAlias {
@@ -148,14 +199,20 @@ mod tests {
         let exprs = vec![ast::SelectExpr::Wildcard(ast::Wildcard::default())];
 
         let expected = vec![
-            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                ast::Ident::from_string("t1"),
-                ast::Ident::from_string("c1"),
-            ])),
-            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                ast::Ident::from_string("t1"),
-                ast::Ident::from_string("c2"),
-            ])),
+            ExpandedSelectExpr::Column {
+                expr: ColumnExpr {
+                    table_scope: table_ref,
+                    column: 0,
+                },
+                name: "c1".to_string(),
+            },
+            ExpandedSelectExpr::Column {
+                expr: ColumnExpr {
+                    table_scope: table_ref,
+                    column: 1,
+                },
+                name: "c2".to_string(),
+            },
         ];
         let expanded = expander.expand_all_select_exprs(exprs).unwrap();
 
@@ -166,7 +223,7 @@ mod tests {
     fn expand_qualified() {
         let mut bind_context = BindContext::new();
         // Add 't1'
-        bind_context
+        let t1_table_ref = bind_context
             .push_table(
                 bind_context.root_scope_ref(),
                 Some(TableAlias {
@@ -201,14 +258,20 @@ mod tests {
         )];
 
         let expected = vec![
-            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                ast::Ident::from_string("t1"),
-                ast::Ident::from_string("c1"),
-            ])),
-            ast::SelectExpr::Expr(ast::Expr::CompoundIdent(vec![
-                ast::Ident::from_string("t1"),
-                ast::Ident::from_string("c2"),
-            ])),
+            ExpandedSelectExpr::Column {
+                expr: ColumnExpr {
+                    table_scope: t1_table_ref,
+                    column: 0,
+                },
+                name: "c1".to_string(),
+            },
+            ExpandedSelectExpr::Column {
+                expr: ColumnExpr {
+                    table_scope: t1_table_ref,
+                    column: 1,
+                },
+                name: "c2".to_string(),
+            },
         ];
         let expanded = expander.expand_all_select_exprs(exprs).unwrap();
 
