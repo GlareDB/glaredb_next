@@ -163,6 +163,11 @@ impl BindContext {
         Ok(child.parent)
     }
 
+    pub fn table_is_in_scope(&self, current: BindScopeRef, table_ref: TableRef) -> Result<bool> {
+        let current = self.get_scope(current)?;
+        Ok(current.tables.iter().any(|&t| t == table_ref))
+    }
+
     pub fn correlated_columns(&self, bind_ref: BindScopeRef) -> Result<&Vec<CorrelatedColumn>> {
         let child = self.get_scope(bind_ref)?;
         Ok(&child.correlated_columns)

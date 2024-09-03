@@ -458,7 +458,7 @@ impl<'a> QueryNodePlanner<'a> {
                         };
 
                         LogicalQuery2 {
-                            root: LogicalOperator::AnyJoin(Node::new(AnyJoin {
+                            root: LogicalOperator::AnyJoin2(Node::new(AnyJoin {
                                 left: Box::new(left_plan.root),
                                 right: Box::new(right_plan.root),
                                 join_type,
@@ -472,7 +472,7 @@ impl<'a> QueryNodePlanner<'a> {
                             let merged = left_plan.scope.merge(right_plan.scope)?;
 
                             LogicalQuery2 {
-                                root: LogicalOperator::CrossJoin(Node::new(CrossJoin {
+                                root: LogicalOperator::CrossJoin2(Node::new(CrossJoin {
                                     left: Box::new(left_plan.root),
                                     right: Box::new(right_plan.root),
                                 })),

@@ -331,10 +331,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
-            LogicalOperator::CrossJoin(join) => {
+            LogicalOperator::CrossJoin2(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
-            LogicalOperator::AnyJoin(join) => self.push_any_join(id_gen, materializations, join),
+            LogicalOperator::AnyJoin2(join) => self.push_any_join(id_gen, materializations, join),
             LogicalOperator::EqualityJoin(join) => {
                 self.push_equality_join(id_gen, materializations, join)
             }

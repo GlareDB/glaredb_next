@@ -335,9 +335,9 @@ impl LogicalExpression {
                         expr.expr.walk_mut(pre, post)?;
                     }
                 }
-                LogicalOperator::AnyJoin(p) => p.as_mut().on.walk_mut(pre, post)?,
+                LogicalOperator::AnyJoin2(p) => p.as_mut().on.walk_mut(pre, post)?,
                 LogicalOperator::EqualityJoin(_) => (),
-                LogicalOperator::CrossJoin(_) => (),
+                LogicalOperator::CrossJoin2(_) => (),
                 LogicalOperator::DependentJoin(_) => (),
                 LogicalOperator::SetOperation2(_) => (),
                 LogicalOperator::Limit2(_) => (),

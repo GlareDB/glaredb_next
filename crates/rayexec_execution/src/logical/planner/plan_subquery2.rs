@@ -114,7 +114,7 @@ impl SubqueryPlanner {
                 }));
 
                 let orig_input = Box::new(input.take());
-                *input = LogicalOperator::CrossJoin(Node::new(CrossJoin {
+                *input = LogicalOperator::CrossJoin2(Node::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),
                 }));
@@ -177,7 +177,7 @@ impl SubqueryPlanner {
                 }));
 
                 let orig_input = Box::new(input.take());
-                *input = LogicalOperator::CrossJoin(Node::new(CrossJoin {
+                *input = LogicalOperator::CrossJoin2(Node::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),
                 }));

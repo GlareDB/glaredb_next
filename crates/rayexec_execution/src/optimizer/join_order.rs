@@ -31,7 +31,7 @@ impl JoinOrderRule {
     ) -> Result<LogicalOperator> {
         plan.walk_mut_post(&mut |plan| {
             match plan {
-                LogicalOperator::AnyJoin(join) => {
+                LogicalOperator::AnyJoin2(join) => {
                     let join = join.as_mut();
 
                     // Used to adjust the indexes used for the on keys.

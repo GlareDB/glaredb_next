@@ -16,9 +16,6 @@ use rayexec_error::{RayexecError, Result};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
     /// Expected input types for this signature.
-    ///
-    /// If the last data type is a list, this signature will be considered
-    /// variadic.
     pub input: &'static [DataTypeId],
 
     /// Type of the variadic args if this function is variadic.

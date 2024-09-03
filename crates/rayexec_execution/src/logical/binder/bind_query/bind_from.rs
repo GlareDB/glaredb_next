@@ -16,7 +16,8 @@ use crate::{
             column_binder::DefaultColumnBinder,
             expr_binder::{ExpressionBinder, RecursionContext},
         },
-        operator::{JoinType, LocationRequirement},
+        logical_join::JoinType,
+        operator::LocationRequirement,
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
             ResolvedMeta,
@@ -75,8 +76,8 @@ pub struct BoundJoin {
     pub right: Box<BoundFrom>,
     /// Join type.
     pub join_type: JoinType,
-    /// Expression we're joining on, if any.
-    pub condition: Option<Expression>,
+    /// Expressions we're joining on, if any.
+    pub conditions: Vec<Expression>,
     /// Columns on right side that are correlated with the left side of a join.
     pub right_correlated_columns: Vec<CorrelatedColumn>,
     /// If this is a lateral join.
@@ -353,7 +354,6 @@ impl<'a> FromBinder<'a> {
             ast::JoinType::Inner => JoinType::Inner,
             ast::JoinType::Left => JoinType::Left,
             ast::JoinType::Right => JoinType::Right,
-            ast::JoinType::Cross => JoinType::Cross,
             other => not_implemented!("plan join type: {other:?}"),
         };
 
@@ -371,7 +371,6 @@ impl<'a> FromBinder<'a> {
                 allow_aggregate: false,
             },
         )?;
-        let condition = Expression::and_all(conditions);
 
         Ok(BoundFrom {
             bind_ref: self.current,
@@ -381,7 +380,7 @@ impl<'a> FromBinder<'a> {
                 right_bind_ref: right_idx,
                 right: Box::new(right),
                 join_type,
-                condition,
+                conditions,
                 right_correlated_columns,
                 lateral: any_lateral,
             }),

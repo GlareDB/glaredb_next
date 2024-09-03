@@ -266,7 +266,7 @@ impl DependentJoinPushDown {
             // with the materialized outer plan.
             let scan = context.generate_scan_for_idx(materialized_idx, &[])?;
             let orig = plan.take();
-            *plan = LogicalOperator::CrossJoin(Node::new(CrossJoin {
+            *plan = LogicalOperator::CrossJoin2(Node::new(CrossJoin {
                 left: Box::new(orig),
                 right: Box::new(LogicalOperator::MaterializedScan(Node::new(scan))),
             }));

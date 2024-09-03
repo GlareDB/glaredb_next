@@ -115,7 +115,7 @@ impl ExplainNode {
             LogicalOperator::Order2(p) => {
                 vec![Self::walk_logical(context, &p.as_ref().input, conf)]
             }
-            LogicalOperator::AnyJoin(p) => {
+            LogicalOperator::AnyJoin2(p) => {
                 vec![
                     Self::walk_logical(context, &p.as_ref().left, conf),
                     Self::walk_logical(context, &p.as_ref().right, conf),
@@ -127,7 +127,7 @@ impl ExplainNode {
                     Self::walk_logical(context, &p.as_ref().right, conf),
                 ]
             }
-            LogicalOperator::CrossJoin(p) => {
+            LogicalOperator::CrossJoin2(p) => {
                 vec![
                     Self::walk_logical(context, &p.as_ref().left, conf),
                     Self::walk_logical(context, &p.as_ref().right, conf),

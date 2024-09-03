@@ -56,6 +56,7 @@ pub mod logical_empty;
 pub mod logical_explain;
 pub mod logical_filter;
 pub mod logical_insert;
+pub mod logical_join;
 pub mod logical_limit;
 pub mod logical_order;
 pub mod logical_project;

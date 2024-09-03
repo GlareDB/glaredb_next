@@ -12,6 +12,7 @@ use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
 use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
+use super::logical_join::{LogicalAnyJoin, LogicalComparisonJoin, LogicalCrossJoin};
 use super::logical_limit::LogicalLimit;
 use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
@@ -226,9 +227,9 @@ pub enum LogicalOperator {
     Filter2(Node<Filter>),
     Aggregate2(Node<Aggregate>),
     Order2(Node<Order>),
-    AnyJoin(Node<AnyJoin>),
+    AnyJoin2(Node<AnyJoin>),
     EqualityJoin(Node<EqualityJoin>),
-    CrossJoin(Node<CrossJoin>),
+    CrossJoin2(Node<CrossJoin>),
     DependentJoin(Node<DependentJoin>),
     Limit2(Node<Limit>),
     SetOperation2(Node<SetOperation>),
@@ -270,6 +271,9 @@ pub enum LogicalOperator {
     Describe(Node<LogicalDescribe>),
     Explain(Node<LogicalExplain>),
     CopyTo(Node<LogicalCopyTo>),
+    CrossJoin(Node<LogicalCrossJoin>),
+    ComparisonJoin(Node<LogicalComparisonJoin>),
+    AnyJoin(Node<LogicalAnyJoin>),
 }
 
 impl LogicalOperator {
@@ -289,9 +293,9 @@ impl LogicalOperator {
             Self::Filter2(n) => n.as_ref().output_schema(outer),
             Self::Aggregate2(n) => n.as_ref().output_schema(outer),
             Self::Order2(n) => n.as_ref().output_schema(outer),
-            Self::AnyJoin(n) => n.as_ref().output_schema(outer),
+            Self::AnyJoin2(n) => n.as_ref().output_schema(outer),
             Self::EqualityJoin(n) => n.as_ref().output_schema(outer),
-            Self::CrossJoin(n) => n.as_ref().output_schema(outer),
+            Self::CrossJoin2(n) => n.as_ref().output_schema(outer),
             Self::DependentJoin(n) => n.as_ref().output_schema(outer),
             Self::Limit2(n) => n.as_ref().output_schema(outer),
             Self::SetOperation2(n) => n.as_ref().output_schema(outer),
@@ -322,9 +326,9 @@ impl LogicalOperator {
             Self::Filter2(n) => &n.location,
             Self::Aggregate2(n) => &n.location,
             Self::Order2(n) => &n.location,
-            Self::AnyJoin(n) => &n.location,
+            Self::AnyJoin2(n) => &n.location,
             Self::EqualityJoin(n) => &n.location,
-            Self::CrossJoin(n) => &n.location,
+            Self::CrossJoin2(n) => &n.location,
             Self::DependentJoin(n) => &n.location,
             Self::Limit2(n) => &n.location,
             Self::SetOperation2(n) => &n.location,
@@ -355,9 +359,9 @@ impl LogicalOperator {
             Self::Filter2(n) => &mut n.location,
             Self::Aggregate2(n) => &mut n.location,
             Self::Order2(n) => &mut n.location,
-            Self::AnyJoin(n) => &mut n.location,
+            Self::AnyJoin2(n) => &mut n.location,
             Self::EqualityJoin(n) => &mut n.location,
-            Self::CrossJoin(n) => &mut n.location,
+            Self::CrossJoin2(n) => &mut n.location,
             Self::DependentJoin(n) => &mut n.location,
             Self::Limit2(n) => &mut n.location,
             Self::SetOperation2(n) => &mut n.location,
@@ -399,7 +403,7 @@ impl LogicalOperator {
             Self::Filter2(n) => f(&mut n.as_mut().input)?,
             Self::Aggregate2(n) => f(&mut n.as_mut().input)?,
             Self::Order2(n) => f(&mut n.as_mut().input)?,
-            Self::AnyJoin(n) => {
+            Self::AnyJoin2(n) => {
                 f(&mut n.as_mut().left)?;
                 f(&mut n.as_mut().right)?;
             }
@@ -407,7 +411,7 @@ impl LogicalOperator {
                 f(&mut n.as_mut().left)?;
                 f(&mut n.as_mut().right)?;
             }
-            Self::CrossJoin(n) => {
+            Self::CrossJoin2(n) => {
                 f(&mut n.as_mut().left)?;
                 f(&mut n.as_mut().right)?;
             }
@@ -489,7 +493,7 @@ impl LogicalOperator {
                 p.as_mut().input.walk_mut(pre, post)?;
                 post(&mut p.as_mut().input)?;
             }
-            LogicalOperator::CrossJoin(p) => {
+            LogicalOperator::CrossJoin2(p) => {
                 pre(&mut p.as_mut().left)?;
                 p.as_mut().left.walk_mut(pre, post)?;
                 post(&mut p.as_mut().left)?;
@@ -507,7 +511,7 @@ impl LogicalOperator {
                 p.as_mut().right.walk_mut(pre, post)?;
                 post(&mut p.as_mut().right)?;
             }
-            LogicalOperator::AnyJoin(p) => {
+            LogicalOperator::AnyJoin2(p) => {
                 pre(&mut p.as_mut().left)?;
                 p.as_mut().left.walk_mut(pre, post)?;
                 post(&mut p.as_mut().left)?;
@@ -612,9 +616,9 @@ impl Explainable for LogicalOperator {
             Self::Filter2(p) => p.as_ref().explain_entry(conf),
             Self::Aggregate2(p) => p.as_ref().explain_entry(conf),
             Self::Order2(p) => p.as_ref().explain_entry(conf),
-            Self::AnyJoin(p) => p.as_ref().explain_entry(conf),
+            Self::AnyJoin2(p) => p.as_ref().explain_entry(conf),
             Self::EqualityJoin(p) => p.as_ref().explain_entry(conf),
-            Self::CrossJoin(p) => p.as_ref().explain_entry(conf),
+            Self::CrossJoin2(p) => p.as_ref().explain_entry(conf),
             Self::DependentJoin(p) => p.as_ref().explain_entry(conf),
             Self::Limit2(p) => p.as_ref().explain_entry(conf),
             Self::SetOperation2(p) => p.as_ref().explain_entry(conf),

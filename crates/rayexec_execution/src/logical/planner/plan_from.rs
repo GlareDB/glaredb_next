@@ -1,13 +1,14 @@
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::{
     expr::{column_expr::ColumnExpr, Expression},
     logical::{
         binder::{
             bind_context::BindContext,
-            bind_query::bind_from::{BoundFrom, BoundFromItem},
+            bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin},
         },
         logical_empty::LogicalEmpty,
+        logical_join::{ComparisonCondition, JoinType, LogicalCrossJoin},
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -114,5 +115,28 @@ impl<'a> FromPlanner<'a> {
                 children: Vec::new(),
             })),
         }
+    }
+
+    fn plan_join(&self, join: BoundJoin) -> Result<LogicalOperator> {
+        if join.lateral {
+            not_implemented!("LATERAL join")
+        }
+
+        let left = self.plan(*join.left)?;
+        let right = self.plan(*join.right)?;
+
+        // Cross join.
+        if join.conditions.is_empty() {
+            if !join.conditions.is_empty() {
+                return Err(RayexecError::new("CROSS JOIN should not have conditions"));
+            }
+            return Ok(LogicalOperator::CrossJoin(Node {
+                node: LogicalCrossJoin,
+                location: LocationRequirement::Any,
+                children: vec![left, right],
+            }));
+        }
+
+        unimplemented!()
     }
 }
