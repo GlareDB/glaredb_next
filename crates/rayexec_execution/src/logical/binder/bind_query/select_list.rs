@@ -343,6 +343,10 @@ impl SelectList {
             inner(proj, &old, &new)?;
         }
 
+        for proj in &mut self.appended {
+            inner(proj, &old, &new)?;
+        }
+
         Ok(())
     }
 
