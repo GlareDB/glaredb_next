@@ -357,7 +357,7 @@ impl<'a> FromBinder<'a> {
         let condition = {
             let _ = conditions;
             // TODO
-            unimplemented!()
+            not_implemented!("CONDITION");
         };
 
         Ok(BoundFrom {

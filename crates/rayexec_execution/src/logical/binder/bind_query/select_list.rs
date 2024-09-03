@@ -171,8 +171,11 @@ impl SelectList {
         let pruned_table = if !self.appended.is_empty() {
             let len = self.projections.len();
 
+            // Move appended expressions into the projections list.
+            self.projections.append(&mut self.appended);
+
             let projections_table = bind_context.get_table(self.projections_table)?;
-            let table_ref = bind_context.new_ephemeral_table_with_columns(
+            let pruned_table_ref = bind_context.new_ephemeral_table_with_columns(
                 projections_table
                     .column_types
                     .iter()
@@ -187,17 +190,18 @@ impl SelectList {
                     .collect(),
             )?;
 
+            // Project out only expressions in the original select list.
             let expressions = (0..len)
                 .map(|idx| {
                     Expression::Column(ColumnExpr {
-                        table_scope: table_ref,
+                        table_scope: self.projections_table,
                         column: idx,
                     })
                 })
                 .collect();
 
             Some(PrunedProjectionTable {
-                table: table_ref,
+                table: pruned_table_ref,
                 expressions,
             })
         } else {
@@ -272,7 +276,7 @@ impl SelectList {
     /// either its alias, or by its ordinal.
     pub fn column_expr_for_reference(
         &self,
-        bind_context: &BindContext,
+        _bind_context: &BindContext,
         expr: &ast::Expr<ResolvedMeta>,
     ) -> Result<Option<ColumnExpr>> {
         // Check constant first.
@@ -306,22 +310,6 @@ impl SelectList {
                     column: *idx,
                 }));
             }
-
-            // Check the projection table.
-            let table = bind_context.get_table(self.projections_table)?;
-            let idx = match table
-                .column_names
-                .iter()
-                .position(|col_name| col_name == &name)
-            {
-                Some(idx) => idx,
-                None => return Ok(None),
-            };
-
-            return Ok(Some(ColumnExpr {
-                table_scope: self.projections_table,
-                column: idx,
-            }));
         }
 
         Ok(None)

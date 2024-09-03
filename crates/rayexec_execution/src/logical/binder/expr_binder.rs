@@ -349,10 +349,10 @@ impl<'a> ExpressionBinder<'a> {
             ast::Expr::Nested(nested) => {
                 self.bind_expression(bind_context, nested, column_binder, recur)
             }
-            ast::Expr::Subquery(_) => unimplemented!(),
+            ast::Expr::Subquery(_) => not_implemented!("subquery"),
             ast::Expr::Tuple(_) => not_implemented!("tuple expressions"),
             ast::Expr::Collate { .. } => not_implemented!("COLLATE"),
-            ast::Expr::Exists { .. } => unimplemented!(),
+            ast::Expr::Exists { .. } => not_implemented!("EXISTS"),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to

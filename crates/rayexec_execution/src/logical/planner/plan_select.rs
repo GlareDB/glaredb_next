@@ -77,6 +77,7 @@ impl<'a> SelectPlanner<'a> {
         for expr in &mut select.select_list.projections {
             plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
         }
+
         plan = LogicalOperator::Project(Node {
             node: LogicalProject {
                 projections: select.select_list.projections,

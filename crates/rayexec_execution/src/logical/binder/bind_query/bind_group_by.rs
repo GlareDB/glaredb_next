@@ -80,6 +80,9 @@ impl<'a> GroupByBinder<'a> {
         group_table: TableRef,
         expr: ast::Expr<ResolvedMeta>,
     ) -> Result<Expression> {
+        // TODO: This should try to bind the expression normally first. Should
+        // implement column binder here.
+
         // Check if there's already something in the list that we're
         // referencing.
         match select_list.column_expr_for_reference(bind_context, &expr)? {
@@ -101,6 +104,9 @@ impl<'a> GroupByBinder<'a> {
                     "__generated_group_expr",
                     datatype,
                 )?;
+
+                // TODO: This needs to replace all projections in the select
+                // list.
 
                 let select_expr = select_list.get_projection_mut(col_expr.column)?;
                 let orig = std::mem::replace(
