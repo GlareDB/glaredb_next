@@ -12,6 +12,7 @@ use crate::{
         arith_expr::{ArithExpr, ArithOperator},
         cast_expr::CastExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
+        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
         literal_expr::LiteralExpr,
         negate_expr::{NegateExpr, NegateOperator},
         scalar_function_expr::ScalarFunctionExpr,
@@ -261,6 +262,26 @@ impl<'a> ExpressionBinder<'a> {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, op, [left, right])?;
                         Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::And => {
+                        let op = ConjunctionOperator::And;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Conjunction(ConjunctionExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Or => {
+                        let op = ConjunctionOperator::Or;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Conjunction(ConjunctionExpr {
                             left: Box::new(left),
                             right: Box::new(right),
                             op,

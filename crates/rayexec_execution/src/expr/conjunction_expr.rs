@@ -1,16 +1,16 @@
 use crate::functions::scalar::{boolean, ScalarFunction};
 use std::fmt;
 
-use super::Expression;
+use super::{AsScalarFunction, Expression};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Conjunction {
+pub enum ConjunctionOperator {
     And,
     Or,
 }
 
-impl Conjunction {
-    pub fn scalar_function(&self) -> &dyn ScalarFunction {
+impl AsScalarFunction for ConjunctionOperator {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction {
         match self {
             Self::And => &boolean::And,
             Self::Or => &boolean::Or,
@@ -18,7 +18,7 @@ impl Conjunction {
     }
 }
 
-impl fmt::Display for Conjunction {
+impl fmt::Display for ConjunctionOperator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::And => write!(f, "AND"),
@@ -31,11 +31,11 @@ impl fmt::Display for Conjunction {
 pub struct ConjunctionExpr {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
-    pub conjunction: Conjunction,
+    pub op: ConjunctionOperator,
 }
 
 impl fmt::Display for ConjunctionExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.left, self.right, self.conjunction)
+        write!(f, "{} {} {}", self.left, self.right, self.op)
     }
 }

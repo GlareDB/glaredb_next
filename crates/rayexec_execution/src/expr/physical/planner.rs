@@ -112,7 +112,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 ))
             }
             Expression::Conjunction(expr) => {
-                let scalar = expr.conjunction.scalar_function();
+                let scalar = expr.op.as_scalar_function();
                 let function =
                     scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
 

@@ -315,8 +315,8 @@ impl SelectList {
         Ok(None)
     }
 
-    /// Replaces all columns in the projections list with a new column
-    /// expression.
+    /// Replaces all columns in the projections list (inlcuding appended
+    /// projections) with a new column expression.
     ///
     /// This should be replacing the column expression with one that is
     /// logically equivalent.
