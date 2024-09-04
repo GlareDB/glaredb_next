@@ -85,7 +85,7 @@ impl Expression {
             Self::Literal(expr) => expr.literal.datatype(),
             Self::Negate(expr) => expr.datatype(bind_context)?,
             Self::ScalarFunction(expr) => expr.function.return_type(),
-            Self::Subquery(_) => unimplemented!(),
+            Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(_) => not_implemented!("WINDOW"),
         })
     }
@@ -251,7 +251,18 @@ impl Expression {
     }
 
     pub fn is_constant(&self) -> bool {
-        unimplemented!()
+        match self {
+            Self::Literal(_) => true,
+            _ => {
+                let mut is_constant = true;
+                self.for_each_child(&mut |expr| {
+                    is_constant = is_constant && expr.is_constant();
+                    Ok(())
+                })
+                .expect("constant check to to not fail");
+                is_constant
+            }
+        }
     }
 
     pub const fn is_column_expr(&self) -> bool {

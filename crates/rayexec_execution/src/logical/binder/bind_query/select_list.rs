@@ -121,7 +121,7 @@ impl SelectList {
         }
 
         // Bind the expressions.
-        let expr_binder = ExpressionBinder::new(resolve_context);
+        let expr_binder = ExpressionBinder::new(bind_ref, resolve_context);
         let mut exprs = Vec::with_capacity(projections.len());
         for proj in projections {
             match proj {

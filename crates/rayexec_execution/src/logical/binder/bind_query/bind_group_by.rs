@@ -122,15 +122,16 @@ impl<'a> GroupByBinder<'a> {
                 Ok(orig)
             }
             None => {
-                let expr = ExpressionBinder::new(self.resolve_context).bind_expression(
-                    bind_context,
-                    &expr,
-                    &mut DefaultColumnBinder::new(self.current),
-                    RecursionContext {
-                        allow_window: false,
-                        allow_aggregate: false,
-                    },
-                )?;
+                let expr = ExpressionBinder::new(self.current, self.resolve_context)
+                    .bind_expression(
+                        bind_context,
+                        &expr,
+                        &mut DefaultColumnBinder::new(self.current),
+                        RecursionContext {
+                            allow_window: false,
+                            allow_aggregate: false,
+                        },
+                    )?;
 
                 let datatype = expr.datatype(bind_context)?;
                 let col_idx = bind_context.push_column_for_table(

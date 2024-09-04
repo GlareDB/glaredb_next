@@ -430,7 +430,7 @@ impl<'a> FromBinder<'a> {
         bind_context.append_context(self.current, left_idx)?;
         bind_context.append_context(self.current, right_idx)?;
 
-        let condition_binder = ExpressionBinder::new(self.resolve_context);
+        let condition_binder = ExpressionBinder::new(self.current, self.resolve_context);
         let conditions = condition_binder.bind_expressions(
             bind_context,
             &conditions,

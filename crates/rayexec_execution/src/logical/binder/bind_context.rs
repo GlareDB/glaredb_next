@@ -356,6 +356,18 @@ impl BindContext {
         Ok(())
     }
 
+    pub fn push_correlations(
+        &mut self,
+        idx: BindScopeRef,
+        correlations: impl IntoIterator<Item = CorrelatedColumn>,
+    ) -> Result<()> {
+        let scope = self.get_scope_mut(idx)?;
+        for corr in correlations {
+            scope.correlated_columns.push(corr);
+        }
+        Ok(())
+    }
+
     /// Tries to find the the scope that has a matching column name.
     ///
     /// This will only search the current scope, and will not look at any outer

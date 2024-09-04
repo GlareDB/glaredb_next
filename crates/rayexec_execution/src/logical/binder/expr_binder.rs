@@ -4,7 +4,7 @@ use rayexec_bullet::{
     scalar::{interval::Interval, OwnedScalarValue, ScalarValue},
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::ast;
+use rayexec_parser::ast::{self, QueryNode};
 
 use crate::{
     expr::{
@@ -16,6 +16,7 @@ use crate::{
         literal_expr::LiteralExpr,
         negate_expr::{NegateExpr, NegateOperator},
         scalar_function_expr::ScalarFunctionExpr,
+        subquery_expr::{SubqueryExpr, SubqueryType},
         AsScalarFunction, Expression,
     },
     functions::{
@@ -27,8 +28,11 @@ use crate::{
         },
         CastType,
     },
-    logical::resolver::{
-        resolve_context::ResolveContext, resolved_function::ResolvedFunction, ResolvedMeta,
+    logical::{
+        binder::bind_query::QueryBinder,
+        resolver::{
+            resolve_context::ResolveContext, resolved_function::ResolvedFunction, ResolvedMeta,
+        },
     },
 };
 
@@ -45,12 +49,16 @@ pub struct RecursionContext {
 
 #[derive(Debug)]
 pub struct ExpressionBinder<'a> {
+    pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
 }
 
 impl<'a> ExpressionBinder<'a> {
-    pub const fn new(resolve_context: &'a ResolveContext) -> Self {
-        ExpressionBinder { resolve_context }
+    pub const fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
+        ExpressionBinder {
+            current,
+            resolve_context,
+        }
     }
 
     pub fn bind_expressions(
@@ -370,10 +378,27 @@ impl<'a> ExpressionBinder<'a> {
             ast::Expr::Nested(nested) => {
                 self.bind_expression(bind_context, nested, column_binder, recur)
             }
-            ast::Expr::Subquery(_) => not_implemented!("subquery"),
+            ast::Expr::Subquery(subquery) => self.bind_subquery(
+                bind_context,
+                subquery,
+                SubqueryType::Scalar,
+                column_binder,
+                recur,
+            ),
             ast::Expr::Tuple(_) => not_implemented!("tuple expressions"),
             ast::Expr::Collate { .. } => not_implemented!("COLLATE"),
-            ast::Expr::Exists { .. } => not_implemented!("EXISTS"),
+            ast::Expr::Exists {
+                subquery,
+                not_exists,
+            } => {
+                let subquery_type = if *not_exists {
+                    SubqueryType::NotExists
+                } else {
+                    SubqueryType::Exists
+                };
+
+                self.bind_subquery(bind_context, subquery, subquery_type, column_binder, recur)
+            }
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to
@@ -481,6 +506,58 @@ impl<'a> ExpressionBinder<'a> {
                 }
             }
         }
+    }
+
+    pub(crate) fn bind_subquery(
+        &self,
+        bind_context: &mut BindContext,
+        subquery: &QueryNode<ResolvedMeta>,
+        subquery_type: SubqueryType,
+        _column_binder: &mut impl ExpressionColumnBinder,
+        _recur: RecursionContext,
+    ) -> Result<Expression> {
+        let nested = bind_context.new_child_scope(self.current);
+        let bound =
+            QueryBinder::new(nested, self.resolve_context).bind(bind_context, subquery.clone())?;
+
+        let table = bind_context.get_table(bound.output_table_ref())?;
+        let return_type = if subquery_type == SubqueryType::Scalar {
+            table
+                .column_types
+                .get(0)
+                .cloned()
+                .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?
+        } else {
+            DataType::Boolean
+        };
+
+        // Ensure subquery returns expected number of cols.
+        if matches!(subquery_type, SubqueryType::Scalar | SubqueryType::Any) {
+            if table.num_columns() != 1 {
+                return Err(RayexecError::new(format!(
+                    "Expected subquery to return 1 column, returns {} columns",
+                    table.num_columns(),
+                )));
+            }
+        }
+
+        // Move correlated columns that don't reference the current scope to the
+        // current scope's list of correlated columns.
+        let mut current_correlations = Vec::new();
+        for col in bind_context.correlated_columns(nested)? {
+            if col.outer != self.current {
+                current_correlations.push(col.clone());
+            }
+        }
+        bind_context.push_correlations(self.current, current_correlations)?;
+
+        Ok(Expression::Subquery(SubqueryExpr {
+            bind_idx: nested,
+            subquery: Box::new(bound),
+            subquery_type,
+            return_type,
+            operator: None, // TODO
+        }))
     }
 
     pub(crate) fn bind_literal(literal: &ast::Literal<ResolvedMeta>) -> Result<Expression> {

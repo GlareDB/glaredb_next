@@ -84,7 +84,7 @@ impl<'a> SelectBinder<'a> {
         let where_expr = select
             .where_expr
             .map(|expr| {
-                let binder = ExpressionBinder::new(self.resolve_context);
+                let binder = ExpressionBinder::new(self.current, self.resolve_context);
                 binder.bind_expression(
                     bind_context,
                     &expr,
@@ -115,7 +115,8 @@ impl<'a> SelectBinder<'a> {
         let having = select
             .having
             .map(|h| {
-                HavingBinder::new(self.resolve_context, group_by.as_ref()).bind(bind_context, h)
+                HavingBinder::new(self.current, self.resolve_context, group_by.as_ref())
+                    .bind(bind_context, h)
             })
             .transpose()?;
 

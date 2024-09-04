@@ -42,7 +42,7 @@ impl<'a> ValuesBinder<'a> {
     ) -> Result<BoundValues> {
         // TODO: This could theoretically bind expressions as correlated
         // columns. TBD if that's desired.
-        let expr_binder = ExpressionBinder::new(self.resolve_context);
+        let expr_binder = ExpressionBinder::new(self.current, self.resolve_context);
         let rows = values
             .rows
             .into_iter()

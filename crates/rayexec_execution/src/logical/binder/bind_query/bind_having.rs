@@ -18,13 +18,19 @@ use super::{bind_group_by::BoundGroupBy, select_list::SelectList};
 #[derive(Debug)]
 pub struct HavingBinder<'a> {
     column_binder: HavingColumnBinder<'a>,
+    current: BindScopeRef,
     resolve_context: &'a ResolveContext,
 }
 
 impl<'a> HavingBinder<'a> {
-    pub fn new(resolve_context: &'a ResolveContext, group_by: Option<&'a BoundGroupBy>) -> Self {
+    pub fn new(
+        current: BindScopeRef,
+        resolve_context: &'a ResolveContext,
+        group_by: Option<&'a BoundGroupBy>,
+    ) -> Self {
         HavingBinder {
             column_binder: HavingColumnBinder { group_by },
+            current,
             resolve_context,
         }
     }
@@ -34,7 +40,7 @@ impl<'a> HavingBinder<'a> {
         bind_context: &mut BindContext,
         having: ast::Expr<ResolvedMeta>,
     ) -> Result<Expression> {
-        ExpressionBinder::new(self.resolve_context).bind_expression(
+        ExpressionBinder::new(self.current, self.resolve_context).bind_expression(
             bind_context,
             &having,
             &mut self.column_binder,

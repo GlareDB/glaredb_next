@@ -59,8 +59,6 @@ impl<'a> QueryBinder<'a> {
         bind_context: &mut BindContext,
         query: ast::QueryNode<ResolvedMeta>,
     ) -> Result<BoundQuery> {
-        // TODO: CTEs
-
         self.bind_body(bind_context, query.body, query.order_by, query.limit)
     }
 

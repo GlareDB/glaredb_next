@@ -121,7 +121,7 @@ impl<'a> ModifierBinder<'a> {
             None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
         };
 
-        let expr = ExpressionBinder::new(self.resolve_context).bind_expression(
+        let expr = ExpressionBinder::new(current, self.resolve_context).bind_expression(
             bind_context,
             &expr,
             &mut DefaultColumnBinder::new(current),
@@ -139,7 +139,13 @@ impl<'a> ModifierBinder<'a> {
         bind_context: &mut BindContext,
         limit_mod: ast::LimitModifier<ResolvedMeta>,
     ) -> Result<Option<BoundLimit>> {
-        let expr_binder = ExpressionBinder::new(self.resolve_context);
+        // TODO: What do here?
+        let current = match self.current.first() {
+            Some(&current) => current,
+            None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
+        };
+
+        let expr_binder = ExpressionBinder::new(current, self.resolve_context);
 
         let limit = match limit_mod.limit {
             Some(limit) => expr_binder.bind_expression(
