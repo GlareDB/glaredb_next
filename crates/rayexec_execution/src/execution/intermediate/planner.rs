@@ -33,10 +33,12 @@ use crate::{
         comparison_expr::ComparisonOperator,
         physical::{
             column_expr::PhysicalColumnExpr, planner::PhysicalExpressionPlanner,
-            PhysicalAggregateExpression, PhysicalScalarExpression,
+            scalar_function_expr::PhysicalScalarFunctionExpr, PhysicalAggregateExpression,
+            PhysicalScalarExpression,
         },
         Expression, PhysicalSortExpression,
     },
+    functions::scalar::boolean::AndImpl,
     logical::{
         binder::bind_context::BindContext,
         context::QueryContext,
@@ -338,6 +340,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             }
             LogicalOperator::ArbitraryJoin(join) => {
                 self.push_arbitrary_join(id_gen, materializations, join)
+            }
+            LogicalOperator::ComparisonJoin(join) => {
+                self.push_comparison_join(id_gen, materializations, join)
             }
             LogicalOperator::EqualityJoin(join) => {
                 self.push_equality_join(id_gen, materializations, join)
@@ -1375,13 +1380,30 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             .iter()
             .any(|c| c.op == ComparisonOperator::Eq);
 
-        if has_equality {
-            // Use hash join.
-        } else {
-            // Need to fall back to nested loop join.
-        }
+        // if has_equality {
+        //     // Use hash join.
+        // } else {
+        // Need to fall back to nested loop join.
+        let conditions = self
+            .expr_planner
+            .plan_join_conditions(&join.get_children_table_refs(), &join.node.conditions)?;
 
-        unimplemented!()
+        let condition = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+            function: Box::new(AndImpl),
+            inputs: conditions,
+        });
+
+        let [left, right] = join.take_two_children_exact()?;
+
+        self.push_nl_join(
+            id_gen,
+            materializations,
+            location,
+            left,
+            right,
+            Some(condition),
+        )
+        // }
     }
 
     fn push_arbitrary_join(

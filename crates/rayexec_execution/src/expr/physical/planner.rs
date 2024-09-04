@@ -156,12 +156,11 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         &self,
         table_refs: &[TableRef],
         conditions: &[ComparisonCondition],
-    ) -> Result<PhysicalScalarExpression> {
-        unimplemented!()
-        // conditions
-        //     .iter()
-        //     .map(|c| self.plan_join_condition(table_refs, c))
-        //     .collect::<Result<Vec<_>>>()
+    ) -> Result<Vec<PhysicalScalarExpression>> {
+        conditions
+            .iter()
+            .map(|c| self.plan_join_condition(table_refs, c))
+            .collect::<Result<Vec<_>>>()
     }
 
     pub fn plan_join_condition(
