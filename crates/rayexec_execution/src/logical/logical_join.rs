@@ -48,9 +48,9 @@ impl ComparisonCondition {
             ComparisonOperator::Eq => ComparisonOperator::Eq,
             ComparisonOperator::NotEq => ComparisonOperator::NotEq,
             ComparisonOperator::Lt => ComparisonOperator::Gt,
-            ComparisonOperator::LtEq => ComparisonOperator::LtEq,
+            ComparisonOperator::LtEq => ComparisonOperator::GtEq,
             ComparisonOperator::Gt => ComparisonOperator::Lt,
-            ComparisonOperator::GtEq => ComparisonOperator::GtEq,
+            ComparisonOperator::GtEq => ComparisonOperator::LtEq,
         };
         std::mem::swap(&mut self.left, &mut self.right);
     }
@@ -114,5 +114,57 @@ impl Explainable for LogicalCrossJoin {
 impl LogicalNode for Node<LogicalCrossJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.get_children_table_refs()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::scalar::ScalarValue;
+
+    use crate::expr::literal_expr::LiteralExpr;
+
+    use super::*;
+
+    #[test]
+    fn flip_comparison() {
+        let a = Expression::Literal(LiteralExpr {
+            literal: ScalarValue::Int8(1),
+        });
+        let b = Expression::Literal(LiteralExpr {
+            literal: ScalarValue::Int8(2),
+        });
+
+        // (original, flipped)
+        let tests = [
+            (
+                ComparisonCondition {
+                    left: a.clone(),
+                    right: b.clone(),
+                    op: ComparisonOperator::Lt,
+                },
+                ComparisonCondition {
+                    left: b.clone(),
+                    right: a.clone(),
+                    op: ComparisonOperator::Gt,
+                },
+            ),
+            (
+                ComparisonCondition {
+                    left: a.clone(),
+                    right: b.clone(),
+                    op: ComparisonOperator::LtEq,
+                },
+                ComparisonCondition {
+                    left: b.clone(),
+                    right: a.clone(),
+                    op: ComparisonOperator::GtEq,
+                },
+            ),
+        ];
+
+        for (mut original, flipped) in tests {
+            original.flip_sides();
+            assert_eq!(flipped, original);
+        }
     }
 }
