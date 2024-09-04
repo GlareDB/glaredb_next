@@ -233,12 +233,17 @@ impl<'a> FromBinder<'a> {
                     RayexecError::new(format!("Missing cte at index {cte_idx:?}"))
                 })?;
 
-                self.bind_cte(bind_context, cte)
+                self.bind_cte(bind_context, cte, alias)
             }
         }
     }
 
-    fn bind_cte(&self, bind_context: &mut BindContext, cte: &ResolvedCte) -> Result<BoundFrom> {
+    fn bind_cte(
+        &self,
+        bind_context: &mut BindContext,
+        cte: &ResolvedCte,
+        alias: Option<ast::FromAlias>,
+    ) -> Result<BoundFrom> {
         if cte.materialized {
             not_implemented!("materialized CTE");
         }
@@ -255,6 +260,9 @@ impl<'a> FromBinder<'a> {
             names.extend(table.column_names.iter().cloned());
         }
 
+        // Sets alias where cte is defined
+        //
+        // WITH my_cte(alias1, alias2) AS ...
         if let Some(col_aliases) = &cte.column_aliases {
             if col_aliases.len() > names.len() {
                 return Err(RayexecError::new(format!(
@@ -275,7 +283,16 @@ impl<'a> FromBinder<'a> {
             table: cte.name.clone(),
         };
 
-        let table_ref = bind_context.push_table(self.current, Some(table_alias), types, names)?;
+        // Binds with the alias provided in the FROM.
+        //
+        // ... FROM mycte AS aliased_cte(c1, c2) ...
+        let table_ref = self.push_table_scope_with_from_alias(
+            bind_context,
+            Some(table_alias),
+            names,
+            types,
+            alias,
+        )?;
 
         Ok(BoundFrom {
             bind_ref: self.current,
