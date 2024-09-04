@@ -48,6 +48,7 @@ use crate::{
         logical_explain::LogicalExplain,
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
+        logical_join::LogicalCrossJoin,
         logical_limit::LogicalLimit,
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
@@ -331,7 +332,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
-            LogicalOperator::CrossJoin2(join) => {
+            LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
             LogicalOperator::AnyJoin2(join) => self.push_any_join(id_gen, materializations, join),
@@ -1363,51 +1364,46 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         materializations: &mut Materializations,
         join: Node<operator::AnyJoin>,
     ) -> Result<()> {
-        let location = join.location;
-        let join = join.into_inner();
+        unimplemented!()
+        // let location = join.location;
+        // let join = join.into_inner();
 
-        let left_schema = join.left.output_schema(&[])?;
-        let right_schema = join.right.output_schema(&[])?;
-        let input_schema = left_schema.merge(right_schema);
-        let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on, &input_schema)?;
+        // let left_schema = join.left.output_schema(&[])?;
+        // let right_schema = join.right.output_schema(&[])?;
+        // let input_schema = left_schema.merge(right_schema);
+        // let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on, &input_schema)?;
 
-        // Modify the filter as to match the join type.
-        let filter = match join.join_type {
-            operator::JoinType::Inner => filter,
-            other => {
-                // TODO: Other join types.
-                return Err(RayexecError::new(format!(
-                    "Unhandled join type for any join: {other:?}"
-                )));
-            }
-        };
+        // // Modify the filter as to match the join type.
+        // let filter = match join.join_type {
+        //     operator::JoinType::Inner => filter,
+        //     other => {
+        //         // TODO: Other join types.
+        //         return Err(RayexecError::new(format!(
+        //             "Unhandled join type for any join: {other:?}"
+        //         )));
+        //     }
+        // };
 
-        self.push_nl_join(
-            id_gen,
-            materializations,
-            location,
-            *join.left,
-            *join.right,
-            Some(filter),
-        )
+        // self.push_nl_join(
+        //     id_gen,
+        //     materializations,
+        //     location,
+        //     *join.left,
+        //     *join.right,
+        //     Some(filter),
+        // )
     }
 
     fn push_cross_join(
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: Node<operator::CrossJoin>,
+        mut join: Node<LogicalCrossJoin>,
     ) -> Result<()> {
         let location = join.location;
-        let join = join.into_inner();
-        self.push_nl_join(
-            id_gen,
-            materializations,
-            location,
-            *join.left,
-            *join.right,
-            None,
-        )
+        let [left, right] = join.take_two_children_exact()?;
+
+        self.push_nl_join(id_gen, materializations, location, left, right, None)
     }
 
     /// Push a nest loop join.

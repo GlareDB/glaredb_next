@@ -96,6 +96,9 @@ impl ExplainNode {
             LogicalOperator::Describe(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Explain(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::CopyTo(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::CrossJoin(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::ArbitraryJoin(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::ComparisonJoin(n) => (n.explain_entry(config), &n.children),
             _ => unimplemented!(),
         };
 

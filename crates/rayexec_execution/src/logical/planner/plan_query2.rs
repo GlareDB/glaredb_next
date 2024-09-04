@@ -451,9 +451,9 @@ impl<'a> QueryNodePlanner<'a> {
                             ast::JoinType::Inner => JoinType::Inner,
                             ast::JoinType::Left => JoinType::Left,
                             ast::JoinType::Right => JoinType::Right,
-                            ast::JoinType::Cross => {
-                                unreachable!("Cross join should not have a join condition")
-                            }
+                            // ast::JoinType::Cross => {
+                            //     unreachable!("Cross join should not have a join condition")
+                            // }
                             other => not_implemented!("plan join type: {other:?}"),
                         };
 
@@ -468,17 +468,17 @@ impl<'a> QueryNodePlanner<'a> {
                         }
                     }
                     ast::JoinCondition::None => match join_type {
-                        ast::JoinType::Cross => {
-                            let merged = left_plan.scope.merge(right_plan.scope)?;
+                        // ast::JoinType::Cross => {
+                        //     let merged = left_plan.scope.merge(right_plan.scope)?;
 
-                            LogicalQuery2 {
-                                root: LogicalOperator::CrossJoin2(Node::new(CrossJoin {
-                                    left: Box::new(left_plan.root),
-                                    right: Box::new(right_plan.root),
-                                })),
-                                scope: merged,
-                            }
-                        }
+                        //     LogicalQuery2 {
+                        //         root: LogicalOperator::CrossJoin2(Node::new(CrossJoin {
+                        //             left: Box::new(left_plan.root),
+                        //             right: Box::new(right_plan.root),
+                        //         })),
+                        //         scope: merged,
+                        //     }
+                        // }
                         _other => return Err(RayexecError::new("Missing join condition for join")),
                     },
                     using_or_natural => {
@@ -586,9 +586,9 @@ impl<'a> QueryNodePlanner<'a> {
                             ast::JoinType::Inner => JoinType::Inner,
                             ast::JoinType::Left => JoinType::Left,
                             ast::JoinType::Right => JoinType::Right,
-                            ast::JoinType::Cross => {
-                                unreachable!("Cross join should not have a join condition")
-                            }
+                            // ast::JoinType::Cross => {
+                            //     unreachable!("Cross join should not have a join condition")
+                            // }
                             other => not_implemented!("plan join type: {other:?}"),
                         };
 

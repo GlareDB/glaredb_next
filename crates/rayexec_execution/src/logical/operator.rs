@@ -604,6 +604,9 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Describe(n) => n.get_output_table_refs(),
             LogicalOperator::Explain(n) => n.get_output_table_refs(),
             LogicalOperator::CopyTo(n) => n.get_output_table_refs(),
+            LogicalOperator::CrossJoin(n) => n.get_output_table_refs(),
+            LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(),
+            LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(),
             _ => unimplemented!(),
         }
     }
