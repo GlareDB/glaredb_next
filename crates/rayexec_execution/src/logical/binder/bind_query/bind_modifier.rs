@@ -124,10 +124,11 @@ impl<'a> ModifierBinder<'a> {
         let expr = ExpressionBinder::new(current, self.resolve_context).bind_expression(
             bind_context,
             &expr,
-            &mut DefaultColumnBinder::new(current),
+            &mut DefaultColumnBinder,
             RecursionContext {
-                allow_window: false,
-                allow_aggregate: false,
+                allow_windows: false,
+                allow_aggregates: false,
+                is_root: true,
             },
         )?;
 
@@ -151,10 +152,11 @@ impl<'a> ModifierBinder<'a> {
             Some(limit) => expr_binder.bind_expression(
                 bind_context,
                 &limit,
-                &mut DefaultColumnBinder::new(self.current[0]),
+                &mut DefaultColumnBinder,
                 RecursionContext {
-                    allow_window: false,
-                    allow_aggregate: false,
+                    allow_windows: false,
+                    allow_aggregates: false,
+                    is_root: true,
                 },
             )?,
             None => {
@@ -177,10 +179,11 @@ impl<'a> ModifierBinder<'a> {
                 let offset = expr_binder.bind_expression(
                     bind_context,
                     &offset,
-                    &mut DefaultColumnBinder::new(self.current[0]),
+                    &mut DefaultColumnBinder,
                     RecursionContext {
-                        allow_window: false,
-                        allow_aggregate: false,
+                        allow_windows: false,
+                        allow_aggregates: false,
+                        is_root: true,
                     },
                 )?;
                 let offset = offset.try_into_scalar()?.try_as_i64()?;

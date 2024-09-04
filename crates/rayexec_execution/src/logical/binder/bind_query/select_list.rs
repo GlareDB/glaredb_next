@@ -129,10 +129,11 @@ impl SelectList {
                     let expr = expr_binder.bind_expression(
                         bind_context,
                         &expr,
-                        &mut DefaultColumnBinder::new(bind_ref),
+                        &mut DefaultColumnBinder,
                         RecursionContext {
-                            allow_window: true,
-                            allow_aggregate: true,
+                            allow_windows: true,
+                            allow_aggregates: true,
+                            is_root: true,
                         },
                     )?;
                     exprs.push(expr);
@@ -273,6 +274,45 @@ impl SelectList {
             table_scope: self.projections_table,
             column: idx,
         })
+    }
+
+    /// Try to get a column by a user-provided alias.
+    pub fn column_by_user_alias(&self, ident: &ast::Ident) -> Option<ColumnExpr> {
+        let name = ident.as_normalized_string();
+
+        // Check user provided alias first.
+        if let Some(idx) = self.alias_map.get(&name) {
+            return Some(ColumnExpr {
+                table_scope: self.projections_table,
+                column: *idx,
+            });
+        }
+
+        None
+    }
+
+    /// Try to get a column by column ordinal.
+    pub fn column_by_ordinal(
+        &self,
+        lit: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<ColumnExpr>> {
+        if let ast::Literal::Number(s) = lit {
+            let n = s
+                .parse::<i64>()
+                .map_err(|_| RayexecError::new(format!("Failed to parse '{s}' into a number")))?;
+            if n < 1 || n as usize > self.projections.len() {
+                return Err(RayexecError::new(format!(
+                    "Column out of range, expected 1 - {}",
+                    self.projections.len()
+                )))?;
+            }
+
+            return Ok(Some(ColumnExpr {
+                table_scope: self.projections_table,
+                column: n as usize,
+            }));
+        }
+        Ok(None)
     }
 
     /// Attempt to get an expression with the possibility of it pointing to an

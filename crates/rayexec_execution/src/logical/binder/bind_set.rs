@@ -38,8 +38,9 @@ impl<'a> SetVarBinder<'a> {
             &set.value,
             &mut ErroringColumnBinder,
             RecursionContext {
-                allow_window: false,
-                allow_aggregate: false,
+                allow_windows: false,
+                allow_aggregates: false,
+                is_root: true,
             },
         )?;
 

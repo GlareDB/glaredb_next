@@ -1,7 +1,10 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::expr::{column_expr::ColumnExpr, Expression};
+use crate::{
+    expr::{column_expr::ColumnExpr, Expression},
+    logical::resolver::ResolvedMeta,
+};
 
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias};
 
@@ -11,17 +14,33 @@ use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlia
 /// back to the default binder.
 // TODO: Literal binder.
 pub trait ExpressionColumnBinder {
+    /// Try to bind a column from a root literal.
+    ///
+    /// This is useful for ORDER BY and GROUP BY to bind columns by column
+    /// ordinals.
+    ///
+    /// If Ok(None) is returned, the binder will fallback to typical literal
+    /// binding to produce constant expressions.
+    fn bind_from_root_literal(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        literal: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<Expression>>;
+
     fn bind_from_ident(
         &mut self,
+        bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         ident: &ast::Ident,
-    ) -> Result<Expression>;
+    ) -> Result<Option<Expression>>;
 
     fn bind_from_idents(
         &mut self,
+        bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
-    ) -> Result<Expression>;
+    ) -> Result<Option<Expression>>;
 }
 
 /// Default column binder.
@@ -31,42 +50,49 @@ pub trait ExpressionColumnBinder {
 ///
 /// Binding to an outer scope will push a correlation for the current scope.
 #[derive(Debug, Clone, Copy)]
-pub struct DefaultColumnBinder {
-    pub current: BindScopeRef,
-}
+pub struct DefaultColumnBinder;
 
 impl ExpressionColumnBinder for DefaultColumnBinder {
+    fn bind_from_root_literal(
+        &mut self,
+        _bind_scope: BindScopeRef,
+        _bind_context: &mut BindContext,
+        _literal: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<Expression>> {
+        // Binder continues with normal literal binding.
+        Ok(None)
+    }
+
     fn bind_from_ident(
         &mut self,
+        bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         ident: &ast::Ident,
-    ) -> Result<Expression> {
+    ) -> Result<Option<Expression>> {
         let col = ident.as_normalized_string();
-        self.bind_column(bind_context, None, &col)
+        self.bind_column(bind_scope, bind_context, None, &col)
     }
 
     fn bind_from_idents(
         &mut self,
+        bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
-    ) -> Result<Expression> {
+    ) -> Result<Option<Expression>> {
         let (alias, col) = idents_to_alias_and_column(idents)?;
-        self.bind_column(bind_context, alias, &col)
+        self.bind_column(bind_scope, bind_context, alias, &col)
     }
 }
 
 impl DefaultColumnBinder {
-    pub fn new(current: BindScopeRef) -> Self {
-        DefaultColumnBinder { current }
-    }
-
     fn bind_column(
         &self,
+        bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         alias: Option<TableAlias>,
         col: &str,
-    ) -> Result<Expression> {
-        let mut current = self.current;
+    ) -> Result<Option<Expression>> {
+        let mut current = bind_scope;
         loop {
             let table = bind_context.find_table_for_column(current, alias.as_ref(), &col)?;
             match table {
@@ -75,7 +101,7 @@ impl DefaultColumnBinder {
 
                     // Table containing column found. Check if it's correlated
                     // (referencing an outer context).
-                    let is_correlated = current != self.current;
+                    let is_correlated = current != bind_scope;
 
                     if is_correlated {
                         // Column is correlated, Push correlation to current
@@ -86,15 +112,15 @@ impl DefaultColumnBinder {
                             col_idx,
                         };
 
-                        // Note `self.current`, not `current`. We want to store
-                        // the context containing the expression.
-                        bind_context.push_correlation(self.current, correlated)?;
+                        // Note the original scope, not `current`. We want to
+                        // store the context containing the expression.
+                        bind_context.push_correlation(bind_scope, correlated)?;
                     }
 
-                    return Ok(Expression::Column(ColumnExpr {
+                    return Ok(Some(Expression::Column(ColumnExpr {
                         table_scope: table,
                         column: col_idx,
-                    }));
+                    })));
                 }
                 None => {
                     // Table not found in current context, go to parent context
@@ -103,9 +129,7 @@ impl DefaultColumnBinder {
                         Some(parent) => current = parent,
                         None => {
                             // We're at root, no column with this ident in query.
-                            return Err(RayexecError::new(format!(
-                                "Missing column for reference: {col}",
-                            )));
+                            return Ok(None);
                         }
                     }
                 }
@@ -159,11 +183,23 @@ pub fn idents_to_alias_and_column(idents: &[ast::Ident]) -> Result<(Option<Table
 pub struct ErroringColumnBinder;
 
 impl ExpressionColumnBinder for ErroringColumnBinder {
+    fn bind_from_root_literal(
+        &mut self,
+        _bind_scope: BindScopeRef,
+        _bind_context: &mut BindContext,
+        _literal: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<Expression>> {
+        // Don't error here, let the binder continue with normal literal
+        // binding.
+        Ok(None)
+    }
+
     fn bind_from_ident(
         &mut self,
+        _bind_scope: BindScopeRef,
         _bind_context: &mut BindContext,
         _ident: &ast::Ident,
-    ) -> Result<Expression> {
+    ) -> Result<Option<Expression>> {
         Err(RayexecError::new(
             "Statement does not support binding to columns",
         ))
@@ -171,9 +207,10 @@ impl ExpressionColumnBinder for ErroringColumnBinder {
 
     fn bind_from_idents(
         &mut self,
+        _bind_scope: BindScopeRef,
         _bind_context: &mut BindContext,
         _idents: &[ast::Ident],
-    ) -> Result<Expression> {
+    ) -> Result<Option<Expression>> {
         Err(RayexecError::new(
             "Statement does not support binding to columns",
         ))

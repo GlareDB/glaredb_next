@@ -3,7 +3,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
-            column_binder::DefaultColumnBinder,
+            column_binder::{DefaultColumnBinder, ExpressionColumnBinder},
             expr_binder::{ExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -126,10 +126,11 @@ impl<'a> GroupByBinder<'a> {
                     .bind_expression(
                         bind_context,
                         &expr,
-                        &mut DefaultColumnBinder::new(self.current),
+                        &mut DefaultColumnBinder,
                         RecursionContext {
-                            allow_window: false,
-                            allow_aggregate: false,
+                            allow_windows: false,
+                            allow_aggregates: false,
+                            is_root: true,
                         },
                     )?;
 
@@ -159,6 +160,86 @@ impl<'a> GroupByBinder<'a> {
                 Ok(expr)
             }
         }
+    }
+}
+
+#[derive(Debug)]
+struct GroupByColumnBinder<'a> {
+    group_table: TableRef,
+    select_list: &'a mut SelectList,
+    /// Set of columns in the select list that we've already bound a GROUP BY
+    /// for.
+    ///
+    /// This is used deduplicate GROUP BY expressions if multiple expressions
+    /// reference the same select list column.
+    referenced_select_exprs: HashSet<ColumnExpr>,
+}
+
+impl<'a> ExpressionColumnBinder for GroupByColumnBinder<'a> {
+    fn bind_from_root_literal(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        literal: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<Expression>> {
+        unimplemented!()
+    }
+
+    fn bind_from_ident(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        ident: &ast::Ident,
+    ) -> Result<Option<Expression>> {
+        // Try to bind normally.
+        if let Some(col) = DefaultColumnBinder.bind_from_ident(bind_scope, bind_context, ident)? {
+            return Ok(Some(col));
+        }
+
+        // Try to bind to a user-provided alias.
+        if let Some(col) = self.select_list.column_by_user_alias(ident) {
+            if self.referenced_select_exprs.contains(&col) {
+                // Another expression in the GROUP BY is already referencing
+                // this column, can just replace with a constant.
+                return Ok(Some(Expression::Literal(LiteralExpr {
+                    literal: ScalarValue::Int8(1),
+                })));
+            }
+
+            // Swap expression in select list with a reference that points
+            // to the GROUP BY expression.
+
+            let datatype = col.datatype(bind_context)?;
+            let idx = bind_context.push_column_for_table(
+                self.group_table,
+                "__generated_group_expr",
+                datatype,
+            )?;
+
+            let select_expr = self.select_list.get_projection_mut(col.column)?;
+            let orig = std::mem::replace(
+                select_expr,
+                Expression::Column(ColumnExpr {
+                    table_scope: self.group_table,
+                    column: idx,
+                }),
+            );
+
+            self.referenced_select_exprs.insert(col);
+
+            return Ok(Some(orig));
+        }
+
+        Ok(None)
+    }
+
+    fn bind_from_idents(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        idents: &[ast::Ident],
+    ) -> Result<Option<Expression>> {
+        DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents)
     }
 }
 

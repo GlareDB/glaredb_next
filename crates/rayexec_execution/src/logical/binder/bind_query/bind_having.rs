@@ -45,8 +45,9 @@ impl<'a> HavingBinder<'a> {
             &having,
             &mut self.column_binder,
             RecursionContext {
-                allow_window: false,
-                allow_aggregate: false, // TODO: Allow true
+                allow_windows: false,
+                allow_aggregates: false, // TODO: Allow true
+                is_root: true,
             },
         )
     }
@@ -61,11 +62,22 @@ struct HavingColumnBinder<'a> {
 }
 
 impl<'a> ExpressionColumnBinder for HavingColumnBinder<'a> {
+    fn bind_from_root_literal(
+        &mut self,
+        _bind_scope: BindScopeRef,
+        _bind_context: &mut BindContext,
+        _literal: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<Expression>> {
+        // Can't reference columns by anything other than idents.
+        Ok(None)
+    }
+
     fn bind_from_ident(
         &mut self,
+        bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         ident: &ast::Ident,
-    ) -> Result<Expression> {
+    ) -> Result<Option<Expression>> {
         let col = ident.as_normalized_string();
         let group_by_table = match self.group_by {
             Some(group_by) => group_by.group_table,
@@ -79,9 +91,10 @@ impl<'a> ExpressionColumnBinder for HavingColumnBinder<'a> {
 
     fn bind_from_idents(
         &mut self,
+        bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
-    ) -> Result<Expression> {
+    ) -> Result<Option<Expression>> {
         not_implemented!("Compound idents in HAVING")
     }
 }

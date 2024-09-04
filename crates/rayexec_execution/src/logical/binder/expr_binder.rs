@@ -44,8 +44,12 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {
-    pub allow_aggregate: bool,
-    pub allow_window: bool,
+    /// Whether to allow aggregate function binding.
+    pub allow_aggregates: bool,
+    /// Whether to allow window function binding.
+    pub allow_windows: bool,
+    /// If we're in the root expression.
+    pub is_root: bool,
 }
 
 #[derive(Debug)]
@@ -83,18 +87,62 @@ impl<'a> ExpressionBinder<'a> {
         recur: RecursionContext,
     ) -> Result<Expression> {
         match expr {
-            ast::Expr::Ident(ident) => column_binder.bind_from_ident(bind_context, ident),
+            ast::Expr::Ident(ident) => {
+                // Use the provided column binder, no fallback.
+                match column_binder.bind_from_ident(self.current, bind_context, ident)? {
+                    Some(expr) => Ok(expr),
+                    None => Err(RayexecError::new(format!(
+                        "Missing column for reference: {ident}",
+                    ))),
+                }
+            }
             ast::Expr::CompoundIdent(idents) => {
-                column_binder.bind_from_idents(bind_context, idents)
+                // Use the provided column binder, no fallback.
+                match column_binder.bind_from_idents(self.current, bind_context, idents)? {
+                    Some(expr) => Ok(expr),
+                    None => {
+                        let ident_string = idents
+                            .iter()
+                            .map(|i| i.as_normalized_string())
+                            .collect::<Vec<_>>()
+                            .join(".");
+                        Err(RayexecError::new(format!(
+                            "Missing column for reference: {ident_string}",
+                        )))
+                    }
+                }
             }
             ast::Expr::QualifiedWildcard(_) => Err(RayexecError::new(
                 "Qualified wildcard not a valid expression to bind",
             )),
-            ast::Expr::Literal(literal) => Self::bind_literal(literal),
+            ast::Expr::Literal(literal) => {
+                // Use the provided column binder only if this is the root of
+                // the expression.
+                //
+                // Fallback to normal literal binding.
+                if recur.is_root {
+                    if let Some(expr) =
+                        column_binder.bind_from_root_literal(self.current, bind_context, literal)?
+                    {
+                        return Ok(expr);
+                    }
+                }
+                Self::bind_literal(literal)
+            }
             ast::Expr::Array(arr) => {
                 let exprs = arr
                     .into_iter()
-                    .map(|v| self.bind_expression(bind_context, v, column_binder, recur))
+                    .map(|v| {
+                        self.bind_expression(
+                            bind_context,
+                            v,
+                            column_binder,
+                            RecursionContext {
+                                is_root: false,
+                                ..recur
+                            },
+                        )
+                    })
                     .collect::<Result<Vec<_>>>()?;
 
                 let scalar = Box::new(ListValues);
@@ -110,8 +158,15 @@ impl<'a> ExpressionBinder<'a> {
                 }))
             }
             ast::Expr::ArraySubscript { expr, subscript } => {
-                let expr =
-                    self.bind_expression(bind_context, expr.as_ref(), column_binder, recur)?;
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr.as_ref(),
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
                 match subscript.as_ref() {
                     ast::ArraySubscript::Index(index) => {
                         let index = self.bind_expression(
@@ -119,8 +174,9 @@ impl<'a> ExpressionBinder<'a> {
                             index,
                             column_binder,
                             RecursionContext {
-                                allow_window: false,
-                                allow_aggregate: false,
+                                allow_windows: false,
+                                allow_aggregates: false,
+                                is_root: false,
                             },
                         )?;
 
@@ -147,7 +203,15 @@ impl<'a> ExpressionBinder<'a> {
                 }
             }
             ast::Expr::UnaryExpr { op, expr } => {
-                let expr = self.bind_expression(bind_context, expr, column_binder, recur)?;
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
 
                 Ok(match op {
                     ast::UnaryOperator::Plus => expr,
@@ -162,8 +226,24 @@ impl<'a> ExpressionBinder<'a> {
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
-                let left = self.bind_expression(bind_context, left, column_binder, recur)?;
-                let right = self.bind_expression(bind_context, right, column_binder, recur)?;
+                let left = self.bind_expression(
+                    bind_context,
+                    left,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+                let right = self.bind_expression(
+                    bind_context,
+                    right,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
 
                 Ok(match op {
                     ast::BinaryOperator::NotEq => {
@@ -327,8 +407,9 @@ impl<'a> ExpressionBinder<'a> {
 
                 let recur = if reference.0.is_aggregate() {
                     RecursionContext {
-                        allow_window: false,
-                        allow_aggregate: false,
+                        allow_windows: false,
+                        allow_aggregates: false,
+                        ..recur
                     }
                 } else {
                     recur
@@ -343,7 +424,10 @@ impl<'a> ExpressionBinder<'a> {
                                 bind_context,
                                 &expr,
                                 column_binder,
-                                recur,
+                                RecursionContext {
+                                    is_root: false,
+                                    ..recur
+                                },
                             )?),
                             ast::FunctionArgExpr::Wildcard => {
                                 // Resolver should have handled removing '*'
@@ -396,9 +480,15 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             }
-            ast::Expr::Nested(nested) => {
-                self.bind_expression(bind_context, nested, column_binder, recur)
-            }
+            ast::Expr::Nested(nested) => self.bind_expression(
+                bind_context,
+                nested,
+                column_binder,
+                RecursionContext {
+                    is_root: false,
+                    ..recur
+                },
+            ),
             ast::Expr::Subquery(subquery) => self.bind_subquery(
                 bind_context,
                 subquery,
@@ -432,7 +522,15 @@ impl<'a> ExpressionBinder<'a> {
                 }))
             }
             ast::Expr::Cast { datatype, expr } => {
-                let expr = self.bind_expression(bind_context, expr, column_binder, recur)?;
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
                 Ok(Expression::Cast(CastExpr {
                     to: datatype.clone(),
                     expr: Box::new(expr),
@@ -451,8 +549,24 @@ impl<'a> ExpressionBinder<'a> {
                     not_implemented!("case insensitive LIKE")
                 }
 
-                let expr = self.bind_expression(bind_context, expr, column_binder, recur)?;
-                let pattern = self.bind_expression(bind_context, pattern, column_binder, recur)?;
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+                let pattern = self.bind_expression(
+                    bind_context,
+                    pattern,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
 
                 let scalar = like::Like.plan_from_expressions(bind_context, &[&expr, &pattern])?;
 
@@ -471,7 +585,15 @@ impl<'a> ExpressionBinder<'a> {
                         "Leading unit in interval not yet supported",
                     ));
                 }
-                let expr = self.bind_expression(bind_context, value, column_binder, recur)?;
+                let expr = self.bind_expression(
+                    bind_context,
+                    value,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
 
                 match trailing {
                     Some(trailing) => {

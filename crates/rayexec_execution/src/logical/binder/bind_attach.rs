@@ -52,8 +52,9 @@ impl AttachBinder {
                             &v,
                             &mut ErroringColumnBinder,
                             RecursionContext {
-                                allow_window: false,
-                                allow_aggregate: false,
+                                allow_windows: false,
+                                allow_aggregates: false,
+                                is_root: true,
                             },
                         )?;
                     let v = expr.try_into_scalar()?;

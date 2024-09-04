@@ -88,10 +88,11 @@ impl<'a> SelectBinder<'a> {
                 binder.bind_expression(
                     bind_context,
                     &expr,
-                    &mut DefaultColumnBinder::new(from_bind_ref),
+                    &mut DefaultColumnBinder,
                     RecursionContext {
-                        allow_window: false,
-                        allow_aggregate: false,
+                        allow_windows: false,
+                        allow_aggregates: false,
+                        is_root: true,
                     },
                 )
             })

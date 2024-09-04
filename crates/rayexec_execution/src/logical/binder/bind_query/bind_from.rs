@@ -434,10 +434,11 @@ impl<'a> FromBinder<'a> {
         let conditions = condition_binder.bind_expressions(
             bind_context,
             &conditions,
-            &mut DefaultColumnBinder::new(self.current),
+            &mut DefaultColumnBinder,
             RecursionContext {
-                allow_window: false,
-                allow_aggregate: false,
+                allow_windows: false,
+                allow_aggregates: false,
+                is_root: true,
             },
         )?;
 

@@ -50,10 +50,11 @@ impl<'a> ValuesBinder<'a> {
                 expr_binder.bind_expressions(
                     bind_context,
                     &row,
-                    &mut DefaultColumnBinder::new(self.current),
+                    &mut DefaultColumnBinder,
                     RecursionContext {
-                        allow_window: false,
-                        allow_aggregate: false,
+                        allow_windows: false,
+                        allow_aggregates: false,
+                        is_root: true,
                     },
                 )
             })
