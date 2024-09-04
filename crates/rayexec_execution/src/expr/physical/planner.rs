@@ -1,8 +1,11 @@
 use crate::{
     expr::{physical::PhysicalScalarExpression, AsScalarFunction, Expression},
-    logical::binder::{
-        bind_context::{BindContext, TableRef},
-        bind_query::bind_modifier::BoundOrderByExpr,
+    logical::{
+        binder::{
+            bind_context::{BindContext, TableRef},
+            bind_query::bind_modifier::BoundOrderByExpr,
+        },
+        logical_join::ComparisonCondition,
     },
 };
 use fmtutil::IntoDisplayableSlice;
@@ -147,55 +150,38 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         }
     }
 
-    /// Plan aggregate expressions.
-    ///
-    /// All aggregate input expression should be column expressions referencing
-    /// a pre-projection.
-    pub fn plan_aggregates(
+    /// Plans join conditions by ANDind all conditions to produce a single
+    /// physical expression.
+    pub fn plan_join_conditions(
         &self,
         table_refs: &[TableRef],
-        aggregates: &[Expression],
-    ) -> Result<Vec<PhysicalAggregateExpression>> {
-        aggregates
-            .iter()
-            .map(|agg| self.plan_aggregate(table_refs, agg))
-            .collect::<Result<Vec<_>>>()
+        conditions: &[ComparisonCondition],
+    ) -> Result<PhysicalScalarExpression> {
+        unimplemented!()
+        // conditions
+        //     .iter()
+        //     .map(|c| self.plan_join_condition(table_refs, c))
+        //     .collect::<Result<Vec<_>>>()
     }
 
-    fn plan_aggregate(
+    pub fn plan_join_condition(
         &self,
         table_refs: &[TableRef],
-        aggregate: &Expression,
-    ) -> Result<PhysicalAggregateExpression> {
-        match aggregate {
-            Expression::Aggregate(agg) => {
-                if agg.filter.is_some() {
-                    not_implemented!("aggregate filter");
-                }
+        condition: &ComparisonCondition,
+    ) -> Result<PhysicalScalarExpression> {
+        let scalar = condition.op.as_scalar_function();
+        let function = scalar
+            .plan_from_expressions(self.bind_context, &[&condition.left, &condition.right])?;
 
-                let columns = agg
-                    .inputs
-                    .iter()
-                    .map(|expr| match self.plan_scalar(table_refs, expr)? {
-                        PhysicalScalarExpression::Column(col) => Ok(col),
-                        other => {
-                            return Err(RayexecError::new(format!(
-                            "Expected column expression for physical aggregate input, got: {other}"
-                        )))
-                        }
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-
-                Ok(PhysicalAggregateExpression {
-                    function: agg.agg.clone(),
-                    columns,
-                    output_type: agg.datatype(self.bind_context)?,
-                })
-            }
-            other => Err(RayexecError::new(format!(
-                "Expected aggregate expression, got: {other}"
-            ))),
-        }
+        Ok(PhysicalScalarExpression::ScalarFunction(
+            PhysicalScalarFunctionExpr {
+                function,
+                inputs: vec![
+                    self.plan_scalar(table_refs, &condition.left)?,
+                    self.plan_scalar(table_refs, &condition.right)?,
+                ],
+            },
+        ))
     }
 
     pub fn plan_sorts(

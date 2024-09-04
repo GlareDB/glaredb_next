@@ -30,6 +30,7 @@ use crate::{
     },
     explain::{explainable::ExplainConfig, formatter::ExplainFormatter},
     expr::{
+        comparison_expr::ComparisonOperator,
         physical::{
             column_expr::PhysicalColumnExpr, planner::PhysicalExpressionPlanner,
             PhysicalAggregateExpression, PhysicalScalarExpression,
@@ -48,7 +49,7 @@ use crate::{
         logical_explain::LogicalExplain,
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
-        logical_join::{JoinType, LogicalArbitraryJoin, LogicalCrossJoin},
+        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
         logical_limit::LogicalLimit,
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
@@ -1364,8 +1365,22 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        mut join: Node<LogicalArbitraryJoin>,
+        mut join: Node<LogicalComparisonJoin>,
     ) -> Result<()> {
+        let location = join.location;
+
+        let has_equality = join
+            .node
+            .conditions
+            .iter()
+            .any(|c| c.op == ComparisonOperator::Eq);
+
+        if has_equality {
+            // Use hash join.
+        } else {
+            // Need to fall back to nested loop join.
+        }
+
         unimplemented!()
     }
 
