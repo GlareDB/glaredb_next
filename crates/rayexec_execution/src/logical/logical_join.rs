@@ -90,7 +90,9 @@ pub struct LogicalArbitraryJoin {
 
 impl Explainable for LogicalArbitraryJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("ArbitraryJoin").with_value("join_type", self.join_type)
+        ExplainEntry::new("ArbitraryJoin")
+            .with_value("join_type", self.join_type)
+            .with_value("condition", &self.condition)
     }
 }
 

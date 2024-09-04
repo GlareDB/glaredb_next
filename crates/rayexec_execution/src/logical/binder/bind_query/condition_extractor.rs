@@ -166,7 +166,7 @@ impl<'a> JoinConditionExtractor<'a> {
                     .bind_context
                     .table_is_in_scope(self.right_scope, col.table_scope)?
                 {
-                    Ok(ExprJoinSide::Left)
+                    Ok(ExprJoinSide::Right)
                 } else {
                     Err(RayexecError::new(format!(
                         "Cannot find join side for expression: {expr}"
