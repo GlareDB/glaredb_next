@@ -12,7 +12,11 @@ pub struct LogicalLimit {
 
 impl Explainable for LogicalLimit {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Limit")
+        let mut ent = ExplainEntry::new("Limit").with_value("limit", self.limit);
+        if let Some(offset) = self.offset {
+            ent = ent.with_value("offset", offset);
+        }
+        ent
     }
 }
 

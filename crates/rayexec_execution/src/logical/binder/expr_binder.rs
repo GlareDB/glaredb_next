@@ -390,15 +390,15 @@ impl<'a> ExpressionBinder<'a> {
             ast::Expr::Exists {
                 subquery,
                 not_exists,
-            } => {
-                let subquery_type = if *not_exists {
-                    SubqueryType::NotExists
-                } else {
-                    SubqueryType::Exists
-                };
-
-                self.bind_subquery(bind_context, subquery, subquery_type, column_binder, recur)
-            }
+            } => self.bind_subquery(
+                bind_context,
+                subquery,
+                SubqueryType::Exists {
+                    negated: *not_exists,
+                },
+                column_binder,
+                recur,
+            ),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to

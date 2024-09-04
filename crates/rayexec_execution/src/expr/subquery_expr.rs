@@ -12,8 +12,7 @@ use super::Expression;
 #[derive(Debug, Clone, PartialEq)]
 pub enum SubqueryType {
     Scalar,
-    Exists,
-    NotExists,
+    Exists { negated: bool },
     Any,
 }
 
@@ -45,8 +44,8 @@ impl fmt::Display for SubqueryExpr {
 
         match self.subquery_type {
             SubqueryType::Scalar => (),
-            SubqueryType::Exists => write!(f, "EXISTS ")?,
-            SubqueryType::NotExists => write!(f, "NOT EXISTS ")?,
+            SubqueryType::Exists { negated: false } => write!(f, "EXISTS ")?,
+            SubqueryType::Exists { negated: true } => write!(f, "NOT EXISTS ")?,
             SubqueryType::Any => write!(f, "ANY ")?,
         }
 

@@ -251,6 +251,7 @@ pub enum LogicalOperator {
     Explain2(Node<Explain>),
     Describe2(Node<Describe>),
     // TODO
+    Invalid,
     Project(Node<LogicalProject>),
     Filter(Node<LogicalFilter>),
     Limit(Node<LogicalLimit>),
