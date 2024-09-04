@@ -305,6 +305,12 @@ pub trait AsScalarFunction {
     fn as_scalar_function(&self) -> &dyn ScalarFunction;
 }
 
+impl<S: ScalarFunction> AsScalarFunction for S {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction {
+        self as _
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum PhysicalScalarExpression {
     /// Reference to a column in the input batch.

@@ -22,7 +22,8 @@ use crate::{
     functions::{
         aggregate::AggregateFunction,
         scalar::{
-            like,
+            concat::Concat,
+            like::{self, StartsWith},
             list::{ListExtract, ListValues},
             ScalarFunction,
         },
@@ -293,6 +294,26 @@ impl<'a> ExpressionBinder<'a> {
                             left: Box::new(left),
                             right: Box::new(right),
                             op,
+                        })
+                    }
+                    ast::BinaryOperator::StringConcat => {
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, Concat, [left, right])?;
+                        let planned =
+                            Concat.plan_from_expressions(bind_context, &[&left, &right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr {
+                            function: planned,
+                            inputs: vec![left, right],
+                        })
+                    }
+                    ast::BinaryOperator::StringStartsWith => {
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, StartsWith, [left, right])?;
+                        let planned =
+                            StartsWith.plan_from_expressions(bind_context, &[&left, &right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr {
+                            function: planned,
+                            inputs: vec![left, right],
                         })
                     }
                     other => not_implemented!("binary operator {other:?}"),
