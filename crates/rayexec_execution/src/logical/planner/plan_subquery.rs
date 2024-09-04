@@ -96,7 +96,7 @@ impl SubqueryPlanner {
 
                 Ok(Expression::Column(column))
             }
-            _ => unimplemented!(),
+            other => not_implemented!("subquery type {other:?}"),
         }
     }
 }

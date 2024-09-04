@@ -9,7 +9,7 @@ use std::fmt;
 
 use super::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SubqueryType {
     Scalar,
     Exists { negated: bool },

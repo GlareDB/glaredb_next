@@ -32,9 +32,9 @@ use crate::{
     expr::{
         physical::{
             column_expr::PhysicalColumnExpr, planner::PhysicalExpressionPlanner,
-            PhysicalAggregateExpression,
+            PhysicalAggregateExpression, PhysicalScalarExpression,
         },
-        Expression, PhysicalScalarExpression, PhysicalSortExpression,
+        Expression, PhysicalSortExpression,
     },
     logical::{
         binder::bind_context::BindContext,
@@ -48,7 +48,7 @@ use crate::{
         logical_explain::LogicalExplain,
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
-        logical_join::LogicalCrossJoin,
+        logical_join::{JoinType, LogicalArbitraryJoin, LogicalCrossJoin},
         logical_limit::LogicalLimit,
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
@@ -335,7 +335,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
-            LogicalOperator::AnyJoin2(join) => self.push_any_join(id_gen, materializations, join),
+            LogicalOperator::ArbitraryJoin(join) => {
+                self.push_arbitrary_join(id_gen, materializations, join)
+            }
             LogicalOperator::EqualityJoin(join) => {
                 self.push_equality_join(id_gen, materializations, join)
             }
@@ -1358,40 +1360,47 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_any_join(
+    fn push_comparison_join(
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: Node<operator::AnyJoin>,
+        mut join: Node<LogicalArbitraryJoin>,
     ) -> Result<()> {
         unimplemented!()
-        // let location = join.location;
-        // let join = join.into_inner();
+    }
 
-        // let left_schema = join.left.output_schema(&[])?;
-        // let right_schema = join.right.output_schema(&[])?;
-        // let input_schema = left_schema.merge(right_schema);
-        // let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on, &input_schema)?;
+    fn push_arbitrary_join(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        mut join: Node<LogicalArbitraryJoin>,
+    ) -> Result<()> {
+        let location = join.location;
+        let filter = self
+            .expr_planner
+            .plan_scalar(&join.get_children_table_refs(), &join.node.condition)?;
 
-        // // Modify the filter as to match the join type.
-        // let filter = match join.join_type {
-        //     operator::JoinType::Inner => filter,
-        //     other => {
-        //         // TODO: Other join types.
-        //         return Err(RayexecError::new(format!(
-        //             "Unhandled join type for any join: {other:?}"
-        //         )));
-        //     }
-        // };
+        // Modify the filter as to match the join type.
+        let filter = match join.node.join_type {
+            JoinType::Inner => filter,
+            other => {
+                // TODO: Other join types.
+                return Err(RayexecError::new(format!(
+                    "Unhandled join type for any join: {other:?}"
+                )));
+            }
+        };
 
-        // self.push_nl_join(
-        //     id_gen,
-        //     materializations,
-        //     location,
-        //     *join.left,
-        //     *join.right,
-        //     Some(filter),
-        // )
+        let [left, right] = join.take_two_children_exact()?;
+
+        self.push_nl_join(
+            id_gen,
+            materializations,
+            location,
+            left,
+            right,
+            Some(filter),
+        )
     }
 
     fn push_cross_join(

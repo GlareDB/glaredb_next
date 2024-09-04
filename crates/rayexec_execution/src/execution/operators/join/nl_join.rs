@@ -14,7 +14,7 @@ use crate::execution::operators::{
     PollFinalize, PollPull, PollPush,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::PhysicalScalarExpression;
+use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
 
 /// Partition-local state on the build side.
@@ -439,21 +439,23 @@ impl DatabaseProtoConv for PhysicalNestedLoopJoin {
     type ProtoType = rayexec_proto::generated::execution::PhysicalNestedLoopJoin;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            filter: self
-                .filter
-                .as_ref()
-                .map(|f| f.to_proto_ctx(context))
-                .transpose()?,
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     filter: self
+        //         .filter
+        //         .as_ref()
+        //         .map(|f| f.to_proto_ctx(context))
+        //         .transpose()?,
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            filter: proto
-                .filter
-                .map(|f| PhysicalScalarExpression::from_proto_ctx(f, context))
-                .transpose()?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     filter: proto
+        //         .filter
+        //         .map(|f| PhysicalScalarExpression::from_proto_ctx(f, context))
+        //         .transpose()?,
+        // })
     }
 }
