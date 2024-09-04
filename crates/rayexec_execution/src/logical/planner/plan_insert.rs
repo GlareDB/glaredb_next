@@ -9,18 +9,15 @@ use rayexec_error::Result;
 use super::plan_query::QueryPlanner;
 
 #[derive(Debug)]
-pub struct InsertPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+pub struct InsertPlanner;
 
-impl<'a> InsertPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        InsertPlanner { bind_context }
-    }
-
-    pub fn plan(&self, insert: BoundInsert) -> Result<LogicalOperator> {
-        let planner = QueryPlanner::new(self.bind_context);
-        let mut source = planner.plan(insert.source)?;
+impl InsertPlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        insert: BoundInsert,
+    ) -> Result<LogicalOperator> {
+        let mut source = QueryPlanner.plan(bind_context, insert.source)?;
 
         if let Some(projections) = insert.projections {
             source = LogicalOperator::Project(Node {

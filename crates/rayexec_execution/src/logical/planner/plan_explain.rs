@@ -7,18 +7,15 @@ use crate::logical::{
 use rayexec_error::Result;
 
 #[derive(Debug)]
-pub struct ExplainPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+pub struct ExplainPlanner;
 
-impl<'a> ExplainPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        ExplainPlanner { bind_context }
-    }
-
-    pub fn plan(&self, explain: BoundExplain) -> Result<LogicalOperator> {
-        let planner = QueryPlanner::new(self.bind_context);
-        let plan = planner.plan(explain.query)?;
+impl ExplainPlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        explain: BoundExplain,
+    ) -> Result<LogicalOperator> {
+        let plan = QueryPlanner.plan(bind_context, explain.query)?;
 
         Ok(LogicalOperator::Explain(Node {
             node: LogicalExplain {

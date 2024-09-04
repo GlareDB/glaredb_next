@@ -15,19 +15,16 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct StatementPlanner<'a> {
-    pub bind_context: &'a BindContext, // TODO: Need mut?
-}
+pub struct StatementPlanner;
 
-impl<'a> StatementPlanner<'a> {
-    pub fn plan(&self, statement: BoundStatement) -> Result<LogicalOperator> {
+impl StatementPlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        statement: BoundStatement,
+    ) -> Result<LogicalOperator> {
         match statement {
-            BoundStatement::Query(query) => {
-                let planner = QueryPlanner {
-                    bind_context: self.bind_context,
-                };
-                planner.plan(query)
-            }
+            BoundStatement::Query(query) => QueryPlanner.plan(bind_context, query),
             BoundStatement::SetVar(plan) => Ok(LogicalOperator::SetVar(plan)),
             BoundStatement::ShowVar(plan) => Ok(LogicalOperator::ShowVar(plan)),
             BoundStatement::ResetVar(plan) => Ok(LogicalOperator::ResetVar(plan)),
@@ -38,16 +35,12 @@ impl<'a> StatementPlanner<'a> {
                 Ok(LogicalOperator::DetachDatabase(plan))
             }
             BoundStatement::Drop(plan) => Ok(LogicalOperator::Drop(plan)),
-            BoundStatement::Insert(insert) => InsertPlanner::new(self.bind_context).plan(insert),
+            BoundStatement::Insert(insert) => InsertPlanner.plan(bind_context, insert),
             BoundStatement::CreateSchema(plan) => Ok(LogicalOperator::CreateSchema(plan)),
-            BoundStatement::CreateTable(create) => {
-                CreateTablePlanner::new(self.bind_context).plan(create)
-            }
+            BoundStatement::CreateTable(create) => CreateTablePlanner.plan(bind_context, create),
             BoundStatement::Describe(plan) => Ok(LogicalOperator::Describe(plan)),
-            BoundStatement::Explain(explain) => {
-                ExplainPlanner::new(self.bind_context).plan(explain)
-            }
-            BoundStatement::CopyTo(copy_to) => CopyPlanner::new(self.bind_context).plan(copy_to),
+            BoundStatement::Explain(explain) => ExplainPlanner.plan(bind_context, explain),
+            BoundStatement::CopyTo(copy_to) => CopyPlanner.plan(bind_context, copy_to),
         }
     }
 }

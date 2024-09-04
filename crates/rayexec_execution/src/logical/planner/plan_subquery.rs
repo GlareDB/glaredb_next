@@ -5,17 +5,12 @@ use crate::{
 use rayexec_error::{not_implemented, Result};
 
 #[derive(Debug)]
-pub struct SubqueryPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+pub struct SubqueryPlanner;
 
-impl<'a> SubqueryPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        SubqueryPlanner { bind_context }
-    }
-
+impl SubqueryPlanner {
     pub fn plan(
         &self,
+        bind_context: &mut BindContext,
         expr: &mut Expression,
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {

@@ -9,29 +9,19 @@ use rayexec_error::Result;
 use super::plan_setop::SetOpPlanner;
 
 #[derive(Debug)]
-pub struct QueryPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+pub struct QueryPlanner;
 
-impl<'a> QueryPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        QueryPlanner { bind_context }
-    }
-
-    pub fn plan(&self, query: BoundQuery) -> Result<LogicalOperator> {
+impl QueryPlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        query: BoundQuery,
+    ) -> Result<LogicalOperator> {
         match query {
-            BoundQuery::Select(select) => {
-                let planner = SelectPlanner {
-                    bind_context: self.bind_context,
-                };
-                planner.plan(select)
-            }
-            BoundQuery::Setop(setop) => {
-                let planner = SetOpPlanner::new(self.bind_context);
-                planner.plan(setop)
-            }
+            BoundQuery::Select(select) => SelectPlanner.plan(bind_context, select),
+            BoundQuery::Setop(setop) => SetOpPlanner.plan(bind_context, setop),
             BoundQuery::Values(values) => {
-                let table = self.bind_context.get_table(values.expressions_table)?;
+                let table = bind_context.get_table(values.expressions_table)?;
 
                 Ok(LogicalOperator::Scan(Node {
                     node: LogicalScan {

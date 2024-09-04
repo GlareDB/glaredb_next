@@ -13,33 +13,31 @@ use crate::{
 };
 use rayexec_error::{RayexecError, Result};
 
-pub struct SetOpPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+#[derive(Debug)]
+pub struct SetOpPlanner;
 
-impl<'a> SetOpPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        SetOpPlanner { bind_context }
-    }
-
-    pub fn plan(&self, setop: BoundSetOp) -> Result<LogicalOperator> {
-        let query_planner = QueryPlanner::new(self.bind_context);
-        let mut left = query_planner.plan(*setop.left)?;
-        let mut right = query_planner.plan(*setop.right)?;
+impl SetOpPlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        setop: BoundSetOp,
+    ) -> Result<LogicalOperator> {
+        let mut left = QueryPlanner.plan(bind_context, *setop.left)?;
+        let mut right = QueryPlanner.plan(bind_context, *setop.right)?;
 
         match setop.cast_req {
             SetOpCastRequirement::LeftNeedsCast(left_cast_ref) => {
-                left = self.wrap_cast(left, setop.left_scope, left_cast_ref)?;
+                left = self.wrap_cast(bind_context, left, setop.left_scope, left_cast_ref)?;
             }
             SetOpCastRequirement::RightNeedsCast(right_cast_ref) => {
-                right = self.wrap_cast(right, setop.right_scope, right_cast_ref)?;
+                right = self.wrap_cast(bind_context, right, setop.right_scope, right_cast_ref)?;
             }
             SetOpCastRequirement::BothNeedsCast {
                 left_cast_ref,
                 right_cast_ref,
             } => {
-                left = self.wrap_cast(left, setop.left_scope, left_cast_ref)?;
-                right = self.wrap_cast(right, setop.right_scope, right_cast_ref)?;
+                left = self.wrap_cast(bind_context, left, setop.left_scope, left_cast_ref)?;
+                right = self.wrap_cast(bind_context, right, setop.right_scope, right_cast_ref)?;
             }
             SetOpCastRequirement::None => (),
         }
@@ -57,15 +55,20 @@ impl<'a> SetOpPlanner<'a> {
 
     fn wrap_cast(
         &self,
+        bind_context: &BindContext,
         orig_plan: LogicalOperator,
         orig_scope: BindScopeRef,
         cast_table_ref: TableRef,
     ) -> Result<LogicalOperator> {
-        let orig_table = self.get_original_table(orig_scope)?;
+        let orig_table = self.get_original_table(bind_context, orig_scope)?;
 
         Ok(LogicalOperator::Project(Node {
             node: LogicalProject {
-                projections: self.generate_cast_expressions(orig_table, cast_table_ref)?,
+                projections: self.generate_cast_expressions(
+                    bind_context,
+                    orig_table,
+                    cast_table_ref,
+                )?,
                 projection_table: cast_table_ref,
             },
             location: LocationRequirement::Any,
@@ -73,8 +76,12 @@ impl<'a> SetOpPlanner<'a> {
         }))
     }
 
-    fn get_original_table(&self, scope_ref: BindScopeRef) -> Result<&Table> {
-        let mut iter = self.bind_context.iter_tables(scope_ref)?;
+    fn get_original_table<'a>(
+        &self,
+        bind_context: &'a BindContext,
+        scope_ref: BindScopeRef,
+    ) -> Result<&'a Table> {
+        let mut iter = bind_context.iter_tables(scope_ref)?;
         let table = match iter.next() {
             Some(table) => table,
             None => return Err(RayexecError::new("No table is scope")),
@@ -90,10 +97,11 @@ impl<'a> SetOpPlanner<'a> {
 
     fn generate_cast_expressions(
         &self,
+        bind_context: &BindContext,
         orig_table: &Table,
         cast_table_ref: TableRef,
     ) -> Result<Vec<Expression>> {
-        let cast_table = self.bind_context.get_table(cast_table_ref)?;
+        let cast_table = bind_context.get_table(cast_table_ref)?;
 
         let mut cast_exprs = Vec::with_capacity(orig_table.column_types.len());
 

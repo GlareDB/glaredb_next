@@ -7,19 +7,16 @@ use crate::logical::{
 use rayexec_error::Result;
 
 #[derive(Debug)]
-pub struct CreateTablePlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+pub struct CreateTablePlanner;
 
-impl<'a> CreateTablePlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        CreateTablePlanner { bind_context }
-    }
-
-    pub fn plan(&self, create: BoundCreateTable) -> Result<LogicalOperator> {
+impl CreateTablePlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        create: BoundCreateTable,
+    ) -> Result<LogicalOperator> {
         let children = if let Some(source) = create.source {
-            let planner = QueryPlanner::new(self.bind_context);
-            vec![planner.plan(source)?]
+            vec![QueryPlanner.plan(bind_context, source)?]
         } else {
             Vec::new()
         };

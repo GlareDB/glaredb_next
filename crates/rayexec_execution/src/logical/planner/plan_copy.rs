@@ -9,25 +9,18 @@ use crate::logical::{
 };
 use rayexec_error::Result;
 
-pub struct CopyPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+#[derive(Debug)]
+pub struct CopyPlanner;
 
-impl<'a> CopyPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        CopyPlanner { bind_context }
-    }
-
-    pub fn plan(&self, copy_to: BoundCopyTo) -> Result<LogicalOperator> {
+impl CopyPlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        copy_to: BoundCopyTo,
+    ) -> Result<LogicalOperator> {
         let source = match copy_to.source {
-            BoundCopyToSource::Query(query) => {
-                let planner = QueryPlanner::new(self.bind_context);
-                planner.plan(query)?
-            }
-            BoundCopyToSource::Table(table) => {
-                let planner = FromPlanner::new(self.bind_context);
-                planner.plan(table)?
-            }
+            BoundCopyToSource::Query(query) => QueryPlanner.plan(bind_context, query)?,
+            BoundCopyToSource::Table(table) => FromPlanner.plan(bind_context, table)?,
         };
 
         // Currently only support copying to local.

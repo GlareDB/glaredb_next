@@ -206,12 +206,8 @@ where
                     session_vars: &self.vars,
                     resolve_context: &resolve_context,
                 };
-                let (bound_stmt, bind_context) = binder.bind(resolved_stmt)?;
-
-                let planner = StatementPlanner {
-                    bind_context: &bind_context,
-                };
-                let mut logical = planner.plan(bound_stmt)?;
+                let (bound_stmt, mut bind_context) = binder.bind(resolved_stmt)?;
+                let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
 
                 // let cols: Vec<_> = bind_context
                 //     .iter_tables(bind_context.root_scope_ref())?

@@ -26,21 +26,15 @@ use crate::{
 use super::plan_query::QueryPlanner;
 
 #[derive(Debug)]
-pub struct FromPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+pub struct FromPlanner;
 
-impl<'a> FromPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        FromPlanner { bind_context }
-    }
-
-    pub fn plan(&self, from: BoundFrom) -> Result<LogicalOperator> {
+impl FromPlanner {
+    pub fn plan(&self, bind_context: &mut BindContext, from: BoundFrom) -> Result<LogicalOperator> {
         match from.item {
             BoundFromItem::BaseTable(table) => {
                 let mut types = Vec::new();
                 let mut names = Vec::new();
-                for table in self.bind_context.iter_tables(from.bind_ref)? {
+                for table in bind_context.iter_tables(from.bind_ref)? {
                     types.extend(table.column_types.iter().cloned());
                     names.extend(table.column_names.iter().cloned());
                 }
@@ -63,11 +57,11 @@ impl<'a> FromPlanner<'a> {
                     children: Vec::new(),
                 }))
             }
-            BoundFromItem::Join(join) => self.plan_join(join),
+            BoundFromItem::Join(join) => self.plan_join(bind_context, join),
             BoundFromItem::TableFunction(func) => {
                 let mut types = Vec::new();
                 let mut names = Vec::new();
-                for table in self.bind_context.iter_tables(from.bind_ref)? {
+                for table in bind_context.iter_tables(from.bind_ref)? {
                     types.extend(table.column_types.iter().cloned());
                     names.extend(table.column_names.iter().cloned());
                 }
@@ -89,8 +83,7 @@ impl<'a> FromPlanner<'a> {
                 }))
             }
             BoundFromItem::Subquery(subquery) => {
-                let planner = QueryPlanner::new(self.bind_context);
-                let plan = planner.plan(*subquery.subquery)?;
+                let plan = QueryPlanner.plan(bind_context, *subquery.subquery)?;
 
                 // Project subquery columns into this scope.
                 //
@@ -99,7 +92,7 @@ impl<'a> FromPlanner<'a> {
                 // without special-casing from binding.
                 let mut projections = Vec::new();
                 for table_ref in plan.get_output_table_refs() {
-                    let table = self.bind_context.get_table(table_ref)?;
+                    let table = bind_context.get_table(table_ref)?;
                     for col_idx in 0..table.num_columns() {
                         projections.push(Expression::Column(ColumnExpr {
                             table_scope: table_ref,
@@ -125,13 +118,17 @@ impl<'a> FromPlanner<'a> {
         }
     }
 
-    fn plan_join(&self, join: BoundJoin) -> Result<LogicalOperator> {
+    fn plan_join(
+        &self,
+        bind_context: &mut BindContext,
+        join: BoundJoin,
+    ) -> Result<LogicalOperator> {
         if join.lateral {
             not_implemented!("LATERAL join")
         }
 
-        let mut left = self.plan(*join.left)?;
-        let mut right = self.plan(*join.right)?;
+        let mut left = self.plan(bind_context, *join.left)?;
+        let mut right = self.plan(bind_context, *join.right)?;
 
         // Cross join.
         if join.conditions.is_empty() {
@@ -146,7 +143,7 @@ impl<'a> FromPlanner<'a> {
         }
 
         let extractor = JoinConditionExtractor::new(
-            self.bind_context,
+            bind_context,
             join.left_bind_ref,
             join.right_bind_ref,
             join.join_type,

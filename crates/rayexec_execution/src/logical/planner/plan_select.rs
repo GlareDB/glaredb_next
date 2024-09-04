@@ -11,18 +11,20 @@ use crate::logical::{
 use rayexec_error::Result;
 
 #[derive(Debug)]
-pub struct SelectPlanner<'a> {
-    pub bind_context: &'a BindContext,
-}
+pub struct SelectPlanner;
 
-impl<'a> SelectPlanner<'a> {
-    pub fn plan(&self, mut select: BoundSelect) -> Result<LogicalOperator> {
+impl SelectPlanner {
+    pub fn plan(
+        &self,
+        bind_context: &mut BindContext,
+        mut select: BoundSelect,
+    ) -> Result<LogicalOperator> {
         // Handle FROM
-        let mut plan = FromPlanner::new(self.bind_context).plan(select.from)?;
+        let mut plan = FromPlanner.plan(bind_context, select.from)?;
 
         // Handle WHERE
         if let Some(mut filter) = select.filter {
-            plan = SubqueryPlanner::new(self.bind_context).plan(&mut filter, plan)?;
+            plan = SubqueryPlanner.plan(bind_context, &mut filter, plan)?;
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter { filter },
                 location: LocationRequirement::Any,
@@ -42,11 +44,11 @@ impl<'a> SelectPlanner<'a> {
             };
 
             for expr in &mut group_exprs {
-                plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+                plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
             }
 
             for expr in &mut select.select_list.aggregates {
-                plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+                plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
             }
 
             let agg = LogicalAggregate {
@@ -75,7 +77,7 @@ impl<'a> SelectPlanner<'a> {
 
         // Handle projections.
         for expr in &mut select.select_list.projections {
-            plan = SubqueryPlanner::new(self.bind_context).plan(expr, plan)?;
+            plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
         }
 
         plan = LogicalOperator::Project(Node {
