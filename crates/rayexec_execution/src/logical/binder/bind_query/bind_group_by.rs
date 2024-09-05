@@ -4,12 +4,11 @@ use crate::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
             column_binder::{DefaultColumnBinder, ExpressionColumnBinder},
-            expr_binder::{ExpressionBinder, RecursionContext},
+            expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
-use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 use std::collections::{BTreeSet, HashSet};
@@ -27,12 +26,6 @@ pub struct BoundGroupBy {
 pub struct GroupByBinder<'a> {
     pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
-    /// Set of columns in the select list that we've already bound a GROUP BY
-    /// for.
-    ///
-    /// This is used deduplicate GROUP BY expressions if multiple expressions
-    /// reference the same select list column.
-    pub referenced_select_exprs: HashSet<ColumnExpr>,
 }
 
 impl<'a> GroupByBinder<'a> {
@@ -40,7 +33,6 @@ impl<'a> GroupByBinder<'a> {
         GroupByBinder {
             current,
             resolve_context,
-            referenced_select_exprs: HashSet::new(),
         }
     }
 
@@ -51,12 +43,36 @@ impl<'a> GroupByBinder<'a> {
         group_by: ast::GroupByNode<ResolvedMeta>,
     ) -> Result<BoundGroupBy> {
         let sets = GroupByWithSets::try_from_ast(group_by)?;
-
         let group_table = bind_context.new_ephemeral_table()?;
+
+        let mut column_binder = GroupByColumnBinder { select_list };
+        let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
+
         let expressions = sets
             .expressions
             .into_iter()
-            .map(|expr| self.bind_expr(bind_context, select_list, group_table, expr))
+            .enumerate()
+            .map(|(idx, expr)| {
+                let expr = expr_binder.bind_expression(
+                    bind_context,
+                    &expr,
+                    &mut column_binder,
+                    RecursionContext {
+                        allow_windows: false,
+                        allow_aggregates: false,
+                        is_root: true,
+                    },
+                )?;
+
+                let datatype = expr.datatype(bind_context)?;
+                bind_context.push_column_for_table(
+                    group_table,
+                    format!("__generated_group_{idx}"),
+                    datatype,
+                )?;
+
+                Ok(expr)
+            })
             .collect::<Result<Vec<_>>>()?;
 
         Ok(BoundGroupBy {
@@ -65,124 +81,24 @@ impl<'a> GroupByBinder<'a> {
             grouping_sets: sets.grouping_sets,
         })
     }
-
-    /// Binds an expression in the GROUP BY clause.
-    ///
-    /// First tries to bind to the select list. If successfully bound, the
-    /// expression in the select list will be modifed to point to the expression
-    /// in the GROUP BY clause.
-    ///
-    /// Otherwise just tries to bind the expression normally.
-    fn bind_expr(
-        &mut self,
-        bind_context: &mut BindContext,
-        select_list: &mut SelectList,
-        group_table: TableRef,
-        expr: ast::Expr<ResolvedMeta>,
-    ) -> Result<Expression> {
-        // TODO: This should try to bind the expression normally first. Should
-        // implement column binder here.
-
-        // Check if there's already something in the list that we're
-        // referencing.
-        match select_list.column_expr_for_reference(bind_context, &expr)? {
-            Some(col_expr) => {
-                if self.referenced_select_exprs.contains(&col_expr) {
-                    // Another expression in the GROUP BY is already referencing
-                    // this column, can just replace with a constant.
-                    return Ok(Expression::Literal(LiteralExpr {
-                        literal: ScalarValue::Int8(1),
-                    }));
-                }
-
-                // Swap expression in select list with a reference that points
-                // to the GROUP BY expression.
-
-                let datatype = col_expr.datatype(bind_context)?;
-                let idx = bind_context.push_column_for_table(
-                    group_table,
-                    "__generated_group_expr",
-                    datatype,
-                )?;
-
-                // TODO: This needs to replace all projections in the select
-                // list.
-
-                let select_expr = select_list.get_projection_mut(col_expr.column)?;
-                let orig = std::mem::replace(
-                    select_expr,
-                    Expression::Column(ColumnExpr {
-                        table_scope: group_table,
-                        column: idx,
-                    }),
-                );
-
-                self.referenced_select_exprs.insert(col_expr);
-
-                Ok(orig)
-            }
-            None => {
-                let expr = ExpressionBinder::new(self.current, self.resolve_context)
-                    .bind_expression(
-                        bind_context,
-                        &expr,
-                        &mut DefaultColumnBinder,
-                        RecursionContext {
-                            allow_windows: false,
-                            allow_aggregates: false,
-                            is_root: true,
-                        },
-                    )?;
-
-                let datatype = expr.datatype(bind_context)?;
-                let col_idx = bind_context.push_column_for_table(
-                    group_table,
-                    "__generated_group_expr",
-                    datatype,
-                )?;
-
-                // If expression is a column reference, go ahead and replace all
-                // equivalent columns in the projection list with an expression
-                // that point to the expression in the GROUP BY.
-                //
-                // TODO: Might make sense to do this in planning instead.
-                //
-                // TODO: We can get fancier here and extract out all columns
-                // instead of just doing the top-level column check.
-                if let Expression::Column(col_expr) = &expr {
-                    let replacement = ColumnExpr {
-                        table_scope: group_table,
-                        column: col_idx,
-                    };
-                    select_list.replace_columns_in_projection(col_expr.clone(), replacement)?;
-                }
-
-                Ok(expr)
-            }
-        }
-    }
 }
 
 #[derive(Debug)]
-struct GroupByColumnBinder<'a> {
-    group_table: TableRef,
+pub struct GroupByColumnBinder<'a> {
     select_list: &'a mut SelectList,
-    /// Set of columns in the select list that we've already bound a GROUP BY
-    /// for.
-    ///
-    /// This is used deduplicate GROUP BY expressions if multiple expressions
-    /// reference the same select list column.
-    referenced_select_exprs: HashSet<ColumnExpr>,
 }
 
 impl<'a> ExpressionColumnBinder for GroupByColumnBinder<'a> {
     fn bind_from_root_literal(
         &mut self,
-        bind_scope: BindScopeRef,
-        bind_context: &mut BindContext,
+        _bind_scope: BindScopeRef,
+        _bind_context: &mut BindContext,
         literal: &ast::Literal<ResolvedMeta>,
     ) -> Result<Option<Expression>> {
-        unimplemented!()
+        if let Some(col) = self.select_list.column_by_ordinal(literal)? {
+            return Ok(Some(Expression::Column(col)));
+        }
+        Ok(None)
     }
 
     fn bind_from_ident(
@@ -190,44 +106,23 @@ impl<'a> ExpressionColumnBinder for GroupByColumnBinder<'a> {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         ident: &ast::Ident,
+        recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         // Try to bind normally.
-        if let Some(col) = DefaultColumnBinder.bind_from_ident(bind_scope, bind_context, ident)? {
+        if let Some(col) =
+            DefaultColumnBinder.bind_from_ident(bind_scope, bind_context, ident, recur)?
+        {
             return Ok(Some(col));
+        }
+
+        // Only allow binding alias if we at the root of the expressions.
+        if !recur.is_root {
+            return Ok(None);
         }
 
         // Try to bind to a user-provided alias.
         if let Some(col) = self.select_list.column_by_user_alias(ident) {
-            if self.referenced_select_exprs.contains(&col) {
-                // Another expression in the GROUP BY is already referencing
-                // this column, can just replace with a constant.
-                return Ok(Some(Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(1),
-                })));
-            }
-
-            // Swap expression in select list with a reference that points
-            // to the GROUP BY expression.
-
-            let datatype = col.datatype(bind_context)?;
-            let idx = bind_context.push_column_for_table(
-                self.group_table,
-                "__generated_group_expr",
-                datatype,
-            )?;
-
-            let select_expr = self.select_list.get_projection_mut(col.column)?;
-            let orig = std::mem::replace(
-                select_expr,
-                Expression::Column(ColumnExpr {
-                    table_scope: self.group_table,
-                    column: idx,
-                }),
-            );
-
-            self.referenced_select_exprs.insert(col);
-
-            return Ok(Some(orig));
+            return Ok(Some(Expression::Column(col)));
         }
 
         Ok(None)
@@ -238,8 +133,9 @@ impl<'a> ExpressionColumnBinder for GroupByColumnBinder<'a> {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
+        recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents)
+        DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents, recur)
     }
 }
 

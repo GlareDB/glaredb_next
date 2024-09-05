@@ -6,7 +6,10 @@ use crate::{
     logical::resolver::ResolvedMeta,
 };
 
-use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias};
+use super::{
+    bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias},
+    expr_binder::RecursionContext,
+};
 
 /// Defined behavior of how to bind idents to actual columns.
 ///
@@ -33,6 +36,7 @@ pub trait ExpressionColumnBinder {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         ident: &ast::Ident,
+        recur: RecursionContext,
     ) -> Result<Option<Expression>>;
 
     fn bind_from_idents(
@@ -40,6 +44,7 @@ pub trait ExpressionColumnBinder {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
+        recur: RecursionContext,
     ) -> Result<Option<Expression>>;
 }
 
@@ -68,6 +73,7 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         ident: &ast::Ident,
+        _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         let col = ident.as_normalized_string();
         self.bind_column(bind_scope, bind_context, None, &col)
@@ -78,6 +84,7 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
+        _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         let (alias, col) = idents_to_alias_and_column(idents)?;
         self.bind_column(bind_scope, bind_context, alias, &col)
@@ -199,6 +206,7 @@ impl ExpressionColumnBinder for ErroringColumnBinder {
         _bind_scope: BindScopeRef,
         _bind_context: &mut BindContext,
         _ident: &ast::Ident,
+        _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         Err(RayexecError::new(
             "Statement does not support binding to columns",
@@ -210,6 +218,7 @@ impl ExpressionColumnBinder for ErroringColumnBinder {
         _bind_scope: BindScopeRef,
         _bind_context: &mut BindContext,
         _idents: &[ast::Ident],
+        _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         Err(RayexecError::new(
             "Statement does not support binding to columns",

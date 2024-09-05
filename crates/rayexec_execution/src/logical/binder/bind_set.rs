@@ -5,7 +5,7 @@ use rayexec_parser::ast;
 use crate::{
     engine::vars::SessionVars,
     logical::{
-        binder::expr_binder::{ExpressionBinder, RecursionContext},
+        binder::expr_binder::{BaseExpressionBinder, RecursionContext},
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll},
         operator::{LocationRequirement, Node},
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -33,16 +33,17 @@ impl<'a> SetVarBinder<'a> {
         bind_context: &mut BindContext,
         mut set: ast::SetVariable<ResolvedMeta>,
     ) -> Result<Node<LogicalSetVar>> {
-        let expr = ExpressionBinder::new(self.current, &ResolveContext::empty()).bind_expression(
-            bind_context,
-            &set.value,
-            &mut ErroringColumnBinder,
-            RecursionContext {
-                allow_windows: false,
-                allow_aggregates: false,
-                is_root: true,
-            },
-        )?;
+        let expr = BaseExpressionBinder::new(self.current, &ResolveContext::empty())
+            .bind_expression(
+                bind_context,
+                &set.value,
+                &mut ErroringColumnBinder,
+                RecursionContext {
+                    allow_windows: false,
+                    allow_aggregates: false,
+                    is_root: true,
+                },
+            )?;
 
         let name = set.reference.pop()?; // TODO: Allow compound references?
         let value = expr.try_into_scalar()?;

@@ -7,7 +7,7 @@ use crate::{
         binder::{
             bind_context::{BindContext, BindScopeRef},
             column_binder::ExpressionColumnBinder,
-            expr_binder::{ExpressionBinder, RecursionContext},
+            expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
@@ -40,7 +40,7 @@ impl<'a> HavingBinder<'a> {
         bind_context: &mut BindContext,
         having: ast::Expr<ResolvedMeta>,
     ) -> Result<Expression> {
-        ExpressionBinder::new(self.current, self.resolve_context).bind_expression(
+        BaseExpressionBinder::new(self.current, self.resolve_context).bind_expression(
             bind_context,
             &having,
             &mut self.column_binder,
@@ -77,6 +77,7 @@ impl<'a> ExpressionColumnBinder for HavingColumnBinder<'a> {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         ident: &ast::Ident,
+        _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         let col = ident.as_normalized_string();
         let group_by_table = match self.group_by {
@@ -94,6 +95,7 @@ impl<'a> ExpressionColumnBinder for HavingColumnBinder<'a> {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         idents: &[ast::Ident],
+        _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         not_implemented!("Compound idents in HAVING")
     }

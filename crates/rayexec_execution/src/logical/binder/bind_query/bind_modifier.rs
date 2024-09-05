@@ -8,7 +8,7 @@ use crate::{
         binder::{
             bind_context::{BindContext, BindScopeRef},
             column_binder::DefaultColumnBinder,
-            expr_binder::{ExpressionBinder, RecursionContext},
+            expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
@@ -109,11 +109,11 @@ impl<'a> ModifierBinder<'a> {
         select_list: &mut SelectList,
         expr: ast::Expr<ResolvedMeta>,
     ) -> Result<ColumnExpr> {
-        // Check if there's already something in the list that we're
-        // referencing.
-        if let Some(expr) = select_list.column_expr_for_reference(bind_context, &expr)? {
-            return Ok(expr);
-        }
+        // // Check if there's already something in the list that we're
+        // // referencing.
+        // if let Some(expr) = select_list.column_expr_for_reference(bind_context, &expr)? {
+        //     return Ok(expr);
+        // }
 
         // TODO: What do here?
         let current = match self.current.first() {
@@ -121,7 +121,7 @@ impl<'a> ModifierBinder<'a> {
             None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
         };
 
-        let expr = ExpressionBinder::new(current, self.resolve_context).bind_expression(
+        let expr = BaseExpressionBinder::new(current, self.resolve_context).bind_expression(
             bind_context,
             &expr,
             &mut DefaultColumnBinder,
@@ -146,7 +146,7 @@ impl<'a> ModifierBinder<'a> {
             None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
         };
 
-        let expr_binder = ExpressionBinder::new(current, self.resolve_context);
+        let expr_binder = BaseExpressionBinder::new(current, self.resolve_context);
 
         let limit = match limit_mod.limit {
             Some(limit) => expr_binder.bind_expression(

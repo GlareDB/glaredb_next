@@ -53,14 +53,14 @@ pub struct RecursionContext {
 }
 
 #[derive(Debug)]
-pub struct ExpressionBinder<'a> {
+pub struct BaseExpressionBinder<'a> {
     pub current: BindScopeRef,
     pub resolve_context: &'a ResolveContext,
 }
 
-impl<'a> ExpressionBinder<'a> {
+impl<'a> BaseExpressionBinder<'a> {
     pub const fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
-        ExpressionBinder {
+        BaseExpressionBinder {
             current,
             resolve_context,
         }
@@ -89,7 +89,7 @@ impl<'a> ExpressionBinder<'a> {
         match expr {
             ast::Expr::Ident(ident) => {
                 // Use the provided column binder, no fallback.
-                match column_binder.bind_from_ident(self.current, bind_context, ident)? {
+                match column_binder.bind_from_ident(self.current, bind_context, ident, recur)? {
                     Some(expr) => Ok(expr),
                     None => Err(RayexecError::new(format!(
                         "Missing column for reference: {ident}",
@@ -98,7 +98,7 @@ impl<'a> ExpressionBinder<'a> {
             }
             ast::Expr::CompoundIdent(idents) => {
                 // Use the provided column binder, no fallback.
-                match column_binder.bind_from_idents(self.current, bind_context, idents)? {
+                match column_binder.bind_from_idents(self.current, bind_context, idents, recur)? {
                     Some(expr) => Ok(expr),
                     None => {
                         let ident_string = idents

@@ -4,7 +4,7 @@ use crate::{
         binder::{
             bind_context::{BindContext, BindScopeRef},
             column_binder::DefaultColumnBinder,
-            expr_binder::{ExpressionBinder, RecursionContext},
+            expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
@@ -84,7 +84,7 @@ impl<'a> SelectBinder<'a> {
         let where_expr = select
             .where_expr
             .map(|expr| {
-                let binder = ExpressionBinder::new(self.current, self.resolve_context);
+                let binder = BaseExpressionBinder::new(self.current, self.resolve_context);
                 binder.bind_expression(
                     bind_context,
                     &expr,
@@ -106,10 +106,17 @@ impl<'a> SelectBinder<'a> {
         let limit = modifier_binder.bind_limit(bind_context, limit)?;
 
         // Handle GROUP BY
-        let mut group_by_binder = GroupByBinder::new(from_bind_ref, self.resolve_context);
         let group_by = select
             .group_by
-            .map(|g| group_by_binder.bind(bind_context, &mut select_list, g))
+            .map(|group_by| {
+                let mut group_by_binder = GroupByBinder::new(from_bind_ref, self.resolve_context);
+                let mut group_by =
+                    group_by_binder.bind(bind_context, &mut select_list, group_by)?;
+                // Update select list.
+                select_list.update_group_dependencies(&mut group_by)?;
+
+                Ok::<_, RayexecError>(group_by)
+            })
             .transpose()?;
 
         // Handle HAVING

@@ -14,7 +14,7 @@ use crate::{
         binder::{
             bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef},
             column_binder::DefaultColumnBinder,
-            expr_binder::{ExpressionBinder, RecursionContext},
+            expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         logical_join::JoinType,
         operator::LocationRequirement,
@@ -430,7 +430,7 @@ impl<'a> FromBinder<'a> {
         bind_context.append_context(self.current, left_idx)?;
         bind_context.append_context(self.current, right_idx)?;
 
-        let condition_binder = ExpressionBinder::new(self.current, self.resolve_context);
+        let condition_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
         let conditions = condition_binder.bind_expressions(
             bind_context,
             &conditions,

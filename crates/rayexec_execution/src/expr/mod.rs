@@ -265,6 +265,36 @@ impl Expression {
         }
     }
 
+    /// Walks the expression to ensure it contains only a single logical column.
+    ///
+    /// Multiple column expressions may exist, but they must point to the same column.
+    pub fn contains_single_column(&self) -> bool {
+        fn inner(expr: &Expression, current: &mut Option<ColumnExpr>) -> bool {
+            match expr {
+                Expression::Column(col) => {
+                    if let Some(curr) = current {
+                        return curr == col;
+                    }
+                    *current = Some(*col);
+                    true
+                }
+                other => {
+                    let mut result = true;
+                    other
+                        .for_each_child(&mut |expr| {
+                            result = result && inner(expr, current);
+                            Ok(())
+                        })
+                        .expect("not to fail");
+                    result
+                }
+            }
+        }
+
+        let mut found = None;
+        inner(self, &mut found)
+    }
+
     pub const fn is_column_expr(&self) -> bool {
         matches!(self, Self::Column(_))
     }

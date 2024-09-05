@@ -12,7 +12,7 @@ use crate::logical::{
 use super::{
     bind_context::{BindContext, BindScopeRef},
     column_binder::ErroringColumnBinder,
-    expr_binder::{ExpressionBinder, RecursionContext},
+    expr_binder::{BaseExpressionBinder, RecursionContext},
 };
 
 #[derive(Debug)]
@@ -46,7 +46,7 @@ impl AttachBinder {
 
                 for (k, v) in attach.options {
                     let k = k.into_normalized_string();
-                    let expr = ExpressionBinder::new(self.current, &ResolveContext::empty())
+                    let expr = BaseExpressionBinder::new(self.current, &ResolveContext::empty())
                         .bind_expression(
                             bind_context,
                             &v,

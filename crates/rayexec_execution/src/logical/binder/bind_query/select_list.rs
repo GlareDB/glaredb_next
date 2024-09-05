@@ -4,7 +4,7 @@ use crate::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
             column_binder::DefaultColumnBinder,
-            expr_binder::{ExpressionBinder, RecursionContext},
+            expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
@@ -13,7 +13,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, SelectExpr};
 use std::collections::HashMap;
 
-use super::select_expr_expander::ExpandedSelectExpr;
+use super::{bind_group_by::BoundGroupBy, select_expr_expander::ExpandedSelectExpr};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Preprojection {
@@ -121,7 +121,7 @@ impl SelectList {
         }
 
         // Bind the expressions.
-        let expr_binder = ExpressionBinder::new(bind_ref, resolve_context);
+        let expr_binder = BaseExpressionBinder::new(bind_ref, resolve_context);
         let mut exprs = Vec::with_capacity(projections.len());
         for proj in projections {
             match proj {
@@ -315,62 +315,52 @@ impl SelectList {
         Ok(None)
     }
 
-    /// Attempt to get an expression with the possibility of it pointing to an
-    /// expression in the select list.
+    /// Updates expressions in the select list and bound group to ensure the
+    /// select list depends on columns in the group by, and not the other way
+    /// around.
     ///
-    /// This allows GROUP BY and ORDER BY to reference columns in the output by
-    /// either its alias, or by its ordinal.
-    pub fn column_expr_for_reference(
-        &self,
-        _bind_context: &BindContext,
-        expr: &ast::Expr<ResolvedMeta>,
-    ) -> Result<Option<ColumnExpr>> {
-        // Check constant first.
-        //
-        // e.g. ORDER BY 1
-        if let ast::Expr::Literal(ast::Literal::Number(s)) = expr {
-            let n = s
-                .parse::<i64>()
-                .map_err(|_| RayexecError::new(format!("Failed to parse '{s}' into a number")))?;
-            if n < 1 || n as usize > self.projections.len() {
-                return Err(RayexecError::new(format!(
-                    "Column out of range, expected 1 - {}",
-                    self.projections.len()
-                )))?;
-            }
+    /// During GROUP BY binding, the group by may reference columns in the
+    /// select via alias or ordinal. We swap the expressions such that the
+    /// select list references the group by.
+    pub fn update_group_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
+        // Update group expressions to be the base for any aliased expressions.
+        for expr in &mut group_by.expressions {
+            if let Expression::Column(col) = expr {
+                if col.table_scope == self.projections_table {
+                    let proj_expr = self.projections.get_mut(col.column).ok_or_else(|| {
+                        RayexecError::new(format!("Missing projection column: {col}"))
+                    })?;
 
-            return Ok(Some(ColumnExpr {
-                table_scope: self.projections_table,
-                column: n as usize,
-            }));
-        }
-
-        // Alias reference
-        if let ast::Expr::Ident(ident) = expr {
-            let name = ident.as_normalized_string();
-
-            // Check user provided alias first.
-            if let Some(idx) = self.alias_map.get(&name) {
-                return Ok(Some(ColumnExpr {
-                    table_scope: self.projections_table,
-                    column: *idx,
-                }));
+                    // Sufficient to just swap the expressions since we're at
+                    // the root for each expression.
+                    std::mem::swap(expr, proj_expr);
+                }
             }
         }
 
-        Ok(None)
+        // Now update all columns in the select list to references to the GROUP
+        // BY expressions.
+        for (idx, expr) in group_by.expressions.iter().enumerate() {
+            if let Expression::Column(col) = expr {
+                self.replace_columns_in_projection(
+                    *col,
+                    ColumnExpr {
+                        table_scope: group_by.group_table,
+                        column: idx,
+                    },
+                )?;
+            }
+        }
+
+        Ok(())
     }
 
-    /// Replaces all columns in the projections list (inlcuding appended
+    /// Replaces all columns in the projections list (including appended
     /// projections) with a new column expression.
     ///
     /// This should be replacing the column expression with one that is
     /// logically equivalent.
-    pub fn replace_columns_in_projection(
-        &mut self,
-        old: ColumnExpr,
-        new: ColumnExpr,
-    ) -> Result<()> {
+    fn replace_columns_in_projection(&mut self, old: ColumnExpr, new: ColumnExpr) -> Result<()> {
         fn inner(expr: &mut Expression, old: &ColumnExpr, new: &ColumnExpr) -> Result<()> {
             match expr {
                 Expression::Column(col) => {
