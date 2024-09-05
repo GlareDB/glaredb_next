@@ -2,7 +2,7 @@ use crate::{
     expr::{column_expr::ColumnExpr, Expression},
     logical::{
         binder::{
-            bind_context::{BindContext, BindScopeRef, TableRef},
+            bind_context::{self, BindContext, BindScopeRef, TableRef},
             column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
         },
@@ -171,7 +171,7 @@ impl SelectList {
     pub fn finalize(
         mut self,
         bind_context: &mut BindContext,
-        group_by: Option<&mut BoundGroupBy>,
+        mut group_by: Option<&mut BoundGroupBy>,
     ) -> Result<BoundSelectList> {
         // Extract aggregates into separate table.
         let aggregates_table = bind_context.new_ephemeral_table()?;
@@ -185,14 +185,11 @@ impl SelectList {
 
         // Have projections point to the GROUP BY instead of the other way
         // around.
-        if let Some(group_by) = group_by {
+        if let Some(group_by) = group_by.as_mut() {
             self.update_group_by_dependencies(group_by)?;
-
-            // // Update ORDER BY expressions to point to GROUP BY expressions.
-            // if let Some(order_by) = order_by {
-            //     self.update_order_by_dependencies(order_by, group_by)?;
-            // }
         }
+
+        self.verify_column_references(bind_context, aggregates_table, &aggregates, group_by)?;
 
         // If we had appended column, ensure we have a pruned table that only
         // contains the original projections.
@@ -246,6 +243,48 @@ impl SelectList {
             windows_table: bind_context.new_ephemeral_table()?, // TODO
             windows: Vec::new(),                                // TODO
         })
+    }
+
+    /// Verify that all column expressions in the project list point to either
+    /// an aggregate or group by expression.
+    fn verify_column_references(
+        &self,
+        bind_context: &BindContext,
+        agg_table: TableRef,
+        aggs: &[Expression],
+        group_by: Option<&mut BoundGroupBy>,
+    ) -> Result<()> {
+        if aggs.is_empty() && group_by.is_none() {
+            return Ok(());
+        }
+
+        let [t1, t2] = match group_by {
+            Some(group_by) => [agg_table, group_by.group_table],
+            None => [agg_table, agg_table], // Using agg table twice just to make below logic easier.
+        };
+
+        fn inner(
+            bind_context: &BindContext,
+            expr: &Expression,
+            [t1, t2]: [TableRef; 2],
+        ) -> Result<()> {
+            match expr {
+                Expression::Column(col) => {
+                    if col.table_scope != t1 && col.table_scope != t2 {
+                        let col_name = bind_context.get_column_name(col.table_scope, col.column)?;
+                        return Err(RayexecError::new(format!("Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function")));
+                    }
+                }
+                other => other.for_each_child(&mut |child| inner(bind_context, child, [t1, t2]))?,
+            }
+            Ok(())
+        }
+
+        for expr in self.projections.iter().chain(&self.appended) {
+            inner(bind_context, expr, [t1, t2])?
+        }
+
+        Ok(())
     }
 
     /// Extracts aggregates from `expression` into `aggregates`.

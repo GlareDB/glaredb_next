@@ -300,6 +300,17 @@ impl BindContext {
         Ok(idx)
     }
 
+    pub fn get_column_name(&self, table_ref: TableRef, col_idx: usize) -> Result<&str> {
+        let table = self.get_table(table_ref)?;
+        table
+            .column_names
+            .get(col_idx)
+            .map(|s| s.as_str())
+            .ok_or_else(|| {
+                RayexecError::new(format!("Missing column {col_idx} in table {table_ref}"))
+            })
+    }
+
     pub fn get_table_mut(&mut self, table_ref: TableRef) -> Result<&mut Table> {
         self.tables
             .get_mut(table_ref.table_idx)
