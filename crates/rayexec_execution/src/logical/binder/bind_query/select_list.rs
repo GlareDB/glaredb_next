@@ -165,12 +165,22 @@ impl SelectList {
     ///
     /// This will extract aggregates from the list, placing them in their own
     /// table, and add pruning projections if needed.
-    pub fn finalize(mut self, bind_context: &mut BindContext) -> Result<BoundSelectList> {
+    pub fn finalize(
+        mut self,
+        bind_context: &mut BindContext,
+        group_by: Option<&mut BoundGroupBy>,
+    ) -> Result<BoundSelectList> {
         // Extract aggregates into separate table.
         let aggregates_table = bind_context.new_ephemeral_table()?;
         let mut aggregates = Vec::new();
         for expr in &mut self.projections {
             Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
+        }
+
+        // Have projections point to the GROUP BY instead of the other way
+        // around.
+        if let Some(group_by) = group_by {
+            self.update_group_dependencies(group_by)?;
         }
 
         // If we had appended column, ensure we have a pruned table that only
@@ -309,7 +319,7 @@ impl SelectList {
 
             return Ok(Some(ColumnExpr {
                 table_scope: self.projections_table,
-                column: n as usize,
+                column: n as usize - 1,
             }));
         }
         Ok(None)
@@ -322,18 +332,26 @@ impl SelectList {
     /// During GROUP BY binding, the group by may reference columns in the
     /// select via alias or ordinal. We swap the expressions such that the
     /// select list references the group by.
-    pub fn update_group_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
+    fn update_group_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
         // Update group expressions to be the base for any aliased expressions.
-        for expr in &mut group_by.expressions {
+        for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
             if let Expression::Column(col) = expr {
                 if col.table_scope == self.projections_table {
                     let proj_expr = self.projections.get_mut(col.column).ok_or_else(|| {
                         RayexecError::new(format!("Missing projection column: {col}"))
                     })?;
 
-                    // Sufficient to just swap the expressions since we're at
-                    // the root for each expression.
-                    std::mem::swap(expr, proj_expr);
+                    // Point projection to group by expression, replace group by
+                    // expression with original expression.
+                    let orig = std::mem::replace(
+                        proj_expr,
+                        Expression::Column(ColumnExpr {
+                            table_scope: group_by.group_table,
+                            column: idx,
+                        }),
+                    );
+
+                    *expr = orig;
                 }
             }
         }

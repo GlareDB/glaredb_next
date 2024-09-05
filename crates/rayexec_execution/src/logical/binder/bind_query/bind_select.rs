@@ -106,16 +106,11 @@ impl<'a> SelectBinder<'a> {
         let limit = modifier_binder.bind_limit(bind_context, limit)?;
 
         // Handle GROUP BY
-        let group_by = select
+        let mut group_by = select
             .group_by
             .map(|group_by| {
                 let mut group_by_binder = GroupByBinder::new(from_bind_ref, self.resolve_context);
-                let mut group_by =
-                    group_by_binder.bind(bind_context, &mut select_list, group_by)?;
-                // Update select list.
-                select_list.update_group_dependencies(&mut group_by)?;
-
-                Ok::<_, RayexecError>(group_by)
+                group_by_binder.bind(bind_context, &mut select_list, group_by)
             })
             .transpose()?;
 
@@ -129,7 +124,7 @@ impl<'a> SelectBinder<'a> {
             .transpose()?;
 
         // Finalize projections.
-        let select_list = select_list.finalize(bind_context)?;
+        let select_list = select_list.finalize(bind_context, group_by.as_mut())?;
 
         // Move output select columns into current scope.
         match &select_list.pruned {
