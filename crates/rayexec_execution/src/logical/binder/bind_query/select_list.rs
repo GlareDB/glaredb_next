@@ -358,47 +358,22 @@ impl SelectList {
 
         // Now update all columns in the select list to references to the GROUP
         // BY expressions.
-        for (idx, expr) in group_by.expressions.iter().enumerate() {
-            if let Expression::Column(col) = expr {
-                self.replace_columns_in_projection(
-                    *col,
-                    ColumnExpr {
-                        table_scope: group_by.group_table,
-                        column: idx,
-                    },
-                )?;
+        //
+        // TOD: Check if `appended` actually needs to be checked here.
+        for expr in self.projections.iter_mut().chain(self.appended.iter_mut()) {
+            // TODO: Probably not amazing to do this here.
+            let idx = group_by
+                .expressions
+                .iter()
+                .position(|group_expr| group_expr == expr);
+
+            // Replace projection with reference to GROUP BY.
+            if let Some(idx) = idx {
+                *expr = Expression::Column(ColumnExpr {
+                    table_scope: group_by.group_table,
+                    column: idx,
+                })
             }
-        }
-
-        Ok(())
-    }
-
-    /// Replaces all columns in the projections list (including appended
-    /// projections) with a new column expression.
-    ///
-    /// This should be replacing the column expression with one that is
-    /// logically equivalent.
-    fn replace_columns_in_projection(&mut self, old: ColumnExpr, new: ColumnExpr) -> Result<()> {
-        fn inner(expr: &mut Expression, old: &ColumnExpr, new: &ColumnExpr) -> Result<()> {
-            match expr {
-                Expression::Column(col) => {
-                    if col == old {
-                        *col = new.clone();
-                    }
-                }
-                other => {
-                    other.for_each_child_mut(&mut |child| inner(child, old, new))?;
-                }
-            }
-            Ok(())
-        }
-
-        for proj in &mut self.projections {
-            inner(proj, &old, &new)?;
-        }
-
-        for proj in &mut self.appended {
-            inner(proj, &old, &new)?;
         }
 
         Ok(())

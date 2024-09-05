@@ -84,7 +84,7 @@ impl<'a> SelectBinder<'a> {
         let where_expr = select
             .where_expr
             .map(|expr| {
-                let binder = BaseExpressionBinder::new(self.current, self.resolve_context);
+                let binder = BaseExpressionBinder::new(from_bind_ref, self.resolve_context);
                 binder.bind_expression(
                     bind_context,
                     &expr,

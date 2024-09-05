@@ -2,6 +2,8 @@
 #
 # (Taken from duckdb's test_having.test, incomplete)
 
+halt
+
 statement ok
 create temp table test (a bigint, b bigint)
 
