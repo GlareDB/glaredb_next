@@ -7,7 +7,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef},
-            column_binder::DefaultColumnBinder,
+            column_binder::{DefaultColumnBinder, ExpressionColumnBinder},
             expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
@@ -75,15 +75,42 @@ impl<'a> ModifierBinder<'a> {
         select_list: &mut SelectList,
         order_by: ast::OrderByModifier<ResolvedMeta>,
     ) -> Result<BoundOrderBy> {
+        // TODO: What do here?
+        let current = match self.current.first() {
+            Some(&current) => current,
+            None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
+        };
+
         let exprs = order_by
             .order_by_nodes
             .into_iter()
             .map(|order_by| {
-                let expr = Expression::Column(self.bind_to_select_list(
-                    bind_context,
+                let mut column_binder = OrderByColumnBinder {
                     select_list,
-                    order_by.expr,
-                )?);
+                    did_bind_to_select: false,
+                };
+
+                let expr = BaseExpressionBinder::new(current, self.resolve_context)
+                    .bind_expression(
+                        bind_context,
+                        &order_by.expr,
+                        &mut column_binder,
+                        RecursionContext {
+                            allow_windows: false,
+                            allow_aggregates: false,
+                            is_root: true,
+                        },
+                    )?;
+
+                // If we bound to an existing item in the select list, use that
+                // expression. If we didn't, push the expression to the appended
+                // list, and bind to to that instead.
+                let expr = if column_binder.did_bind_to_select {
+                    expr
+                } else {
+                    let col = select_list.append_expression(bind_context, expr)?;
+                    Expression::Column(col)
+                };
 
                 Ok(BoundOrderByExpr {
                     expr,
@@ -100,39 +127,6 @@ impl<'a> ModifierBinder<'a> {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(BoundOrderBy { exprs })
-    }
-
-    /// Generates a column epxression referencing the output of the select list.
-    fn bind_to_select_list(
-        &self,
-        bind_context: &mut BindContext,
-        select_list: &mut SelectList,
-        expr: ast::Expr<ResolvedMeta>,
-    ) -> Result<ColumnExpr> {
-        // // Check if there's already something in the list that we're
-        // // referencing.
-        // if let Some(expr) = select_list.column_expr_for_reference(bind_context, &expr)? {
-        //     return Ok(expr);
-        // }
-
-        // TODO: What do here?
-        let current = match self.current.first() {
-            Some(&current) => current,
-            None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
-        };
-
-        let expr = BaseExpressionBinder::new(current, self.resolve_context).bind_expression(
-            bind_context,
-            &expr,
-            &mut DefaultColumnBinder,
-            RecursionContext {
-                allow_windows: false,
-                allow_aggregates: false,
-                is_root: true,
-            },
-        )?;
-
-        select_list.append_expression(bind_context, expr)
     }
 
     pub fn bind_limit(
@@ -197,5 +191,64 @@ impl<'a> ModifierBinder<'a> {
         };
 
         Ok(Some(BoundLimit { limit, offset }))
+    }
+}
+
+#[derive(Debug)]
+pub struct OrderByColumnBinder<'a> {
+    select_list: &'a SelectList,
+    did_bind_to_select: bool,
+}
+
+impl<'a> ExpressionColumnBinder for OrderByColumnBinder<'a> {
+    fn bind_from_root_literal(
+        &mut self,
+        _bind_scope: BindScopeRef,
+        _bind_context: &mut BindContext,
+        literal: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<Expression>> {
+        if let Some(col) = self.select_list.column_by_ordinal(literal)? {
+            self.did_bind_to_select = true;
+            return Ok(Some(Expression::Column(col)));
+        }
+        Ok(None)
+    }
+
+    fn bind_from_ident(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        ident: &ast::Ident,
+        recur: RecursionContext,
+    ) -> Result<Option<Expression>> {
+        // Try to bind normally.
+        if let Some(col) =
+            DefaultColumnBinder.bind_from_ident(bind_scope, bind_context, ident, recur)?
+        {
+            return Ok(Some(col));
+        }
+
+        // Only allow binding alias if we at the root of the expressions.
+        if !recur.is_root {
+            return Ok(None);
+        }
+
+        // Try to bind to a user-provided alias.
+        if let Some(col) = self.select_list.column_by_user_alias(ident) {
+            self.did_bind_to_select = true;
+            return Ok(Some(Expression::Column(col)));
+        }
+
+        Ok(None)
+    }
+
+    fn bind_from_idents(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        idents: &[ast::Ident],
+        recur: RecursionContext,
+    ) -> Result<Option<Expression>> {
+        DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents, recur)
     }
 }

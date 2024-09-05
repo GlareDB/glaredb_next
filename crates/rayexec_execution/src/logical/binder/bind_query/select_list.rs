@@ -13,7 +13,10 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self, SelectExpr};
 use std::collections::HashMap;
 
-use super::{bind_group_by::BoundGroupBy, select_expr_expander::ExpandedSelectExpr};
+use super::{
+    bind_group_by::BoundGroupBy, bind_modifier::BoundOrderBy,
+    select_expr_expander::ExpandedSelectExpr,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Preprojection {
@@ -176,11 +179,19 @@ impl SelectList {
         for expr in &mut self.projections {
             Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
         }
+        for expr in &mut self.appended {
+            Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
+        }
 
         // Have projections point to the GROUP BY instead of the other way
         // around.
         if let Some(group_by) = group_by {
-            self.update_group_dependencies(group_by)?;
+            self.update_group_by_dependencies(group_by)?;
+
+            // // Update ORDER BY expressions to point to GROUP BY expressions.
+            // if let Some(order_by) = order_by {
+            //     self.update_order_by_dependencies(order_by, group_by)?;
+            // }
         }
 
         // If we had appended column, ensure we have a pruned table that only
@@ -332,7 +343,7 @@ impl SelectList {
     /// During GROUP BY binding, the group by may reference columns in the
     /// select via alias or ordinal. We swap the expressions such that the
     /// select list references the group by.
-    fn update_group_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
+    fn update_group_by_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
         // Update group expressions to be the base for any aliased expressions.
         for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
             if let Expression::Column(col) = expr {
@@ -356,23 +367,31 @@ impl SelectList {
             }
         }
 
+        fn update_projection_expr(
+            group_by_expr: &Expression,
+            group_by_col: ColumnExpr,
+            expr: &mut Expression,
+        ) -> Result<()> {
+            if expr == group_by_expr {
+                *expr = Expression::Column(group_by_col);
+                return Ok(());
+            }
+
+            expr.for_each_child_mut(&mut |child| {
+                update_projection_expr(group_by_expr, group_by_col, child)
+            })
+        }
+
         // Now update all columns in the select list to references to the GROUP
         // BY expressions.
-        //
-        // TOD: Check if `appended` actually needs to be checked here.
-        for expr in self.projections.iter_mut().chain(self.appended.iter_mut()) {
-            // TODO: Probably not amazing to do this here.
-            let idx = group_by
-                .expressions
-                .iter()
-                .position(|group_expr| group_expr == expr);
+        for (idx, group_by_expr) in group_by.expressions.iter().enumerate() {
+            let group_by_col = ColumnExpr {
+                table_scope: group_by.group_table,
+                column: idx,
+            };
 
-            // Replace projection with reference to GROUP BY.
-            if let Some(idx) = idx {
-                *expr = Expression::Column(ColumnExpr {
-                    table_scope: group_by.group_table,
-                    column: idx,
-                })
+            for expr in self.projections.iter_mut().chain(self.appended.iter_mut()) {
+                update_projection_expr(group_by_expr, group_by_col, expr)?;
             }
         }
 
