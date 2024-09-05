@@ -1,6 +1,7 @@
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use std::task::Context;
@@ -15,7 +16,8 @@ use crate::execution::operators::{
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::operator::JoinType;
 
-use super::join_hash_table::{LeftBatchVisitBitmaps, PartitionJoinHashTable};
+use super::join_hash_table::PartitionJoinHashTable;
+use super::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
 
 #[derive(Debug)]
 pub struct HashJoinBuildPartitionState {
@@ -50,22 +52,13 @@ pub struct HashJoinProbePartitionState {
     /// If the input for this partiton is complete.
     input_finished: bool,
 
-    partition_left_visits: Option<LeftBatchVisitBitmaps>,
+    /// Track rows visited on the left side for this partition.
+    partition_outer_join_tracker: Option<LeftOuterJoinTracker>,
 
     /// State for tracking rows on the left side that we still need to emit.
     ///
     /// This is currently populated for one partition at the end of probing.
-    left_visit_state: Option<LeftVisitState>,
-}
-
-#[derive(Debug)]
-struct LeftVisitState {
-    /// Bitmaps for rows visited on the left side.
-    bitmaps: LeftBatchVisitBitmaps,
-
-    /// Current batch index we're checking for producing unvisited rows from the
-    /// left side.
-    current_idx: usize,
+    outer_join_drain_state: Option<LeftOuterJoinDrainState>,
 }
 
 impl HashJoinProbePartitionState {
@@ -77,9 +70,9 @@ impl HashJoinProbePartitionState {
             buffered_output: None,
             push_waker: None,
             pull_waker: None,
-            partition_left_visits: None,
+            partition_outer_join_tracker: None,
             input_finished: false,
-            left_visit_state: None,
+            outer_join_drain_state: None,
         }
     }
 }
@@ -116,7 +109,7 @@ struct SharedOutputState {
     /// Union of all bitmaps across all partitions.
     ///
     /// Referenced with draining unvisited rows in the case of a LEFT join.
-    global_left_visits: Option<LeftBatchVisitBitmaps>,
+    global_outer_join_tracker: Option<LeftOuterJoinTracker>,
 
     /// Pending wakers for thread that attempted to probe the table prior to it
     /// being built.
@@ -141,11 +134,11 @@ pub struct PhysicalHashJoin {
 
     /// Types for the batches we'll be receiving from the left side. Used during
     /// RIGHT joins to produce null columns on the left side.
-    left_types: TypeSchema,
+    left_types: Vec<DataType>,
 
     /// Types for the batches we'll be receiving from the right side. Used
     /// during LEFT joins to produce null columns on the right side.
-    right_types: TypeSchema,
+    right_types: Vec<DataType>,
 }
 
 impl PhysicalHashJoin {
@@ -163,8 +156,8 @@ impl PhysicalHashJoin {
             join_type,
             left_on,
             right_on,
-            left_types,
-            right_types,
+            left_types: left_types.types,
+            right_types: right_types.types,
         }
     }
 }
@@ -184,7 +177,7 @@ impl ExecutableOperator for PhysicalHashJoin {
             build_inputs_remaining: build_partitions,
             probe_inputs_remaining: probe_partitions,
             shared_global: None,
-            global_left_visits: None,
+            global_outer_join_tracker: None,
             probe_push_wakers: vec![None; probe_partitions],
         };
 
@@ -288,8 +281,10 @@ impl ExecutableOperator for PhysicalHashJoin {
                     // Create initial visit bitmaps that will be tracked by this
                     // partition.
                     if self.join_type == JoinType::Left {
-                        state.partition_left_visits =
-                            Some(state.global.as_ref().unwrap().new_left_visit_bitmaps());
+                        state.partition_outer_join_tracker =
+                            Some(LeftOuterJoinTracker::new_for_batches(
+                                state.global.as_ref().unwrap().batches(),
+                            ));
                     }
                 }
 
@@ -346,7 +341,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                         Ok(PollPush::Pushed)
                     }
                     JoinType::Left => {
-                        let bitmaps = state.partition_left_visits.as_mut();
+                        let bitmaps = state.partition_outer_join_tracker.as_mut();
                         let joined =
                             hashtable.probe(&batch, bitmaps, hashes, &self.right_on, false)?;
                         state.buffered_output = Some(joined);
@@ -431,11 +426,11 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 // Merge local left visit bitmaps into global if we have it.
                 match (
-                    shared.global_left_visits.as_mut(),
-                    state.partition_left_visits.as_ref(),
+                    shared.global_outer_join_tracker.as_mut(),
+                    state.partition_outer_join_tracker.as_ref(),
                 ) {
                     (Some(global), Some(local)) => global.merge_from(local),
-                    (None, Some(local)) => shared.global_left_visits = Some(local.clone()),
+                    (None, Some(local)) => shared.global_outer_join_tracker = Some(local.clone()),
                     (Some(_), None) => {
                         // This can happen if we've pushed nothing for the right. We wouldn't have
                         // initialized the bitmaps before finalizing in that case.
@@ -457,12 +452,14 @@ impl ExecutableOperator for PhysicalHashJoin {
                 //
                 // TODO: Allow multiple partitions to drain.
                 if shared.probe_inputs_remaining == 0 {
-                    match shared.global_left_visits.as_ref() {
+                    match shared.global_outer_join_tracker.as_ref() {
                         Some(global) => {
-                            state.left_visit_state = Some(LeftVisitState {
-                                bitmaps: global.clone(),
-                                current_idx: 0,
-                            })
+                            state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
+                                global.clone(),
+                                shared.shared_global.as_ref().unwrap().batches().to_vec(),
+                                self.left_types.clone(),
+                                self.right_types.clone(),
+                            ))
                         }
                         None if self.join_type == JoinType::Left => {
                             // Global left bitmaps will be None if we've
@@ -470,14 +467,15 @@ impl ExecutableOperator for PhysicalHashJoin {
                             //
                             // In this case, we'll be draining _all_ batches
                             // from the left.
-                            state.left_visit_state = Some(LeftVisitState {
-                                bitmaps: shared
-                                    .shared_global
-                                    .as_ref()
-                                    .expect("hash table to have been built")
-                                    .new_left_visit_bitmaps(),
-                                current_idx: 0,
-                            });
+                            let batches = shared.shared_global.as_ref().unwrap().batches().to_vec();
+                            let tracker = LeftOuterJoinTracker::new_for_batches(&batches);
+
+                            state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
+                                tracker,
+                                shared.shared_global.as_ref().unwrap().batches().to_vec(),
+                                self.left_types.clone(),
+                                self.right_types.clone(),
+                            ));
                         }
                         None => {
                             // Nothing to do.
@@ -523,19 +521,10 @@ impl ExecutableOperator for PhysicalHashJoin {
             None => {
                 if state.input_finished {
                     // Check if we're still draining unvisited left rows.
-                    if let Some(visit_state) = state.left_visit_state.as_mut() {
-                        if visit_state.current_idx < visit_state.bitmaps.num_batches() {
-                            let batch = state
-                                .global
-                                .as_ref()
-                                .expect("global hash table to exist")
-                                .drain_left_using_bitmap(
-                                    &visit_state.bitmaps,
-                                    visit_state.current_idx,
-                                )?;
-                            visit_state.current_idx += 1;
-
-                            return Ok(PollPull::Batch(batch));
+                    if let Some(drain_state) = state.outer_join_drain_state.as_mut() {
+                        match drain_state.drain_next()? {
+                            Some(batch) => return Ok(PollPull::Batch(batch)),
+                            None => return Ok(PollPull::Exhausted),
                         }
                     }
 
