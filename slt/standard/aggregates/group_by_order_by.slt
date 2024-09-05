@@ -20,3 +20,16 @@ SELECT sum(j) FROM (values(1,2),(3,4)) t(j,k) GROUP BY k ORDER BY sum(j)
 ----
 1
 3
+
+query I
+SELECT sum(j) FROM (values(1,2),(3,4)) t(j,k) GROUP BY k ORDER BY sum(j) + 1
+----
+1
+3
+
+# Even different aggregates.
+query I
+SELECT sum(j) FROM (values(1,2),(3,4)) t(j,k) GROUP BY k ORDER BY avg(j)
+----
+1
+3
