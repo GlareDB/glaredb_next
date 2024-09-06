@@ -1,4 +1,5 @@
 use crate::{
+    execution::operators::hash_join::condition::HashJoinCondition,
     expr::{physical::PhysicalScalarExpression, AsScalarFunction, Expression},
     logical::{
         binder::{
@@ -150,20 +151,46 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         }
     }
 
+    pub fn plan_join_condition_as_hash_join_condition(
+        &self,
+        table_refs: &[TableRef],
+        condition: &ComparisonCondition,
+    ) -> Result<HashJoinCondition> {
+        if table_refs.len() != 2 {
+            return Err(RayexecError::new(format!(
+                "Planning hash join condition requires two table refs, got {}",
+                table_refs.len()
+            )));
+        }
+
+        let left_ref = table_refs[0];
+        let right_ref = table_refs[1];
+
+        let scalar = condition.op.as_scalar_function();
+        let function = scalar
+            .plan_from_expressions(self.bind_context, &[&condition.left, &condition.right])?;
+
+        Ok(HashJoinCondition {
+            left: self.plan_scalar(&[left_ref], &condition.left)?,
+            right: self.plan_scalar(&[right_ref], &condition.right)?,
+            function,
+        })
+    }
+
     /// Plans join conditions by ANDind all conditions to produce a single
     /// physical expression.
-    pub fn plan_join_conditions(
+    pub fn plan_join_conditions_as_expression(
         &self,
         table_refs: &[TableRef],
         conditions: &[ComparisonCondition],
     ) -> Result<Vec<PhysicalScalarExpression>> {
         conditions
             .iter()
-            .map(|c| self.plan_join_condition(table_refs, c))
+            .map(|c| self.plan_join_condition_as_expression(table_refs, c))
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn plan_join_condition(
+    pub fn plan_join_condition_as_expression(
         &self,
         table_refs: &[TableRef],
         condition: &ComparisonCondition,

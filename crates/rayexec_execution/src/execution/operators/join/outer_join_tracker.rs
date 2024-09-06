@@ -2,7 +2,7 @@ use rayexec_bullet::{
     array::{Array, BooleanArray},
     batch::Batch,
     bitmap::Bitmap,
-    compute::filter::filter,
+    compute::{self, filter::filter},
     datatype::DataType,
 };
 use rayexec_error::Result;
@@ -91,7 +91,7 @@ impl LeftOuterJoinDrainState {
             .expect("bitmap to exist");
         self.batch_idx += 1;
 
-        let num_rows = bitmap.len() - bitmap.popcnt();
+        let num_rows = bitmap.len() - bitmap.count_trues();
 
         // TODO: Don't clone. Also might make sense to have the bitmap logic
         // flipped to avoid the negate here (we're already doing that for RIGHT
@@ -127,5 +127,54 @@ impl LeftOuterJoinDrainState {
         let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
 
         Ok(Some(batch))
+    }
+}
+
+/// Track visited rows on the right side of a join.
+///
+/// This tracker should be created per batch on the right side. No global state
+/// is required.
+#[derive(Debug)]
+pub struct RightOuterJoinTracker {
+    /// Bitmap indicating which rows we haven't visited.
+    pub unvisited: Bitmap,
+}
+
+impl RightOuterJoinTracker {
+    /// Create a new tracker for the provided batch.
+    pub fn new_for_batch(batch: &Batch) -> Self {
+        RightOuterJoinTracker {
+            unvisited: Bitmap::all_true(batch.num_rows()),
+        }
+    }
+
+    /// Mark the given row indices as visited.
+    pub fn mark_rows_visited(&mut self, rows: &[usize]) {
+        for &idx in rows {
+            self.unvisited.set(idx, false);
+        }
+    }
+
+    /// Return a batch with unvisited rows in the batch.
+    ///
+    /// `right` should be the batch used to create this tracker.
+    ///
+    /// `left_types` is used to create typed null columns for the left side of
+    /// the batch.
+    pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Batch> {
+        let unvisited_count = self.unvisited.count_trues();
+
+        let selection = BooleanArray::new(self.unvisited, None);
+        let right_unvisited = right
+            .columns()
+            .iter()
+            .map(|a| compute::filter::filter(a, &selection))
+            .collect::<Result<Vec<_>>>()?;
+
+        let left_null_cols = left_types
+            .iter()
+            .map(|t| Array::new_nulls(t, unvisited_count));
+
+        Batch::try_new(left_null_cols.chain(right_unvisited.into_iter()))
     }
 }

@@ -198,7 +198,7 @@ impl PartitionJoinHashTable {
 
         // Append batch representing unvisited right rows.
         if let Some(right_unvisited) = right_unvisited {
-            let unvisited_count = right_unvisited.popcnt();
+            let unvisited_count = right_unvisited.count_trues();
 
             let selection = BooleanArray::new(right_unvisited, None);
             let right_unvisited = right

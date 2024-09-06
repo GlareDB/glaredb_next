@@ -11,15 +11,8 @@ use crate::{
     functions::scalar::{boolean::AndImpl, PlannedScalarFunction},
 };
 
-/// Join condition with the left side precomputed.
-///
-/// When inserting into the hash table for the left side, the left scalar
-/// expression should be executed on the batch with the result being pushed to
-/// `lefts`.
-#[derive(Debug)]
-pub struct LeftPrecomputedJoinCondition {
-    /// Precomputed results for left batches.
-    pub left_precomputed: Vec<Arc<Array>>,
+#[derive(Debug, Clone)]
+pub struct HashJoinCondition {
     /// The left expression.
     pub left: PhysicalScalarExpression,
     /// The right expression.
@@ -32,6 +25,31 @@ pub struct LeftPrecomputedJoinCondition {
     pub function: Box<dyn PlannedScalarFunction>,
 }
 
+/// Join condition with the left side precomputed.
+///
+/// When inserting into the hash table for the left side, the left scalar
+/// expression should be executed on the batch with the result being pushed to
+/// `lefts`.
+#[derive(Debug)]
+pub struct LeftPrecomputedJoinCondition {
+    /// Precomputed results for left batches.
+    pub left_precomputed: Vec<Arc<Array>>,
+    pub left: PhysicalScalarExpression,
+    pub right: PhysicalScalarExpression,
+    pub function: Box<dyn PlannedScalarFunction>,
+}
+
+impl From<HashJoinCondition> for LeftPrecomputedJoinCondition {
+    fn from(value: HashJoinCondition) -> Self {
+        LeftPrecomputedJoinCondition {
+            left_precomputed: Vec::new(),
+            left: value.left,
+            right: value.right,
+            function: value.function,
+        }
+    }
+}
+
 /// All conditions for a single join.
 #[derive(Debug)]
 pub struct LeftPrecomputedJoinConditions {
@@ -39,6 +57,8 @@ pub struct LeftPrecomputedJoinConditions {
 }
 
 impl LeftPrecomputedJoinConditions {
+    /// Compute the left side of the condition using the provided batch as
+    /// input.
     pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
         for condition in &mut self.conditions {
             let precomputed = condition.left.eval(left)?;
@@ -48,13 +68,18 @@ impl LeftPrecomputedJoinConditions {
         Ok(())
     }
 
+    /// Compute the output selection array by ANDing the results of all
+    /// conditions.
+    ///
+    /// The output array will correspond to the rows to use for both `left_rows`
+    /// and `right`.
     pub fn compute_selection_for_probe(
         &self,
         left_batch_idx: usize,
         left_rows: &[usize],
         right: &Batch,
     ) -> Result<BooleanArray> {
-        debug_assert_eq!(left_rows.len(), right.num_rows());
+        assert_eq!(left_rows.len(), right.num_rows());
 
         let mut results = Vec::with_capacity(self.conditions.len());
 

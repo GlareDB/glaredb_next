@@ -12,8 +12,9 @@ use crate::{
             empty::PhysicalEmpty,
             filter::FilterOperation,
             hash_aggregate::PhysicalHashAggregate,
+            hash_join::PhysicalHashJoin,
             insert::InsertOperation,
-            join::{hash_join::PhysicalHashJoin, nl_join::PhysicalNestedLoopJoin},
+            join::nl_join::PhysicalNestedLoopJoin,
             limit::PhysicalLimit,
             materialize::PhysicalMaterialize,
             project::{PhysicalProject, ProjectOperation},
@@ -1347,23 +1348,24 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             RayexecError::new("expected in-progress pipeline from left side of join")
         })?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
-                join.join_type,
-                join.left_on,
-                join.right_on,
-                left_types,
-                right_types,
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        unimplemented!()
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::HashJoin2(PhysicalHashJoin::new(
+        //         join.join_type,
+        //         join.left_on,
+        //         join.right_on,
+        //         left_types,
+        //         right_types,
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        // Left pipeline will be child this this pipeline at the current
-        // operator.
-        self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+        // // Left pipeline will be child this this pipeline at the current
+        // // operator.
+        // self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
 
-        Ok(())
+        // Ok(())
     }
 
     fn push_comparison_join(
@@ -1374,37 +1376,97 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let location = join.location;
 
-        let has_equality = join
+        let table_refs = join.get_children_table_refs();
+
+        let equality_idx = join
             .node
             .conditions
             .iter()
-            .any(|c| c.op == ComparisonOperator::Eq);
+            .position(|c| c.op == ComparisonOperator::Eq);
 
-        // if has_equality {
-        //     // Use hash join.
-        // } else {
-        // Need to fall back to nested loop join.
-        let conditions = self
-            .expr_planner
-            .plan_join_conditions(&join.get_children_table_refs(), &join.node.conditions)?;
+        if let Some(equality_idx) = equality_idx {
+            // Use hash join
 
-        let condition = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-            function: Box::new(AndImpl),
-            inputs: conditions,
-        });
+            let [left, right] = join.take_two_children_exact()?;
+            let left_ref = table_refs[0];
+            let right_ref = table_refs[1];
+            let left_types = self.bind_context.get_table(left_ref)?.column_types.clone();
+            let right_types = self.bind_context.get_table(right_ref)?.column_types.clone();
 
-        let [left, right] = join.take_two_children_exact()?;
+            // Build up all inputs on the right (probe) side. This is going to
+            // continue with the the current pipeline.
+            self.walk(materializations, id_gen, right)?;
 
-        self.push_nl_join(
-            id_gen,
-            materializations,
-            location,
-            left,
-            right,
-            Some(condition),
-            join.node.join_type,
-        )
-        // }
+            // Build up the left (build) side in a separate pipeline. This will feed
+            // into the currently pipeline at the join operator.
+            let mut left_state =
+                IntermediatePipelineBuildState::new(self.config, self.bind_context);
+            left_state.walk(materializations, id_gen, left)?;
+
+            // Take any completed pipelines from the left side and put them in our
+            // list.
+            self.local_group
+                .merge_from_other(&mut left_state.local_group);
+            self.remote_group
+                .merge_from_other(&mut left_state.remote_group);
+
+            // Get the left pipeline.
+            let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
+                RayexecError::new("expected in-progress pipeline from left side of join")
+            })?;
+
+            let conditions = join
+                .node
+                .conditions
+                .iter()
+                .map(|condition| {
+                    self.expr_planner
+                        .plan_join_condition_as_hash_join_condition(&table_refs, condition)
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            let operator = IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
+                    join.node.join_type,
+                    equality_idx,
+                    conditions,
+                    left_types,
+                    right_types,
+                ))),
+                partitioning_requirement: None,
+            };
+            self.push_intermediate_operator(operator, location, id_gen)?;
+
+            // Left pipeline will be child this this pipeline at the current
+            // operator.
+            self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+
+            Ok(())
+        } else {
+            // Need to fall back to nested loop join.
+            let conditions = self
+                .expr_planner
+                .plan_join_conditions_as_expression(&table_refs, &join.node.conditions)?;
+
+            let condition = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+                function: Box::new(AndImpl),
+                inputs: conditions,
+            });
+
+            let [left, right] = join.take_two_children_exact()?;
+
+            self.push_nl_join(
+                id_gen,
+                materializations,
+                location,
+                left,
+                right,
+                Some(condition),
+                join.node.join_type,
+            )?;
+
+            Ok(())
+        }
     }
 
     fn push_arbitrary_join(

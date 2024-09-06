@@ -20,7 +20,7 @@ use super::join_hash_table::PartitionJoinHashTable;
 use super::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
 
 #[derive(Debug)]
-pub struct HashJoinBuildPartitionState {
+pub struct HashJoinBuildPartitionState2 {
     /// Hash table this partition will be writing to.
     local_hashtable: PartitionJoinHashTable,
 
@@ -29,7 +29,7 @@ pub struct HashJoinBuildPartitionState {
 }
 
 #[derive(Debug)]
-pub struct HashJoinProbePartitionState {
+pub struct HashJoinProbePartitionState2 {
     /// Index of this partition.
     partition_idx: usize,
 
@@ -61,9 +61,9 @@ pub struct HashJoinProbePartitionState {
     outer_join_drain_state: Option<LeftOuterJoinDrainState>,
 }
 
-impl HashJoinProbePartitionState {
+impl HashJoinProbePartitionState2 {
     fn new(partition_idx: usize) -> Self {
-        HashJoinProbePartitionState {
+        HashJoinProbePartitionState2 {
             partition_idx,
             global: None,
             hash_buf: Vec::new(),
@@ -78,7 +78,7 @@ impl HashJoinProbePartitionState {
 }
 
 #[derive(Debug)]
-pub struct HashJoinOperatorState {
+pub struct HashJoinOperatorState2 {
     /// Shared state between all partitions.
     inner: Mutex<SharedOutputState>,
 }
@@ -122,7 +122,7 @@ struct SharedOutputState {
 }
 
 #[derive(Debug)]
-pub struct PhysicalHashJoin {
+pub struct PhysicalHashJoin2 {
     /// The type of join we're performing (inner, left, right, semi, etc).
     join_type: JoinType,
 
@@ -141,7 +141,7 @@ pub struct PhysicalHashJoin {
     right_types: Vec<DataType>,
 }
 
-impl PhysicalHashJoin {
+impl PhysicalHashJoin2 {
     pub const BUILD_SIDE_INPUT_INDEX: usize = 0;
     pub const PROBE_SIDE_INPUT_INDEX: usize = 1;
 
@@ -152,7 +152,7 @@ impl PhysicalHashJoin {
         left_types: TypeSchema,
         right_types: TypeSchema,
     ) -> Self {
-        PhysicalHashJoin {
+        PhysicalHashJoin2 {
             join_type,
             left_on,
             right_on,
@@ -162,7 +162,7 @@ impl PhysicalHashJoin {
     }
 }
 
-impl ExecutableOperator for PhysicalHashJoin {
+impl ExecutableOperator for PhysicalHashJoin2 {
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -181,13 +181,13 @@ impl ExecutableOperator for PhysicalHashJoin {
             probe_push_wakers: vec![None; probe_partitions],
         };
 
-        let operator_state = HashJoinOperatorState {
+        let operator_state = HashJoinOperatorState2 {
             inner: Mutex::new(shared_output_state),
         };
 
         let build_states: Vec<_> = (0..build_partitions)
             .map(|_| {
-                PartitionState::HashJoinBuild(HashJoinBuildPartitionState {
+                PartitionState::HashJoinBuild2(HashJoinBuildPartitionState2 {
                     local_hashtable: PartitionJoinHashTable::new(
                         self.left_types.clone(),
                         self.right_types.clone(),
@@ -198,11 +198,11 @@ impl ExecutableOperator for PhysicalHashJoin {
             .collect();
 
         let probe_states: Vec<_> = (0..probe_partitions)
-            .map(|idx| PartitionState::HashJoinProbe(HashJoinProbePartitionState::new(idx)))
+            .map(|idx| PartitionState::HashJoinProbe2(HashJoinProbePartitionState2::new(idx)))
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::HashJoin(operator_state)),
+            operator_state: Arc::new(OperatorState::HashJoin2(operator_state)),
             partition_states: InputOutputStates::NaryInputSingleOutput {
                 partition_states: vec![build_states, probe_states],
                 pull_states: Self::PROBE_SIDE_INPUT_INDEX,
@@ -218,7 +218,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
-            PartitionState::HashJoinBuild(state) => {
+            PartitionState::HashJoinBuild2(state) => {
                 let left_columns = self
                     .left_on
                     .iter()
@@ -242,7 +242,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 Ok(PollPush::Pushed)
             }
-            PartitionState::HashJoinProbe(state) => {
+            PartitionState::HashJoinProbe2(state) => {
                 // If we have pending output, we need to wait for that to get
                 // pulled before trying to compute additional batches.
                 if state.buffered_output.is_some() {
@@ -251,7 +251,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 let operator_state = match operator_state {
-                    OperatorState::HashJoin(state) => state,
+                    OperatorState::HashJoin2(state) => state,
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -361,47 +361,42 @@ impl ExecutableOperator for PhysicalHashJoin {
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         let mut shared = match operator_state {
-            OperatorState::HashJoin(state) => state.inner.lock(),
+            OperatorState::HashJoin2(state) => state.inner.lock(),
             other => panic!("invalid operator state: {other:?}"),
         };
 
         match partition_state {
-            PartitionState::HashJoinBuild(state) => {
-                // Merge local table into the global table.
-                let local_table = std::mem::replace(
-                    &mut state.local_hashtable,
-                    PartitionJoinHashTable::new(self.left_types.clone(), self.right_types.clone()),
-                );
+            PartitionState::HashJoinBuild2(state) => {
+                unimplemented!()
+                // shared.partial.merge(local_table)?;
 
-                shared.partial.merge(local_table)?;
+                // shared.build_inputs_remaining -= 1;
 
-                shared.build_inputs_remaining -= 1;
+                // // If we're the last remaining, go ahead and move the 'partial'
+                // // table to 'global', and wake up any pending probers.
+                // //
+                // // Probers will then clone the global hash table (behind an Arc)
+                // // into their local states to avoid needing to synchronize.
+                // if shared.build_inputs_remaining == 0 {
+                //     let global_table = std::mem::replace(
+                //         &mut shared.partial,
+                //         PartitionJoinHashTable::new(
+                //             self.left_types.clone(),
+                //             self.right_types.clone(),
+                //         ),
+                //     );
+                //     shared.shared_global = Some(Arc::new(global_table));
 
-                // If we're the last remaining, go ahead and move the 'partial'
-                // table to 'global', and wake up any pending probers.
-                //
-                // Probers will then clone the global hash table (behind an Arc)
-                // into their local states to avoid needing to synchronize.
-                if shared.build_inputs_remaining == 0 {
-                    let global_table = std::mem::replace(
-                        &mut shared.partial,
-                        PartitionJoinHashTable::new(
-                            self.left_types.clone(),
-                            self.right_types.clone(),
-                        ),
-                    );
-                    shared.shared_global = Some(Arc::new(global_table));
+                //     for waker in shared.probe_push_wakers.iter_mut() {
+                //         if let Some(waker) = waker.take() {
+                //             waker.wake();
+                //         }
+                //     }
+                // }
 
-                    for waker in shared.probe_push_wakers.iter_mut() {
-                        if let Some(waker) = waker.take() {
-                            waker.wake();
-                        }
-                    }
-                }
-
-                Ok(PollFinalize::Finalized)
+                // Ok(PollFinalize::Finalized)
             }
-            PartitionState::HashJoinProbe(state) => {
+            PartitionState::HashJoinProbe2(state) => {
                 // Ensure we've finished building the left side before
                 // continuing with the finalize.
                 //
@@ -499,8 +494,8 @@ impl ExecutableOperator for PhysicalHashJoin {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         let state = match partition_state {
-            PartitionState::HashJoinProbe(state) => state,
-            PartitionState::HashJoinBuild(_) => {
+            PartitionState::HashJoinProbe2(state) => state,
+            PartitionState::HashJoinBuild2(_) => {
                 // We should only be pulling with the "probe" state. The "build"
                 // state acts as a sink into the operator.
                 panic!("should not pull with a build state")
@@ -546,7 +541,7 @@ impl ExecutableOperator for PhysicalHashJoin {
     }
 }
 
-impl Explainable for PhysicalHashJoin {
+impl Explainable for PhysicalHashJoin2 {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("HashJoin")
     }
