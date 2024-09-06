@@ -38,4 +38,4 @@ strsim = "0.11.1"
 scc = { workspace = true }
 
 [dev-dependencies]
-similar-asserts = "1.5.0"
+similar-asserts = "1.6.0"
