@@ -66,15 +66,6 @@ impl SelectPlanner {
             })
         }
 
-        // Handle HAVING
-        if let Some(expr) = select.having {
-            plan = LogicalOperator::Filter(Node {
-                node: LogicalFilter { filter: expr },
-                location: LocationRequirement::Any,
-                children: vec![plan],
-            })
-        }
-
         // Handle projections.
         for expr in &mut select.select_list.projections {
             plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
@@ -88,6 +79,15 @@ impl SelectPlanner {
             location: LocationRequirement::Any,
             children: vec![plan],
         });
+
+        // Handle HAVING
+        if let Some(expr) = select.having {
+            plan = LogicalOperator::Filter(Node {
+                node: LogicalFilter { filter: expr },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+            })
+        }
 
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {

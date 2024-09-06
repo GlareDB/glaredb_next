@@ -1402,6 +1402,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             left,
             right,
             Some(condition),
+            join.node.join_type,
         )
         // }
     }
@@ -1437,6 +1438,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             left,
             right,
             Some(filter),
+            join.node.join_type,
         )
     }
 
@@ -1449,7 +1451,15 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = join.location;
         let [left, right] = join.take_two_children_exact()?;
 
-        self.push_nl_join(id_gen, materializations, location, left, right, None)
+        self.push_nl_join(
+            id_gen,
+            materializations,
+            location,
+            left,
+            right,
+            None,
+            JoinType::Inner,
+        )
     }
 
     /// Push a nest loop join.
@@ -1465,6 +1475,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         left: operator::LogicalOperator,
         right: operator::LogicalOperator,
         filter: Option<PhysicalScalarExpression>,
+        join_type: JoinType,
     ) -> Result<()> {
         if self.config.error_on_nested_loop_join {
             return Err(RayexecError::new("Debug trigger: nested loop join"));
@@ -1493,7 +1504,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::NestedLoopJoin(
-                PhysicalNestedLoopJoin::new(filter),
+                PhysicalNestedLoopJoin::new(filter, join_type),
             )),
             partitioning_requirement: None,
         };

@@ -117,9 +117,12 @@ impl<'a> SelectBinder<'a> {
         // Handle HAVING
         let having = select
             .having
-            .map(|h| {
-                HavingBinder::new(self.current, self.resolve_context, group_by.as_ref())
-                    .bind(bind_context, h)
+            .map(|expr| {
+                HavingBinder::new(from_bind_ref, self.resolve_context).bind(
+                    bind_context,
+                    &mut select_list,
+                    expr,
+                )
             })
             .transpose()?;
 
