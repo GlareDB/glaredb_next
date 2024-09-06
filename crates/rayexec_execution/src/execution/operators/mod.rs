@@ -7,6 +7,7 @@ pub mod drop;
 pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
+pub mod hash_join;
 pub mod insert;
 pub mod join;
 pub mod limit;

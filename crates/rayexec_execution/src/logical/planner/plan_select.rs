@@ -112,12 +112,6 @@ impl SelectPlanner {
             });
         }
 
-        // // Table to bring in scope to allow referencing the output of this
-        // // select.
-        // //
-        // // Updated to pruned if necessary.
-        // let mut final_table_ref = select.select_list.projections_table;
-
         // Omit any columns that shouldn't be in the output.
         if let Some(pruned) = select.select_list.pruned {
             plan = LogicalOperator::Project(Node {
