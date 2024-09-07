@@ -225,21 +225,21 @@ impl LogicalOperator {
         std::mem::replace(self, Box::new(Self::EMPTY))
     }
 
-    pub fn for_each_child_mut<F>(&mut self, f: &mut F) -> Result<()>
+    pub fn for_each_child_mut<F>(&mut self, _f: &mut F) -> Result<()>
     where
         F: FnMut(&mut LogicalOperator) -> Result<()>,
     {
         unimplemented!()
     }
 
-    pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
+    pub fn walk_mut_pre<F>(&mut self, _pre: &mut F) -> Result<()>
     where
         F: FnMut(&mut LogicalOperator) -> Result<()>,
     {
         unimplemented!()
     }
 
-    pub fn walk_mut_post<F>(&mut self, post: &mut F) -> Result<()>
+    pub fn walk_mut_post<F>(&mut self, _post: &mut F) -> Result<()>
     where
         F: FnMut(&mut LogicalOperator) -> Result<()>,
     {
@@ -250,7 +250,7 @@ impl LogicalOperator {
     ///
     /// `pre` provides access to children on the way down, and `post` on the way
     /// up.
-    pub fn walk_mut<F1, F2>(&mut self, pre: &mut F1, post: &mut F2) -> Result<()>
+    pub fn walk_mut<F1, F2>(&mut self, _pre: &mut F1, _post: &mut F2) -> Result<()>
     where
         F1: FnMut(&mut LogicalOperator) -> Result<()>,
         F2: FnMut(&mut LogicalOperator) -> Result<()>,

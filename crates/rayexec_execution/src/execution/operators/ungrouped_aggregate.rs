@@ -274,24 +274,22 @@ impl DatabaseProtoConv for PhysicalUngroupedAggregate {
     type ProtoType = rayexec_proto::generated::execution::PhysicalUngroupedAggregate;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // Ok(Self::ProtoType {
-        //     aggregates: self
-        //         .aggregates
-        //         .iter()
-        //         .map(|a| a.to_proto_ctx(context))
-        //         .collect::<Result<Vec<_>>>()?,
-        // })
+        Ok(Self::ProtoType {
+            aggregates: self
+                .aggregates
+                .iter()
+                .map(|a| a.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // Ok(Self {
-        //     aggregates: proto
-        //         .aggregates
-        //         .into_iter()
-        //         .map(|a| PhysicalAggregateExpression::from_proto_ctx(a, context))
-        //         .collect::<Result<Vec<_>>>()?,
-        // })
+        Ok(Self {
+            aggregates: proto
+                .aggregates
+                .into_iter()
+                .map(|a| PhysicalAggregateExpression::from_proto_ctx(a, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
     }
 }
