@@ -41,7 +41,6 @@ use hash_join::{
     PhysicalHashJoin,
 };
 use insert::PhysicalInsert;
-use join::hash_join::PhysicalHashJoin2;
 use join::nl_join::PhysicalNestedLoopJoin;
 use limit::PhysicalLimit;
 use materialize::{
@@ -75,9 +74,6 @@ use crate::proto::DatabaseProtoConv;
 
 use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
-use self::join::hash_join::{
-    HashJoinBuildPartitionState2, HashJoinOperatorState2, HashJoinProbePartitionState2,
-};
 use self::join::nl_join::{
     NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
     NestedLoopJoinProbePartitionState,
@@ -101,8 +97,6 @@ pub enum PartitionState {
     UngroupedAggregate(UngroupedAggregatePartitionState),
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
     NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
-    HashJoinBuild2(HashJoinBuildPartitionState2),
-    HashJoinProbe2(HashJoinProbePartitionState2),
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
@@ -134,7 +128,6 @@ pub enum OperatorState {
     HashAggregate(HashAggregateOperatorState),
     UngroupedAggregate(UngroupedAggregateOperatorState),
     NestedLoopJoin(NestedLoopJoinOperatorState),
-    HashJoin2(HashJoinOperatorState2),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     MergeSorted(MergeSortedOperatorState),
@@ -316,7 +309,6 @@ pub enum PhysicalOperator {
     HashAggregate(PhysicalHashAggregate),
     UngroupedAggregate(PhysicalUngroupedAggregate),
     NestedLoopJoin(PhysicalNestedLoopJoin),
-    HashJoin2(PhysicalHashJoin2),
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
     ResultSink(SinkOperator<ResultSink>),
@@ -349,7 +341,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::HashAggregate(op) => op.create_states(context, partitions),
             Self::UngroupedAggregate(op) => op.create_states(context, partitions),
             Self::NestedLoopJoin(op) => op.create_states(context, partitions),
-            Self::HashJoin2(op) => op.create_states(context, partitions),
             Self::HashJoin(op) => op.create_states(context, partitions),
             Self::Values(op) => op.create_states(context, partitions),
             Self::ResultSink(op) => op.create_states(context, partitions),
@@ -386,7 +377,6 @@ impl ExecutableOperator for PhysicalOperator {
                 op.poll_push(cx, partition_state, operator_state, batch)
             }
             Self::NestedLoopJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::HashJoin2(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Values(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::ResultSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -422,7 +412,6 @@ impl ExecutableOperator for PhysicalOperator {
                 op.poll_finalize_push(cx, partition_state, operator_state)
             }
             Self::NestedLoopJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::HashJoin2(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::HashJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::ResultSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
@@ -456,7 +445,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::HashAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::UngroupedAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::NestedLoopJoin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::HashJoin2(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::ResultSink(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -487,7 +475,6 @@ impl Explainable for PhysicalOperator {
             Self::HashAggregate(op) => op.explain_entry(conf),
             Self::UngroupedAggregate(op) => op.explain_entry(conf),
             Self::NestedLoopJoin(op) => op.explain_entry(conf),
-            Self::HashJoin2(op) => op.explain_entry(conf),
             Self::HashJoin(op) => op.explain_entry(conf),
             Self::Values(op) => op.explain_entry(conf),
             Self::ResultSink(op) => op.explain_entry(conf),

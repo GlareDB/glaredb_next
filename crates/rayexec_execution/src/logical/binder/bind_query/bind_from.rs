@@ -417,8 +417,7 @@ impl<'a> FromBinder<'a> {
                 (Vec::new(), using_cols)
             }
             ast::JoinCondition::Natural => {
-                //
-                unimplemented!()
+                not_implemented!("NATURAL join")
             }
             ast::JoinCondition::None => (Vec::new(), Vec::new()),
         };
