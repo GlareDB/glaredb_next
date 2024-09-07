@@ -18,7 +18,7 @@ use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_join::JoinType;
 use crate::proto::DatabaseProtoConv;
 
-use super::outer_join_tracker::LeftOuterJoinTracker;
+use super::util::outer_join_tracker::LeftOuterJoinTracker;
 
 /// Partition-local state on the build side.
 #[derive(Debug, Default)]

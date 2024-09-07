@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    join::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker},
+    util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker},
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };

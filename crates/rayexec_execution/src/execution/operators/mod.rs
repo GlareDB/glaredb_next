@@ -9,9 +9,9 @@ pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
 pub mod insert;
-pub mod join;
 pub mod limit;
 pub mod materialize;
+pub mod nl_join;
 pub mod project;
 pub mod round_robin;
 pub mod scan;
@@ -41,12 +41,12 @@ use hash_join::{
     PhysicalHashJoin,
 };
 use insert::PhysicalInsert;
-use join::nl_join::PhysicalNestedLoopJoin;
 use limit::PhysicalLimit;
 use materialize::{
     MaterializeOperatorState, MaterializePullPartitionState, MaterializePushPartitionState,
     PhysicalMaterialize,
 };
+use nl_join::PhysicalNestedLoopJoin;
 use project::{PhysicalProject, ProjectOperation};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{not_implemented, OptionExt, Result};
@@ -74,11 +74,11 @@ use crate::proto::DatabaseProtoConv;
 
 use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
-use self::join::nl_join::{
+use self::limit::LimitPartitionState;
+use self::nl_join::{
     NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
     NestedLoopJoinProbePartitionState,
 };
-use self::limit::LimitPartitionState;
 use self::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };

@@ -3,7 +3,7 @@ use rayexec_bullet::{batch::Batch, compute, datatype::DataType};
 use rayexec_error::Result;
 use std::{collections::HashMap, fmt};
 
-use crate::execution::operators::join::outer_join_tracker::{
+use crate::execution::operators::util::outer_join_tracker::{
     LeftOuterJoinTracker, RightOuterJoinTracker,
 };
 
