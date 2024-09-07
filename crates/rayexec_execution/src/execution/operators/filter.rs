@@ -4,7 +4,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
 use rayexec_bullet::{array::Array, batch::Batch, compute::filter::filter};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 
 pub type PhysicalFilter = SimpleOperator<FilterOperation>;
 
@@ -62,21 +62,19 @@ impl DatabaseProtoConv for PhysicalFilter {
     type ProtoType = rayexec_proto::generated::execution::PhysicalFilter;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // Ok(Self::ProtoType {
-        //     predicate: Some(self.operation.predicate.to_proto_ctx(context)?),
-        // })
+        Ok(Self::ProtoType {
+            predicate: Some(self.operation.predicate.to_proto_ctx(context)?),
+        })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // Ok(Self {
-        //     operation: FilterOperation {
-        //         predicate: PhysicalScalarExpression::from_proto_ctx(
-        //             proto.predicate.required("predicate")?,
-        //             context,
-        //         )?,
-        //     },
-        // })
+        Ok(Self {
+            operation: FilterOperation {
+                predicate: PhysicalScalarExpression::from_proto_ctx(
+                    proto.predicate.required("predicate")?,
+                    context,
+                )?,
+            },
+        })
     }
 }

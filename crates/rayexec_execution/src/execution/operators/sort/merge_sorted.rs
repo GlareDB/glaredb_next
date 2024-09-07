@@ -1,6 +1,7 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 use crate::{
     execution::operators::{
         sort::util::merger::IterState, ExecutableOperator, OperatorState, PartitionState, PollPull,
@@ -585,6 +586,30 @@ impl PhysicalMergeSortedInputs {
 impl Explainable for PhysicalMergeSortedInputs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MergeSorted")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalMergeSortedInputs {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalMergeSortedInputs;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            exprs: self
+                .exprs
+                .iter()
+                .map(|expr| expr.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            exprs: proto
+                .exprs
+                .into_iter()
+                .map(|expr| DatabaseProtoConv::from_proto_ctx(expr, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
     }
 }
 

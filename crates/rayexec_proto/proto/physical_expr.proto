@@ -33,4 +33,14 @@ message PhysicalScalarExpression {
     }
 }
 
-message PhysicalAggregateExpression {}
+message PhysicalAggregateExpression {
+    functions.PlannedAggregateFunction function    = 1;
+    repeated PhysicalColumnExpr        columns     = 2;
+    schema.DataType                    output_type = 3;
+}
+
+message PhysicalSortExpression {
+    PhysicalColumnExpr column      = 1;
+    bool               desc        = 2;
+    bool               nulls_first = 3;
+}

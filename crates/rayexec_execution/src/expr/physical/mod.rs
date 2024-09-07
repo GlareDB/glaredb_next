@@ -13,6 +13,7 @@ use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType};
 use rayexec_error::{OptionExt, Result};
+use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::{
@@ -101,6 +102,37 @@ impl PhysicalAggregateExpression {
     }
 }
 
+impl DatabaseProtoConv for PhysicalAggregateExpression {
+    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalAggregateExpression;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            function: Some(self.function.to_proto_ctx(context)?),
+            columns: self
+                .columns
+                .iter()
+                .map(|c| c.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+            output_type: Some(self.output_type.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            function: DatabaseProtoConv::from_proto_ctx(
+                proto.function.required("function")?,
+                context,
+            )?,
+            columns: proto
+                .columns
+                .into_iter()
+                .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
+                .collect::<Result<Vec<_>>>()?,
+            output_type: ProtoConv::from_proto(proto.output_type.required("output_type")?)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PhysicalSortExpression {
     /// Column this expression is for.
@@ -109,4 +141,24 @@ pub struct PhysicalSortExpression {
     pub desc: bool,
     /// If nulls should be ordered first.
     pub nulls_first: bool,
+}
+
+impl DatabaseProtoConv for PhysicalSortExpression {
+    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalSortExpression;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            column: Some(self.column.to_proto_ctx(context)?),
+            desc: self.desc,
+            nulls_first: self.nulls_first,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            column: DatabaseProtoConv::from_proto_ctx(proto.column.required("column")?, context)?,
+            desc: proto.desc,
+            nulls_first: proto.nulls_first,
+        })
+    }
 }

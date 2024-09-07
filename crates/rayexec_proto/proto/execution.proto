@@ -118,6 +118,14 @@ message PhysicalNestedLoopJoin {
     optional physical_expr.PhysicalScalarExpression filter = 1;
 }
 
+message PhysicalLocalSort {
+    repeated physical_expr.PhysicalSortExpression exprs = 1;
+}
+
+message PhysicalMergeSortedInputs {
+    repeated physical_expr.PhysicalSortExpression exprs = 1;
+}
+
 message PhysicalCopyTo {
     functions.CopyToFunction copy_to  = 1;
     access.FileLocation      location = 2;
@@ -138,10 +146,12 @@ message PhysicalOperator {
         PhysicalScan               scan                = 10;
         PhysicalUngroupedAggregate ungrouped_aggregate = 11;
         PhysicalUnion union                            = 12;
-        PhysicalValues         values                  = 13;
-        PhysicalTableFunction  table_function          = 14;
-        PhysicalNestedLoopJoin nl_join                 = 15;
-        PhysicalCopyTo         copy_to                 = 16;
+        PhysicalValues            values               = 13;
+        PhysicalTableFunction     table_function       = 14;
+        PhysicalNestedLoopJoin    nl_join              = 15;
+        PhysicalCopyTo            copy_to              = 16;
+        PhysicalLocalSort         local_sort           = 17;
+        PhysicalMergeSortedInputs merge_sorted         = 18;
     }
 }
 

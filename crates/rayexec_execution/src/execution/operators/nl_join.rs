@@ -484,7 +484,7 @@ impl Explainable for PhysicalNestedLoopJoin {
 impl DatabaseProtoConv for PhysicalNestedLoopJoin {
     type ProtoType = rayexec_proto::generated::execution::PhysicalNestedLoopJoin;
 
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         unimplemented!()
         // Ok(Self::ProtoType {
         //     filter: self
@@ -495,7 +495,7 @@ impl DatabaseProtoConv for PhysicalNestedLoopJoin {
         // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         unimplemented!()
         // Ok(Self {
         //     filter: proto

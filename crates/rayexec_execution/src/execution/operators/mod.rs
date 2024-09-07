@@ -522,6 +522,8 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
             Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
             Self::CopyTo(op) => Value::CopyTo(op.to_proto_ctx(context)?),
+            Self::LocalSort(op) => Value::LocalSort(op.to_proto_ctx(context)?),
+            Self::MergeSorted(op) => Value::MergeSorted(op.to_proto_ctx(context)?),
             other => not_implemented!("to proto: {other:?}"),
         };
 
@@ -576,6 +578,12 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::CopyTo(op) => {
                 PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
             }
+            Value::LocalSort(op) => {
+                PhysicalOperator::LocalSort(PhysicalLocalSort::from_proto_ctx(op, context)?)
+            }
+            Value::MergeSorted(op) => PhysicalOperator::MergeSorted(
+                PhysicalMergeSortedInputs::from_proto_ctx(op, context)?,
+            ),
         })
     }
 }

@@ -1,6 +1,7 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 use crate::{
     execution::operators::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush},
     expr::physical::PhysicalSortExpression,
@@ -210,6 +211,36 @@ impl ExecutableOperator for PhysicalLocalSort {
     }
 }
 
+impl Explainable for PhysicalLocalSort {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("LocalSort")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalLocalSort {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalLocalSort;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            exprs: self
+                .exprs
+                .iter()
+                .map(|expr| expr.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            exprs: proto
+                .exprs
+                .into_iter()
+                .map(|expr| DatabaseProtoConv::from_proto_ctx(expr, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -375,11 +406,5 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Exhausted, poll_pull);
-    }
-}
-
-impl Explainable for PhysicalLocalSort {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("LocalSort")
     }
 }
