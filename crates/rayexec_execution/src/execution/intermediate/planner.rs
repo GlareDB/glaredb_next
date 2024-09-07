@@ -1347,6 +1347,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     /// This will create a complete pipeline for the left side of the join
     /// (build), right right side (probe) will be pushed onto the current
     /// pipeline.
+    #[allow(clippy::too_many_arguments)]
     fn push_nl_join(
         &mut self,
         id_gen: &mut PipelineIdGen,

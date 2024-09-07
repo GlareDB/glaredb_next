@@ -131,7 +131,7 @@ impl<'a> BaseExpressionBinder<'a> {
             }
             ast::Expr::Array(arr) => {
                 let exprs = arr
-                    .into_iter()
+                    .iter()
                     .map(|v| {
                         self.bind_expression(
                             bind_context,
@@ -422,7 +422,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         ast::FunctionArg::Unnamed { arg } => match arg {
                             ast::FunctionArgExpr::Expr(expr) => Ok(self.bind_expression(
                                 bind_context,
-                                &expr,
+                                expr,
                                 column_binder,
                                 RecursionContext {
                                     is_root: false,
@@ -667,21 +667,20 @@ impl<'a> BaseExpressionBinder<'a> {
         let return_type = if subquery_type == SubqueryType::Scalar {
             table
                 .column_types
-                .get(0)
+                .first()
                 .cloned()
                 .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?
         } else {
             DataType::Boolean
         };
 
-        // Ensure subquery returns expected number of cols.
-        if matches!(subquery_type, SubqueryType::Scalar | SubqueryType::Any) {
-            if table.num_columns() != 1 {
-                return Err(RayexecError::new(format!(
-                    "Expected subquery to return 1 column, returns {} columns",
-                    table.num_columns(),
-                )));
-            }
+        if matches!(subquery_type, SubqueryType::Scalar | SubqueryType::Any)
+            && table.num_columns() != 1
+        {
+            return Err(RayexecError::new(format!(
+                "Expected subquery to return 1 column, returns {} columns",
+                table.num_columns(),
+            )));
         }
 
         // Move correlated columns that don't reference the current scope to the

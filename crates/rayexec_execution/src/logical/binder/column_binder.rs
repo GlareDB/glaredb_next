@@ -101,7 +101,7 @@ impl DefaultColumnBinder {
     ) -> Result<Option<Expression>> {
         let mut current = bind_scope;
         loop {
-            let table = bind_context.find_table_for_column(current, alias.as_ref(), &col)?;
+            let table = bind_context.find_table_for_column(current, alias.as_ref(), col)?;
             match table {
                 Some((table, col_idx)) => {
                     // Table containing column found. Check if it's correlated

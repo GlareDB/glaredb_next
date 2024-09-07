@@ -52,7 +52,7 @@ impl<'a> ExplainFormatter<'a> {
                 }
 
                 let mut buf = String::new();
-                fmt(&node, 0, &mut buf)?;
+                fmt(node, 0, &mut buf)?;
 
                 Ok(buf)
             }
@@ -76,6 +76,7 @@ impl ExplainNode {
         config: ExplainConfig,
     ) -> ExplainNode {
         let (entry, children) = match plan {
+            LogicalOperator::Invalid => (ExplainEntry::new("INVALID"), &Vec::new()),
             LogicalOperator::Project(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Filter(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Scan(n) => (n.explain_entry(config), &n.children),
@@ -99,13 +100,15 @@ impl ExplainNode {
             LogicalOperator::CrossJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ArbitraryJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ComparisonJoin(n) => (n.explain_entry(config), &n.children),
-            _ => unimplemented!(),
         };
 
         let children = children
             .iter()
             .map(|c| Self::walk_logical_plan(bind_context, c, config))
             .collect();
+
+        // This will be used at some point.
+        let _ = bind_context;
 
         ExplainNode { entry, children }
     }

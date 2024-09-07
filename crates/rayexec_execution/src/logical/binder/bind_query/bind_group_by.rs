@@ -175,7 +175,7 @@ impl GroupByWithSets {
                             let mut set = BTreeSet::new();
                             let mut bitset = mask;
                             while bitset > 0 {
-                                let right = bitset & !(bitset - 1) as u64;
+                                let right: u64 = bitset & { !(bitset - 1) };
                                 let idx = right.trailing_zeros() as usize;
                                 set.insert(idx);
                                 bitset &= bitset - 1;

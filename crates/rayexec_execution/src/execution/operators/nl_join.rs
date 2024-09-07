@@ -171,7 +171,7 @@ impl SharedOperatorState {
 
                 let global_outer_join_tracker = match join_type {
                     JoinType::Left | JoinType::Full => {
-                        Some(LeftOuterJoinTracker::new_for_batches(&batches))
+                        Some(LeftOuterJoinTracker::new_for_batches(batches))
                     }
                     _ => None,
                 };
@@ -282,7 +282,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
 
                             if global_outer_join_tracker.is_some() {
                                 state.partition_outer_join_tracker =
-                                    Some(LeftOuterJoinTracker::new_for_batches(&batches))
+                                    Some(LeftOuterJoinTracker::new_for_batches(batches))
                             }
 
                             // Continue...

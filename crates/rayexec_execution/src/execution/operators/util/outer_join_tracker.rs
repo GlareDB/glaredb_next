@@ -175,6 +175,6 @@ impl RightOuterJoinTracker {
             .iter()
             .map(|t| Array::new_nulls(t, unvisited_count));
 
-        Batch::try_new(left_null_cols.chain(right_unvisited.into_iter()))
+        Batch::try_new(left_null_cols.chain(right_unvisited))
     }
 }

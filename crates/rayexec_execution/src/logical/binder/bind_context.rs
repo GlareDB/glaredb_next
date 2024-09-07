@@ -126,6 +126,12 @@ impl Table {
     }
 }
 
+impl Default for BindContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BindContext {
     pub fn new() -> Self {
         BindContext {
@@ -411,7 +417,7 @@ impl BindContext {
             let using = self
                 .get_using_columns(current)?
                 .iter()
-                .find(|&using| &using.column == column);
+                .find(|&using| using.column == column);
             if let Some(using) = using {
                 return Ok(Some((using.table_ref, using.col_idx)));
             }
