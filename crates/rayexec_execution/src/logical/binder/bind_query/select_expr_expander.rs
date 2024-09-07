@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{
     expr::column_expr::ColumnExpr,
     logical::{
@@ -77,8 +79,33 @@ impl<'a> SelectExprExpander<'a> {
             ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
                 let mut exprs = Vec::new();
+
+                // Handle USING columns. Expanding a SELECT * query that
+                // contains USING in the join, we only want to display the
+                // column once.
+                //
+                // USING columns are listed first, followed by the other table
+                // columns.
+                let mut handled = HashSet::new();
+                for using in self.bind_context.get_using_columns(self.current)? {
+                    exprs.push(ExpandedSelectExpr::Column {
+                        expr: ColumnExpr {
+                            table_scope: using.table_ref,
+                            column: using.col_idx,
+                        },
+                        name: using.column.clone(),
+                    });
+
+                    handled.insert(&using.column);
+                }
+
                 for table in self.bind_context.iter_tables(self.current)? {
                     for (col_idx, name) in table.column_names.iter().enumerate() {
+                        // If column is already added from USING, skip it.
+                        if handled.contains(name) {
+                            continue;
+                        }
+
                         exprs.push(ExpandedSelectExpr::Column {
                             expr: ColumnExpr {
                                 table_scope: table.reference,

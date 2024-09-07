@@ -6,13 +6,17 @@ use std::sync::Arc;
 use crate::{
     database::catalog_entry::CatalogEntry,
     expr::{
+        column_expr::ColumnExpr,
+        comparison_expr::{ComparisonExpr, ComparisonOperator},
         conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
         Expression,
     },
     functions::table::PlannedTableFunction,
     logical::{
         binder::{
-            bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef},
+            bind_context::{
+                BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef, UsingColumn,
+            },
             column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
         },
@@ -431,7 +435,7 @@ impl<'a> FromBinder<'a> {
         bind_context.append_context(self.current, right_idx)?;
 
         let condition_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
-        let conditions = condition_binder.bind_expressions(
+        let mut conditions = condition_binder.bind_expressions(
             bind_context,
             &conditions,
             &mut DefaultColumnBinder,
@@ -441,6 +445,55 @@ impl<'a> FromBinder<'a> {
                 is_root: true,
             },
         )?;
+
+        // Handle any USING columns, adding conditions as needed.
+        for using in using_cols {
+            let missing_column =
+                |side| RayexecError::new(format!("Cannot find column '{using}' on {side} of join"));
+
+            let (left_table, left_col_idx) = bind_context
+                .find_table_for_column(left_idx, None, &using)?
+                .ok_or_else(|| missing_column("left"))?;
+            let (right_table, right_col_idx) = bind_context
+                .find_table_for_column(right_idx, None, &using)?
+                .ok_or_else(|| missing_column("right"))?;
+
+            let left_ref = left_table.reference;
+            let right_ref = right_table.reference;
+
+            // Add USING column to _current_ scope.
+            bind_context.append_using_column(
+                self.current,
+                UsingColumn {
+                    column: using,
+                    table_ref: left_ref,
+                    col_idx: left_col_idx,
+                },
+            )?;
+
+            // Generate additional equality condition.
+            // TODO: Probably make this a method on the expr binder. Easy to miss the cast.
+            let [left, right] = condition_binder.apply_cast_for_operator(
+                bind_context,
+                ComparisonOperator::Eq,
+                [
+                    Expression::Column(ColumnExpr {
+                        table_scope: left_ref,
+                        column: left_col_idx,
+                    }),
+                    Expression::Column(ColumnExpr {
+                        table_scope: right_ref,
+                        column: right_col_idx,
+                    }),
+                ],
+            )?;
+
+            conditions.push(Expression::Comparison(ComparisonExpr {
+                left: Box::new(left),
+                right: Box::new(right),
+                op: ComparisonOperator::Eq,
+            }))
+        }
 
         Ok(BoundFrom {
             bind_ref: self.current,

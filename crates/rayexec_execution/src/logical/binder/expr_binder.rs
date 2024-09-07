@@ -741,7 +741,7 @@ impl<'a> BaseExpressionBinder<'a> {
         })
     }
 
-    fn apply_cast_for_operator<const N: usize>(
+    pub(crate) fn apply_cast_for_operator<const N: usize>(
         &self,
         bind_context: &BindContext,
         operator: impl AsScalarFunction,

@@ -44,6 +44,16 @@ pub struct CorrelatedColumn {
     pub col_idx: usize,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct UsingColumn {
+    /// Normalized column name.
+    pub column: String,
+    /// A reference to one of the tables used in the USING condition.
+    pub table_ref: TableRef,
+    /// Column index inside the table.
+    pub col_idx: usize,
+}
+
 #[derive(Debug, Default)]
 struct BindScope {
     /// Index to the parent bind context.
@@ -52,6 +62,8 @@ struct BindScope {
     parent: Option<BindScopeRef>,
     /// Correlated columns in the query at this depth.
     correlated_columns: Vec<CorrelatedColumn>,
+    /// Columns that are used in a USING join condition.
+    using_columns: Vec<UsingColumn>,
     /// Tables currently in scope.
     tables: Vec<TableRef>,
 }
@@ -121,6 +133,7 @@ impl BindContext {
                 parent: None,
                 tables: Vec::new(),
                 correlated_columns: Vec::new(),
+                using_columns: Vec::new(),
             }],
             tables: Vec::new(),
         }
@@ -140,6 +153,7 @@ impl BindContext {
             parent: Some(current),
             tables: Vec::new(),
             correlated_columns: Vec::new(),
+            using_columns: Vec::new(),
         });
 
         BindScopeRef { context_idx: idx }
@@ -153,6 +167,7 @@ impl BindContext {
             parent: None,
             tables: Vec::new(),
             correlated_columns: Vec::new(),
+            using_columns: Vec::new(),
         });
 
         BindScopeRef { context_idx: idx }
@@ -432,6 +447,18 @@ impl BindContext {
             .tables
             .iter()
             .map(|table| &self.tables[table.table_idx]))
+    }
+
+    /// Appends a USING column to the current scope.
+    pub fn append_using_column(&mut self, current: BindScopeRef, col: UsingColumn) -> Result<()> {
+        let scope = self.get_scope_mut(current)?;
+        scope.using_columns.push(col);
+        Ok(())
+    }
+
+    pub fn get_using_columns(&self, current: BindScopeRef) -> Result<&[UsingColumn]> {
+        let scope = self.get_scope(current)?;
+        Ok(&scope.using_columns)
     }
 
     fn get_scope(&self, bind_ref: BindScopeRef) -> Result<&BindScope> {
