@@ -20,7 +20,6 @@ use std::sync::Arc;
 
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
-use crate::logical::expr::LogicalExpression;
 
 use super::FunctionInfo;
 

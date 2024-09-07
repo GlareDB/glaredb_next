@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_bullet::{
     array::Array,
     datatype::{DataType, DataTypeId},
-    field::TypeSchema,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::{
@@ -19,7 +18,7 @@ use crate::{
         scalar::macros::{primitive_binary_execute_bool, primitive_unary_execute_bool},
         FunctionInfo, Signature,
     },
-    logical::{binder::bind_context::BindContext, consteval::ConstEval, expr::LogicalExpression},
+    logical::{binder::bind_context::BindContext, consteval::ConstEval},
 };
 
 use super::{comparison::EqImpl, PlannedScalarFunction, ScalarFunction};

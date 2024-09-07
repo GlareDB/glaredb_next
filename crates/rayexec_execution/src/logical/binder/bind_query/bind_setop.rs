@@ -8,7 +8,7 @@ use crate::{
             bind_context::{BindContext, BindScopeRef, TableRef},
             bind_query::{bind_modifier::ModifierBinder, select_list::SelectList, QueryBinder},
         },
-        operator::SetOpKind,
+        logical_setop::SetOpKind,
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };

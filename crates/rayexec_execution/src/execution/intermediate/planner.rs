@@ -2,7 +2,6 @@ use crate::{
     database::create::{CreateSchemaInfo, CreateTableInfo},
     engine::vars::SessionVars,
     execution::{
-        explain::format_logical_plan_for_explain,
         intermediate::PipelineSink,
         operators::{
             copy_to::CopyToOperation,
@@ -42,7 +41,6 @@ use crate::{
     functions::scalar::boolean::AndImpl,
     logical::{
         binder::bind_context::BindContext,
-        context::QueryContext,
         logical_aggregate::LogicalAggregate,
         logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
@@ -58,7 +56,7 @@ use crate::{
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
         logical_set::LogicalShowVar,
-        logical_setop::LogicalSetop,
+        logical_setop::{LogicalSetop, SetOpKind},
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
 };
@@ -270,59 +268,55 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     /// A materialized plan may depend on earlier materialized plans. What gets
     /// returned is the set of materializations that should be used in the rest
     /// of the plan.
-    fn plan_materializations(
-        &mut self,
-        context: QueryContext,
-        id_gen: &mut PipelineIdGen,
-    ) -> Result<Materializations> {
+    fn plan_materializations(&mut self, id_gen: &mut PipelineIdGen) -> Result<Materializations> {
         let mut materializations = Materializations::default();
 
-        for materialized in context.materialized {
-            // Generate the pipeline(s) for this plan.
-            self.walk(&mut materializations, id_gen, materialized.root)?;
+        // for materialized in context.materialized {
+        //     // Generate the pipeline(s) for this plan.
+        //     self.walk(&mut materializations, id_gen, materialized.root)?;
 
-            // Finish off the pipeline with a PhysicalMaterialize as the sink.
-            let operator = IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
-                    materialized.num_scans,
-                ))),
-                partitioning_requirement: None,
-            };
+        //     // Finish off the pipeline with a PhysicalMaterialize as the sink.
+        //     let operator = IntermediateOperator {
+        //         operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
+        //             materialized.num_scans,
+        //         ))),
+        //         partitioning_requirement: None,
+        //     };
 
-            let location = LocationRequirement::Any;
-            self.push_intermediate_operator(operator, location, id_gen)?;
+        //     let location = LocationRequirement::Any;
+        //     self.push_intermediate_operator(operator, location, id_gen)?;
 
-            let pipeline = self.take_in_progress_pipeline()?;
-            let location = pipeline.location;
+        //     let pipeline = self.take_in_progress_pipeline()?;
+        //     let location = pipeline.location;
 
-            let pipeline = IntermediatePipeline {
-                id: pipeline.id,
-                sink: PipelineSink::InPipeline,
-                source: pipeline.source,
-                operators: pipeline.operators,
-            };
+        //     let pipeline = IntermediatePipeline {
+        //         id: pipeline.id,
+        //         sink: PipelineSink::InPipeline,
+        //         source: pipeline.source,
+        //         operators: pipeline.operators,
+        //     };
 
-            let id = pipeline.id;
-            let source = match location {
-                LocationRequirement::ClientLocal => {
-                    self.local_group.pipelines.insert(id, pipeline);
-                    MaterializationSource::Local(id)
-                }
-                LocationRequirement::Remote => {
-                    self.remote_group.pipelines.insert(id, pipeline);
-                    MaterializationSource::Remote(id)
-                }
-                LocationRequirement::Any => {
-                    self.local_group.pipelines.insert(id, pipeline);
-                    MaterializationSource::Local(id)
-                }
-            };
+        //     let id = pipeline.id;
+        //     let source = match location {
+        //         LocationRequirement::ClientLocal => {
+        //             self.local_group.pipelines.insert(id, pipeline);
+        //             MaterializationSource::Local(id)
+        //         }
+        //         LocationRequirement::Remote => {
+        //             self.remote_group.pipelines.insert(id, pipeline);
+        //             MaterializationSource::Remote(id)
+        //         }
+        //         LocationRequirement::Any => {
+        //             self.local_group.pipelines.insert(id, pipeline);
+        //             MaterializationSource::Local(id)
+        //         }
+        //     };
 
-            let sources: Vec<_> = (0..materialized.num_scans).map(|_| source).collect();
-            materializations
-                .materialize_sources
-                .insert(materialized.idx, sources);
-        }
+        //     let sources: Vec<_> = (0..materialized.num_scans).map(|_| source).collect();
+        //     materializations
+        //         .materialize_sources
+        //         .insert(materialized.idx, sources);
+        // }
 
         Ok(materializations)
     }
@@ -345,12 +339,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::ComparisonJoin(join) => {
                 self.push_comparison_join(id_gen, materializations, join)
             }
-            LogicalOperator::EqualityJoin(join) => {
-                self.push_equality_join(id_gen, materializations, join)
-            }
-            LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
-                "Dependent joins cannot be made into a pipeline",
-            )),
             LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
             LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
@@ -368,9 +356,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Insert(insert) => self.push_insert(id_gen, materializations, insert),
             LogicalOperator::CopyTo(copy_to) => {
                 self.push_copy_to(id_gen, materializations, copy_to)
-            }
-            LogicalOperator::MaterializedScan(scan) => {
-                self.push_materialized_scan(materializations, id_gen, scan)
             }
             LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
             LogicalOperator::SetOp(setop) => {
@@ -634,7 +619,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let bottom_in_progress = bottom_builder.take_in_progress_pipeline()?;
 
         match setop.node.kind {
-            operator::SetOpKind::Union => {
+            SetOpKind::Union => {
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::Union(PhysicalUnion)),
                     partitioning_requirement: None,
@@ -721,50 +706,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.push_intermediate_operator(operator, location, id_gen)?;
-
-        Ok(())
-    }
-
-    fn push_materialized_scan(
-        &mut self,
-        materializations: &mut Materializations,
-        id_gen: &mut PipelineIdGen,
-        scan: Node<operator::MaterializedScan>,
-    ) -> Result<()> {
-        // TODO: Do we care? Currently just defaulting to the materialization
-        // location.
-        let _location = scan.location;
-
-        let scan = scan.into_inner();
-
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new("Expected in progress to be None"));
-        }
-
-        let (source_id, location) = match materializations.materialize_sources.get_mut(&scan.idx) {
-            Some(sources) => {
-                let source = sources.pop().required("materialization source key")?;
-                match source {
-                    MaterializationSource::Local(id) => (id, LocationRequirement::ClientLocal),
-                    MaterializationSource::Remote(id) => (id, LocationRequirement::Remote),
-                }
-            }
-            None => {
-                return Err(RayexecError::new(format!(
-                    "Missing pipelines for materialized plan at index {}",
-                    scan.idx
-                )))
-            }
-        };
-
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: Vec::new(),
-            location,
-            source: PipelineSource::OtherPipeline {
-                pipeline: source_id,
-            },
-        });
 
         Ok(())
     }
@@ -1312,60 +1253,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         });
 
         Ok(())
-    }
-
-    /// Push an equality (hash) join.
-    fn push_equality_join(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        materializations: &mut Materializations,
-        join: Node<operator::EqualityJoin>,
-    ) -> Result<()> {
-        let location = join.location;
-        let join = join.into_inner();
-
-        let left_types = join.left.output_schema(&[])?;
-        let right_types = join.right.output_schema(&[])?;
-
-        // Build up all inputs on the right (probe) side. This is going to
-        // continue with the the current pipeline.
-        self.walk(materializations, id_gen, *join.right)?;
-
-        // Build up the left (build) side in a separate pipeline. This will feed
-        // into the currently pipeline at the join operator.
-        let mut left_state = IntermediatePipelineBuildState::new(self.config, self.bind_context);
-        left_state.walk(materializations, id_gen, *join.left)?;
-
-        // Take any completed pipelines from the left side and put them in our
-        // list.
-        self.local_group
-            .merge_from_other(&mut left_state.local_group);
-        self.remote_group
-            .merge_from_other(&mut left_state.remote_group);
-
-        // Get the left pipeline.
-        let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
-            RayexecError::new("expected in-progress pipeline from left side of join")
-        })?;
-
-        unimplemented!()
-        // let operator = IntermediateOperator {
-        //     operator: Arc::new(PhysicalOperator::HashJoin2(PhysicalHashJoin::new(
-        //         join.join_type,
-        //         join.left_on,
-        //         join.right_on,
-        //         left_types,
-        //         right_types,
-        //     ))),
-        //     partitioning_requirement: None,
-        // };
-        // self.push_intermediate_operator(operator, location, id_gen)?;
-
-        // // Left pipeline will be child this this pipeline at the current
-        // // operator.
-        // self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
-
-        // Ok(())
     }
 
     fn push_comparison_join(

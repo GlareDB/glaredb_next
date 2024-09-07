@@ -1,9 +1,27 @@
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use std::fmt;
 
 use super::{
     binder::bind_context::TableRef,
-    operator::{LogicalNode, Node, SetOpKind},
+    operator::{LogicalNode, Node},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetOpKind {
+    Union,
+    Except,
+    Intersect,
+}
+
+impl fmt::Display for SetOpKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Union => write!(f, "UNION"),
+            Self::Except => write!(f, "EXCEPT"),
+            Self::Intersect => write!(f, "INTERSECT"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalSetop {

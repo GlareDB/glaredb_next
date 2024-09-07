@@ -37,9 +37,6 @@
 //! Walks the bound statement and produces a logical plan.
 
 pub mod consteval;
-pub mod context;
-pub mod expr;
-pub mod grouping_set;
 pub mod operator;
 
 pub mod binder;

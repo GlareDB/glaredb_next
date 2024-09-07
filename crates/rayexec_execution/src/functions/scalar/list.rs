@@ -7,7 +7,6 @@ use rayexec_bullet::{
     },
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId, ListTypeMeta},
-    field::TypeSchema,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -17,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     expr::Expression,
     functions::{plan_check_num_args, FunctionInfo, Signature},
-    logical::{binder::bind_context::BindContext, consteval::ConstEval, expr::LogicalExpression},
+    logical::{binder::bind_context::BindContext, consteval::ConstEval},
 };
 
 use super::{PlannedScalarFunction, ScalarFunction};
