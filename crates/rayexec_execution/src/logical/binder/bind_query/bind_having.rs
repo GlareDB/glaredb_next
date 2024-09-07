@@ -1,19 +1,19 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::{
-    expr::{column_expr::ColumnExpr, Expression},
+    expr::Expression,
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef},
-            column_binder::{DefaultColumnBinder, ExpressionColumnBinder},
+            column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
         },
         resolver::{resolve_context::ResolveContext, ResolvedMeta},
     },
 };
 
-use super::{bind_group_by::BoundGroupBy, select_list::SelectList};
+use super::select_list::SelectList;
 
 #[derive(Debug)]
 pub struct HavingBinder<'a> {

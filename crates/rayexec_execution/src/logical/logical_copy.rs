@@ -2,7 +2,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_io::location::FileLocation;
 
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{expr::Expression, functions::copy::CopyToFunction};
+use crate::functions::copy::CopyToFunction;
 
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};

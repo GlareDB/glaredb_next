@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
 use crate::{
-    expr::{comparison_expr::ComparisonOperator, physical::PhysicalScalarExpression},
+    expr::physical::PhysicalScalarExpression,
     functions::scalar::{boolean::AndImpl, PlannedScalarFunction},
 };
 

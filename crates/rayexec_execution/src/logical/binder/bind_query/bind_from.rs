@@ -8,7 +8,6 @@ use crate::{
     expr::{
         column_expr::ColumnExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
-        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
         Expression,
     },
     functions::table::PlannedTableFunction,

@@ -17,7 +17,7 @@ use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use super::logical_setop::LogicalSetop;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use std::fmt;
 

@@ -1,5 +1,5 @@
 use crate::{
-    expr::{column_expr::ColumnExpr, literal_expr::LiteralExpr, Expression},
+    expr::Expression,
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
@@ -11,7 +11,7 @@ use crate::{
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 
 use super::select_list::SelectList;
 

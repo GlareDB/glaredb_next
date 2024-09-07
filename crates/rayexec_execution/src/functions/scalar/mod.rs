@@ -12,7 +12,6 @@ pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;

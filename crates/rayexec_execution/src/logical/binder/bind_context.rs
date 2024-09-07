@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};

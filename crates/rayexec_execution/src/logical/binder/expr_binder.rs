@@ -38,7 +38,7 @@ use crate::{
 };
 
 use super::{
-    bind_context::{BindContext, BindScopeRef, TableAlias},
+    bind_context::{BindContext, BindScopeRef},
     column_binder::ExpressionColumnBinder,
 };
 

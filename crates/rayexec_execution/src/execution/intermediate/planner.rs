@@ -15,7 +15,6 @@ use crate::{
             insert::InsertOperation,
             join::nl_join::PhysicalNestedLoopJoin,
             limit::PhysicalLimit,
-            materialize::PhysicalMaterialize,
             project::{PhysicalProject, ProjectOperation},
             scan::PhysicalScan,
             simple::SimpleOperator,
@@ -269,7 +268,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     /// returned is the set of materializations that should be used in the rest
     /// of the plan.
     fn plan_materializations(&mut self, id_gen: &mut PipelineIdGen) -> Result<Materializations> {
-        let mut materializations = Materializations::default();
+        let materializations = Materializations::default();
 
         // for materialized in context.materialized {
         //     // Generate the pipeline(s) for this plan.

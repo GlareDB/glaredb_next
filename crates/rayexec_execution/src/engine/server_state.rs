@@ -31,7 +31,6 @@ use crate::{
             ResolvedStatement,
         },
     },
-    optimizer::Optimizer,
     runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;

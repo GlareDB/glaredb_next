@@ -5,7 +5,7 @@ use crate::database::catalog_entry::CatalogEntry;
 
 use super::{
     binder::bind_context::TableRef,
-    operator::{LogicalNode, LogicalOperator, Node},
+    operator::{LogicalNode, Node},
 };
 
 #[derive(Debug, Clone, PartialEq)]

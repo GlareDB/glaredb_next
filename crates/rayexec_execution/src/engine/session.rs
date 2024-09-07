@@ -23,7 +23,6 @@ use crate::{
         planner::plan_statement::StatementPlanner,
         resolver::{ResolveMode, Resolver},
     },
-    optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},
 };
 

@@ -2,7 +2,7 @@ use crate::{
     expr::{column_expr::ColumnExpr, Expression},
     logical::{
         binder::{
-            bind_context::{self, BindContext, BindScopeRef, TableRef},
+            bind_context::{BindContext, BindScopeRef, TableRef},
             column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
         },
@@ -10,11 +10,11 @@ use crate::{
     },
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast::{self, SelectExpr};
+use rayexec_parser::ast::{self};
 use std::collections::HashMap;
 
 use super::{
-    bind_group_by::BoundGroupBy, bind_modifier::BoundOrderBy,
+    bind_group_by::BoundGroupBy,
     select_expr_expander::ExpandedSelectExpr,
 };
 

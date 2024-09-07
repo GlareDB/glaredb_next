@@ -4,7 +4,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
 use rayexec_bullet::{array::Array, batch::Batch, compute::filter::filter};
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 pub type PhysicalFilter = SimpleOperator<FilterOperation>;
 

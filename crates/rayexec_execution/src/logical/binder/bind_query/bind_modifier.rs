@@ -3,7 +3,7 @@ use rayexec_parser::ast;
 use std::fmt;
 
 use crate::{
-    expr::{column_expr::ColumnExpr, Expression},
+    expr::Expression,
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef},

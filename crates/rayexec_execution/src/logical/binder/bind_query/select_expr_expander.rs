@@ -4,7 +4,7 @@ use crate::{
     expr::column_expr::ColumnExpr,
     logical::{
         binder::bind_context::{BindContext, BindScopeRef, TableAlias},
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
+        resolver::ResolvedMeta,
     },
 };
 use rayexec_error::{RayexecError, Result};

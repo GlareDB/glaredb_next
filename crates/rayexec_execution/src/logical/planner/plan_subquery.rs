@@ -7,10 +7,7 @@ use crate::{
         subquery_expr::{SubqueryExpr, SubqueryType},
         Expression,
     },
-    functions::{
-        aggregate::count::{Count, CountNonNullImpl},
-        scalar::negate,
-    },
+    functions::aggregate::count::CountNonNullImpl,
     logical::{
         binder::bind_context::BindContext,
         logical_aggregate::LogicalAggregate,

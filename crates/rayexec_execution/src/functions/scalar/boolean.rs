@@ -1,9 +1,9 @@
 use super::{PlannedScalarFunction, ScalarFunction};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
+use rayexec_bullet::executor::scalar::UniformExecutor;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

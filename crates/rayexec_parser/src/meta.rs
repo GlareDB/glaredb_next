@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::ast::{
-    BinaryOperator, CommonTableExpr, CopyOption, CopyToTarget, DataType, FunctionArg,
-    ObjectReference, UnaryOperator,
+    CommonTableExpr, CopyOption, CopyToTarget, DataType, FunctionArg,
+    ObjectReference,
 };
 
 /// Metadata associated with sql statements.

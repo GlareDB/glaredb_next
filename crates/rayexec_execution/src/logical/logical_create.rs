@@ -4,7 +4,7 @@ use crate::database::create::OnConflict;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use super::binder::bind_context::TableRef;
-use super::operator::{LogicalNode, LogicalOperator, Node};
+use super::operator::{LogicalNode, Node};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCreateSchema {
