@@ -262,6 +262,7 @@ impl LogicalOperator {
 impl LogicalNode for LogicalOperator {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         match self {
+            Self::Invalid => Vec::new(), // Programmer error. Maybe panic?
             LogicalOperator::Project(n) => n.get_output_table_refs(),
             LogicalOperator::Filter(n) => n.get_output_table_refs(),
             LogicalOperator::Scan(n) => n.get_output_table_refs(),
@@ -285,7 +286,6 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::CrossJoin(n) => n.get_output_table_refs(),
             LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(),
             LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(),
-            _ => unimplemented!(),
         }
     }
 }
