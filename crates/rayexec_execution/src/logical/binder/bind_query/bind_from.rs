@@ -448,8 +448,11 @@ impl<'a> FromBinder<'a> {
 
         // Handle any USING columns, adding conditions as needed.
         for using in using_cols {
-            let missing_column =
-                |side| RayexecError::new(format!("Cannot find column '{using}' on {side} of join"));
+            let missing_column = |side| {
+                RayexecError::new(format!(
+                    "Cannot find column '{using}' on {side} side of join"
+                ))
+            };
 
             let (left_table, left_col_idx) = bind_context
                 .find_table_for_column(left_idx, None, &using)?
@@ -458,15 +461,12 @@ impl<'a> FromBinder<'a> {
                 .find_table_for_column(right_idx, None, &using)?
                 .ok_or_else(|| missing_column("right"))?;
 
-            let left_ref = left_table.reference;
-            let right_ref = right_table.reference;
-
             // Add USING column to _current_ scope.
             bind_context.append_using_column(
                 self.current,
                 UsingColumn {
                     column: using,
-                    table_ref: left_ref,
+                    table_ref: left_table,
                     col_idx: left_col_idx,
                 },
             )?;
@@ -478,11 +478,11 @@ impl<'a> FromBinder<'a> {
                 ComparisonOperator::Eq,
                 [
                     Expression::Column(ColumnExpr {
-                        table_scope: left_ref,
+                        table_scope: left_table,
                         column: left_col_idx,
                     }),
                     Expression::Column(ColumnExpr {
-                        table_scope: right_ref,
+                        table_scope: right_table,
                         column: right_col_idx,
                     }),
                 ],

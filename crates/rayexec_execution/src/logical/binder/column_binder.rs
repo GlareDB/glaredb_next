@@ -104,8 +104,6 @@ impl DefaultColumnBinder {
             let table = bind_context.find_table_for_column(current, alias.as_ref(), &col)?;
             match table {
                 Some((table, col_idx)) => {
-                    let table = table.reference;
-
                     // Table containing column found. Check if it's correlated
                     // (referencing an outer context).
                     let is_correlated = current != bind_scope;

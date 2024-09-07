@@ -396,16 +396,27 @@ impl BindContext {
 
     /// Tries to find the the scope that has a matching column name.
     ///
-    /// This will only search the current scope, and will not look at any outer
-    /// scopes.
+    /// This first searches any USING columns if `alias` is None, then proceeds
+    /// to search all tables in this scope. Outer scopes are not searched.
     ///
-    /// Returns the table, and the relative index of the column within that table.
+    /// Returns the table reference containing the column, and the relative
+    /// index of the column within that table.
     pub fn find_table_for_column(
         &self,
         current: BindScopeRef,
         alias: Option<&TableAlias>,
         column: &str,
-    ) -> Result<Option<(&Table, usize)>> {
+    ) -> Result<Option<(TableRef, usize)>> {
+        if alias.is_none() {
+            let using = self
+                .get_using_columns(current)?
+                .iter()
+                .find(|&using| &using.column == column);
+            if let Some(using) = using {
+                return Ok(Some((using.table_ref, using.col_idx)));
+            }
+        }
+
         let mut found = None;
 
         for table in self.iter_tables(current)? {
@@ -426,7 +437,7 @@ impl BindContext {
                             "Ambiguous column name '{column}'"
                         )));
                     }
-                    found = Some((table, col_idx));
+                    found = Some((table.reference, col_idx));
                 }
             }
         }

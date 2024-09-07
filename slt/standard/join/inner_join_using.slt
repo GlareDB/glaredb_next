@@ -40,13 +40,11 @@ SELECT t1.* FROM t1 INNER JOIN t2 USING (a);
 1  2  3
 1  2  3
 
-# TODO: This misses the first column. Surprisingly tricky since column 'a' can be referenced via 't1' or
-# 't2' but the column itself is deduplicated.
-# query III
-# SELECT t2.* FROM t1 INNER JOIN t2 USING (a);
-# ----
-# 1  2  3
-# 1  2  4
+query III
+SELECT t2.* FROM t1 INNER JOIN t2 USING (a);
+----
+1  2  3
+1  2  4
 
 query TT
 DESCRIBE SELECT * FROM t1 INNER JOIN t2 USING (a, b, c);
@@ -65,5 +63,5 @@ SELECT b FROM t1 INNER JOIN t2 USING (a, b, c);
 ----
 2
 
-statement error Missing column for reference: d
+statement error Cannot find column 'd' on left side of join
 SELECT * FROM t1 INNER JOIN t2 USING (a, b, c, d);
