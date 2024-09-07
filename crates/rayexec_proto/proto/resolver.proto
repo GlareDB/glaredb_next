@@ -4,24 +4,25 @@ package rayexec.resolver;
 
 import "expr.proto";
 import "logical.proto";
+import "functions.proto";
 import "ast/raw.proto";
 import "catalog.proto";
 
 message ResolvedFunctionReference {
     oneof value {
-        expr.ScalarFunction    scalar    = 1;
-        expr.AggregateFunction aggregate = 2;
+        functions.ScalarFunction    scalar    = 1;
+        functions.AggregateFunction aggregate = 2;
     }
 }
 
 message ResolvedTableFunctionReference {
-    string                    name = 1;
-    expr.PlannedTableFunction func = 2;
+    string                         name = 1;
+    functions.PlannedTableFunction func = 2;
 }
 
 message UnresolvedTableFunctionReference {
-    ast.raw.ObjectReference reference = 1;
-    expr.TableFunctionArgs  args      = 2;
+    ast.raw.ObjectReference     reference = 1;
+    functions.TableFunctionArgs args      = 2;
 }
 
 message ResolvedCteReference {
@@ -67,7 +68,7 @@ message ResolvedTableFunctionReferenceWithLocation {
 }
 
 message ResolvedCopyTo {
-    expr.CopyToFunction func = 1;
+    functions.CopyToFunction func = 1;
 }
 
 message MaybeResolvedTable {

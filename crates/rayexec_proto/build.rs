@@ -5,6 +5,8 @@ fn main() {
             "proto/array.proto",
             "proto/execution.proto",
             "proto/expr.proto",
+            "proto/physical_expr.proto",
+            "proto/functions.proto",
             "proto/access.proto",
             "proto/resolver.proto",
             "proto/ast/raw.proto",

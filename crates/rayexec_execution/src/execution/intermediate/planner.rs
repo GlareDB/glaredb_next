@@ -171,6 +171,7 @@ impl PipelineIdGen {
 }
 
 /// Key for a pipeline that's being materialized.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 enum MaterializationSource {
     Local(IntermediatePipelineId),
@@ -250,74 +251,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             bind_context,
             expr_planner,
         }
-    }
-
-    /// Plans all materialized logical plans in the query context.
-    ///
-    /// For each materialized plan, this will do two things:
-    ///
-    /// 1. Build the complete pipeline representing a plan whose sink will be a
-    ///    PhysicalMaterialize. This pipeline will be placed in one of the pipeline
-    ///    in one of the pipeline groups.
-    ///
-    /// 2. Create materialization keys the correspond to the materialized
-    ///    pipeline. When an operator encounters a materialization scan, it'll
-    ///    look at the key to determine the pipeline source.
-    ///
-    /// A materialized plan may depend on earlier materialized plans. What gets
-    /// returned is the set of materializations that should be used in the rest
-    /// of the plan.
-    fn plan_materializations(&mut self, id_gen: &mut PipelineIdGen) -> Result<Materializations> {
-        let materializations = Materializations::default();
-
-        // for materialized in context.materialized {
-        //     // Generate the pipeline(s) for this plan.
-        //     self.walk(&mut materializations, id_gen, materialized.root)?;
-
-        //     // Finish off the pipeline with a PhysicalMaterialize as the sink.
-        //     let operator = IntermediateOperator {
-        //         operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
-        //             materialized.num_scans,
-        //         ))),
-        //         partitioning_requirement: None,
-        //     };
-
-        //     let location = LocationRequirement::Any;
-        //     self.push_intermediate_operator(operator, location, id_gen)?;
-
-        //     let pipeline = self.take_in_progress_pipeline()?;
-        //     let location = pipeline.location;
-
-        //     let pipeline = IntermediatePipeline {
-        //         id: pipeline.id,
-        //         sink: PipelineSink::InPipeline,
-        //         source: pipeline.source,
-        //         operators: pipeline.operators,
-        //     };
-
-        //     let id = pipeline.id;
-        //     let source = match location {
-        //         LocationRequirement::ClientLocal => {
-        //             self.local_group.pipelines.insert(id, pipeline);
-        //             MaterializationSource::Local(id)
-        //         }
-        //         LocationRequirement::Remote => {
-        //             self.remote_group.pipelines.insert(id, pipeline);
-        //             MaterializationSource::Remote(id)
-        //         }
-        //         LocationRequirement::Any => {
-        //             self.local_group.pipelines.insert(id, pipeline);
-        //             MaterializationSource::Local(id)
-        //         }
-        //     };
-
-        //     let sources: Vec<_> = (0..materialized.num_scans).map(|_| source).collect();
-        //     materializations
-        //         .materialize_sources
-        //         .insert(materialized.idx, sources);
-        // }
-
-        Ok(materializations)
     }
 
     fn walk(
@@ -804,8 +737,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             1 | 0 => create.children.pop(),
             other => {
                 return Err(RayexecError::new(format!(
-                    "Create table has more than one child: {}",
-                    create.children.len(),
+                    "Create table has more than one child: {other}",
                 )))
             }
         };

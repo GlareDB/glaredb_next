@@ -419,7 +419,7 @@ fn cross_join(
     right: &Batch,
     filter_expr: Option<&PhysicalScalarExpression>,
     mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
-    right_join: bool,
+    _right_join: bool,
 ) -> Result<Batch> {
     let mut batches = Vec::with_capacity(left.num_rows() * right.num_rows());
 

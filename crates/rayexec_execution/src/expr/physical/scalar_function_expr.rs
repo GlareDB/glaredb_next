@@ -3,9 +3,11 @@ use std::sync::Arc;
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::{array::Array, batch::Batch};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::{
+    database::DatabaseContext, functions::scalar::PlannedScalarFunction, proto::DatabaseProtoConv,
+};
 
 use super::PhysicalScalarExpression;
 
@@ -53,5 +55,34 @@ impl fmt::Display for PhysicalScalarFunctionExpr {
             self.function.scalar_function().name(),
             self.inputs.display_as_list()
         )
+    }
+}
+
+impl DatabaseProtoConv for PhysicalScalarFunctionExpr {
+    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalScalarFunctionExpr;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            function: Some(self.function.to_proto_ctx(context)?),
+            inputs: self
+                .inputs
+                .iter()
+                .map(|input| input.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            function: DatabaseProtoConv::from_proto_ctx(
+                proto.function.required("function")?,
+                context,
+            )?,
+            inputs: proto
+                .inputs
+                .into_iter()
+                .map(|input| DatabaseProtoConv::from_proto_ctx(input, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
     }
 }

@@ -12,10 +12,13 @@ use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType};
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
-use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::{
+    database::DatabaseContext, functions::aggregate::PlannedAggregateFunction,
+    proto::DatabaseProtoConv,
+};
 
 #[derive(Debug, Clone)]
 pub enum PhysicalScalarExpression {
@@ -44,6 +47,40 @@ impl fmt::Display for PhysicalScalarExpression {
             Self::Literal(expr) => expr.fmt(f),
             Self::ScalarFunction(expr) => expr.fmt(f),
         }
+    }
+}
+
+impl DatabaseProtoConv for PhysicalScalarExpression {
+    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalScalarExpression;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::physical_expr::physical_scalar_expression::Value;
+
+        let value = match self {
+            Self::Cast(cast) => Value::Cast(Box::new(cast.to_proto_ctx(context)?)),
+            Self::Column(cast) => Value::Column(cast.to_proto_ctx(context)?),
+            Self::Literal(cast) => Value::Literal(cast.to_proto_ctx(context)?),
+            Self::ScalarFunction(cast) => Value::Function(cast.to_proto_ctx(context)?),
+        };
+
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        use rayexec_proto::generated::physical_expr::physical_scalar_expression::Value;
+
+        Ok(match proto.value.required("value")? {
+            Value::Column(proto) => {
+                Self::Column(DatabaseProtoConv::from_proto_ctx(proto, context)?)
+            }
+            Value::Cast(proto) => Self::Cast(DatabaseProtoConv::from_proto_ctx(*proto, context)?),
+            Value::Literal(proto) => {
+                Self::Literal(DatabaseProtoConv::from_proto_ctx(proto, context)?)
+            }
+            Value::Function(proto) => {
+                Self::ScalarFunction(DatabaseProtoConv::from_proto_ctx(proto, context)?)
+            }
+        })
     }
 }
 
