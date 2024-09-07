@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     database::catalog_entry::CatalogEntryType,
-    expr::scalar::UnaryOperator,
     functions::table::TableFunctionArgs,
-    logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
+    logical::{binder::expr_binder::BaseExpressionBinder, operator::LocationRequirement},
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::{
@@ -123,7 +122,7 @@ impl<'a> ExpressionResolver<'a> {
                         ast::FunctionArgExpr::Expr(expr) => {
                             match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
                                 ast::Expr::Literal(lit) => {
-                                    ExpressionContext::plan_literal(lit)?.try_into_scalar()?
+                                    BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                                 }
                                 other => {
                                     return Err(RayexecError::new(format!(
@@ -149,7 +148,7 @@ impl<'a> ExpressionResolver<'a> {
                         ast::FunctionArgExpr::Expr(expr) => {
                             match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
                                 ast::Expr::Literal(lit) => {
-                                    ExpressionContext::plan_literal(lit)?.try_into_scalar()?
+                                    BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                                 }
                                 other => {
                                     return Err(RayexecError::new(format!(

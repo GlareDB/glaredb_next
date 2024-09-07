@@ -17,11 +17,10 @@ use crate::{
     hybrid::client::HybridClient,
     logical::{
         binder::bind_statement::StatementBinder,
-        context::QueryContext,
         logical_attach::LogicalAttachDatabase,
         logical_set::VariableOrAll,
-        operator::{AttachDatabase, LogicalOperator, Node},
-        planner::{plan_statement::StatementPlanner, plan_statement2::StatementPlanner2},
+        operator::{LogicalOperator, Node},
+        planner::plan_statement::StatementPlanner,
         resolver::{ResolveMode, Resolver},
     },
     optimizer::Optimizer,
@@ -208,24 +207,6 @@ where
                 };
                 let (bound_stmt, mut bind_context) = binder.bind(resolved_stmt)?;
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
-
-                // let cols: Vec<_> = bind_context
-                //     .iter_tables(bind_context.root_scope_ref())?
-                //     .flat_map(|t| {
-                //         t.column_names
-                //             .iter()
-                //             .cloned()
-                //             .zip(t.column_types.iter().cloned())
-                //             .into_iter()
-                //     })
-                //     .collect();
-
-                // return Err(RayexecError::new(format!(
-                //     "COMPLETE\n{logical:#?}\nCOLS: {cols:?}"
-                // )));
-
-                // let (mut logical, context) = StatementPlanner2::new(&self.vars, &resolve_context)
-                //     .plan_statement(resolved_stmt)?;
 
                 // TODO:
                 // let optimizer = Optimizer::new();

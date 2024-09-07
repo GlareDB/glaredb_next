@@ -37,7 +37,7 @@ use crate::{
             scalar_function_expr::PhysicalScalarFunctionExpr, PhysicalAggregateExpression,
             PhysicalScalarExpression,
         },
-        Expression, PhysicalSortExpression,
+        Expression,
     },
     functions::scalar::boolean::AndImpl,
     logical::{

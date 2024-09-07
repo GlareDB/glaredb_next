@@ -36,10 +36,11 @@ use serde::{Deserialize, Serialize};
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
-    expr::scalar::{BinaryOperator, UnaryOperator},
     functions::{copy::CopyToArgs, proto::FUNCTION_LOOKUP_CATALOG, table::TableFunctionArgs},
-    logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
+    logical::operator::LocationRequirement,
 };
+
+use super::binder::expr_binder::BaseExpressionBinder;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
 pub type ResolvedStatement = Statement<ResolvedMeta>;
@@ -261,7 +262,7 @@ impl<'a> Resolver<'a> {
 
             let val = match expr {
                 ast::Expr::Literal(lit) => {
-                    ExpressionContext::plan_literal(lit)?.try_into_scalar()?
+                    BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                 }
                 // Ident allows for example `(FORMAT parquet)`, the user doesn't need to quote parquet.
                 ast::Expr::Ident(ident) => {
@@ -607,7 +608,6 @@ impl<'a> Resolver<'a> {
         select: ast::SelectNode<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::SelectNode<ResolvedMeta>> {
-        // Bind DISTINCT
         let distinct = match select.distinct {
             Some(distinct) => Some(match distinct {
                 ast::DistinctModifier::On(exprs) => {
@@ -626,13 +626,11 @@ impl<'a> Resolver<'a> {
             None => None,
         };
 
-        // Bind FROM
         let from = match select.from {
             Some(from) => Some(self.resolve_from(from, resolve_context).await?),
             None => None,
         };
 
-        // Bind WHERE
         let where_expr = match select.where_expr {
             Some(expr) => Some(
                 ExpressionResolver::new(self)
@@ -642,7 +640,6 @@ impl<'a> Resolver<'a> {
             None => None,
         };
 
-        // Bind SELECT list
         let mut projections = Vec::with_capacity(select.projections.len());
         for projection in select.projections {
             projections.push(
@@ -652,7 +649,6 @@ impl<'a> Resolver<'a> {
             );
         }
 
-        // Bind GROUP BY
         let group_by = match select.group_by {
             Some(group_by) => Some(match group_by {
                 ast::GroupByNode::All => ast::GroupByNode::All,
@@ -671,7 +667,6 @@ impl<'a> Resolver<'a> {
             None => None,
         };
 
-        // Bind HAVING
         let having = match select.having {
             Some(expr) => Some(
                 ExpressionResolver::new(self)
