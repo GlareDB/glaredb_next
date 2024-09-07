@@ -232,6 +232,9 @@ impl Expression {
             _ => {
                 let mut has_subquery = false;
                 self.for_each_child(&mut |expr| {
+                    if has_subquery {
+                        return Ok(());
+                    }
                     has_subquery = has_subquery || expr.contains_subquery();
                     Ok(())
                 })
@@ -247,6 +250,9 @@ impl Expression {
             _ => {
                 let mut is_constant = true;
                 self.for_each_child(&mut |expr| {
+                    if !is_constant {
+                        return Ok(());
+                    }
                     is_constant = is_constant && expr.is_constant();
                     Ok(())
                 })

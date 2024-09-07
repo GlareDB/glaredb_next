@@ -100,7 +100,7 @@ where
         // Now resolve with the extended context.
         let tx = CatalogTx::new();
         let resolver = HybridResolver::new(&tx, &context);
-        let resolve_context = resolver.resolve_all_unresolved(bind_data).await?;
+        let resolve_context = resolver.resolve_remaining(bind_data).await?;
 
         // TODO: Remove session var requirement.
         let vars = SessionVars::new_local();

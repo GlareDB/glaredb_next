@@ -141,11 +141,11 @@ impl<'a> HybridResolver<'a> {
         }
     }
 
-    /// Resolve all unresolved references in the resolve context, erroring if
-    /// anything fails to resolve.
+    /// Resolve all remaining unresolved references in the resolve context,
+    /// erroring if anything fails to resolve.
     ///
-    /// Resolved items should not be checked.
-    pub async fn resolve_all_unresolved(
+    /// Already resolved items should not be checked.
+    pub async fn resolve_remaining(
         &self,
         mut resolve_context: ResolveContext,
     ) -> Result<ResolveContext> {
