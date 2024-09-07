@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    join::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker},
+    join::outer_join_tracker::{self, LeftOuterJoinDrainState, LeftOuterJoinTracker},
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
@@ -391,6 +391,13 @@ impl ExecutableOperator for PhysicalHashJoin {
                             ))
                         }
                     };
+
+                    // Local may be none if this partition didn't receive any
+                    // batches for probing. Tracker initialized on first batch
+                    // we probe with.
+                    if let Some(local) = &state.partition_outer_join_tracker {
+                        global.merge_from(local)
+                    }
 
                     // If we're the last probe partition, set up state to drain all
                     // unvisited rows from left.
