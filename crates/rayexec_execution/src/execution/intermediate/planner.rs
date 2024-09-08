@@ -841,6 +841,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let input = explain.take_one_child_exact()?;
         let mut planner = Self::new(self.config, self.bind_context);
         planner.walk(materializations, id_gen, input)?;
+        planner.finish(id_gen)?;
 
         let formatter = ExplainFormatter::new(
             self.bind_context,
