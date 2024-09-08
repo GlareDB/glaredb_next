@@ -1,5 +1,7 @@
 use crate::{
-    execution::intermediate::{IntermediatePipeline, IntermediatePipelineGroup},
+    execution::intermediate::{
+        IntermediatePipeline, IntermediatePipelineGroup, PipelineSink, PipelineSource,
+    },
     explain::explainable::Explainable,
     logical::{
         binder::bind_context::BindContext, logical_explain::ExplainFormat,
@@ -117,7 +119,19 @@ impl ExplainNode {
     ) -> ExplainNode {
         let _ = bind_context;
 
-        let entry = ExplainEntry::new(format!("IntermediatePipeline {}", pipeline.id.0));
+        let mut entry = ExplainEntry::new(format!("IntermediatePipeline {}", pipeline.id.0));
+        entry = match pipeline.sink {
+            PipelineSink::QueryOutput => entry.with_value("Sink", "QueryOutput"),
+            PipelineSink::InPipeline => entry.with_value("Sink", "InPipeline"),
+            PipelineSink::InGroup { .. } => entry.with_value("Sink", "InGroup"),
+            PipelineSink::OtherGroup { .. } => entry.with_value("Sink", "OtherGroup"),
+        };
+
+        entry = match pipeline.source {
+            PipelineSource::InPipeline => entry.with_value("Source", "InPipeline"),
+            PipelineSource::OtherGroup { .. } => entry.with_value("Source", "OtherGroup"),
+            PipelineSource::OtherPipeline { .. } => entry.with_value("Source", "OtherPipeline"),
+        };
 
         let children = pipeline
             .operators
