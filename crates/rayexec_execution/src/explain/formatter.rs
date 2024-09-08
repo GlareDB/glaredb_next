@@ -1,4 +1,5 @@
 use crate::{
+    execution::intermediate::{IntermediatePipeline, IntermediatePipelineGroup},
     explain::explainable::Explainable,
     logical::{
         binder::bind_context::BindContext, logical_explain::ExplainFormat,
@@ -36,6 +37,14 @@ impl<'a> ExplainFormatter<'a> {
         self.format(&node)
     }
 
+    pub fn format_intermedate_groups(
+        &self,
+        groups: &[(&str, &IntermediatePipelineGroup)],
+    ) -> Result<String> {
+        let node = ExplainNode::from_intermediate_groups(self.bind_context, groups, self.config);
+        self.format(&node)
+    }
+
     fn format(&self, node: &ExplainNode) -> Result<String> {
         match self.format {
             ExplainFormat::Text => {
@@ -70,6 +79,58 @@ struct ExplainNode {
 }
 
 impl ExplainNode {
+    fn from_intermediate_groups(
+        bind_context: &BindContext,
+        groups: &[(&str, &IntermediatePipelineGroup)],
+        config: ExplainConfig,
+    ) -> ExplainNode {
+        let entry = ExplainEntry::new("IntermediatePipelineGroups");
+        let children = groups
+            .iter()
+            .map(|(label, group)| Self::from_intermediate_group(bind_context, group, label, config))
+            .collect();
+
+        ExplainNode { entry, children }
+    }
+
+    fn from_intermediate_group(
+        bind_context: &BindContext,
+        group: &IntermediatePipelineGroup,
+        label: &str,
+        config: ExplainConfig,
+    ) -> ExplainNode {
+        let entry = ExplainEntry::new(format!("IntermediatePipelineGroup {label}"));
+
+        let children = group
+            .pipelines
+            .values()
+            .map(|pipeline| Self::from_intermedate_pipeline(bind_context, pipeline, config))
+            .collect();
+
+        ExplainNode { entry, children }
+    }
+
+    fn from_intermedate_pipeline(
+        bind_context: &BindContext,
+        pipeline: &IntermediatePipeline,
+        config: ExplainConfig,
+    ) -> ExplainNode {
+        let _ = bind_context;
+
+        let entry = ExplainEntry::new(format!("IntermediatePipeline {}", pipeline.id.0));
+
+        let children = pipeline
+            .operators
+            .iter()
+            .map(|op| ExplainNode {
+                entry: op.explain_entry(config),
+                children: Vec::new(),
+            })
+            .collect();
+
+        ExplainNode { entry, children }
+    }
+
     fn walk_logical_plan(
         bind_context: &BindContext,
         plan: &LogicalOperator,
