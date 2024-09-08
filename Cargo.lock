@@ -2172,6 +2172,7 @@ name = "rayexec_slt"
 version = "0.0.43"
 dependencies = [
  "async-trait",
+ "crossterm",
  "env_logger",
  "futures",
  "libtest-mimic",

@@ -64,8 +64,9 @@ use rayexec_bullet::{
     batch::Batch,
     compute::concat::concat,
 };
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
 use std::{collections::HashMap, sync::Arc};
+use tracing::error;
 use uuid::Uuid;
 
 use super::{
@@ -840,8 +841,15 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // itself).
         let input = explain.take_one_child_exact()?;
         let mut planner = Self::new(self.config, self.bind_context);
-        planner.walk(materializations, id_gen, input)?;
-        planner.finish(id_gen)?;
+        // Done in a closure so that we can at least output the logical plans is
+        // physical planning errors. This is entirely for dev purposes right now
+        // and I expect the conditional will be removed at some point.
+        let plan = || {
+            planner.walk(materializations, id_gen, input)?;
+            planner.finish(id_gen)?;
+            Ok::<_, RayexecError>(())
+        };
+        let plan_result = plan();
 
         let formatter = ExplainFormatter::new(
             self.bind_context,
@@ -862,11 +870,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             plan_strings.push(formatter.format_logical_plan(&optimized)?);
         }
 
-        type_strings.push("physical".to_string());
-        plan_strings.push(formatter.format_intermedate_groups(&[
-            ("local", &planner.local_group),
-            ("remote", &planner.remote_group),
-        ])?);
+        match plan_result {
+            Ok(_) => {
+                type_strings.push("physical".to_string());
+                plan_strings.push(formatter.format_intermedate_groups(&[
+                    ("local", &planner.local_group),
+                    ("remote", &planner.remote_group),
+                ])?);
+            }
+            Err(e) => {
+                error!(%e, "error planning explain input")
+            }
+        }
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
             Batch::try_new(vec![
@@ -965,7 +980,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let predicate = self
             .expr_planner
-            .plan_scalar(&input_refs, &filter.node.filter)?;
+            .plan_scalar(&input_refs, &filter.node.filter)
+            .context("Failed to plan expressions for filter")?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
@@ -1105,7 +1121,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             let start_col_index = preproject_exprs.len();
             for arg in &agg.inputs {
-                let scalar = self.expr_planner.plan_scalar(&input_refs, arg)?;
+                let scalar = self
+                    .expr_planner
+                    .plan_scalar(&input_refs, arg)
+                    .context("Failed to plan expressions for aggregate pre-projection")?;
                 preproject_exprs.push(scalar);
             }
             let end_col_index = preproject_exprs.len();
@@ -1125,7 +1144,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let mut group_types = Vec::with_capacity(agg.node.group_exprs.len());
         for group_expr in agg.node.group_exprs {
             group_types.push(group_expr.datatype(self.bind_context)?);
-            let scalar = self.expr_planner.plan_scalar(&input_refs, &group_expr)?;
+            let scalar = self
+                .expr_planner
+                .plan_scalar(&input_refs, &group_expr)
+                .context("Failed to plan expressions for group by pre-projection")?;
+
             preproject_exprs.push(scalar);
         }
 
@@ -1316,7 +1339,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = join.location;
         let filter = self
             .expr_planner
-            .plan_scalar(&join.get_children_table_refs(), &join.node.condition)?;
+            .plan_scalar(&join.get_children_table_refs(), &join.node.condition)
+            .context("Failed to plan expressions arbitrary join filter")?;
 
         // Modify the filter as to match the join type.
         let filter = match join.node.join_type {
@@ -1432,7 +1456,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Convert expressions into arrays of one element each.
         for row_exprs in rows {
-            let exprs = self.expr_planner.plan_scalars(&[], &row_exprs)?;
+            let exprs = self
+                .expr_planner
+                .plan_scalars(&[], &row_exprs)
+                .context("Failed to plan expressions for values")?;
             let arrs = exprs
                 .into_iter()
                 .map(|expr| expr.eval(&dummy_batch))
