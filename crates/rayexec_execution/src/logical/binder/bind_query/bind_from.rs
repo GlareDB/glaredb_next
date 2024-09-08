@@ -459,15 +459,25 @@ impl<'a> FromBinder<'a> {
                 .find_table_for_column(right_idx, None, &using)?
                 .ok_or_else(|| missing_column("right"))?;
 
-            // Add USING column to _current_ scope.
-            bind_context.append_using_column(
-                self.current,
-                UsingColumn {
+            let using_column = match join_type {
+                JoinType::Left
+                | JoinType::Inner
+                | JoinType::Full
+                | JoinType::Semi
+                | JoinType::Anti => UsingColumn {
                     column: using,
                     table_ref: left_table,
                     col_idx: left_col_idx,
                 },
-            )?;
+                JoinType::Right => UsingColumn {
+                    column: using,
+                    table_ref: right_table,
+                    col_idx: right_col_idx,
+                },
+            };
+
+            // Add USING column to _current_ scope.
+            bind_context.append_using_column(self.current, using_column)?;
 
             // Generate additional equality condition.
             // TODO: Probably make this a method on the expr binder. Easy to miss the cast.
