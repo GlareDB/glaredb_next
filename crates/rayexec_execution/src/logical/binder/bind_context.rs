@@ -4,7 +4,7 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
-use crate::expr::Expression;
+use crate::{expr::Expression, logical::operator::LogicalOperator};
 
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -24,15 +24,27 @@ impl fmt::Display for TableRef {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MaterializationRef {
+    pub materialization_idx: usize,
+}
+
+impl fmt::Display for MaterializationRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "MAT_{}", self.materialization_idx)
+    }
+}
+
 #[derive(Debug)]
 pub struct BindContext {
     /// All child scopes used for binding.
     ///
     /// Initialized with a single scope (root).
     scopes: Vec<BindScope>,
-
     /// All tables in the bind context. Tables may or may not be inside a scope.
     tables: Vec<Table>,
+    /// All plans that will be materialized.
+    materializations: Vec<PlanMaterialization>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -126,6 +138,14 @@ impl Table {
     }
 }
 
+/// A node in the logical plan that will be materialized to allow for multiple
+/// scans.
+#[derive(Debug)]
+pub struct PlanMaterialization {
+    pub plan: LogicalOperator,
+    pub scan_count: usize,
+}
+
 impl Default for BindContext {
     fn default() -> Self {
         Self::new()
@@ -142,6 +162,7 @@ impl BindContext {
                 using_columns: Vec::new(),
             }],
             tables: Vec::new(),
+            materializations: Vec::new(),
         }
     }
 
@@ -177,6 +198,36 @@ impl BindContext {
         });
 
         BindScopeRef { context_idx: idx }
+    }
+
+    pub fn new_materialization(
+        &mut self,
+        plan: LogicalOperator,
+        initial_scan_count: usize,
+    ) -> MaterializationRef {
+        let idx = self.materializations.len();
+        self.materializations.push(PlanMaterialization {
+            plan,
+            scan_count: initial_scan_count,
+        });
+
+        MaterializationRef {
+            materialization_idx: idx,
+        }
+    }
+
+    pub fn get_materialization_mut(
+        &mut self,
+        mat_ref: MaterializationRef,
+    ) -> Result<&mut PlanMaterialization> {
+        self.materializations
+            .get_mut(mat_ref.materialization_idx)
+            .ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Missing materialization for idx {}",
+                    mat_ref.materialization_idx
+                ))
+            })
     }
 
     pub fn get_parent_ref(&self, bind_ref: BindScopeRef) -> Result<Option<BindScopeRef>> {

@@ -9,8 +9,9 @@ use crate::{
     },
     functions::aggregate::count::CountNonNullImpl,
     logical::{
-        binder::bind_context::BindContext,
+        binder::bind_context::{BindContext, CorrelatedColumn},
         logical_aggregate::LogicalAggregate,
+        logical_distinct::LogicalDistinct,
         logical_join::LogicalCrossJoin,
         logical_limit::LogicalLimit,
         logical_project::LogicalProject,
@@ -44,7 +45,8 @@ impl SubqueryPlanner {
         match expr {
             Expression::Subquery(subquery) => {
                 if subquery.has_correlations(bind_context)? {
-                    not_implemented!("correlated subqueries");
+                    // not_implemented!("correlated subqueries");
+                    *expr = self.plan_correlated(bind_context, subquery, plan)?
                 } else {
                     *expr = self.plan_uncorrelated(bind_context, subquery, plan)?
                 }
@@ -56,6 +58,37 @@ impl SubqueryPlanner {
         }
 
         Ok(())
+    }
+
+    fn plan_correlated(
+        &self,
+        bind_context: &mut BindContext,
+        subquery: &mut SubqueryExpr,
+        plan: &mut LogicalOperator,
+    ) -> Result<Expression> {
+        let subquery_plan = QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
+        let correlated_columns = bind_context.correlated_columns(subquery.bind_idx)?;
+
+        match subquery.subquery_type {
+            SubqueryType::Scalar => {
+                // Create dependent join between left (original query) and right
+                // (subquery). Left requires duplication elimination on the
+                // correlated columns.
+
+                // Eliminate duplicates on left.
+                let mut left = std::mem::replace(plan, LogicalOperator::Invalid);
+                left = Self::eliminate_duplicates(left, correlated_columns);
+
+                // Flatten the right side. This assumes we're doing a dependent
+                // join with left. The goal is after flattening here, the join
+                // we make at the end _shouldn't_ be a dependent join, but just
+                // a normal comparison join.
+                let right = Self::dependent_join_pushdown(subquery_plan, correlated_columns)?;
+            }
+            _ => unimplemented!(),
+        }
+
+        unimplemented!()
     }
 
     fn plan_uncorrelated(
@@ -190,5 +223,41 @@ impl SubqueryPlanner {
             }
             other => not_implemented!("subquery type {other:?}"),
         }
+    }
+
+    fn eliminate_duplicates(
+        plan: LogicalOperator,
+        correlated_cols: &[CorrelatedColumn],
+    ) -> LogicalOperator {
+        let exprs = correlated_cols
+            .iter()
+            .map(|col| {
+                Expression::Column(ColumnExpr {
+                    table_scope: col.table,
+                    column: col.col_idx,
+                })
+            })
+            .collect();
+
+        LogicalOperator::Distinct(Node {
+            node: LogicalDistinct { on: exprs },
+            location: LocationRequirement::Any,
+            children: vec![plan],
+        })
+    }
+
+    fn dependent_join_pushdown(
+        plan: LogicalOperator,
+        correlated_cols: &[CorrelatedColumn],
+    ) -> Result<LogicalOperator> {
+        unimplemented!()
+    }
+}
+
+struct DependentJoinPushdown {}
+
+impl DependentJoinPushdown {
+    fn pushdown(&mut self, plan: LogicalOperator) -> Result<LogicalOperator> {
+        unimplemented!()
     }
 }
