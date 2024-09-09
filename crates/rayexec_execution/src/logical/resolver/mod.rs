@@ -577,9 +577,9 @@ impl<'a> Resolver<'a> {
 
     async fn resolve_ctes(
         &self,
-        ctes: ast::CommonTableExprDefs<Raw>,
+        ctes: ast::CommonTableExprs<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::CommonTableExprDefs<ResolvedMeta>> {
+    ) -> Result<ast::CommonTableExprs<ResolvedMeta>> {
         let mut bound_refs = Vec::with_capacity(ctes.ctes.len());
         for cte in ctes.ctes.into_iter() {
             let depth = resolve_context.current_depth;
@@ -597,7 +597,7 @@ impl<'a> Resolver<'a> {
             bound_refs.push(bound_ref);
         }
 
-        Ok(ast::CommonTableExprDefs {
+        Ok(ast::CommonTableExprs {
             recursive: ctes.recursive,
             ctes: bound_refs,
         })
