@@ -194,6 +194,18 @@ impl BindContext {
         Ok(&child.correlated_columns)
     }
 
+    /// Appends correlated column from some other scope to current scope.
+    pub fn append_correlated_columns(
+        &mut self,
+        current: BindScopeRef,
+        from: BindScopeRef,
+    ) -> Result<()> {
+        let mut other_correlated = self.get_scope(from)?.correlated_columns.clone();
+        let current = self.get_scope_mut(current)?;
+        current.correlated_columns.append(&mut other_correlated);
+        Ok(())
+    }
+
     /// Appends `other` context to `current`.
     ///
     /// Errors on duplicate table aliases.
@@ -212,15 +224,20 @@ impl BindContext {
             }
         }
 
-        // TODO: Correlated columns, USING
-        let mut other_tables = {
+        let (mut other_tables, mut other_using, mut other_correlations) = {
             let other = self.get_scope(other)?;
-            other.tables.clone()
+            (
+                other.tables.clone(),
+                other.using_columns.clone(),
+                other.correlated_columns.clone(),
+            )
         };
 
         let current = self.get_scope_mut(current)?;
 
         current.tables.append(&mut other_tables);
+        current.using_columns.append(&mut other_using);
+        current.correlated_columns.append(&mut other_correlations);
 
         Ok(())
     }
