@@ -9,18 +9,21 @@ use crate::{
     },
     functions::aggregate::count::CountNonNullImpl,
     logical::{
-        binder::bind_context::{BindContext, CorrelatedColumn},
+        binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef},
         logical_aggregate::LogicalAggregate,
         logical_distinct::LogicalDistinct,
         logical_join::LogicalCrossJoin,
         logical_limit::LogicalLimit,
+        logical_materialization::LogicalMaterializationScan,
         logical_project::LogicalProject,
+        logical_scan::ScanSource,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
         planner::plan_query::QueryPlanner,
     },
 };
 use rayexec_bullet::{datatype::DataType, scalar::ScalarValue};
-use rayexec_error::{not_implemented, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SubqueryPlanner;
@@ -67,23 +70,25 @@ impl SubqueryPlanner {
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
         let subquery_plan = QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
-        let correlated_columns = bind_context.correlated_columns(subquery.bind_idx)?;
+        let correlated_columns = bind_context.correlated_columns(subquery.bind_idx)?.clone();
 
         match subquery.subquery_type {
             SubqueryType::Scalar => {
                 // Create dependent join between left (original query) and right
                 // (subquery). Left requires duplication elimination on the
                 // correlated columns.
+                //
+                // The resulting plan may have nodes scanning from the left
+                // multiple times.
 
-                // Eliminate duplicates on left.
-                let mut left = std::mem::replace(plan, LogicalOperator::Invalid);
-                left = Self::eliminate_duplicates(left, correlated_columns);
+                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+                let mat_ref = bind_context.new_materialization(orig)?;
 
                 // Flatten the right side. This assumes we're doing a dependent
                 // join with left. The goal is after flattening here, the join
                 // we make at the end _shouldn't_ be a dependent join, but just
                 // a normal comparison join.
-                let right = Self::dependent_join_pushdown(subquery_plan, correlated_columns)?;
+                let right = Self::dependent_join_pushdown(subquery_plan, &correlated_columns)?;
             }
             _ => unimplemented!(),
         }
@@ -254,10 +259,221 @@ impl SubqueryPlanner {
     }
 }
 
-struct DependentJoinPushdown {}
+#[derive(Debug)]
+struct LogicalOperatorRef<'a>(&'a LogicalOperator);
 
-impl DependentJoinPushdown {
-    fn pushdown(&mut self, plan: LogicalOperator) -> Result<LogicalOperator> {
-        unimplemented!()
+impl<'a> std::hash::Hash for LogicalOperatorRef<'a> {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: std::hash::Hasher,
+    {
+        (self.0 as *const LogicalOperator).hash(state)
+    }
+}
+
+impl<'a, 'b> PartialEq<LogicalOperatorRef<'b>> for LogicalOperatorRef<'a> {
+    fn eq(&self, other: &LogicalOperatorRef<'b>) -> bool {
+        self.0 as *const LogicalOperator == other.0 as *const LogicalOperator
+    }
+}
+
+impl<'a> Eq for LogicalOperatorRef<'a> {}
+
+#[derive(Debug)]
+struct DependentJoinPushdown<'a> {
+    /// Reference to the materialized plan on the left side.
+    mat_ref: MaterializationRef,
+    correlated_operators: HashMap<LogicalOperatorRef<'a>, bool>,
+    /// Map correlated columns to updated column expressions.
+    column_map: HashMap<CorrelatedColumn, ColumnExpr>,
+    columns: Vec<CorrelatedColumn>,
+}
+
+impl<'a> DependentJoinPushdown<'a> {
+    fn find_correlations(&mut self, plan: &'a LogicalOperator) -> Result<bool> {
+        let mut has_correlation = false;
+        match plan {
+            LogicalOperator::Project(project) => {
+                has_correlation = self.any_expression_has_correlation(&project.node.projections);
+                has_correlation |= self.find_correlations_in_children(&project.children)?;
+            }
+            _ => (),
+        }
+
+        self.correlated_operators
+            .insert(LogicalOperatorRef(plan), has_correlation);
+
+        Ok(has_correlation)
+    }
+
+    fn find_correlations_in_children(&mut self, children: &'a [LogicalOperator]) -> Result<bool> {
+        let mut child_has_correlation = false;
+        for child in children {
+            child_has_correlation |= self.find_correlations(child)?;
+        }
+        Ok(child_has_correlation)
+    }
+
+    fn pushdown(
+        &mut self,
+        bind_context: &mut BindContext,
+        plan: LogicalOperator,
+    ) -> Result<LogicalOperator> {
+        let has_correlation = *self
+            .correlated_operators
+            .get(&LogicalOperatorRef(&plan))
+            .unwrap_or(&false);
+
+        if !has_correlation {
+            // Operator (and children) do not have correlated columns. Cross
+            // join with materialized scan with duplicates eliminated.
+
+            let plan_tables = plan.get_output_table_refs();
+            let mut mappings = Vec::new();
+
+            let materialization = bind_context.get_materialization(self.mat_ref)?;
+
+            for correlated in self.columns.iter() {
+                // Only take into account columns that reference the underlying
+                // materialization.
+                if !plan_tables.contains(&correlated.table) {
+                    continue;
+                }
+
+                // Push a mapping of correlated -> materialized column.
+                //
+                // This uses the original correlated column index since the
+                // materialized scan outputs the entire original projection, and
+                // the correlation might just be on one column.
+                //
+                // TODO: Assumes input to materialization is a single table ref.
+                // Probably need to update materialization to use the original
+                // table refs.
+                mappings.push((
+                    correlated,
+                    ColumnExpr {
+                        table_scope: materialization.table_ref,
+                        column: correlated.col_idx,
+                    },
+                ))
+            }
+
+            // Update mapping.
+            for (corr, expr) in mappings.clone() {
+                self.column_map.insert(corr.clone(), expr);
+            }
+
+            // Distinct on only the correlated columns, since that's what the
+            // subquery actually cares about.
+            //
+            // TODO: Maybe the distinct should be in the materialization
+            // instead? I think a more specializated materialization scheme
+            // needs to be added since the original plan may included
+            // duplicates, but the plan being fed into the subquery needs all
+            // duplicated removed (on the correlated columns).
+            let distinct_on = mappings
+                .into_iter()
+                .map(|(_, expr)| Expression::Column(expr))
+                .collect();
+
+            let left = LogicalOperator::Distinct(Node {
+                node: LogicalDistinct { on: distinct_on },
+                location: LocationRequirement::Any,
+                children: vec![LogicalOperator::MaterializationScan(Node {
+                    node: LogicalMaterializationScan { mat: self.mat_ref },
+                    location: LocationRequirement::Any,
+                    children: Vec::new(),
+                })],
+            });
+
+            return Ok(LogicalOperator::CrossJoin(Node {
+                node: LogicalCrossJoin,
+                location: LocationRequirement::Any,
+                children: vec![left, plan],
+            }));
+        }
+
+        match plan {
+            LogicalOperator::Project(mut project) => {
+                project.children = self.pushdown_children(bind_context, project.children)?;
+                self.rewrite_expressions(&mut project.node.projections)?;
+
+                // TODO: Need to update column map to point to this projection
+                // for successfully updated columns.
+
+                Ok(LogicalOperator::Project(project))
+            }
+            LogicalOperator::Scan(scan) => {
+                if matches!(
+                    scan.node.source,
+                    ScanSource::Table { .. }
+                        | ScanSource::View { .. }
+                        | ScanSource::TableFunction { .. }
+                ) {
+                    // Nothing to do.
+                    return Ok(LogicalOperator::Scan(scan));
+                }
+
+                not_implemented!("dependent join pushdown for VALUES")
+            }
+            other => not_implemented!("dependent join pushdown for node: {other:?}"),
+        }
+    }
+
+    fn pushdown_children(
+        &mut self,
+        bind_context: &mut BindContext,
+        children: Vec<LogicalOperator>,
+    ) -> Result<Vec<LogicalOperator>> {
+        children
+            .into_iter()
+            .map(|c| self.pushdown(bind_context, c))
+            .collect::<Result<Vec<_>>>()
+    }
+
+    fn any_expression_has_correlation(&self, exprs: &[Expression]) -> bool {
+        exprs.iter().any(|e| self.expression_has_correlation(e))
+    }
+
+    fn expression_has_correlation(&self, expr: &Expression) -> bool {
+        match expr {
+            Expression::Column(col) => self
+                .columns
+                .iter()
+                .any(|c| c.table == col.table_scope && c.col_idx == col.column),
+            other => self.expression_has_correlation(other),
+        }
+    }
+
+    fn rewrite_expressions(&self, exprs: &mut [Expression]) -> Result<()> {
+        for expr in exprs {
+            self.rewrite_expression(expr)?;
+        }
+        Ok(())
+    }
+
+    fn rewrite_expression(&self, expr: &mut Expression) -> Result<()> {
+        match expr {
+            Expression::Column(col) => {
+                if let Some(correlated) = self
+                    .columns
+                    .iter()
+                    .find(|corr| corr.table == col.table_scope && corr.col_idx == col.column)
+                {
+                    // Correlated column found, update to mapped column.
+                    let new_col = self.column_map.get(correlated).ok_or_else(|| {
+                        RayexecError::new(format!(
+                            "Missing correlated column in column map: {correlated:?}"
+                        ))
+                    })?;
+
+                    *expr = Expression::Column(new_col.clone());
+                }
+
+                // Column we're not concerned about. Remains unchanged.
+                Ok(())
+            }
+            other => other.for_each_child_mut(&mut |child| self.rewrite_expression(child)),
+        }
     }
 }

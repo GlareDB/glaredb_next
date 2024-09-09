@@ -4,7 +4,10 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
-use crate::{expr::Expression, logical::operator::LogicalOperator};
+use crate::{
+    expr::Expression,
+    logical::operator::{LogicalNode, LogicalOperator},
+};
 
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -47,7 +50,7 @@ pub struct BindContext {
     materializations: Vec<PlanMaterialization>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CorrelatedColumn {
     /// Reference to an outer context the column is referencing.
     pub outer: BindScopeRef,
@@ -142,8 +145,12 @@ impl Table {
 /// scans.
 #[derive(Debug)]
 pub struct PlanMaterialization {
+    /// Plan we'll be materializing.
     pub plan: LogicalOperator,
+    /// Number of scans against this plan.
     pub scan_count: usize,
+    /// Table ref for referencing the output of this materialization.
+    pub table_ref: TableRef,
 }
 
 impl Default for BindContext {
@@ -200,20 +207,39 @@ impl BindContext {
         BindScopeRef { context_idx: idx }
     }
 
-    pub fn new_materialization(
-        &mut self,
-        plan: LogicalOperator,
-        initial_scan_count: usize,
-    ) -> MaterializationRef {
+    /// Adds a plan for materialization to the bind context.
+    ///
+    /// Scan count for the materialization is initially set to 0.
+    pub fn new_materialization(&mut self, plan: LogicalOperator) -> Result<MaterializationRef> {
+        let mut types = Vec::new();
+        for table in plan.get_output_table_refs() {
+            let table = self.get_table(table)?;
+            types.extend(table.column_types.iter().cloned());
+        }
+
+        let table_ref =
+            self.new_ephemeral_table_from_types("__generated_materialization", types)?;
+
         let idx = self.materializations.len();
         self.materializations.push(PlanMaterialization {
             plan,
-            scan_count: initial_scan_count,
+            scan_count: 0,
+            table_ref,
         });
 
-        MaterializationRef {
+        Ok(MaterializationRef {
             materialization_idx: idx,
-        }
+        })
+    }
+
+    pub fn inc_materialization_scan_count(
+        &mut self,
+        mat_ref: MaterializationRef,
+        by: usize,
+    ) -> Result<()> {
+        let mat = self.get_materialization_mut(mat_ref)?;
+        mat.scan_count += by;
+        Ok(())
     }
 
     pub fn get_materialization_mut(
@@ -222,6 +248,17 @@ impl BindContext {
     ) -> Result<&mut PlanMaterialization> {
         self.materializations
             .get_mut(mat_ref.materialization_idx)
+            .ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Missing materialization for idx {}",
+                    mat_ref.materialization_idx
+                ))
+            })
+    }
+
+    pub fn get_materialization(&self, mat_ref: MaterializationRef) -> Result<&PlanMaterialization> {
+        self.materializations
+            .get(mat_ref.materialization_idx)
             .ok_or_else(|| {
                 RayexecError::new(format!(
                     "Missing materialization for idx {}",
