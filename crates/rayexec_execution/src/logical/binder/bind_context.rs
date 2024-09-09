@@ -149,7 +149,7 @@ pub struct PlanMaterialization {
     pub plan: LogicalOperator,
     /// Number of scans against this plan.
     pub scan_count: usize,
-    /// Table ref for referencing the output of this materialization.
+    /// Table reference for the output of this plan.
     pub table_ref: TableRef,
 }
 
@@ -211,20 +211,19 @@ impl BindContext {
     ///
     /// Scan count for the materialization is initially set to 0.
     pub fn new_materialization(&mut self, plan: LogicalOperator) -> Result<MaterializationRef> {
-        let mut types = Vec::new();
-        for table in plan.get_output_table_refs() {
-            let table = self.get_table(table)?;
-            types.extend(table.column_types.iter().cloned());
+        // TODO: Dedup with subquery decorrelation.
+        let plan_tables = plan.get_output_table_refs();
+        if plan_tables.len() != 1 {
+            return Err(RayexecError::new(
+                "Expected 1 table ref for plan in plan materialization",
+            ));
         }
-
-        let table_ref =
-            self.new_ephemeral_table_from_types("__generated_materialization", types)?;
 
         let idx = self.materializations.len();
         self.materializations.push(PlanMaterialization {
             plan,
             scan_count: 0,
-            table_ref,
+            table_ref: plan_tables[0],
         });
 
         Ok(MaterializationRef {
