@@ -234,6 +234,9 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
 
                 pipeline
             }
+            PipelineSource::Materialization { mat_ref } => {
+                unimplemented!()
+            }
         };
 
         // Wire up the rest.
@@ -351,6 +354,9 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     partition_states,
                 )?;
             }
+            PipelineSink::Materialization { mat_ref } => {
+                unimplemented!()
+            }
         }
 
         // And we're done, pipeline is complete.
@@ -447,16 +453,6 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                         trunk_idx: pull_states,
                     }
                 }
-                InputOutputStates::SingleInputNaryOutput {
-                    push_states,
-                    pull_states,
-                } => PendingOperatorWithState {
-                    operator: operator.operator,
-                    operator_state: states.operator_state,
-                    input_states: vec![Some(push_states)],
-                    pull_states: pull_states.into_iter().collect(),
-                    trunk_idx: 0,
-                },
                 InputOutputStates::SeparateInputOutput {
                     push_states,
                     pull_states,

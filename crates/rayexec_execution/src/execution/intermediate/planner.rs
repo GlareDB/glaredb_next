@@ -72,8 +72,8 @@ use tracing::error;
 use uuid::Uuid;
 
 use super::{
-    IntermediateOperator, IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId,
-    PipelineSource, StreamId,
+    IntermediateMaterializationGroup, IntermediateOperator, IntermediatePipeline,
+    IntermediatePipelineGroup, IntermediatePipelineId, PipelineSource, StreamId,
 };
 
 /// Configuration used during intermediate pipeline planning.
@@ -169,42 +169,9 @@ impl PipelineIdGen {
     }
 }
 
-/// Key for a pipeline that's being materialized.
-///
-/// Includes local an remote variants indicating which pipeline group the
-/// materialization is being performed in.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
-enum MaterializationSource {
-    Local(IntermediatePipelineId),
-    Remote(IntermediatePipelineId),
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Materializations {
-    /// Source keys for `MaterializeScan` operators.
-    ///
-    /// Since multiple pipelines can read from the same materialization, each
-    /// key has a vec of pipelines that we take from.
-    materialize_sources: HashMap<MaterializationRef, Vec<MaterializationSource>>,
-}
-
-impl Materializations {
-    /// Checks if there's any pipelines still in the map.
-    ///
-    /// This is used as a debugging check. After planning the entire query, all
-    /// pending pipelines should have been consumed. If there's still pipelines,
-    /// that means we're not accuratately tracking the number of materialized
-    /// scans.
-    #[allow(dead_code)]
-    fn has_remaining_pipelines(&self) -> bool {
-        for pipelines in self.materialize_sources.values() {
-            if !pipelines.is_empty() {
-                return true;
-            }
-        }
-        false
-    }
+    // TODO: Remote materializations.
 }
 
 /// Represents an intermediate pipeline that we're building up.
@@ -227,6 +194,8 @@ struct IntermediatePipelineBuildState<'a> {
     /// Pipeline we're working on, as well as the location for where it should
     /// be executed.
     in_progress: Option<InProgressPipeline>,
+    /// Plans for materializing parts of the query locally.
+    local_materializations: IntermediateMaterializationGroup,
     /// Pipelines in the local group.
     local_group: IntermediatePipelineGroup,
     /// Pipelines in the remote group.
@@ -244,9 +213,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn new(config: &'a IntermediateConfig, bind_context: &'a BindContext) -> Self {
         let expr_planner = PhysicalExpressionPlanner::new(bind_context);
 
+        let local_materializations = IntermediateMaterializationGroup {
+            materializations: HashMap::new(),
+        };
+
         IntermediatePipelineBuildState {
             config,
             in_progress: None,
+            local_materializations,
             local_group: IntermediatePipelineGroup::default(),
             remote_group: IntermediatePipelineGroup::default(),
             bind_context,
@@ -260,14 +234,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // materializations to depend on previously planned materializations.
         // Unsure if we want to make that a strong guarantee (probably yes).
 
-        let mut materializations = Materializations {
-            materialize_sources: HashMap::new(),
-        };
-
         for mat in self.bind_context.iter_materializations() {
-            self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
+            // self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
 
-            let mut in_progress = self.take_in_progress_pipeline()?;
+            // let mut in_progress = self.take_in_progress_pipeline()?;
             // let op = IntermediateOperator {
             //     operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
             //         mat.scan_count,
@@ -305,7 +275,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             //     .insert(mat.mat_ref, vec![source; mat.scan_count]);
         }
 
-        Ok(materializations)
+        unimplemented!()
     }
 
     fn walk(
@@ -704,17 +674,17 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         materializations: &mut Materializations,
         scan: Node<LogicalMaterializationScan>,
     ) -> Result<()> {
-        let source_id = match materializations.materialize_sources.get_mut(&scan.node.mat) {
-            Some(sources) => sources
-                .pop()
-                .ok_or_else(|| RayexecError::new("Invalid scan count for materialization"))?,
-            None => {
-                return Err(RayexecError::new(format!(
-                    "Missing materialization source for ref: {}",
-                    scan.node.mat
-                )))
-            }
-        };
+        // let source_id = match materializations.materialize_sources.get_mut(&scan.node.mat) {
+        //     Some(sources) => sources
+        //         .pop()
+        //         .ok_or_else(|| RayexecError::new("Invalid scan count for materialization"))?,
+        //     None => {
+        //         return Err(RayexecError::new(format!(
+        //             "Missing materialization source for ref: {}",
+        //             scan.node.mat
+        //         )))
+        //     }
+        // };
 
         unimplemented!()
     }

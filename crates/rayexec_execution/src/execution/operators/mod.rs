@@ -217,16 +217,6 @@ pub enum InputOutputStates {
         pull_states: usize,
     },
 
-    /// Partition states for an operator that accepts a single input, and
-    /// produce 'n' outputs.
-    SingleInputNaryOutput {
-        /// States for the single input during push.
-        push_states: Vec<PartitionState>,
-
-        /// States for the n outputs.
-        pull_states: Vec<Vec<PartitionState>>,
-    },
-
     /// Partition states between the push side and pull side are separate.
     ///
     /// This provides a way for operators to output a different number of
