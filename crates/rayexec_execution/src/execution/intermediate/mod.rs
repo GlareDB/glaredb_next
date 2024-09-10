@@ -180,7 +180,7 @@ impl ProtoConv for PipelineSink {
 ///
 /// For hybrid execution, the source may be a remote pipeline, and so we will
 /// include an ipc source operator as this pipeline's source.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PipelineSource {
     /// Source is already in the pipeline, don't do anything.
     InPipeline,
@@ -308,8 +308,15 @@ impl IntermediateMaterializationGroup {
     }
 }
 
+/// An intermediate materialization.
+///
+/// Almost the same thing as a normal pipeline, but we don't know where the
+/// batches will be sent yet.
+// TODO: There might be path to unifying this with intermediate pipeline.
+// Eventually everything gets turned into a pipeline.
 #[derive(Debug)]
 pub struct IntermediateMaterialization {
+    pub(crate) id: IntermediatePipelineId,
     pub(crate) source: PipelineSource,
     pub(crate) operators: Vec<IntermediateOperator>,
     /// How many output scans there are for this materialization.

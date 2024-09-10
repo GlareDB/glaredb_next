@@ -7,16 +7,16 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::sink::{PartitionSink, SinkOperation};
-use super::source::{PartitionSource, QuerySource};
+use super::source::{PartitionSource, SourceOperation};
 use super::util::broadcast::{BroadcastChannel, BroadcastReceiver};
 
 #[derive(Debug)]
-pub struct MaterializedOperator {
-    pub sink: MaterializedSink,
-    pub sources: Vec<MaterializedSource>,
+pub struct MaterializeOperation {
+    pub sink: MaterializedSinkOperation,
+    pub sources: Vec<MaterializeSourceOperation>,
 }
 
-impl MaterializedOperator {
+impl MaterializeOperation {
     pub fn new(mat_ref: MaterializationRef, partitions: usize, source_scans: usize) -> Self {
         let mut sinks = Vec::new();
         let mut sources: Vec<_> = (0..source_scans).map(|_| Vec::new()).collect();
@@ -33,28 +33,28 @@ impl MaterializedOperator {
 
         let sources = sources
             .into_iter()
-            .map(|scans| MaterializedSource {
+            .map(|scans| MaterializeSourceOperation {
                 mat_ref,
                 sources: Mutex::new(scans),
             })
             .collect();
 
-        let sink = MaterializedSink {
+        let sink = MaterializedSinkOperation {
             mat_ref,
             sinks: Mutex::new(sinks),
         };
 
-        MaterializedOperator { sink, sources }
+        MaterializeOperation { sink, sources }
     }
 }
 
 #[derive(Debug)]
-pub struct MaterializedSink {
+pub struct MaterializedSinkOperation {
     mat_ref: MaterializationRef,
     sinks: Mutex<Vec<MaterializedDataPartitionSink>>,
 }
 
-impl SinkOperation for MaterializedSink {
+impl SinkOperation for MaterializedSinkOperation {
     fn create_partition_sinks(
         &self,
         _context: &DatabaseContext,
@@ -79,19 +79,19 @@ impl SinkOperation for MaterializedSink {
     }
 }
 
-impl Explainable for MaterializedSink {
+impl Explainable for MaterializedSinkOperation {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MaterializedSink").with_value("materialized_ref", self.mat_ref)
     }
 }
 
 #[derive(Debug)]
-pub struct MaterializedSource {
+pub struct MaterializeSourceOperation {
     mat_ref: MaterializationRef,
     sources: Mutex<Vec<MaterializedDataPartitionSource>>,
 }
 
-impl QuerySource for MaterializedSource {
+impl SourceOperation for MaterializeSourceOperation {
     fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>> {
         let mut sources = self.sources.lock();
         let sources = std::mem::replace(sources.as_mut(), Vec::new());
@@ -112,7 +112,7 @@ impl QuerySource for MaterializedSource {
     }
 }
 
-impl Explainable for MaterializedSource {
+impl Explainable for MaterializeSourceOperation {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MaterializedSource").with_value("materialized_ref", self.mat_ref)
     }
