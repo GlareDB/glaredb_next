@@ -39,7 +39,7 @@ use crate::{
     },
     functions::scalar::boolean::AndImpl,
     logical::{
-        binder::bind_context::BindContext,
+        binder::bind_context::{BindContext, MaterializationRef},
         logical_aggregate::LogicalAggregate,
         logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
@@ -184,10 +184,9 @@ enum MaterializationSource {
 struct Materializations {
     /// Source keys for `MaterializeScan` operators.
     ///
-    /// Key corresponds to the index of the materialized plan in the
-    /// QueryContext. Since multiple pipelines can read from the same
-    /// materialization, each key has a vec of pipelines that we take from.
-    materialize_sources: HashMap<usize, Vec<MaterializationSource>>,
+    /// Since multiple pipelines can read from the same materialization, each
+    /// key has a vec of pipelines that we take from.
+    materialize_sources: HashMap<MaterializationRef, Vec<MaterializationSource>>,
 }
 
 impl Materializations {
@@ -253,6 +252,17 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             bind_context,
             expr_planner,
         }
+    }
+
+    /// Plan materializations from the bind context.
+    fn plan_materializations(&mut self, id_gen: &mut PipelineIdGen) -> Result<Materializations> {
+        let mut materializations = Materializations {
+            materialize_sources: HashMap::new(),
+        };
+
+        for mat in self.bind_context.iter_materializations() {}
+
+        Ok(materializations)
     }
 
     fn walk(

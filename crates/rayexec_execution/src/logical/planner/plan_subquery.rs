@@ -48,7 +48,6 @@ impl SubqueryPlanner {
         match expr {
             Expression::Subquery(subquery) => {
                 if subquery.has_correlations(bind_context)? {
-                    // not_implemented!("correlated subqueries");
                     *expr = self.plan_correlated(bind_context, subquery, plan)?
                 } else {
                     *expr = self.plan_uncorrelated(bind_context, subquery, plan)?

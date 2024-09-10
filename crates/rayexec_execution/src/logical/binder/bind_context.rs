@@ -145,6 +145,7 @@ impl Table {
 /// scans.
 #[derive(Debug)]
 pub struct PlanMaterialization {
+    pub mat_ref: MaterializationRef,
     /// Plan we'll be materializing.
     pub plan: LogicalOperator,
     /// Number of scans against this plan.
@@ -220,15 +221,18 @@ impl BindContext {
         }
 
         let idx = self.materializations.len();
+        let mat_ref = MaterializationRef {
+            materialization_idx: idx,
+        };
+
         self.materializations.push(PlanMaterialization {
+            mat_ref,
             plan,
             scan_count: 0,
             table_ref: plan_tables[0],
         });
 
-        Ok(MaterializationRef {
-            materialization_idx: idx,
-        })
+        Ok(mat_ref)
     }
 
     pub fn inc_materialization_scan_count(
@@ -264,6 +268,10 @@ impl BindContext {
                     mat_ref.materialization_idx
                 ))
             })
+    }
+
+    pub fn iter_materializations(&self) -> impl Iterator<Item = &PlanMaterialization> {
+        self.materializations.iter()
     }
 
     pub fn get_parent_ref(&self, bind_ref: BindScopeRef) -> Result<Option<BindScopeRef>> {
