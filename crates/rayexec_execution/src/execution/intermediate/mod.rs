@@ -297,7 +297,7 @@ impl DatabaseProtoConv for IntermediatePipelineGroup {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct IntermediateMaterializationGroup {
     pub(crate) materializations: HashMap<MaterializationRef, IntermediateMaterialization>,
 }

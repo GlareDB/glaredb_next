@@ -1,5 +1,5 @@
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::binder::bind_context::MaterializationRef;
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
@@ -11,13 +11,12 @@ use super::source::{PartitionSource, QuerySource};
 use super::util::broadcast::{BroadcastChannel, BroadcastReceiver};
 
 #[derive(Debug)]
-pub struct MaterializedSink {
-    mat_ref: MaterializationRef,
-    sinks: Mutex<Vec<MaterializedDataPartitionSink>>,
-    sources: Vec<MaterializedSource>,
+pub struct MaterializedOperator {
+    pub sink: MaterializedSink,
+    pub sources: Vec<MaterializedSource>,
 }
 
-impl MaterializedSink {
+impl MaterializedOperator {
     pub fn new(mat_ref: MaterializationRef, partitions: usize, source_scans: usize) -> Self {
         let mut sinks = Vec::new();
         let mut sources: Vec<_> = (0..source_scans).map(|_| Vec::new()).collect();
@@ -40,14 +39,19 @@ impl MaterializedSink {
             })
             .collect();
 
-        let sinks = Mutex::new(sinks);
-
-        MaterializedSink {
+        let sink = MaterializedSink {
             mat_ref,
-            sinks,
-            sources,
-        }
+            sinks: Mutex::new(sinks),
+        };
+
+        MaterializedOperator { sink, sources }
     }
+}
+
+#[derive(Debug)]
+pub struct MaterializedSink {
+    mat_ref: MaterializationRef,
+    sinks: Mutex<Vec<MaterializedDataPartitionSink>>,
 }
 
 impl SinkOperation for MaterializedSink {

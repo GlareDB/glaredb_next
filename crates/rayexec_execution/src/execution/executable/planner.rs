@@ -8,10 +8,11 @@ use crate::{
     engine::result::ResultSink,
     execution::{
         intermediate::{
-            IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId, PipelineSink,
-            PipelineSource,
+            IntermediateMaterializationGroup, IntermediateOperator, IntermediatePipeline,
+            IntermediatePipelineGroup, IntermediatePipelineId, PipelineSink, PipelineSource,
         },
         operators::{
+            materialize::MaterializedOperator,
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             sink::{SinkOperation, SinkOperator},
             source::PhysicalQuerySource,
@@ -23,6 +24,7 @@ use crate::{
         client::HybridClient,
         stream::{ClientToServerStream, ServerToClientStream},
     },
+    logical::binder::bind_context::MaterializationRef,
     runtime::Runtime,
 };
 
@@ -40,24 +42,6 @@ impl PipelineIdGen {
         self.gen.0 += 1;
         id
     }
-}
-
-#[derive(Debug)]
-struct PendingOperatorWithState {
-    operator: Arc<PhysicalOperator>,
-    operator_state: Arc<OperatorState>,
-    input_states: Vec<Option<Vec<PartitionState>>>,
-    pull_states: VecDeque<Vec<PartitionState>>,
-    trunk_idx: usize,
-}
-
-#[derive(Debug)]
-struct PendingPipeline {
-    /// Indices into a `pending_operators` vec containing the operators and
-    /// state.
-    operators: Vec<usize>,
-    sink: PipelineSink,
-    source: PipelineSource,
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +102,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
     pub fn plan_from_intermediate(
         &mut self,
         group: IntermediatePipelineGroup,
+        materializations: IntermediateMaterializationGroup,
     ) -> Result<Vec<ExecutablePipeline>> {
         let mut pending_operators: Vec<PendingOperatorWithState> = Vec::new();
         let mut pending_pipelines: HashMap<_, PendingPipeline> =
@@ -423,47 +408,11 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
 
         // Create states for the rest.
         for operator in intermediate.operators {
-            let partitions = operator
-                .partitioning_requirement
-                .unwrap_or(self.config.target_partitions);
-
-            // TODO: How to get other input partitions.
-            let states = operator
-                .operator
-                .create_states(self.context, vec![partitions])?;
-
-            let pending = match states.partition_states {
-                InputOutputStates::OneToOne { partition_states } => PendingOperatorWithState {
-                    operator: operator.operator,
-                    operator_state: states.operator_state,
-                    input_states: vec![Some(partition_states)],
-                    pull_states: VecDeque::new(),
-                    trunk_idx: 0,
-                },
-                InputOutputStates::NaryInputSingleOutput {
-                    partition_states,
-                    pull_states,
-                } => {
-                    let input_states: Vec<_> = partition_states.into_iter().map(Some).collect();
-                    PendingOperatorWithState {
-                        operator: operator.operator,
-                        operator_state: states.operator_state,
-                        input_states,
-                        pull_states: VecDeque::new(),
-                        trunk_idx: pull_states,
-                    }
-                }
-                InputOutputStates::SeparateInputOutput {
-                    push_states,
-                    pull_states,
-                } => PendingOperatorWithState {
-                    operator: operator.operator,
-                    operator_state: states.operator_state,
-                    input_states: vec![Some(push_states)],
-                    pull_states: [pull_states].into_iter().collect(),
-                    trunk_idx: 0,
-                },
-            };
+            let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                &self.config,
+                self.context,
+                operator,
+            )?;
 
             let idx = operators.len();
             operators.push(pending);
@@ -471,5 +420,214 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
         }
 
         Ok(pipeline)
+    }
+}
+
+#[derive(Debug)]
+struct PendingQuery {
+    /// All pending operators in a query.
+    operators: Vec<PendingOperatorWithState>,
+    /// Pending pipelines in this query.
+    ///
+    /// This includes pipelines that make up a materialization.
+    pipelines: HashMap<IntermediatePipelineId, PendingPipeline>,
+    /// Pending materializations in the query.
+    materializations: HashMap<MaterializationRef, PendingMaterialization>,
+}
+
+impl PendingQuery {
+    fn try_from_operators_and_materializations(
+        config: &ExecutionConfig,
+        context: &DatabaseContext,
+        group: IntermediatePipelineGroup,
+        materializations: IntermediateMaterializationGroup,
+    ) -> Result<Self> {
+        let mut pending_materializations = HashMap::new();
+        let mut operators = Vec::new();
+
+        // Handle materializations first.
+        for (mat_ref, materialization) in materializations.materializations {
+            let mut operator_indexes = Vec::with_capacity(materialization.operators.len());
+
+            for operator in materialization.operators {
+                let idx = operators.len();
+                let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                    config, context, operator,
+                )?;
+
+                operator_indexes.push(idx);
+                operators.push(pending);
+            }
+
+            let mat_op = MaterializedOperator::new(
+                mat_ref,
+                config.target_partitions,
+                materialization.scan_count,
+            );
+
+            // Add materialization sink to pending operators.
+            let idx = operators.len();
+            let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                config,
+                context,
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::HybridSink(SinkOperator::new(Box::new(
+                        mat_op.sink,
+                    )))),
+                    partitioning_requirement: Some(config.target_partitions),
+                },
+            )?;
+            operators.push(pending);
+            operator_indexes.push(idx);
+
+            let scan_sources = mat_op
+                .sources
+                .into_iter()
+                .map(|s| PhysicalQuerySource::new(Box::new(s)))
+                .collect();
+
+            pending_materializations.insert(
+                mat_ref,
+                PendingMaterialization {
+                    operators: operator_indexes,
+                    source: materialization.source,
+                    scan_sources,
+                },
+            );
+        }
+
+        let mut pending_pipelines = HashMap::new();
+
+        // Handle the other operators.
+        for (id, pipeline) in group.pipelines {
+            let mut operator_indexes = Vec::with_capacity(pipeline.operators.len());
+
+            for operator in pipeline.operators {
+                let idx = operators.len();
+                let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                    config, context, operator,
+                )?;
+
+                operator_indexes.push(idx);
+                operators.push(pending);
+            }
+
+            pending_pipelines.insert(
+                id,
+                PendingPipeline {
+                    operators: operator_indexes,
+                    sink: pipeline.sink,
+                    source: pipeline.source,
+                },
+            );
+        }
+
+        Ok(PendingQuery {
+            operators,
+            pipelines: pending_pipelines,
+            materializations: pending_materializations,
+        })
+    }
+
+    fn plan_executable_pipelines(&mut self) -> Result<Vec<ExecutablePipeline>> {
+        let mut pipelines = Vec::with_capacity(self.pipelines.len() + self.materializations.len());
+
+        Ok(pipelines)
+    }
+}
+
+#[derive(Debug)]
+struct PendingMaterialization {
+    /// Indices that index into the `operators` vec in pending query.
+    ///
+    /// The last index should point to the sink operator for the
+    /// materialization.
+    operators: Vec<usize>,
+    /// Source for this pipeline.
+    source: PipelineSource,
+    /// Sources for operators that depend on this materialization.
+    ///
+    /// Length of the vector corresponds to the computed scan count for the
+    /// materialization. An error should be returned if this is non-zero at the
+    /// end of planning, or if there are more dependent pipelines than there are
+    /// sources.
+    scan_sources: Vec<PhysicalQuerySource>,
+}
+
+#[derive(Debug)]
+struct PendingPipeline {
+    /// Indices that index into the `operators` vec in pending query.
+    operators: Vec<usize>,
+    /// Sink for this pipeline.
+    sink: PipelineSink,
+    /// Source for this pipeline.
+    source: PipelineSource,
+}
+
+/// An operator with initialized state.
+#[derive(Debug)]
+struct PendingOperatorWithState {
+    /// The physical operator.
+    operator: Arc<PhysicalOperator>,
+    /// Global operator state.
+    operator_state: Arc<OperatorState>,
+    /// Input states that get taken when building up the final execution
+    /// pipeline.
+    input_states: Vec<Option<Vec<PartitionState>>>,
+    /// Output states that get popped when building the final pipeline.
+    ///
+    /// May be empty if the operator uses the same partition state for pushing
+    /// and pulling.
+    pull_states: VecDeque<Vec<PartitionState>>,
+    /// Index of the input state to use for the pull state. This corresponds to
+    /// the "trunk" of the pipeline.
+    trunk_idx: usize,
+}
+
+impl PendingOperatorWithState {
+    fn try_from_intermediate_operator(
+        config: &ExecutionConfig,
+        context: &DatabaseContext,
+        operator: IntermediateOperator,
+    ) -> Result<Self> {
+        let partitions = operator
+            .partitioning_requirement
+            .unwrap_or(config.target_partitions);
+
+        // TODO: How to get other input partitions.
+        let states = operator.operator.create_states(context, vec![partitions])?;
+
+        Ok(match states.partition_states {
+            InputOutputStates::OneToOne { partition_states } => PendingOperatorWithState {
+                operator: operator.operator,
+                operator_state: states.operator_state,
+                input_states: vec![Some(partition_states)],
+                pull_states: VecDeque::new(),
+                trunk_idx: 0,
+            },
+            InputOutputStates::NaryInputSingleOutput {
+                partition_states,
+                pull_states,
+            } => {
+                let input_states: Vec<_> = partition_states.into_iter().map(Some).collect();
+                PendingOperatorWithState {
+                    operator: operator.operator,
+                    operator_state: states.operator_state,
+                    input_states,
+                    pull_states: VecDeque::new(),
+                    trunk_idx: pull_states,
+                }
+            }
+            InputOutputStates::SeparateInputOutput {
+                push_states,
+                pull_states,
+            } => PendingOperatorWithState {
+                operator: operator.operator,
+                operator_state: states.operator_state,
+                input_states: vec![Some(push_states)],
+                pull_states: [pull_states].into_iter().collect(),
+                trunk_idx: 0,
+            },
+        })
     }
 }

@@ -100,6 +100,7 @@ impl IntermediateConfig {
 pub struct PlannedPipelineGroups {
     pub local: IntermediatePipelineGroup,
     pub remote: IntermediatePipelineGroup,
+    pub materializations: IntermediateMaterializationGroup,
 }
 
 /// Planner for building intermedate pipelines.
@@ -136,6 +137,7 @@ impl IntermediatePipelinePlanner {
         Ok(PlannedPipelineGroups {
             local: state.local_group,
             remote: state.remote_group,
+            materializations: state.local_materializations,
         })
     }
 }
@@ -275,7 +277,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             //     .insert(mat.mat_ref, vec![source; mat.scan_count]);
         }
 
-        unimplemented!()
+        Ok(Materializations {})
     }
 
     fn walk(
