@@ -44,6 +44,7 @@ use crate::{
         logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
         logical_describe::LogicalDescribe,
+        logical_distinct::LogicalDistinct,
         logical_drop::LogicalDrop,
         logical_empty::LogicalEmpty,
         logical_explain::LogicalExplain,
@@ -263,6 +264,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
+            LogicalOperator::Distinct(distinct) => {
+                self.push_distinct(id_gen, materializations, distinct)
+            }
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
@@ -952,7 +956,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let projections = self
             .expr_planner
-            .plan_scalars(&input_refs, &project.node.projections)?;
+            .plan_scalars(&input_refs, &project.node.projections)
+            .context("Failed to plan expressions for projection")?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
@@ -992,6 +997,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         self.push_intermediate_operator(operator, location, id_gen)?;
 
+        Ok(())
+    }
+
+    fn push_distinct(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        mut distinct: Node<LogicalDistinct>,
+    ) -> Result<()> {
+        // TODO:
         Ok(())
     }
 

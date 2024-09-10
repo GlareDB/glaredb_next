@@ -69,7 +69,8 @@ impl SubqueryPlanner {
         subquery: &mut SubqueryExpr,
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
-        let subquery_plan = QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
+        let mut subquery_plan =
+            QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
         // Get only correlated columns that are pointing to this plan.
         let plan_tables = plan.get_output_table_refs();
@@ -117,8 +118,9 @@ impl SubqueryPlanner {
                 // we make at the end _shouldn't_ be a dependent join, but just
                 // a normal comparison join.
                 let mut planner = DependentJoinPushdown::new(mat_ref, correlated_columns);
+
                 planner.find_correlations(&subquery_plan)?;
-                let right = planner.pushdown(bind_context, subquery_plan)?;
+                planner.pushdown(bind_context, &mut subquery_plan)?;
 
                 // Make comparison join between left & right using the updated
                 // column map from the push down.
@@ -147,7 +149,7 @@ impl SubqueryPlanner {
                 // Result expression for the subquery, output of the right side
                 // of the join.
                 let right_out = Expression::Column(ColumnExpr {
-                    table_scope: right.get_output_table_refs()[0],
+                    table_scope: subquery_plan.get_output_table_refs()[0],
                     column: 0,
                 });
 
@@ -158,7 +160,7 @@ impl SubqueryPlanner {
                         conditions,
                     },
                     location: LocationRequirement::Any,
-                    children: vec![left, right],
+                    children: vec![left, subquery_plan],
                 });
 
                 Ok(right_out)
@@ -302,8 +304,21 @@ impl SubqueryPlanner {
     }
 }
 
+/// Wrapper around a logical operator pointer for hashing the pointer.
+///
+/// This is used to allow us to walk the plan determining if subtrees contain
+/// correlated queries without needing to store the operator.
+///
+/// This may or may not be smart. I don't know yet.
 #[derive(Debug)]
 struct LogicalOperatorPtr(*const LogicalOperator);
+
+impl LogicalOperatorPtr {
+    fn new(plan: &LogicalOperator) -> Self {
+        let ptr = LogicalOperatorPtr(plan as _);
+        ptr
+    }
+}
 
 impl std::hash::Hash for LogicalOperatorPtr {
     fn hash<H>(&self, state: &mut H)
@@ -373,7 +388,7 @@ impl DependentJoinPushdown {
         }
 
         self.correlated_operators
-            .insert(LogicalOperatorPtr(plan as _), has_correlation);
+            .insert(LogicalOperatorPtr::new(plan), has_correlation);
 
         Ok(has_correlation)
     }
@@ -386,15 +401,28 @@ impl DependentJoinPushdown {
         Ok(child_has_correlation)
     }
 
+    /// Pushes down a conceptual dependent join.
+    ///
+    /// Note that there's no explicit "dependent join" operator, and this is
+    /// just acting as if there was one. The resulting plan should contain a
+    /// cross join against the materialized original plan, with all correlated
+    /// columns resolved against that cross join.
+    ///
+    /// Also Sean decide that we hash pointers, so this takes a mut reference to
+    /// the plan and modify in place instead of returning a new plan. This
+    /// reference should be the same one used for `find_correlations`, otherwise
+    /// an error occurs.
     fn pushdown(
         &mut self,
         bind_context: &mut BindContext,
-        plan: LogicalOperator,
-    ) -> Result<LogicalOperator> {
+        plan: &mut LogicalOperator,
+    ) -> Result<()> {
         let has_correlation = *self
             .correlated_operators
-            .get(&LogicalOperatorPtr(&plan as _))
-            .unwrap_or(&false);
+            .get(&LogicalOperatorPtr::new(&plan))
+            .ok_or_else(|| {
+                RayexecError::new(format!("Missing correlation check for plan: {plan:?}"))
+            })?;
 
         if !has_correlation {
             // Operator (and children) do not have correlated columns. Cross
@@ -459,16 +487,20 @@ impl DependentJoinPushdown {
             });
             bind_context.inc_materialization_scan_count(self.mat_ref, 1)?;
 
-            return Ok(LogicalOperator::CrossJoin(Node {
+            let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+
+            *plan = LogicalOperator::CrossJoin(Node {
                 node: LogicalCrossJoin,
                 location: LocationRequirement::Any,
-                children: vec![plan, right],
-            }));
+                children: vec![orig, right],
+            });
+
+            return Ok(());
         }
 
         match plan {
-            LogicalOperator::Project(mut project) => {
-                project.children = self.pushdown_children(bind_context, project.children)?;
+            LogicalOperator::Project(project) => {
+                self.pushdown_children(bind_context, &mut project.children)?;
                 self.rewrite_expressions(&mut project.node.projections)?;
 
                 // Append column exprs referencing the materialization.
@@ -489,7 +521,7 @@ impl DependentJoinPushdown {
                     );
                 }
 
-                Ok(LogicalOperator::Project(project))
+                Ok(())
             }
             LogicalOperator::Scan(scan) => {
                 if matches!(
@@ -499,7 +531,7 @@ impl DependentJoinPushdown {
                         | ScanSource::TableFunction { .. }
                 ) {
                     // Nothing to do.
-                    return Ok(LogicalOperator::Scan(scan));
+                    return Ok(());
                 }
 
                 not_implemented!("dependent join pushdown for VALUES")
@@ -511,12 +543,12 @@ impl DependentJoinPushdown {
     fn pushdown_children(
         &mut self,
         bind_context: &mut BindContext,
-        children: Vec<LogicalOperator>,
-    ) -> Result<Vec<LogicalOperator>> {
-        children
-            .into_iter()
-            .map(|c| self.pushdown(bind_context, c))
-            .collect::<Result<Vec<_>>>()
+        children: &mut [LogicalOperator],
+    ) -> Result<()> {
+        for child in children {
+            self.pushdown(bind_context, child)?;
+        }
+        Ok(())
     }
 
     fn any_expression_has_correlation(&self, exprs: &[Expression]) -> bool {
