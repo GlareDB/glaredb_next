@@ -52,6 +52,7 @@ use crate::{
         logical_insert::LogicalInsert,
         logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
         logical_limit::LogicalLimit,
+        logical_materialization::LogicalMaterializationScan,
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
@@ -125,11 +126,7 @@ impl IntermediatePipelinePlanner {
         let mut state = IntermediatePipelineBuildState::new(&self.config, &bind_context);
         let mut id_gen = PipelineIdGen::new(self.query_id);
 
-        let mut materializations = {
-            // TODO
-            // state.plan_materializations(context, &mut id_gen)?;
-            Materializations::default()
-        };
+        let mut materializations = state.plan_materializations(&mut id_gen)?;
         state.walk(&mut materializations, &mut id_gen, root)?;
 
         state.finish(&mut id_gen)?;
@@ -173,6 +170,9 @@ impl PipelineIdGen {
 }
 
 /// Key for a pipeline that's being materialized.
+///
+/// Includes local an remote variants indicating which pipeline group the
+/// materialization is being performed in.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 enum MaterializationSource {
@@ -256,11 +256,54 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
     /// Plan materializations from the bind context.
     fn plan_materializations(&mut self, id_gen: &mut PipelineIdGen) -> Result<Materializations> {
+        // TODO: The way this and the materialization ref is implemented allows
+        // materializations to depend on previously planned materializations.
+        // Unsure if we want to make that a strong guarantee (probably yes).
+
         let mut materializations = Materializations {
             materialize_sources: HashMap::new(),
         };
 
-        for mat in self.bind_context.iter_materializations() {}
+        for mat in self.bind_context.iter_materializations() {
+            self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
+
+            let mut in_progress = self.take_in_progress_pipeline()?;
+            // let op = IntermediateOperator {
+            //     operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
+            //         mat.scan_count,
+            //     ))),
+            //     partitioning_requirement: None,
+            // };
+
+            // in_progress.operators.push(op);
+            // let id = in_progress.id;
+
+            // let pipeline = IntermediatePipeline {
+            //     id,
+            //     sink: PipelineSink::InPipeline,
+            //     source: PipelineSource::InPipeline,
+            //     operators: in_progress.operators,
+            // };
+
+            // let source = match in_progress.location {
+            //     LocationRequirement::ClientLocal => {
+            //         self.local_group.pipelines.insert(id, pipeline);
+            //         MaterializationSource::Local(id)
+            //     }
+            //     LocationRequirement::Remote => {
+            //         self.remote_group.pipelines.insert(id, pipeline);
+            //         MaterializationSource::Remote(id)
+            //     }
+            //     LocationRequirement::Any => {
+            //         self.local_group.pipelines.insert(id, pipeline);
+            //         MaterializationSource::Local(id)
+            //     }
+            // };
+
+            // materializations
+            //     .materialize_sources
+            //     .insert(mat.mat_ref, vec![source; mat.scan_count]);
+        }
 
         Ok(materializations)
     }
@@ -427,7 +470,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 id: id_gen.next_pipeline_id(),
                 operators: vec![operator],
                 location,
-                // TODO: partitions? include other pipeline id
                 source: PipelineSource::OtherGroup {
                     stream_id,
                     partitions: 1,
@@ -436,7 +478,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             let finalized = IntermediatePipeline {
                 id: in_progress.id,
-                // TODO: partitions? include other pipeline id
                 sink: PipelineSink::OtherGroup {
                     stream_id,
                     partitions: 1,
@@ -655,6 +696,27 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         Ok(())
+    }
+
+    fn push_materialize_scan(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        scan: Node<LogicalMaterializationScan>,
+    ) -> Result<()> {
+        let source_id = match materializations.materialize_sources.get_mut(&scan.node.mat) {
+            Some(sources) => sources
+                .pop()
+                .ok_or_else(|| RayexecError::new("Invalid scan count for materialization"))?,
+            None => {
+                return Err(RayexecError::new(format!(
+                    "Missing materialization source for ref: {}",
+                    scan.node.mat
+                )))
+            }
+        };
+
+        unimplemented!()
     }
 
     fn push_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {

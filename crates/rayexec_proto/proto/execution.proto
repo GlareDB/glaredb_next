@@ -142,7 +142,6 @@ message PhysicalOperator {
         PhysicalProject            project             = 6;
         PhysicalInsert             insert              = 7;
         PhysicalLimit              limit               = 8;
-        PhysicalMaterialize        materialize         = 9;
         PhysicalScan               scan                = 10;
         PhysicalUngroupedAggregate ungrouped_aggregate = 11;
         PhysicalUnion union                            = 12;
