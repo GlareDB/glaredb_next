@@ -23,7 +23,7 @@ use crate::{
 };
 use rayexec_bullet::{datatype::DataType, scalar::ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 #[derive(Debug)]
 pub struct SubqueryPlanner;
@@ -377,6 +377,11 @@ impl DependentJoinPushdown {
                 has_correlation = self.expression_has_correlation(&filter.node.filter);
                 has_correlation |= self.find_correlations_in_children(&filter.children)?;
             }
+            LogicalOperator::Aggregate(agg) => {
+                has_correlation = self.any_expression_has_correlation(&agg.node.aggregates);
+                has_correlation |= self.any_expression_has_correlation(&agg.node.group_exprs);
+                has_correlation |= self.find_correlations_in_children(&agg.children)?;
+            }
             _ => (),
         }
 
@@ -531,6 +536,68 @@ impl DependentJoinPushdown {
 
                 // Filter does not change columns that can be referenced by
                 // parent nodes, don't update column map.
+
+                Ok(())
+            }
+            LogicalOperator::Aggregate(agg) => {
+                self.pushdown_children(bind_context, &mut agg.children)?;
+                self.rewrite_expressions(&mut agg.node.aggregates)?;
+                self.rewrite_expressions(&mut agg.node.group_exprs)?;
+
+                // Append correlated columns to group by expressions.
+                let offset = agg.node.group_exprs.len();
+
+                // If we don't have a table ref for the group by (indicating we
+                // have no groups), go ahead and create it.
+                let group_by_table = match agg.node.group_table {
+                    Some(table) => table,
+                    None => {
+                        let table = bind_context.new_ephemeral_table()?;
+                        agg.node.group_table = Some(table);
+                        table
+                    }
+                };
+
+                // Same as above, we're always going to have groups.
+                let grouping_sets = match &mut agg.node.grouping_sets {
+                    Some(sets) => sets,
+                    None => {
+                        // Create single group.
+                        agg.node.grouping_sets = Some(vec![BTreeSet::new()]);
+                        agg.node.grouping_sets.as_mut().unwrap()
+                    }
+                };
+
+                for (idx, correlated) in self.columns.iter().enumerate() {
+                    let expr =
+                        Expression::Column(*self.column_map.get(correlated).ok_or_else(|| {
+                            RayexecError::new(
+                                format!("Missing correlated column in column map for appending group expression: {correlated:?}"))
+                        })?);
+
+                    // Append column to group by table in bind context.
+                    bind_context.push_column_for_table(
+                        group_by_table,
+                        format!("__generated_aggregate_decorrelation_{idx}"),
+                        expr.datatype(bind_context)?,
+                    )?;
+
+                    // Add to group by.
+                    agg.node.group_exprs.push(expr);
+                    // Add to all grouping sets too.
+                    for set in grouping_sets.iter_mut() {
+                        set.insert(offset + idx);
+                    }
+
+                    // Update column map to point to expression in GROUP BY.
+                    self.column_map.insert(
+                        correlated.clone(),
+                        ColumnExpr {
+                            table_scope: group_by_table,
+                            column: offset + idx,
+                        },
+                    );
+                }
 
                 Ok(())
             }
