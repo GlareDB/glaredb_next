@@ -155,7 +155,7 @@ impl SubqueryPlanner {
                 // Update plan to now be a comparison join.
                 *plan = LogicalOperator::ComparisonJoin(Node {
                     node: LogicalComparisonJoin {
-                        join_type: JoinType::Inner,
+                        join_type: JoinType::Left,
                         conditions,
                     },
                     location: LocationRequirement::Any,
@@ -164,7 +164,7 @@ impl SubqueryPlanner {
 
                 Ok(right_out)
             }
-            _ => unimplemented!(),
+            other => not_implemented!("correlated subquery type: {other:?}"),
         }
     }
 
@@ -377,11 +377,14 @@ impl DependentJoinPushdown {
 
     fn find_correlations(&mut self, plan: &LogicalOperator) -> Result<bool> {
         let mut has_correlation = false;
-        #[allow(clippy::single_match)] // Temp, more match arms will be added.
         match plan {
             LogicalOperator::Project(project) => {
                 has_correlation = self.any_expression_has_correlation(&project.node.projections);
                 has_correlation |= self.find_correlations_in_children(&project.children)?;
+            }
+            LogicalOperator::Filter(filter) => {
+                has_correlation = self.expression_has_correlation(&filter.node.filter);
+                has_correlation |= self.find_correlations_in_children(&filter.children)?;
             }
             _ => (),
         }
@@ -531,6 +534,15 @@ impl DependentJoinPushdown {
 
                 Ok(())
             }
+            LogicalOperator::Filter(filter) => {
+                self.pushdown_children(bind_context, &mut filter.children)?;
+                self.rewrite_expression(&mut filter.node.filter)?;
+
+                // Filter does not change columns that can be referenced by
+                // parent nodes, don't update column map.
+
+                Ok(())
+            }
             LogicalOperator::Scan(scan) => {
                 if matches!(
                     scan.node.source,
@@ -538,6 +550,7 @@ impl DependentJoinPushdown {
                         | ScanSource::View { .. }
                         | ScanSource::TableFunction { .. }
                 ) {
+                    // TODO: Should probably error
                     // Nothing to do.
                     return Ok(());
                 }
