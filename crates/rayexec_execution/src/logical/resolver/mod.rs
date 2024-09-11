@@ -29,7 +29,6 @@ use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListI
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_copy_to::ResolvedCopyTo;
 use resolved_cte::ResolvedCte;
-use resolved_table::CteIndex;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
@@ -589,7 +588,7 @@ impl<'a> Resolver<'a> {
                 depth,
             };
 
-            let _ = resolve_context.push_cte(resolved_cte);
+            resolve_context.push_cte(resolved_cte);
 
             resolved_ctes.push(ast::CommonTableExpr {
                 alias: cte.alias,

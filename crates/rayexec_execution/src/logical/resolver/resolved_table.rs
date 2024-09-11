@@ -9,16 +9,16 @@ use crate::{
     proto::DatabaseProtoConv,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CteIndex(pub usize);
-
 /// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedTableOrCteReference {
     /// Resolved table.
     Table(ResolvedTableReference),
-    /// Resolved CTE, index of the CTE in bind data.
-    Cte(CteIndex),
+    /// Resolved CTE.
+    ///
+    /// Stores the normalized name of the CTE so that it can be looked up during
+    /// binding.
+    Cte(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,9 +47,7 @@ impl DatabaseProtoConv for ResolvedTableOrCteReference {
                 schema: schema.clone(),
                 entry: Some(entry.to_proto_ctx(context)?),
             }),
-            Self::Cte(cte_idx) => Value::Cte(ResolvedCteReference {
-                idx: cte_idx.0 as u32,
-            }),
+            Self::Cte(name) => Value::Cte(ResolvedCteReference { name: name.clone() }),
         };
 
         Ok(Self::ProtoType { value: Some(value) })
@@ -67,7 +65,7 @@ impl DatabaseProtoConv for ResolvedTableOrCteReference {
                     context,
                 )?),
             }),
-            Value::Cte(cte) => Self::Cte(CteIndex(cte.idx as usize)),
+            Value::Cte(cte) => Self::Cte(cte.name),
         })
     }
 }

@@ -62,6 +62,10 @@ impl<'a> QueryBinder<'a> {
         bind_context: &mut BindContext,
         query: ast::QueryNode<ResolvedMeta>,
     ) -> Result<BoundQuery> {
+        if let Some(ctes) = query.ctes {
+            self.bind_ctes(bind_context, ctes)?;
+        }
+
         self.bind_body(bind_context, query.body, query.order_by, query.limit)
     }
 
@@ -101,9 +105,9 @@ impl<'a> QueryBinder<'a> {
             not_implemented!("recursive CTEs");
         }
 
-        // for cte in ctes.ctes {
-        //     self.bind_cte(bind_context, cte)?
-        // }
+        for cte in ctes.ctes {
+            self.bind_cte(bind_context, cte)?
+        }
 
         Ok(())
     }
@@ -113,12 +117,13 @@ impl<'a> QueryBinder<'a> {
         bind_context: &mut BindContext,
         cte: ast::CommonTableExpr<ResolvedMeta>,
     ) -> Result<()> {
-        let binder = QueryBinder::new(self.current, self.resolve_context);
+        let nested = bind_context.new_child_scope(self.current);
+        let binder = QueryBinder::new(nested, self.resolve_context);
         let bound = binder.bind(bind_context, *cte.body)?;
 
         let mut names = Vec::new();
         let mut types = Vec::new();
-        for table in bind_context.iter_tables(self.current)? {
+        for table in bind_context.iter_tables(nested)? {
             types.extend(table.column_types.iter().cloned());
             names.extend(table.column_names.iter().cloned());
         }
@@ -145,10 +150,16 @@ impl<'a> QueryBinder<'a> {
             name: cte.alias.into_normalized_string(),
             column_names: names,
             column_types: types,
-            bound,
+            bound: Box::new(bound),
             mat_ref: None,
         };
 
+        // Note that we bind the CTE in a nested scope, but add it to the
+        // current scope so that it's visible to all child scopes of current.
+        //
+        // This allows for CTEs to reference previously defined CTEs, and we can
+        // avoid accidentally clobbering columns that are already in scope for
+        // the curent scope.
         bind_context.add_cte(self.current, cte)?;
 
         Ok(())

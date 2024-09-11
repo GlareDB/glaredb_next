@@ -72,7 +72,7 @@ pub struct BoundCte {
     /// Column types.
     pub column_types: Vec<DataType>,
     /// The bound plan representing the CTE.
-    pub bound: BoundQuery,
+    pub bound: Box<BoundQuery>,
     /// Materialization reference for the CTE.
     ///
     /// If `materialized` is false and this is None, we need to plan the bound
