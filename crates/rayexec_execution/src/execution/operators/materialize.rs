@@ -61,7 +61,7 @@ impl SinkOperation for MaterializedSinkOperation {
         num_sinks: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
         let mut sinks = self.sinks.lock();
-        let sinks = std::mem::replace(sinks.as_mut(), Vec::new());
+        let sinks: Vec<_> = std::mem::take(sinks.as_mut());
 
         if sinks.len() != num_sinks {
             return Err(RayexecError::new(format!(
@@ -94,7 +94,7 @@ pub struct MaterializeSourceOperation {
 impl SourceOperation for MaterializeSourceOperation {
     fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>> {
         let mut sources = self.sources.lock();
-        let sources = std::mem::replace(sources.as_mut(), Vec::new());
+        let sources: Vec<_> = std::mem::take(sources.as_mut());
 
         if sources.len() != num_sources {
             panic!(

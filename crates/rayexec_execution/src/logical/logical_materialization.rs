@@ -15,9 +15,9 @@ pub struct LogicalMaterializationScan {
 impl Explainable for LogicalMaterializationScan {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let mut ent =
-            ExplainEntry::new("MaterializationScan").with_value("materialization_ref", &self.mat);
+            ExplainEntry::new("MaterializationScan").with_value("materialization_ref", self.mat);
         if conf.verbose {
-            ent = ent.with_value("table_ref", &self.table_ref);
+            ent = ent.with_value("table_ref", self.table_ref);
         }
         ent
     }

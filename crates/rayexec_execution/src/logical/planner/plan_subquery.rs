@@ -85,7 +85,7 @@ impl SubqueryPlanner {
 
         let correlated_columns: Vec<_> = bind_context
             .correlated_columns(subquery.bind_idx)?
-            .into_iter()
+            .iter()
             .filter(|c| c.table == left_table_ref)
             .cloned()
             .collect();
@@ -140,7 +140,7 @@ impl SubqueryPlanner {
 
                     conditions.push(ComparisonCondition {
                         left,
-                        right: Expression::Column(right.clone()),
+                        right: Expression::Column(*right),
                         op: ComparisonOperator::Eq,
                     });
                 }
@@ -314,8 +314,7 @@ struct LogicalOperatorPtr(*const LogicalOperator);
 
 impl LogicalOperatorPtr {
     fn new(plan: &LogicalOperator) -> Self {
-        let ptr = LogicalOperatorPtr(plan as _);
-        ptr
+        LogicalOperatorPtr(plan as _)
     }
 }
 
@@ -378,6 +377,7 @@ impl DependentJoinPushdown {
 
     fn find_correlations(&mut self, plan: &LogicalOperator) -> Result<bool> {
         let mut has_correlation = false;
+        #[allow(clippy::single_match)] // Temp, more match arms will be added.
         match plan {
             LogicalOperator::Project(project) => {
                 has_correlation = self.any_expression_has_correlation(&project.node.projections);
@@ -418,7 +418,7 @@ impl DependentJoinPushdown {
     ) -> Result<()> {
         let has_correlation = *self
             .correlated_operators
-            .get(&LogicalOperatorPtr::new(&plan))
+            .get(&LogicalOperatorPtr::new(plan))
             .ok_or_else(|| {
                 RayexecError::new(format!("Missing correlation check for plan: {plan:?}"))
             })?;
@@ -506,10 +506,7 @@ impl DependentJoinPushdown {
                 let offset = project.node.projections.len();
                 for (idx, correlated) in self.columns.iter().enumerate() {
                     let expr = self.column_map.get(correlated).ok_or_else(|| RayexecError::new(format!("Missing correlated column in column map for appending projection: {correlated:?}")))?;
-                    project
-                        .node
-                        .projections
-                        .push(Expression::Column(expr.clone()));
+                    project.node.projections.push(Expression::Column(*expr));
 
                     self.column_map.insert(
                         correlated.clone(),
@@ -598,7 +595,7 @@ impl DependentJoinPushdown {
                         ))
                     })?;
 
-                    *expr = Expression::Column(new_col.clone());
+                    *expr = Expression::Column(*new_col);
                 }
 
                 // Column we're not concerned about. Remains unchanged.
