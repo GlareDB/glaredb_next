@@ -73,20 +73,11 @@ impl SubqueryPlanner {
 
         // Get only correlated columns that are pointing to this plan.
         let plan_tables = plan.get_output_table_refs();
-        // TODO: Unsure if this is fine. Easy way of always ensuring this is to
-        // wrap in projection which guarantees a single ref, but I'm not sure if
-        // it's possible for this to be any other value.
-        if plan_tables.len() != 1 {
-            return Err(RayexecError::new(
-                "Expected 1 table ref for plan in subquery decorrelation",
-            ));
-        }
-        let left_table_ref = plan_tables[0];
 
         let correlated_columns: Vec<_> = bind_context
             .correlated_columns(subquery.bind_idx)?
             .iter()
-            .filter(|c| c.table == left_table_ref)
+            .filter(|c| plan_tables.contains(&c.table))
             .cloned()
             .collect();
 
@@ -105,7 +96,7 @@ impl SubqueryPlanner {
                 let left = LogicalOperator::MaterializationScan(Node {
                     node: LogicalMaterializationScan {
                         mat: mat_ref,
-                        table_ref: left_table_ref,
+                        table_refs: plan_tables,
                     },
                     location: LocationRequirement::Any,
                     children: Vec::new(),
@@ -481,7 +472,7 @@ impl DependentJoinPushdown {
                 children: vec![LogicalOperator::MaterializationScan(Node {
                     node: LogicalMaterializationScan {
                         mat: self.mat_ref,
-                        table_ref: materialization.table_ref,
+                        table_refs: materialization.table_refs.clone(),
                     },
                     location: LocationRequirement::Any,
                     children: Vec::new(),
