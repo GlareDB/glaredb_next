@@ -505,8 +505,20 @@ impl DependentJoinPushdown {
                 // Append column exprs referencing the materialization.
                 let offset = project.node.projections.len();
                 for (idx, correlated) in self.columns.iter().enumerate() {
-                    let expr = self.column_map.get(correlated).ok_or_else(|| RayexecError::new(format!("Missing correlated column in column map for appending projection: {correlated:?}")))?;
-                    project.node.projections.push(Expression::Column(*expr));
+                    let expr =
+                        Expression::Column(*self.column_map.get(correlated).ok_or_else(|| {
+                            RayexecError::new(
+                                format!("Missing correlated column in column map for appending projection: {correlated:?}"))
+                        })?);
+
+                    // Append column to table in bind context.
+                    bind_context.push_column_for_table(
+                        project.node.projection_table,
+                        format!("__generated_projection_decorrelation_{idx}"),
+                        expr.datatype(bind_context)?,
+                    )?;
+
+                    project.node.projections.push(expr);
 
                     self.column_map.insert(
                         correlated.clone(),

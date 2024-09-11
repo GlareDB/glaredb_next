@@ -1044,11 +1044,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
     fn push_distinct(
         &mut self,
-        _id_gen: &mut PipelineIdGen,
-        _materializations: &mut Materializations,
-        _distinct: Node<LogicalDistinct>,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        mut distinct: Node<LogicalDistinct>,
     ) -> Result<()> {
-        // TODO: https://github.com/GlareDB/rayexec/issues/226
+        // TODO: Actually implement.
+        // https://github.com/GlareDB/rayexec/issues/226
+
+        let input = distinct.take_one_child_exact()?;
+        self.walk(materializations, id_gen, input)?;
+
         Ok(())
     }
 
