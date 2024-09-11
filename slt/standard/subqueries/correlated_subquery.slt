@@ -1,5 +1,7 @@
 # Correlated subqueries
 
+halt
+
 statement ok
 create temp table t1 (a int);
 

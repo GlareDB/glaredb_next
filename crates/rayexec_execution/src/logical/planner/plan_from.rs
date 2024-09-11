@@ -114,7 +114,7 @@ impl FromPlanner {
             BoundFromItem::MaterializedCte(mat_cte) => {
                 // TODO: Have a way of indexing to the CTE directly instead of
                 // searching the scopes again.
-                let cte = bind_context.find_cte(from.bind_ref, &mat_cte.cte_name, true)?;
+                let cte = bind_context.get_cte(mat_cte.cte_ref)?;
 
                 let mat_ref = match cte.mat_ref {
                     Some(mat_ref) => {
@@ -130,6 +130,10 @@ impl FromPlanner {
                         let plan = QueryPlanner.plan(bind_context, *cte.bound.clone())?;
                         let mat_ref = bind_context.new_materialization(plan)?;
                         bind_context.inc_materialization_scan_count(mat_ref, 1)?;
+
+                        // Update the cte to now have the materialized reference.
+                        let cte = bind_context.get_cte_mut(mat_cte.cte_ref)?;
+                        cte.mat_ref = Some(mat_ref);
 
                         mat_ref
                     }

@@ -542,7 +542,32 @@ impl PendingQuery {
                 Ok(pipeline)
             }
             PipelineSource::Materialization { mat_ref } => {
-                unimplemented!()
+                let mat = self.materializations.get_mut(&mat_ref).ok_or_else(|| {
+                    RayexecError::new(format!("Missing pending materialization: {mat_ref}"))
+                })?;
+
+                let operator_idx = match mat.scan_sources.pop() {
+                    Some(idx) => idx,
+                    None => {
+                        // Since we're popping these, would only happen if the
+                        // scan count for the materialization is out of sync.
+                        return Err(RayexecError::new(format!(
+                            "Missing source operator index: {mat_ref}"
+                        )));
+                    }
+                };
+
+                let operator = self.get_operator_mut(operator_idx)?;
+                let partition_states = operator.take_input_states(0)?;
+
+                let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
+                pipeline.push_operator(
+                    operator.operator.clone(),
+                    operator.operator_state.clone(),
+                    partition_states,
+                )?;
+
+                Ok(pipeline)
             }
         }
     }

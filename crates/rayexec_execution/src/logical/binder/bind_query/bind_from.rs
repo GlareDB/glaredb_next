@@ -14,7 +14,8 @@ use crate::{
     logical::{
         binder::{
             bind_context::{
-                BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef, UsingColumn,
+                BindContext, BindScopeRef, CorrelatedColumn, CteRef, TableAlias, TableRef,
+                UsingColumn,
             },
             column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
@@ -71,6 +72,7 @@ pub struct BoundSubquery {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundMaterializedCte {
     pub table_ref: TableRef,
+    pub cte_ref: CteRef,
     pub cte_name: String,
 }
 
@@ -250,7 +252,8 @@ impl<'a> FromBinder<'a> {
         cte: &str,
         alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
-        let cte = bind_context.find_cte(self.current, cte, true)?;
+        let cte_ref = bind_context.find_cte(self.current, cte)?;
+        let cte = bind_context.get_cte(cte_ref)?;
 
         let table_alias = TableAlias {
             database: None,
@@ -278,6 +281,7 @@ impl<'a> FromBinder<'a> {
                 bind_ref: self.current,
                 item: BoundFromItem::MaterializedCte(BoundMaterializedCte {
                     table_ref,
+                    cte_ref,
                     cte_name,
                 }),
             })

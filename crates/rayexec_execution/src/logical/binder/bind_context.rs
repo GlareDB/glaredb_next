@@ -40,6 +40,17 @@ impl fmt::Display for MaterializationRef {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CteRef {
+    pub cte_idx: usize,
+}
+
+impl fmt::Display for CteRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CTE_{}", self.cte_idx)
+    }
+}
+
 #[derive(Debug)]
 pub struct BindContext {
     /// All child scopes used for binding.
@@ -47,8 +58,16 @@ pub struct BindContext {
     /// Initialized with a single scope (root).
     scopes: Vec<BindScope>,
     /// All tables in the bind context. Tables may or may not be inside a scope.
+    ///
+    /// Referenced via `TableRef`.
     tables: Vec<Table>,
+    /// All CTEs in the query.
+    ///
+    /// Referenced via `CteRef`.
+    ctes: Vec<BoundCte>,
     /// All plans that will be materialized.
+    ///
+    /// Referenced via `MaterializationRef`.
     materializations: Vec<PlanMaterialization>,
 }
 
@@ -105,7 +124,7 @@ struct BindScope {
     /// Tables currently in scope.
     tables: Vec<TableRef>,
     /// CTEs in scope. Keyed by normalized CTE name.
-    ctes: HashMap<String, BoundCte>,
+    ctes: HashMap<String, CteRef>,
 }
 
 /// Reference to a table inside a scope.
@@ -196,6 +215,7 @@ impl BindContext {
                 ctes: HashMap::new(),
             }],
             tables: Vec::new(),
+            ctes: Vec::new(),
             materializations: Vec::new(),
         }
     }
@@ -239,7 +259,9 @@ impl BindContext {
     /// Adds a CTE to the current scope.
     ///
     /// Errors on duplicate CTE name.
-    pub fn add_cte(&mut self, current: BindScopeRef, cte: BoundCte) -> Result<()> {
+    pub fn add_cte(&mut self, current: BindScopeRef, cte: BoundCte) -> Result<CteRef> {
+        let idx = self.ctes.len();
+
         let scope = self.get_scope_mut(current)?;
         if scope.ctes.contains_key(&cte.name) {
             return Err(RayexecError::new(format!(
@@ -248,40 +270,44 @@ impl BindContext {
             )));
         }
 
-        scope.ctes.insert(cte.name.clone(), cte);
+        let cte_ref = CteRef { cte_idx: idx };
+        scope.ctes.insert(cte.name.clone(), cte_ref);
 
-        Ok(())
+        self.ctes.push(cte);
+
+        Ok(cte_ref)
     }
 
     /// Try to find CTE by name.
     ///
-    /// First searches the current scope, optionally searching parent scopes if
-    /// `search_parent` is true.
-    pub fn find_cte(
-        &self,
-        current: BindScopeRef,
-        name: &str,
-        search_parent: bool,
-    ) -> Result<&BoundCte> {
+    /// If CTE is not found in the current scope, the parent scope will be
+    /// search (all the way up to the root of the query).
+    pub fn find_cte(&self, current: BindScopeRef, name: &str) -> Result<CteRef> {
         let scope = self.get_scope(current)?;
 
         match scope.ctes.get(name) {
-            Some(cte) => Ok(cte),
+            Some(cte) => Ok(*cte),
             None => {
-                if !search_parent {
-                    return Err(RayexecError::new(format!(
-                        "Missing CTE '{name}' in current scope"
-                    )));
-                }
-
                 let parent = match self.get_parent_ref(current)? {
                     Some(parent) => parent,
                     None => return Err(RayexecError::new(format!("Missing CTE '{name}'"))),
                 };
 
-                self.find_cte(parent, name, search_parent)
+                self.find_cte(parent, name)
             }
         }
+    }
+
+    pub fn get_cte(&self, cte_ref: CteRef) -> Result<&BoundCte> {
+        self.ctes
+            .get(cte_ref.cte_idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing CTE for ref: {cte_ref}")))
+    }
+
+    pub fn get_cte_mut(&mut self, cte_ref: CteRef) -> Result<&mut BoundCte> {
+        self.ctes
+            .get_mut(cte_ref.cte_idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing CTE for ref: {cte_ref}")))
     }
 
     /// Adds a plan for materialization to the bind context.
