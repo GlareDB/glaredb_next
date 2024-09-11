@@ -17,6 +17,7 @@ use crate::{
         logical_empty::LogicalEmpty,
         logical_filter::LogicalFilter,
         logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_materialization::LogicalMaterializationScan,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -108,6 +109,18 @@ impl FromPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![plan],
+                }))
+            }
+            BoundFromItem::MaterializedCte(cte) => {
+                let mat = bind_context.get_materialization(cte.mat_ref)?;
+
+                Ok(LogicalOperator::MaterializationScan(Node {
+                    node: LogicalMaterializationScan {
+                        mat: cte.mat_ref,
+                        table_ref: mat.table_ref,
+                    },
+                    location: LocationRequirement::Any,
+                    children: Vec::new(),
                 }))
             }
             BoundFromItem::Empty => Ok(LogicalOperator::Empty(Node {

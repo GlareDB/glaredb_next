@@ -140,7 +140,7 @@ impl Future for RecvFut {
                 }
 
                 state.recv_wakers[self.subscribe_idx] = Some((self.batch_idx, cx.waker().clone()));
-                return Poll::Pending;
+                Poll::Pending
             }
         }
     }

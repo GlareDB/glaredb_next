@@ -12,10 +12,13 @@ pub mod select_list;
 
 use bind_setop::{BoundSetOp, SetOpBinder};
 use bind_values::{BoundValues, ValuesBinder};
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::logical::resolver::{resolve_context::ResolveContext, ResolvedMeta};
+use crate::logical::{
+    binder::bind_context::BoundCte,
+    resolver::{resolve_context::ResolveContext, ResolvedMeta},
+};
 use bind_select::{BoundSelect, SelectBinder};
 
 use super::bind_context::{BindContext, BindScopeRef, TableRef};
@@ -87,5 +90,67 @@ impl<'a> QueryBinder<'a> {
                 Ok(BoundQuery::Setop(setop))
             }
         }
+    }
+
+    fn bind_ctes(
+        &self,
+        bind_context: &mut BindContext,
+        ctes: ast::CommonTableExprs<ResolvedMeta>,
+    ) -> Result<()> {
+        if ctes.recursive {
+            not_implemented!("recursive CTEs");
+        }
+
+        // for cte in ctes.ctes {
+        //     self.bind_cte(bind_context, cte)?
+        // }
+
+        Ok(())
+    }
+
+    fn bind_cte(
+        &self,
+        bind_context: &mut BindContext,
+        cte: ast::CommonTableExpr<ResolvedMeta>,
+    ) -> Result<()> {
+        let binder = QueryBinder::new(self.current, self.resolve_context);
+        let bound = binder.bind(bind_context, *cte.body)?;
+
+        let mut names = Vec::new();
+        let mut types = Vec::new();
+        for table in bind_context.iter_tables(self.current)? {
+            types.extend(table.column_types.iter().cloned());
+            names.extend(table.column_names.iter().cloned());
+        }
+
+        // Sets alias where cte is defined
+        //
+        // WITH my_cte(alias1, alias2) AS ...
+        if let Some(col_aliases) = &cte.column_aliases {
+            if col_aliases.len() > names.len() {
+                return Err(RayexecError::new(format!(
+                    "Expected at most {} column aliases, received {}",
+                    names.len(),
+                    col_aliases.len()
+                )));
+            }
+
+            for (idx, col_alias) in col_aliases.iter().enumerate() {
+                names[idx] = col_alias.as_normalized_string();
+            }
+        }
+
+        let cte = BoundCte {
+            materialized: cte.materialized,
+            name: cte.alias.into_normalized_string(),
+            column_names: names,
+            column_types: types,
+            bound,
+            mat_ref: None,
+        };
+
+        bind_context.add_cte(self.current, cte)?;
+
+        Ok(())
     }
 }

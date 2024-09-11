@@ -14,7 +14,8 @@ use crate::{
     logical::{
         binder::{
             bind_context::{
-                BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef, UsingColumn,
+                BindContext, BindScopeRef, CorrelatedColumn, MaterializationRef, TableAlias,
+                TableRef, UsingColumn,
             },
             column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
@@ -42,6 +43,7 @@ pub enum BoundFromItem {
     Join(BoundJoin),
     TableFunction(BoundTableFunction),
     Subquery(BoundSubquery),
+    MaterializedCte(BoundMaterializedCte),
     Empty,
 }
 
@@ -65,6 +67,11 @@ pub struct BoundTableFunction {
 pub struct BoundSubquery {
     pub table_ref: TableRef,
     pub subquery: Box<BoundQuery>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundMaterializedCte {
+    pub mat_ref: MaterializationRef,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -72,8 +72,9 @@ use tracing::error;
 use uuid::Uuid;
 
 use super::{
-    IntermediateMaterializationGroup, IntermediateOperator, IntermediatePipeline,
-    IntermediatePipelineGroup, IntermediatePipelineId, PipelineSource, StreamId,
+    IntermediateMaterialization, IntermediateMaterializationGroup, IntermediateOperator,
+    IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId, PipelineSource,
+    StreamId,
 };
 
 /// Configuration used during intermediate pipeline planning.
@@ -137,7 +138,7 @@ impl IntermediatePipelinePlanner {
         Ok(PlannedPipelineGroups {
             local: state.local_group,
             remote: state.remote_group,
-            materializations: state.local_materializations,
+            materializations: materializations.local,
         })
     }
 }
@@ -173,6 +174,7 @@ impl PipelineIdGen {
 
 #[derive(Debug)]
 struct Materializations {
+    local: IntermediateMaterializationGroup,
     // TODO: Remote materializations.
 }
 
@@ -196,8 +198,6 @@ struct IntermediatePipelineBuildState<'a> {
     /// Pipeline we're working on, as well as the location for where it should
     /// be executed.
     in_progress: Option<InProgressPipeline>,
-    /// Plans for materializing parts of the query locally.
-    local_materializations: IntermediateMaterializationGroup,
     /// Pipelines in the local group.
     local_group: IntermediatePipelineGroup,
     /// Pipelines in the remote group.
@@ -215,14 +215,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn new(config: &'a IntermediateConfig, bind_context: &'a BindContext) -> Self {
         let expr_planner = PhysicalExpressionPlanner::new(bind_context);
 
-        let local_materializations = IntermediateMaterializationGroup {
-            materializations: HashMap::new(),
-        };
-
         IntermediatePipelineBuildState {
             config,
             in_progress: None,
-            local_materializations,
             local_group: IntermediatePipelineGroup::default(),
             remote_group: IntermediatePipelineGroup::default(),
             bind_context,
@@ -236,48 +231,32 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // materializations to depend on previously planned materializations.
         // Unsure if we want to make that a strong guarantee (probably yes).
 
+        let mut materializations = Materializations {
+            local: IntermediateMaterializationGroup::default(),
+        };
+
         for mat in self.bind_context.iter_materializations() {
-            // self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
+            self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
 
-            // let mut in_progress = self.take_in_progress_pipeline()?;
-            // let op = IntermediateOperator {
-            //     operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
-            //         mat.scan_count,
-            //     ))),
-            //     partitioning_requirement: None,
-            // };
+            let in_progress = self.take_in_progress_pipeline()?;
+            if in_progress.location == LocationRequirement::Remote {
+                not_implemented!("remote materializations");
+            }
 
-            // in_progress.operators.push(op);
-            // let id = in_progress.id;
+            let intermediate = IntermediateMaterialization {
+                id: in_progress.id,
+                source: in_progress.source,
+                operators: in_progress.operators,
+                scan_count: mat.scan_count,
+            };
 
-            // let pipeline = IntermediatePipeline {
-            //     id,
-            //     sink: PipelineSink::InPipeline,
-            //     source: PipelineSource::InPipeline,
-            //     operators: in_progress.operators,
-            // };
-
-            // let source = match in_progress.location {
-            //     LocationRequirement::ClientLocal => {
-            //         self.local_group.pipelines.insert(id, pipeline);
-            //         MaterializationSource::Local(id)
-            //     }
-            //     LocationRequirement::Remote => {
-            //         self.remote_group.pipelines.insert(id, pipeline);
-            //         MaterializationSource::Remote(id)
-            //     }
-            //     LocationRequirement::Any => {
-            //         self.local_group.pipelines.insert(id, pipeline);
-            //         MaterializationSource::Local(id)
-            //     }
-            // };
-
-            // materializations
-            //     .materialize_sources
-            //     .insert(mat.mat_ref, vec![source; mat.scan_count]);
+            materializations
+                .local
+                .materializations
+                .insert(mat.mat_ref, intermediate);
         }
 
-        Ok(Materializations {})
+        Ok(materializations)
     }
 
     fn walk(
@@ -318,6 +297,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Insert(insert) => self.push_insert(id_gen, materializations, insert),
             LogicalOperator::CopyTo(copy_to) => {
                 self.push_copy_to(id_gen, materializations, copy_to)
+            }
+            LogicalOperator::MaterializationScan(scan) => {
+                self.push_materialize_scan(id_gen, materializations, scan)
             }
             LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
             LogicalOperator::SetOp(setop) => {
@@ -676,19 +658,35 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         materializations: &mut Materializations,
         scan: Node<LogicalMaterializationScan>,
     ) -> Result<()> {
-        // let source_id = match materializations.materialize_sources.get_mut(&scan.node.mat) {
-        //     Some(sources) => sources
-        //         .pop()
-        //         .ok_or_else(|| RayexecError::new("Invalid scan count for materialization"))?,
-        //     None => {
-        //         return Err(RayexecError::new(format!(
-        //             "Missing materialization source for ref: {}",
-        //             scan.node.mat
-        //         )))
-        //     }
-        // };
+        if !materializations
+            .local
+            .materializations
+            .contains_key(&scan.node.mat)
+        {
+            return Err(RayexecError::new(format!(
+                "Missing materialization for ref: {}",
+                scan.node.mat
+            )));
+        }
 
-        unimplemented!()
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new(
+                "Expected in progress to be None for materialization scan",
+            ));
+        }
+
+        // Initialize in-progress with no operators, but scan source being this
+        // materialization.
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next_pipeline_id(),
+            operators: Vec::new(),
+            location: LocationRequirement::ClientLocal, // Currently only support local.
+            source: PipelineSource::Materialization {
+                mat_ref: scan.node.mat,
+            },
+        });
+
+        Ok(())
     }
 
     fn push_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {

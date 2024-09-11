@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
@@ -8,6 +8,8 @@ use crate::{
     expr::Expression,
     logical::operator::{LogicalNode, LogicalOperator},
 };
+
+use super::bind_query::BoundQuery;
 
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -59,6 +61,25 @@ pub struct CorrelatedColumn {
     pub col_idx: usize,
 }
 
+#[derive(Debug)]
+pub struct BoundCte {
+    /// If this CTE should be materialized.
+    pub materialized: bool,
+    /// Normalized name fo the CTE.
+    pub name: String,
+    /// Column names, possibly aliased.
+    pub column_names: Vec<String>,
+    /// Column types.
+    pub column_types: Vec<DataType>,
+    /// The bound plan representing the CTE.
+    pub bound: BoundQuery,
+    /// Materialization reference for the CTE.
+    ///
+    /// If `materialized` is false and this is None, we need to plan the bound
+    /// query first.
+    pub mat_ref: Option<MaterializationRef>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct UsingColumn {
     /// Normalized column name.
@@ -81,6 +102,8 @@ struct BindScope {
     using_columns: Vec<UsingColumn>,
     /// Tables currently in scope.
     tables: Vec<TableRef>,
+    /// CTEs in scope. Keyed by normalized CTE name.
+    ctes: HashMap<String, BoundCte>,
 }
 
 /// Reference to a table inside a scope.
@@ -168,6 +191,7 @@ impl BindContext {
                 tables: Vec::new(),
                 correlated_columns: Vec::new(),
                 using_columns: Vec::new(),
+                ctes: HashMap::new(),
             }],
             tables: Vec::new(),
             materializations: Vec::new(),
@@ -189,6 +213,7 @@ impl BindContext {
             tables: Vec::new(),
             correlated_columns: Vec::new(),
             using_columns: Vec::new(),
+            ctes: HashMap::new(),
         });
 
         BindScopeRef { context_idx: idx }
@@ -203,9 +228,47 @@ impl BindContext {
             tables: Vec::new(),
             correlated_columns: Vec::new(),
             using_columns: Vec::new(),
+            ctes: HashMap::new(),
         });
 
         BindScopeRef { context_idx: idx }
+    }
+
+    /// Adds a CTE to the current scope.
+    ///
+    /// Errors on duplicate CTE name.
+    pub fn add_cte(&mut self, current: BindScopeRef, cte: BoundCte) -> Result<()> {
+        let scope = self.get_scope_mut(current)?;
+        if scope.ctes.contains_key(&cte.name) {
+            return Err(RayexecError::new(format!(
+                "Duplicate CTE name '{}'",
+                cte.name
+            )));
+        }
+
+        scope.ctes.insert(cte.name.clone(), cte);
+
+        Ok(())
+    }
+
+    /// Try to find CTE by name.
+    ///
+    /// This will begin the search in the current scope, and then move into the
+    /// parent scope up until we reach the root of the query.
+    pub fn find_cte(&self, current: BindScopeRef, name: &str) -> Result<&BoundCte> {
+        let scope = self.get_scope(current)?;
+
+        match scope.ctes.get(name) {
+            Some(cte) => Ok(cte),
+            None => {
+                let parent = match self.get_parent_ref(current)? {
+                    Some(parent) => parent,
+                    None => return Err(RayexecError::new(format!("Missing CTE '{name}'"))),
+                };
+
+                self.find_cte(parent, name)
+            }
+        }
     }
 
     /// Adds a plan for materialization to the bind context.
