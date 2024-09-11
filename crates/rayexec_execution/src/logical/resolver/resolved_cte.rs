@@ -1,7 +1,3 @@
-use rayexec_parser::ast::{self, QueryNode};
-
-use super::ResolvedMeta;
-
 // TODO: This might need some scoping information.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedCte {

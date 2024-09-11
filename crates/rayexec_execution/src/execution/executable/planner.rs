@@ -1,4 +1,4 @@
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use std::{collections::HashMap, collections::VecDeque, sync::Arc};
 
@@ -7,8 +7,8 @@ use crate::{
     engine::result::ResultSink,
     execution::{
         intermediate::{
-            IntermediateMaterializationGroup, IntermediateOperator, IntermediatePipeline,
-            IntermediatePipelineGroup, IntermediatePipelineId, PipelineSink, PipelineSource,
+            IntermediateMaterializationGroup, IntermediateOperator, IntermediatePipelineGroup,
+            IntermediatePipelineId, PipelineSink, PipelineSource,
         },
         operators::{
             materialize::MaterializeOperation,
@@ -431,9 +431,14 @@ impl PendingQuery {
 
                 executables.push(pipeline);
             }
-            PipelineSink::Materialization { mat_ref } => {
+            PipelineSink::Materialization { .. } => {
+                // TODO: This is never constructed as pipelines that make up a
+                // materialization are constructed slightly differently in that
+                // we don't need to specify a sink.
                 //
-                unimplemented!()
+                // This does cause a slight split in logic, and we may at some
+                // point use this variant if we want to try to unify them.
+                unreachable!("Materialization variant never constructed")
             }
         }
 

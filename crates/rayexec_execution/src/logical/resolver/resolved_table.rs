@@ -1,7 +1,6 @@
 use rayexec_error::{OptionExt, Result};
 use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{

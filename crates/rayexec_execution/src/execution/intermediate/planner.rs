@@ -39,7 +39,7 @@ use crate::{
     },
     functions::scalar::boolean::AndImpl,
     logical::{
-        binder::bind_context::{BindContext, MaterializationRef},
+        binder::bind_context::BindContext,
         logical_aggregate::LogicalAggregate,
         logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
@@ -67,7 +67,7 @@ use rayexec_bullet::{
     compute::concat::concat,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use tracing::error;
 use uuid::Uuid;
 
@@ -1044,11 +1044,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
     fn push_distinct(
         &mut self,
-        id_gen: &mut PipelineIdGen,
-        materializations: &mut Materializations,
-        mut distinct: Node<LogicalDistinct>,
+        _id_gen: &mut PipelineIdGen,
+        _materializations: &mut Materializations,
+        _distinct: Node<LogicalDistinct>,
     ) -> Result<()> {
-        // TODO:
+        // TODO: https://github.com/GlareDB/rayexec/issues/226
         Ok(())
     }
 

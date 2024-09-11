@@ -8,7 +8,7 @@ use crate::{
     },
     logical::{
         binder::{
-            bind_context::{BindContext, PlanMaterialization},
+            bind_context::BindContext,
             bind_query::{
                 bind_from::{BoundFrom, BoundFromItem, BoundJoin},
                 condition_extractor::JoinConditionExtractor,
