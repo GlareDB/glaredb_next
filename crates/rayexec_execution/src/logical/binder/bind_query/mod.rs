@@ -66,7 +66,9 @@ impl<'a> QueryBinder<'a> {
             self.bind_ctes(bind_context, ctes)?;
         }
 
-        self.bind_body(bind_context, query.body, query.order_by, query.limit)
+        let body = self.bind_body(bind_context, query.body, query.order_by, query.limit)?;
+
+        Ok(body)
     }
 
     pub fn bind_body(
@@ -146,6 +148,7 @@ impl<'a> QueryBinder<'a> {
         }
 
         let cte = BoundCte {
+            bind_scope: nested,
             materialized: cte.materialized,
             name: cte.alias.into_normalized_string(),
             column_names: names,

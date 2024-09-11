@@ -14,8 +14,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::{
-                BindContext, BindScopeRef, CorrelatedColumn, MaterializationRef, TableAlias,
-                TableRef, UsingColumn,
+                BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef, UsingColumn,
             },
             column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
@@ -23,8 +22,8 @@ use crate::{
         logical_join::JoinType,
         operator::LocationRequirement,
         resolver::{
-            resolve_context::ResolveContext, resolved_cte::ResolvedCte,
-            resolved_table::ResolvedTableOrCteReference, ResolvedMeta,
+            resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
+            ResolvedMeta,
         },
     },
 };
@@ -71,7 +70,8 @@ pub struct BoundSubquery {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundMaterializedCte {
-    pub mat_ref: MaterializationRef,
+    pub table_ref: TableRef,
+    pub cte_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -250,7 +250,7 @@ impl<'a> FromBinder<'a> {
         cte: &str,
         alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
-        let cte = bind_context.find_cte(self.current, cte)?;
+        let cte = bind_context.find_cte(self.current, cte, true)?;
 
         let table_alias = TableAlias {
             database: None,
@@ -262,8 +262,25 @@ impl<'a> FromBinder<'a> {
         let types = cte.column_types.clone();
 
         if cte.materialized {
-            // do the materialization thing
-            not_implemented!("materialized CTE");
+            let cte_name = cte.name.clone();
+            // Binds with the alias provided in the FROM.
+            //
+            // ... FROM mycte AS aliased_cte(c1, c2) ...
+            let table_ref = self.push_table_scope_with_from_alias(
+                bind_context,
+                Some(table_alias),
+                names,
+                types,
+                alias,
+            )?;
+
+            Ok(BoundFrom {
+                bind_ref: self.current,
+                item: BoundFromItem::MaterializedCte(BoundMaterializedCte {
+                    table_ref,
+                    cte_name,
+                }),
+            })
         } else {
             // Not materialize, just copy the plan as a subquery.
             let subquery = cte.bound.clone();

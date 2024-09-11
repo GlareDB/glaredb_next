@@ -8,7 +8,7 @@ use crate::{
     },
     logical::{
         binder::{
-            bind_context::BindContext,
+            bind_context::{BindContext, PlanMaterialization},
             bind_query::{
                 bind_from::{BoundFrom, BoundFromItem, BoundJoin},
                 condition_extractor::JoinConditionExtractor,
@@ -111,16 +111,59 @@ impl FromPlanner {
                     children: vec![plan],
                 }))
             }
-            BoundFromItem::MaterializedCte(cte) => {
-                let mat = bind_context.get_materialization(cte.mat_ref)?;
+            BoundFromItem::MaterializedCte(mat_cte) => {
+                // TODO: Have a way of indexing to the CTE directly instead of
+                // searching the scopes again.
+                let cte = bind_context.find_cte(from.bind_ref, &mat_cte.cte_name, true)?;
 
-                Ok(LogicalOperator::MaterializationScan(Node {
-                    node: LogicalMaterializationScan {
-                        mat: cte.mat_ref,
-                        table_ref: mat.table_ref,
+                let mat_ref = match cte.mat_ref {
+                    Some(mat_ref) => {
+                        // Already have materialization, increment the scan
+                        // count.
+                        bind_context.inc_materialization_scan_count(mat_ref, 1)?;
+
+                        mat_ref
+                    }
+                    None => {
+                        // First time planning this CTE, go ahead and create the
+                        // plan for materialization.
+                        let plan = QueryPlanner.plan(bind_context, *cte.bound.clone())?;
+                        let mat_ref = bind_context.new_materialization(plan)?;
+                        bind_context.inc_materialization_scan_count(mat_ref, 1)?;
+
+                        mat_ref
+                    }
+                };
+
+                let mat = bind_context.get_materialization(mat_ref)?;
+
+                // Similarly to subqueries, we add a project here to ensure all
+                // columns from the CTE an brought into the current scope.
+                let mut projections = Vec::new();
+                for table_ref in mat.plan.get_output_table_refs() {
+                    let table = bind_context.get_table(table_ref)?;
+                    for col_idx in 0..table.num_columns() {
+                        projections.push(Expression::Column(ColumnExpr {
+                            table_scope: table_ref,
+                            column: col_idx,
+                        }));
+                    }
+                }
+
+                Ok(LogicalOperator::Project(Node {
+                    node: LogicalProject {
+                        projections,
+                        projection_table: mat_cte.table_ref,
                     },
                     location: LocationRequirement::Any,
-                    children: Vec::new(),
+                    children: vec![LogicalOperator::MaterializationScan(Node {
+                        node: LogicalMaterializationScan {
+                            mat: mat.mat_ref,
+                            table_ref: mat.table_ref,
+                        },
+                        location: LocationRequirement::Any,
+                        children: Vec::new(),
+                    })],
                 }))
             }
             BoundFromItem::Empty => Ok(LogicalOperator::Empty(Node {

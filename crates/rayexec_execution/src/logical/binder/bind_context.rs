@@ -63,6 +63,8 @@ pub struct CorrelatedColumn {
 
 #[derive(Debug)]
 pub struct BoundCte {
+    /// Scope used for binding the CTE.
+    pub bind_scope: BindScopeRef,
     /// If this CTE should be materialized.
     pub materialized: bool,
     /// Normalized name fo the CTE.
@@ -253,20 +255,31 @@ impl BindContext {
 
     /// Try to find CTE by name.
     ///
-    /// This will begin the search in the current scope, and then move into the
-    /// parent scope up until we reach the root of the query.
-    pub fn find_cte(&self, current: BindScopeRef, name: &str) -> Result<&BoundCte> {
+    /// First searches the current scope, optionally searching parent scopes if
+    /// `search_parent` is true.
+    pub fn find_cte(
+        &self,
+        current: BindScopeRef,
+        name: &str,
+        search_parent: bool,
+    ) -> Result<&BoundCte> {
         let scope = self.get_scope(current)?;
 
         match scope.ctes.get(name) {
             Some(cte) => Ok(cte),
             None => {
+                if !search_parent {
+                    return Err(RayexecError::new(format!(
+                        "Missing CTE '{name}' in current scope"
+                    )));
+                }
+
                 let parent = match self.get_parent_ref(current)? {
                     Some(parent) => parent,
                     None => return Err(RayexecError::new(format!("Missing CTE '{name}'"))),
                 };
 
-                self.find_cte(parent, name)
+                self.find_cte(parent, name, search_parent)
             }
         }
     }
