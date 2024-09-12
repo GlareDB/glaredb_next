@@ -1294,8 +1294,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let location = join.location;
 
-        let table_refs = join.get_children_table_refs();
-
         let equality_idx = join
             .node
             .conditions
@@ -1306,10 +1304,20 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             // Use hash join
 
             let [left, right] = join.take_two_children_exact()?;
-            let left_ref = table_refs[0];
-            let right_ref = table_refs[1];
-            let left_types = self.bind_context.get_table(left_ref)?.column_types.clone();
-            let right_types = self.bind_context.get_table(right_ref)?.column_types.clone();
+            let left_refs = left.get_output_table_refs();
+            let right_refs = right.get_output_table_refs();
+
+            let mut left_types = Vec::new();
+            for &table_ref in &left_refs {
+                let table = self.bind_context.get_table(table_ref)?;
+                left_types.extend(table.column_types.iter().cloned());
+            }
+
+            let mut right_types = Vec::new();
+            for &table_ref in &right_refs {
+                let table = self.bind_context.get_table(table_ref)?;
+                right_types.extend(table.column_types.iter().cloned());
+            }
 
             // Build up all inputs on the right (probe) side. This is going to
             // continue with the the current pipeline.
@@ -1339,7 +1347,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 .iter()
                 .map(|condition| {
                     self.expr_planner
-                        .plan_join_condition_as_hash_join_condition(&table_refs, condition)
+                        .plan_join_condition_as_hash_join_condition(
+                            &left_refs,
+                            &right_refs,
+                            condition,
+                        )
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -1367,6 +1379,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 not_implemented!("join type with nl join: {}", join.node.join_type);
             }
 
+            let table_refs = join.get_output_table_refs();
             let conditions = self
                 .expr_planner
                 .plan_join_conditions_as_expression(&table_refs, &join.node.conditions)?;
