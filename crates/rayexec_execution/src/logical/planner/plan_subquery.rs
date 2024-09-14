@@ -62,6 +62,16 @@ impl SubqueryPlanner {
         Ok(())
     }
 
+    /// Plans a correlated subquery.
+    ///
+    /// This will attempt to decorrelate the subquery, modifying `plan` to do
+    /// so. The returned expression should then be used in place of the original
+    /// subquery expression.
+    ///
+    /// Decorrelation follows the logic described in "Unnesting Arbitrary
+    /// Queries" (Neumann, Kemper):
+    ///
+    /// <https://btw-2015.informatik.uni-hamburg.de/res/proceedings/Hauptband/Wiss/Neumann-Unnesting_Arbitrary_Querie.pdf>
     fn plan_correlated(
         &self,
         bind_context: &mut BindContext,
@@ -326,6 +336,8 @@ impl PartialEq<LogicalOperatorPtr> for LogicalOperatorPtr {
 
 impl Eq for LogicalOperatorPtr {}
 
+/// Contains logic for pushing down a dependent join in a logical such that the
+/// resulting plan does not have a dependent join.
 #[derive(Debug)]
 struct DependentJoinPushdown {
     /// Reference to the materialized plan on the left side.
@@ -385,7 +397,33 @@ impl DependentJoinPushdown {
                 has_correlation |= self.find_correlations_in_children(&agg.children)?;
             }
             LogicalOperator::CrossJoin(join) => {
+                // TODO: Implement the push down
                 has_correlation = self.find_correlations_in_children(&join.children)?;
+            }
+            LogicalOperator::ArbitraryJoin(join) => {
+                // TODO: Implement the push down
+                has_correlation = self.expression_has_correlation(&join.node.condition);
+                has_correlation |= self.find_correlations_in_children(&join.children)?
+            }
+            LogicalOperator::ComparisonJoin(join) => {
+                // TODO: Implement the push down
+                has_correlation = self.any_expression_has_correlation(
+                    join.node
+                        .conditions
+                        .iter()
+                        .map(|c| [&c.left, &c.right].into_iter())
+                        .flatten(),
+                );
+                has_correlation |= self.find_correlations_in_children(&join.children)?;
+            }
+            LogicalOperator::Limit(_) => {
+                // Limit should not have correlations.
+            }
+            LogicalOperator::Order(order) => {
+                // TODO: Implement the push down
+                has_correlation =
+                    self.any_expression_has_correlation(order.node.exprs.iter().map(|e| &e.expr));
+                has_correlation |= self.find_correlations_in_children(&order.children)?;
             }
             _ => (),
         }
@@ -613,9 +651,9 @@ impl DependentJoinPushdown {
                         | ScanSource::View { .. }
                         | ScanSource::TableFunction { .. }
                 ) {
-                    // TODO: Should probably error
-                    // Nothing to do.
-                    return Ok(());
+                    return Err(RayexecError::new(
+                        "Unexpectedly reached scan node when pushing down dependent join",
+                    ));
                 }
 
                 not_implemented!("dependent join pushdown for VALUES")
@@ -635,8 +673,13 @@ impl DependentJoinPushdown {
         Ok(())
     }
 
-    fn any_expression_has_correlation(&self, exprs: &[Expression]) -> bool {
-        exprs.iter().any(|e| self.expression_has_correlation(e))
+    fn any_expression_has_correlation<'a>(
+        &self,
+        exprs: impl IntoIterator<Item = &'a Expression>,
+    ) -> bool {
+        exprs
+            .into_iter()
+            .any(|e| self.expression_has_correlation(e))
     }
 
     fn expression_has_correlation(&self, expr: &Expression) -> bool {
