@@ -2196,6 +2196,7 @@ dependencies = [
  "futures",
  "getrandom",
  "js-sys",
+ "once_cell",
  "parking_lot",
  "rayexec_bullet",
  "rayexec_csv",

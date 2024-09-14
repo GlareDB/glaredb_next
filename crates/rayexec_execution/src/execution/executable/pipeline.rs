@@ -287,7 +287,7 @@ impl ExecutablePartitionPipeline {
         let state = &mut self.state;
 
         loop {
-            GLOBAL_JITTER.sleep_jitter();
+            // GLOBAL_JITTER.sleep_jitter();
 
             match state {
                 PipelinePartitionState::PullFrom { operator_idx } => {

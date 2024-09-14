@@ -22,6 +22,7 @@ use rayexec_io::{
 
 use crate::{
     filesystem::LocalFileSystemProvider, http::TokioWrappedHttpClient, threaded::ThreadedScheduler,
+    time::NativeInstant,
 };
 
 /// Inner behavior of the execution runtime.
@@ -97,6 +98,7 @@ impl Runtime for NativeRuntime {
     type HttpClient = TokioWrappedHttpClient;
     type FileProvider = NativeFileProvider;
     type TokioHandle = OptionalTokioRuntime;
+    type Instant = NativeInstant;
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
         Arc::new(NativeFileProvider {

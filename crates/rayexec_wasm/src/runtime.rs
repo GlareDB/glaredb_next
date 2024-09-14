@@ -25,7 +25,7 @@ use std::{
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::http::WasmHttpClient;
+use crate::{http::WasmHttpClient, time::PerformanceInstant};
 
 #[derive(Debug, Clone)]
 pub struct WasmRuntime {
@@ -45,6 +45,7 @@ impl Runtime for WasmRuntime {
     type HttpClient = WasmHttpClient;
     type FileProvider = WasmFileProvider;
     type TokioHandle = MissingTokioHandle;
+    type Instant = PerformanceInstant;
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
         // TODO: Could probably remove this arc.

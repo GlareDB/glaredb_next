@@ -1,4 +1,5 @@
 pub mod dump;
+pub mod time;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -8,6 +9,7 @@ use dump::QueryDump;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
+use time::RuntimeInstant;
 
 /// How pipelines get executed on a single node.
 ///
@@ -40,6 +42,7 @@ pub trait Runtime: Debug + Sync + Send + Clone + 'static {
     type HttpClient: HttpClient;
     type FileProvider: FileProvider;
     type TokioHandle: TokioHandlerProvider;
+    type Instant: RuntimeInstant;
 
     /// Returns a file provider.
     fn file_provider(&self) -> Arc<Self::FileProvider>;
