@@ -39,36 +39,6 @@ impl QueryHandle for ThreadedQueryHandle {
             pipelines: BTreeMap::new(),
         };
 
-        let states = self.states.lock();
-
-        for state in states.iter() {
-            let pipeline_state = state.pipeline.lock();
-            match dump.pipelines.entry(pipeline_state.pipeline.pipeline_id()) {
-                Entry::Occupied(mut ent) => {
-                    ent.get_mut().partitions.insert(
-                        pipeline_state.pipeline.partition(),
-                        PartitionPipelineDump {
-                            state: pipeline_state.pipeline.state().clone(),
-                            timings: pipeline_state.pipeline.timings().clone(),
-                        },
-                    );
-                }
-                Entry::Vacant(ent) => {
-                    let partition_dump = PartitionPipelineDump {
-                        state: pipeline_state.pipeline.state().clone(),
-                        timings: pipeline_state.pipeline.timings().clone(),
-                    };
-                    let pipeline_dump = PipelineDump {
-                        operators: pipeline_state.pipeline.iter_operators().cloned().collect(),
-                        partitions: [(pipeline_state.pipeline.partition(), partition_dump)]
-                            .into_iter()
-                            .collect(),
-                    };
-                    ent.insert(pipeline_dump);
-                }
-            }
-        }
-
         dump
     }
 }

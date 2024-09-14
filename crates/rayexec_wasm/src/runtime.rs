@@ -197,7 +197,7 @@ impl WasmTaskState {
 
         let mut pipeline = self.pipeline.lock();
         loop {
-            match pipeline.poll_execute(&mut cx) {
+            match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
                 Poll::Ready(Some(Ok(()))) => {
                     continue;
                 }

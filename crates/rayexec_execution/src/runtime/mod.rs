@@ -42,7 +42,7 @@ pub trait Runtime: Debug + Sync + Send + Clone + 'static {
     type HttpClient: HttpClient;
     type FileProvider: FileProvider;
     type TokioHandle: TokioHandlerProvider;
-    type Instant: RuntimeInstant;
+    type Instant: RuntimeInstant; // TODO: Should this be on the runtime?
 
     /// Returns a file provider.
     fn file_provider(&self) -> Arc<Self::FileProvider>;
