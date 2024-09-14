@@ -5,9 +5,9 @@ use rayexec_slt::{ReplacementVars, RunConfig};
 use std::{path::Path, sync::Arc};
 
 pub fn main() -> Result<()> {
-    run_default_threaded()?;
-    run_single_threaded()?;
     run_multi_threaded()?;
+    run_single_threaded()?;
+    run_default_threaded()?;
     Ok(())
 }
 
