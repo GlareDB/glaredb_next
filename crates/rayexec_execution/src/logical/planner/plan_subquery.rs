@@ -366,6 +366,8 @@ impl DependentJoinPushdown {
         }
     }
 
+    /// Walk the logical plan and find correlations that we need to handle
+    /// during pushdown.
     fn find_correlations(&mut self, plan: &LogicalOperator) -> Result<bool> {
         let mut has_correlation = false;
         match plan {
@@ -381,6 +383,9 @@ impl DependentJoinPushdown {
                 has_correlation = self.any_expression_has_correlation(&agg.node.aggregates);
                 has_correlation |= self.any_expression_has_correlation(&agg.node.group_exprs);
                 has_correlation |= self.find_correlations_in_children(&agg.children)?;
+            }
+            LogicalOperator::CrossJoin(join) => {
+                has_correlation = self.find_correlations_in_children(&join.children)?;
             }
             _ => (),
         }
