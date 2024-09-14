@@ -3,21 +3,19 @@ use super::{
         create_single_decimal_input_grouped_state, create_single_primitive_input_grouped_state,
         create_single_timestamp_input_grouped_state,
     },
-    AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction,
+    AggregateFunction, GroupedStates, PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::{
-    array::{Array, DecimalArray, PrimitiveArray},
-    bitmap::Bitmap,
     datatype::{DataType, DataTypeId},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    executor::aggregate::AggregateState,
     scalar::interval::Interval,
 };
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, vec};
+use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Min;

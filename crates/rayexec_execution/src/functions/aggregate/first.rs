@@ -112,7 +112,7 @@ impl PlannedAggregateFunction for FirstImpl {
                 m.scale
             ),
             DataType::Timestamp(ref m) => {
-                create_single_timestamp_input_grouped_state::<FirstState<i64>>(m.unit.clone())
+                create_single_timestamp_input_grouped_state::<FirstState<i64>>(m.unit)
             }
             DataType::Date32 => {
                 create_single_primitive_input_grouped_state!(Date32, FirstState<i32>)
@@ -136,7 +136,7 @@ impl<T: Default + Debug> AggregateState<T, T> for FirstState<T> {
             self.value = other.value;
             return Ok(());
         }
-        return Ok(());
+        Ok(())
     }
 
     fn update(&mut self, input: T) -> Result<()> {

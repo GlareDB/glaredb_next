@@ -411,8 +411,7 @@ impl DependentJoinPushdown {
                     join.node
                         .conditions
                         .iter()
-                        .map(|c| [&c.left, &c.right].into_iter())
-                        .flatten(),
+                        .flat_map(|c| [&c.left, &c.right].into_iter()),
                 );
                 has_correlation |= self.find_correlations_in_children(&join.children)?;
             }
