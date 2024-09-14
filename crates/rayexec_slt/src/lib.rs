@@ -29,6 +29,12 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 /// indicating explain not available will be printed out instead.
 pub const DEBUG_PRINT_EXPLAIN_VAR: &str = "DEBUG_PRINT_EXPLAIN";
 
+/// Environment variable for setting the number of partitions to use.
+///
+/// If set, the value is parsed as a number, and the session will execute 'SET
+/// partitions = ...' prior to running any query.
+pub const DEBUG_SET_PARTITIONS_VAR: &str = "DEBUG_SET_PARTITIONS";
+
 #[derive(Debug)]
 pub struct RunConfig {
     /// The session to use for this run.
@@ -74,7 +80,9 @@ where
         .with_file(true)
         .with_line_number(true)
         .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    // Ignore the error. `run` may be called more than once if we're setting up
+    // different environments in the same test binary.
+    let _ = tracing::subscriber::set_global_default(subscriber);
 
     std::panic::set_hook(Box::new(|info| {
         let backtrace = std::backtrace::Backtrace::force_capture();
@@ -147,7 +155,10 @@ where
     let mut runner = sqllogictest::Runner::new(|| async {
         let conf = session_fn()?;
 
-        Ok(TestSession { conf })
+        Ok(TestSession {
+            debug_partitions_set: false,
+            conf,
+        })
     });
     runner
         .run_file_async(path)
@@ -159,6 +170,9 @@ where
 #[derive(Debug)]
 #[allow(dead_code)]
 struct TestSession {
+    /// If we've already set number of partitions for this session.
+    debug_partitions_set: bool,
+
     conf: RunConfig,
 }
 
@@ -202,6 +216,30 @@ impl TestSession {
         println!("{table}");
     }
 
+    async fn debug_set_partitions(&mut self) {
+        if self.debug_partitions_set {
+            return;
+        }
+
+        let num: i64 = match std::env::var(DEBUG_SET_PARTITIONS_VAR) {
+            Ok(v) => v.parse().unwrap(),
+            Err(_) => return,
+        };
+
+        println!("---- SETTING PARTITIONS = {num} ----");
+
+        let mut results = self
+            .conf
+            .session
+            .simple(&format!("SET partitions TO {num}"))
+            .await
+            .unwrap();
+        let result = results.pop().unwrap();
+        let _ = result.stream.try_collect::<Vec<_>>().await.unwrap();
+
+        self.debug_partitions_set = true;
+    }
+
     async fn run_inner(
         &mut self,
         sql: &str,
@@ -218,6 +256,7 @@ impl TestSession {
         }
 
         self.debug_explain(&sql_with_replacements).await;
+        self.debug_set_partitions().await;
 
         let mut rows = Vec::new();
         let mut results = self.conf.session.simple(&sql_with_replacements).await?;

@@ -30,7 +30,7 @@ use crate::{
 pub trait Scheduler: Sync + Send + Debug + Sized + Clone {
     type Handle: QueryHandle;
 
-    fn try_new() -> Result<Self>;
+    fn try_new(num_threads: usize) -> Result<Self>;
 
     fn spawn_pipelines<P>(&self, pipelines: P, errors: Arc<dyn ErrorSink>) -> Self::Handle
     where
@@ -42,7 +42,12 @@ pub struct NativeExecutor<S: Scheduler>(S);
 
 impl<S: Scheduler> NativeExecutor<S> {
     pub fn try_new() -> Result<Self> {
-        Ok(NativeExecutor(S::try_new()?))
+        let threads = num_cpus::get();
+        Ok(NativeExecutor(S::try_new(threads)?))
+    }
+
+    pub fn try_new_with_num_threads(num_threads: usize) -> Result<Self> {
+        Ok(NativeExecutor(S::try_new(num_threads)?))
     }
 }
 
