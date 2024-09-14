@@ -1,5 +1,5 @@
 use crate::{
-    execution::operators::PollFinalize,
+    execution::{executable::jitter::GLOBAL_JITTER, operators::PollFinalize},
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
@@ -287,6 +287,8 @@ impl ExecutablePartitionPipeline {
         let state = &mut self.state;
 
         loop {
+            GLOBAL_JITTER.sleep_jitter();
+
             match state {
                 PipelinePartitionState::PullFrom { operator_idx } => {
                     let operator = self
