@@ -1,5 +1,6 @@
 mod vars;
 use rayexec_bullet::format::pretty::table::pretty_format_batches;
+use rayexec_execution::runtime::handle::QueryHandle;
 pub use vars::*;
 
 mod convert;
@@ -34,6 +35,9 @@ pub const DEBUG_PRINT_EXPLAIN_VAR: &str = "DEBUG_PRINT_EXPLAIN";
 /// If set, the value is parsed as a number, and the session will execute 'SET
 /// partitions = ...' prior to running any query.
 pub const DEBUG_SET_PARTITIONS_VAR: &str = "DEBUG_SET_PARTITIONS";
+
+/// Environment variable for printing out profiling data after querye execution.
+pub const DEBUG_PRINT_PROFILE_DATA_VAR: &str = "DEBUG_PRINT_PROFILE_DATA";
 
 #[derive(Debug)]
 pub struct RunConfig {
@@ -240,6 +244,21 @@ impl TestSession {
         self.debug_partitions_set = true;
     }
 
+    async fn debug_print_profile_data(&self, handle: &dyn QueryHandle, sql: &str) {
+        if std::env::var(DEBUG_PRINT_PROFILE_DATA_VAR).is_err() {
+            // Not set.
+            return;
+        }
+
+        println!("---- PROFILE ----");
+        println!("{sql}");
+
+        match handle.generate_profile_data().await {
+            Ok(data) => println!("{data}"),
+            Err(e) => println!("Profiling data not available: {e}"),
+        }
+    }
+
     async fn run_inner(
         &mut self,
         sql: &str,
@@ -284,14 +303,17 @@ impl TestSession {
                     // Timed out.
                     results[0].handle.cancel();
 
-                    // let dump = results[0].handle.dump();
+                    let prof_data = results[0].handle.generate_profile_data().await.unwrap();
                     return Err(RayexecError::new(format!(
-                        "Variables\n{}\nQuery timed out\n---",
+                        "Variables\n{}\nQuery timed out\n---{prof_data}",
                         self.conf.vars
                     )));
                 }
             }
         }
+
+        self.debug_print_profile_data(results[0].handle.as_ref(), sql)
+            .await;
 
         Ok(sqllogictest::DBOutput::Rows { types: typs, rows })
     }

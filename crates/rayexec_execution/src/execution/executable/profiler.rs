@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::fmt;
 use std::time::Duration;
 
 use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
@@ -6,7 +7,7 @@ use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QueryProfileData {
     /// Profile data for all pipelines in this query.
-    pub pipelines: HashMap<PipelineId, PipelineProfileData>,
+    pub pipelines: BTreeMap<PipelineId, PipelineProfileData>,
 }
 
 impl QueryProfileData {
@@ -27,6 +28,37 @@ impl QueryProfileData {
         pipeline_data
             .partitions
             .insert(partition.partition(), partition_data);
+    }
+}
+
+impl fmt::Display for QueryProfileData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (id, pipeline) in &self.pipelines {
+            writeln!(f, "Pipeline {id:?}")?;
+
+            for (id, partition) in &pipeline.partitions {
+                writeln!(f, "  Partition {id}")?;
+
+                writeln!(
+                    f,
+                    "    [{:>2}]  {:>8}  {:>8}  {}",
+                    "Op", "Read", "Emitted", "Elapsed",
+                )?;
+
+                for (idx, operator) in partition.operators.iter().enumerate() {
+                    writeln!(
+                        f,
+                        "    [{:>2}]  {:>8}  {:>8}  {}",
+                        idx,
+                        operator.rows_read,
+                        operator.rows_emitted,
+                        operator.elapsed.as_millis()
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

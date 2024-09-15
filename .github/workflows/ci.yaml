@@ -24,6 +24,9 @@ jobs:
       - name: Install protoc
         uses: arduino/setup-protoc@v3
 
+      - name: DEBUG SUBQUERY
+        name: DEBUG_PRINT_PROFILE_DATA=1 cargo test slt/standard/subqueries/neumann
+
       - name: Standard tests
         run: cargo test -- --skip slt_datasource_  --skip slt_tpch --skip slt_hybrid
 
