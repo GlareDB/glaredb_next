@@ -1048,8 +1048,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         materializations: &mut Materializations,
         mut distinct: Node<LogicalDistinct>,
     ) -> Result<()> {
-        // TODO: Actually implement.
-        // https://github.com/GlareDB/rayexec/issues/226
+        // TODO: Actually implement <https://github.com/GlareDB/rayexec/issues/226>
 
         let input = distinct.take_one_child_exact()?;
         self.walk(materializations, id_gen, input)?;
