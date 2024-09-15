@@ -2,14 +2,11 @@ use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::{
-    sync::Arc,
-    task::{Context, Waker},
-};
+use std::task::Context;
 
 use super::{
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
+    PollPush,
 };
 
 /// Physical operator for EXPLAIN ANALYZE.
@@ -27,28 +24,28 @@ impl ExecutableOperator for PhysicalAnalyze {
 
     fn poll_push(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        batch: Batch,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
+        _operator_state: &OperatorState,
+        _batch: Batch,
     ) -> Result<PollPush> {
         unimplemented!()
     }
 
     fn poll_finalize_push(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
+        _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         unimplemented!()
     }
 
     fn poll_pull(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
+        _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         unimplemented!()
     }

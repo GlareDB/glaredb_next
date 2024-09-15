@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
