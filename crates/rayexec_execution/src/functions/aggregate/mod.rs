@@ -332,12 +332,13 @@ pub fn multi_array_drain(
 }
 
 mod helpers {
-    use super::*;
+    use std::vec;
 
     use rayexec_bullet::{
-        array::{PrimitiveArray, TimestampArray},
+        array::{Array, PrimitiveArray, TimestampArray},
+        bitmap::Bitmap,
         datatype::TimeUnit,
-        executor::aggregate::{StateFinalizer, UnaryNonNullUpdater},
+        executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
     };
 
     macro_rules! create_single_boolean_input_grouped_state {
@@ -438,6 +439,8 @@ mod helpers {
         }};
     }
     pub(crate) use create_single_decimal_input_grouped_state;
+
+    use super::{DefaultGroupedStates, GroupedStates};
 
     pub(crate) fn create_single_timestamp_input_grouped_state<
         S: AggregateState<i64, i64> + Send + 'static,
