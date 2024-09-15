@@ -148,6 +148,9 @@ pub trait GroupedStates: Debug + Send {
 
     /// Try to combine two sets of grouped states into a single set of states.
     ///
+    /// `mapping` is used to map groups in `consume` to the target groups in
+    /// self that should be merged.
+    ///
     /// Errors if the concrete types do not match. Essentially this prevents
     /// trying to combine state between different aggregates (SumI32 and AvgF32)
     /// _and_ type (SumI32 and SumI64).
