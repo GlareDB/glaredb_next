@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-pub const GLOBAL_JITTER: Jitter<10> = Jitter {
+pub static GLOBAL_JITTER: Jitter<10> = Jitter {
     timings: [1, 2, 256, 4, 128, 6, 64, 8, 32, 16],
     next: AtomicUsize::new(0),
 };

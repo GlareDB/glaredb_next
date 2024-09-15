@@ -8,7 +8,7 @@ thread_local! {
     ///
     /// May be None if there's no global performance or window object (is this
     /// possible?).
-    static GLOBAL_PERFORMANCE: Option<web_sys::Performance> = web_sys::window().map(|window| window.performance()).flatten();
+    static GLOBAL_PERFORMANCE: Option<web_sys::Performance> = web_sys::window().and_then(|window| window.performance());
 }
 
 /// Instant implementation that uses the browser's performance api.

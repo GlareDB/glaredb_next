@@ -14,10 +14,7 @@ pub struct QueryProfileData {
 
 impl QueryProfileData {
     pub fn add_partition_data(&mut self, partition: &ExecutablePartitionPipeline) {
-        let pipeline_data = self
-            .pipelines
-            .entry(partition.pipeline_id())
-            .or_insert(PipelineProfileData::default());
+        let pipeline_data = self.pipelines.entry(partition.pipeline_id()).or_default();
 
         let partition_data = PartitionPipelineProfileData {
             operators: partition
@@ -50,6 +47,7 @@ impl fmt::Display for QueryProfileData {
             for (id, partition) in &pipeline.partitions {
                 writeln!(f, "  Partition {id}")?;
 
+                #[allow(clippy::write_literal)]
                 writeln!(
                     f,
                     "    [{:>2}]  {:>8}  {:>8}  {:>16}  {}",
