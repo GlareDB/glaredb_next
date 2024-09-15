@@ -42,7 +42,7 @@ impl fmt::Display for QueryProfileData {
                 writeln!(
                     f,
                     "    [{:>2}]  {:>8}  {:>8}  {}",
-                    "Op", "Read", "Emitted", "Elapsed",
+                    "Op", "Read", "Emitted", "Elapsed (micro)",
                 )?;
 
                 for (idx, operator) in partition.operators.iter().enumerate() {
@@ -52,7 +52,7 @@ impl fmt::Display for QueryProfileData {
                         idx,
                         operator.rows_read,
                         operator.rows_emitted,
-                        operator.elapsed.as_millis()
+                        operator.elapsed.as_micros()
                     )?;
                 }
             }
