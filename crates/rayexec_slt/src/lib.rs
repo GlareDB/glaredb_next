@@ -284,9 +284,9 @@ impl TestSession {
                     // Timed out.
                     results[0].handle.cancel();
 
-                    let dump = results[0].handle.dump();
+                    // let dump = results[0].handle.dump();
                     return Err(RayexecError::new(format!(
-                        "Variables\n{}\nQuery timed out\n---\n{dump}",
+                        "Variables\n{}\nQuery timed out\n---",
                         self.conf.vars
                     )));
                 }

@@ -9,7 +9,7 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::executable::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
     runtime::{
-        ErrorSink, OptionalTokioRuntime, PipelineExecutor, QueryHandle, Runtime,
+        handle::QueryHandle, ErrorSink, OptionalTokioRuntime, PipelineExecutor, Runtime,
         TokioHandlerProvider,
     },
 };

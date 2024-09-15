@@ -13,7 +13,6 @@ use std::{
     fmt,
     sync::Arc,
     task::{Context, Poll},
-    time::Instant,
 };
 use tracing::trace;
 
@@ -122,7 +121,7 @@ impl Explainable for ExecutablePipeline {
 pub struct ExecutablePartitionPipeline {
     /// Information about the pipeline.
     ///
-    /// Should only be used for debugging/logging.
+    /// Should only be used for generating profiling data.
     info: PartitionPipelineInfo,
 
     /// State of this pipeline.
@@ -172,33 +171,20 @@ impl ExecutablePartitionPipeline {
         &self.state
     }
 
-    /// Return an iterator over all the physcial operators in this partition
-    /// pipeline.
-    pub fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn ExecutableOperator>> {
-        self.operators.iter().map(|op| &op.physical)
+    pub fn operators(&self) -> &[OperatorWithState] {
+        &self.operators
     }
 }
 
 /// Information about a partition pipeline.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PartitionPipelineInfo {
-    pipeline: PipelineId,
-    partition: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PartitionPipelineTimings {
-    /// Instant at which the pipeline started execution. Set on the first call
-    /// the `poll_execute`.
-    pub start: Option<Instant>,
-
-    /// Instant at which the pipeline completed. Only set when the pipeline
-    /// completes without error.
-    pub completed: Option<Instant>,
+    pub pipeline: PipelineId,
+    pub partition: usize,
 }
 
 #[derive(Debug)]
-pub(crate) struct OperatorWithState {
+pub struct OperatorWithState {
     /// The underlying physical operator.
     physical: Arc<dyn ExecutableOperator>,
 
@@ -210,6 +196,12 @@ pub(crate) struct OperatorWithState {
 
     /// Profile data for this operator.
     profile_data: OperatorProfileData,
+}
+
+impl OperatorWithState {
+    pub fn profile_data(&self) -> &OperatorProfileData {
+        &self.profile_data
+    }
 }
 
 #[derive(Clone)]

@@ -1,11 +1,11 @@
-pub mod dump;
+pub mod handle;
 pub mod time;
 
 use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::execution::executable::pipeline::ExecutablePipeline;
-use dump::QueryDump;
+use handle::QueryHandle;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
@@ -84,14 +84,6 @@ impl TokioHandlerProvider for OptionalTokioRuntime {
     fn handle_opt(&self) -> Option<tokio::runtime::Handle> {
         self.0.as_ref().map(|t| t.handle().clone())
     }
-}
-
-pub trait QueryHandle: Debug + Sync + Send {
-    /// Cancel the query.
-    fn cancel(&self);
-
-    /// Get a query dump.
-    fn dump(&self) -> QueryDump;
 }
 
 pub trait ErrorSink: Debug + Sync + Send {
