@@ -199,6 +199,10 @@ pub struct OperatorWithState {
 }
 
 impl OperatorWithState {
+    pub fn physical_operator(&self) -> &dyn ExecutableOperator {
+        self.physical.as_ref()
+    }
+
     pub fn profile_data(&self) -> &OperatorProfileData {
         &self.profile_data
     }

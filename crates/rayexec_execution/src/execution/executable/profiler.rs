@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::time::Duration;
 
+use crate::explain::explainable::ExplainConfig;
+
 use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -23,6 +25,15 @@ impl QueryProfileData {
                 .iter()
                 .map(|op| op.profile_data().clone())
                 .collect(),
+            explain_strings: partition
+                .operators()
+                .iter()
+                .map(|op| {
+                    op.physical_operator()
+                        .explain_entry(ExplainConfig { verbose: false })
+                        .to_string()
+                })
+                .collect(),
         };
 
         pipeline_data
@@ -41,18 +52,24 @@ impl fmt::Display for QueryProfileData {
 
                 writeln!(
                     f,
-                    "    [{:>2}]  {:>8}  {:>8}  {}",
-                    "Op", "Read", "Emitted", "Elapsed (micro)",
+                    "    [{:>2}]  {:>8}  {:>8}  {:>16}  {}",
+                    "Op", "Read", "Emitted", "Elapsed (micro)", "Explain",
                 )?;
 
-                for (idx, operator) in partition.operators.iter().enumerate() {
+                for (idx, (operator, explain)) in partition
+                    .operators
+                    .iter()
+                    .zip(&partition.explain_strings)
+                    .enumerate()
+                {
                     writeln!(
                         f,
-                        "    [{:>2}]  {:>8}  {:>8}  {}",
+                        "    [{:>2}]  {:>8}  {:>8}  {:>16}  {}",
                         idx,
                         operator.rows_read,
                         operator.rows_emitted,
-                        operator.elapsed.as_micros()
+                        operator.elapsed.as_micros(),
+                        explain,
                     )?;
                 }
             }
@@ -74,6 +91,10 @@ pub struct PipelineProfileData {
 pub struct PartitionPipelineProfileData {
     /// Profile data for all operators in this partition pipeline.
     pub operators: Vec<OperatorProfileData>,
+    // TODO: This is here just to help debug. Evetually I want to just be able
+    // to line up this data with the original plan using the pipeline/partition
+    // ids.
+    pub explain_strings: Vec<String>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
