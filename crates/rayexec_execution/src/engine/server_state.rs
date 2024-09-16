@@ -7,14 +7,14 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
 use crate::{
+    config::{vars::SessionVars, ExecutablePlanConfig, IntermediatePlanConfig},
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::DataSourceRegistry,
-    engine::vars::SessionVars,
     execution::{
-        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
+        executable::planner::{ExecutablePipelinePlanner, PlanLocationState},
         intermediate::{
-            planner::{IntermediateConfig, IntermediatePipelinePlanner},
-            IntermediateMaterializationGroup, IntermediatePipelineGroup, StreamId,
+            planner::IntermediatePipelinePlanner, IntermediateMaterializationGroup,
+            IntermediatePipelineGroup, StreamId,
         },
     },
     hybrid::{
@@ -139,10 +139,7 @@ where
         );
 
         let query_id = Uuid::new_v4();
-        let planner = IntermediatePipelinePlanner::new(
-            IntermediateConfig::from_session_vars(&vars),
-            query_id,
-        );
+        let planner = IntermediatePipelinePlanner::new(IntermediatePlanConfig::default(), query_id);
 
         let pipelines = planner.plan_pipelines(logical, bind_context)?;
 
@@ -173,8 +170,8 @@ where
 
         let mut planner = ExecutablePipelinePlanner::<R>::new(
             &state.context,
-            ExecutionConfig {
-                target_partitions: num_cpus::get(),
+            ExecutablePlanConfig {
+                partitions: num_cpus::get(),
             },
             PlanLocationState::Server {
                 stream_buffers: &self.buffers,
