@@ -1,7 +1,7 @@
 use crate::{
     expr::{comparison_expr::ComparisonExpr, Expression},
     logical::{
-        binder::bind_context::{BindContext, BindScopeRef, TableRef},
+        binder::bind_context::{BindContext, TableRef},
         logical_join::{ComparisonCondition, JoinType},
     },
     optimizer::filter_pushdown::split::split_conjunction,
@@ -46,11 +46,78 @@ impl ExprJoinSide {
             _ => Self::Both,
         }
     }
+
+    pub fn try_from_table_refs<'a>(
+        refs: impl IntoIterator<Item = &'a TableRef>,
+        left_tables: &[TableRef],
+        right_tables: &[TableRef],
+    ) -> Result<ExprJoinSide> {
+        let mut side = ExprJoinSide::None;
+        for table_ref in refs {
+            side = side.combine(Self::try_from_table_ref(
+                *table_ref,
+                left_tables,
+                right_tables,
+            )?);
+        }
+
+        Ok(side)
+    }
+
+    /// Finds the side of a join an expression is referencing.
+    ///
+    /// Errors if the expression is referencing a column that isn't in any of
+    /// the table refs provided.
+    pub fn try_from_expr(
+        expr: &Expression,
+        left_tables: &[TableRef],
+        right_tables: &[TableRef],
+    ) -> Result<ExprJoinSide> {
+        fn inner(
+            expr: &Expression,
+            left_tables: &[TableRef],
+            right_tables: &[TableRef],
+            side: ExprJoinSide,
+        ) -> Result<ExprJoinSide> {
+            match expr {
+                Expression::Column(col) => {
+                    ExprJoinSide::try_from_table_ref(col.table_scope, left_tables, right_tables)
+                }
+                Expression::Subquery(_) => not_implemented!("subquery in join condition"),
+                other => {
+                    let mut side = side;
+                    other.for_each_child(&mut |expr| {
+                        let new_side = inner(expr, left_tables, right_tables, side)?;
+                        side = new_side.combine(side);
+                        Ok(())
+                    })?;
+                    Ok(side)
+                }
+            }
+        }
+
+        inner(expr, left_tables, right_tables, ExprJoinSide::None)
+    }
+
+    fn try_from_table_ref(
+        table_ref: TableRef,
+        left_tables: &[TableRef],
+        right_tables: &[TableRef],
+    ) -> Result<ExprJoinSide> {
+        if left_tables.contains(&table_ref) {
+            Ok(ExprJoinSide::Left)
+        } else if right_tables.contains(&table_ref) {
+            Ok(ExprJoinSide::Right)
+        } else {
+            Err(RayexecError::new(format!(
+                "Table ref is invalid. Left: {left_tables:?}, right: {right_tables:?}, got: {table_ref:?}"
+            )))
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct JoinConditionExtractor<'a> {
-    pub bind_context: &'a BindContext,
     pub left_tables: &'a [TableRef],
     pub right_tables: &'a [TableRef],
     pub join_type: JoinType,
@@ -58,13 +125,11 @@ pub struct JoinConditionExtractor<'a> {
 
 impl<'a> JoinConditionExtractor<'a> {
     pub fn new(
-        bind_context: &'a BindContext,
         left_tables: &'a [TableRef],
         right_tables: &'a [TableRef],
         join_type: JoinType,
     ) -> Self {
         JoinConditionExtractor {
-            bind_context,
             left_tables,
             right_tables,
             join_type,
@@ -85,15 +150,23 @@ impl<'a> JoinConditionExtractor<'a> {
         let mut extracted = ExtractedConditions::default();
 
         for expr in split_exprs {
-            let side = self.join_side(&expr)?;
+            let side = ExprJoinSide::try_from_expr(&expr, self.left_tables, self.right_tables)?;
             match side {
                 ExprJoinSide::Both => {
                     // If we have a comparison expr, try to split it with each
                     // child expression referencing one side of the join.
                     match expr {
                         Expression::Comparison(ComparisonExpr { left, right, op }) => {
-                            let left_side = self.join_side(&left)?;
-                            let right_side = self.join_side(&right)?;
+                            let left_side = ExprJoinSide::try_from_expr(
+                                &left,
+                                self.left_tables,
+                                self.right_tables,
+                            )?;
+                            let right_side = ExprJoinSide::try_from_expr(
+                                &right,
+                                self.left_tables,
+                                self.right_tables,
+                            )?;
 
                             // If left and right expressions don't reference both
                             // sides, we can create a join condition for this.
@@ -144,36 +217,5 @@ impl<'a> JoinConditionExtractor<'a> {
         }
 
         Ok(extracted)
-    }
-
-    /// Finds the side of a join an expression is referencing.
-    pub fn join_side(&self, expr: &Expression) -> Result<ExprJoinSide> {
-        self.join_side_inner(expr, ExprJoinSide::None)
-    }
-
-    fn join_side_inner(&self, expr: &Expression, side: ExprJoinSide) -> Result<ExprJoinSide> {
-        match expr {
-            Expression::Column(col) => {
-                if self.left_tables.contains(&col.table_scope) {
-                    Ok(ExprJoinSide::Left)
-                } else if self.right_tables.contains(&col.table_scope) {
-                    Ok(ExprJoinSide::Right)
-                } else {
-                    Err(RayexecError::new(format!(
-                        "Cannot find join side for expression: {expr}"
-                    )))
-                }
-            }
-            Expression::Subquery(_) => not_implemented!("subquery in join condition"),
-            other => {
-                let mut side = side;
-                other.for_each_child(&mut |expr| {
-                    let new_side = self.join_side_inner(expr, side)?;
-                    side = new_side.combine(side);
-                    Ok(())
-                })?;
-                Ok(side)
-            }
-        }
     }
 }
