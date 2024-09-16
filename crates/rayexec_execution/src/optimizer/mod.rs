@@ -1,6 +1,8 @@
+pub mod filter_pushdown;
 pub mod location;
 
-use crate::logical::operator::LogicalOperator;
+use crate::logical::{binder::bind_context::BindContext, operator::LogicalOperator};
+use filter_pushdown::FilterPushdownRule;
 use location::LocationRule;
 use rayexec_error::Result;
 
@@ -19,9 +21,16 @@ impl Optimizer {
     }
 
     /// Run a logical plan through the optimizer.
-    pub fn optimize(&self, plan: LogicalOperator) -> Result<LogicalOperator> {
-        let location = LocationRule {};
-        let optimized = location.optimize(plan)?;
+    pub fn optimize(
+        &self,
+        bind_context: &mut BindContext,
+        plan: LogicalOperator,
+    ) -> Result<LogicalOperator> {
+        let rule = FilterPushdownRule {};
+        let optimized = rule.optimize(bind_context, plan)?;
+
+        // let rule = LocationRule {};
+        // let optimized = rule.optimize(bind_context, optimized)?;
 
         Ok(optimized)
     }
@@ -29,5 +38,9 @@ impl Optimizer {
 
 pub trait OptimizeRule {
     /// Apply an optimization rule to the logical plan.
-    fn optimize(&self, plan: LogicalOperator) -> Result<LogicalOperator>;
+    fn optimize(
+        &self,
+        bind_context: &mut BindContext,
+        plan: LogicalOperator,
+    ) -> Result<LogicalOperator>;
 }
