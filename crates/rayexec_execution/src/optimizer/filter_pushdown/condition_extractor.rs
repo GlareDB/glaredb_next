@@ -1,11 +1,7 @@
 use crate::{
-    expr::{
-        comparison_expr::ComparisonExpr,
-        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-        Expression,
-    },
+    expr::{comparison_expr::ComparisonExpr, Expression},
     logical::{
-        binder::bind_context::{BindContext, BindScopeRef},
+        binder::bind_context::{BindContext, BindScopeRef, TableRef},
         logical_join::{ComparisonCondition, JoinType},
     },
     optimizer::filter_pushdown::split::split_conjunction,
@@ -31,7 +27,7 @@ pub struct ExtractedConditions {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ExprJoinSide {
+pub enum ExprJoinSide {
     Left,
     Right,
     Both,
@@ -39,7 +35,7 @@ enum ExprJoinSide {
 }
 
 impl ExprJoinSide {
-    fn combine(self, other: Self) -> ExprJoinSide {
+    pub fn combine(self, other: Self) -> ExprJoinSide {
         match (self, other) {
             (a, Self::None) => a,
             (Self::None, b) => b,
@@ -55,22 +51,22 @@ impl ExprJoinSide {
 #[derive(Debug)]
 pub struct JoinConditionExtractor<'a> {
     pub bind_context: &'a BindContext,
-    pub left_scope: BindScopeRef,
-    pub right_scope: BindScopeRef,
+    pub left_tables: &'a [TableRef],
+    pub right_tables: &'a [TableRef],
     pub join_type: JoinType,
 }
 
 impl<'a> JoinConditionExtractor<'a> {
     pub fn new(
         bind_context: &'a BindContext,
-        left_scope: BindScopeRef,
-        right_scope: BindScopeRef,
+        left_tables: &'a [TableRef],
+        right_tables: &'a [TableRef],
         join_type: JoinType,
     ) -> Self {
         JoinConditionExtractor {
             bind_context,
-            left_scope,
-            right_scope,
+            left_tables,
+            right_tables,
             join_type,
         }
     }
@@ -151,22 +147,16 @@ impl<'a> JoinConditionExtractor<'a> {
     }
 
     /// Finds the side of a join an expression is referencing.
-    fn join_side(&self, expr: &Expression) -> Result<ExprJoinSide> {
+    pub fn join_side(&self, expr: &Expression) -> Result<ExprJoinSide> {
         self.join_side_inner(expr, ExprJoinSide::None)
     }
 
     fn join_side_inner(&self, expr: &Expression, side: ExprJoinSide) -> Result<ExprJoinSide> {
         match expr {
             Expression::Column(col) => {
-                if self
-                    .bind_context
-                    .table_is_in_scope(self.left_scope, col.table_scope)?
-                {
+                if self.left_tables.contains(&col.table_scope) {
                     Ok(ExprJoinSide::Left)
-                } else if self
-                    .bind_context
-                    .table_is_in_scope(self.right_scope, col.table_scope)?
-                {
+                } else if self.right_tables.contains(&col.table_scope) {
                     Ok(ExprJoinSide::Right)
                 } else {
                     Err(RayexecError::new(format!(

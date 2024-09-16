@@ -9,10 +9,7 @@ use crate::{
     logical::{
         binder::{
             bind_context::BindContext,
-            bind_query::{
-                bind_from::{BoundFrom, BoundFromItem, BoundJoin},
-                condition_extractor::JoinConditionExtractor,
-            },
+            bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin},
         },
         logical_empty::LogicalEmpty,
         logical_filter::LogicalFilter,
@@ -22,6 +19,7 @@ use crate::{
         logical_scan::{LogicalScan, ScanSource},
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
+    optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor,
 };
 
 use super::plan_query::QueryPlanner;
@@ -202,12 +200,11 @@ impl FromPlanner {
             }));
         }
 
-        let extractor = JoinConditionExtractor::new(
-            bind_context,
-            join.left_bind_ref,
-            join.right_bind_ref,
-            join.join_type,
-        );
+        let left_tables = left.get_output_table_refs();
+        let right_tables = right.get_output_table_refs();
+
+        let extractor =
+            JoinConditionExtractor::new(bind_context, &left_tables, &right_tables, join.join_type);
 
         let extracted = extractor.extract(join.conditions)?;
 

@@ -1,3 +1,4 @@
+pub mod condition_extractor;
 pub mod split;
 
 use std::collections::HashSet;
@@ -66,14 +67,31 @@ impl OptimizeRule for FilterPushdownRule {
         match plan {
             LogicalOperator::Filter(filter) => self.pushdown_filter(bind_context, filter),
             // LogicalOperator::CrossJoin(join) => self.pushdown_cross_join(bind_context, join),
-            other => self.stop_pushdown(other),
+            other => self.stop_pushdown(bind_context, other),
         }
     }
 }
 
 impl FilterPushdownRule {
-    /// Stops the push down, wrapping `plan` in a filter node if necessary.
-    fn stop_pushdown(&mut self, plan: LogicalOperator) -> Result<LogicalOperator> {
+    /// Stops the push down for this set of filters, and wraps the plan in a new
+    /// filter node.
+    ///
+    /// This will go ahead and perform a separate pushdown to children of this
+    /// plan.
+    fn stop_pushdown(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut plan: LogicalOperator,
+    ) -> Result<LogicalOperator> {
+        // Continue with a separate pushdown step for the children.
+        let mut children = Vec::with_capacity(plan.children().len());
+        for mut child in plan.children_mut().drain(..) {
+            let mut pushdown = FilterPushdownRule::default();
+            child = pushdown.optimize(bind_context, child)?;
+            children.push(child)
+        }
+        *plan.children_mut() = children;
+
         if self.filters.is_empty() {
             // No remaining filters.
             return Ok(plan);
