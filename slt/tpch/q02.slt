@@ -53,7 +53,7 @@ s_phone    Utf8
 s_comment  Utf8
 
 query ????????
-EXPLAIN SELECT
+SELECT
     s_acctbal,
     s_name,
     n_name,

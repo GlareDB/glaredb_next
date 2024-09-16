@@ -13,6 +13,8 @@ use crate::{
         binder::bind_context::{BindContext, TableRef},
         logical_filter::LogicalFilter,
         logical_join::{JoinType, LogicalCrossJoin},
+        logical_order::LogicalOrder,
+        logical_project::LogicalProject,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
         planner::plan_from::FromPlanner,
     },
@@ -69,6 +71,8 @@ impl OptimizeRule for FilterPushdownRule {
         match plan {
             LogicalOperator::Filter(filter) => self.pushdown_filter(bind_context, filter),
             LogicalOperator::CrossJoin(join) => self.pushdown_cross_join(bind_context, join),
+            LogicalOperator::Project(project) => self.pushdown_project(bind_context, project),
+            LogicalOperator::Order(order) => self.pushdown_order_by(bind_context, order),
             other => self.stop_pushdown(bind_context, other),
         }
     }
@@ -107,6 +111,74 @@ impl FilterPushdownRule {
             location: LocationRequirement::Any,
             children: vec![plan],
         }))
+    }
+
+    fn pushdown_project(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut plan: Node<LogicalProject>,
+    ) -> Result<LogicalOperator> {
+        /// Replaces an expression that's referencing the project with the
+        /// expression from the project by cloning it.
+        fn replace_projection_reference(
+            project: &LogicalProject,
+            expr: &mut Expression,
+        ) -> Result<()> {
+            match expr {
+                Expression::Column(col) => {
+                    // Filters should only be referencing their child. If this
+                    // filter expression isn't, then that's definitely a bug.
+                    if col.table_scope != project.projection_table {
+                        return Err(RayexecError::new(format!("Filter not referencing projection, filter ref: {col}, projection table: {}", project.projection_table)));
+                    }
+                    if col.column >= project.projections.len() {
+                        return Err(RayexecError::new(format!(
+                            "Filter referencing column outside of projection, filter ref: {col}"
+                        )));
+                    }
+
+                    *expr = project.projections[col.column].clone();
+
+                    Ok(())
+                }
+                other => other
+                    .for_each_child_mut(&mut |child| replace_projection_reference(project, child)),
+            }
+        }
+
+        let mut child_pushdown = Self::default();
+
+        // Drain current filters to replace column references with concrete
+        // expressions from the project.
+        for filter in self.filters.drain(..) {
+            let mut expr = filter.filter;
+            replace_projection_reference(&plan.node, &mut expr)?;
+
+            let filter = ExtractedFilter::from_expr(expr);
+            child_pushdown.filters.push(filter);
+        }
+
+        let mut new_children = Vec::with_capacity(plan.children.len());
+        for child in plan.children {
+            let child = child_pushdown.optimize(bind_context, child)?;
+            new_children.push(child);
+        }
+
+        plan.children = new_children;
+
+        Ok(LogicalOperator::Project(plan))
+    }
+
+    fn pushdown_order_by(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut plan: Node<LogicalOrder>,
+    ) -> Result<LogicalOperator> {
+        let mut child = plan.take_one_child_exact()?;
+        child = self.optimize(bind_context, child)?;
+        plan.children = vec![child];
+
+        Ok(LogicalOperator::Order(plan))
     }
 
     /// Pushes down through a filter node.
