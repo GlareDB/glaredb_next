@@ -1,0 +1,7 @@
+# Test filter pushdown optimization rule.
+
+statement ok
+CREATE TEMP TABLE t1 (i INT);
+
+# statement ok
+# INSERT INTO t1 VALUES (1), (2), (3), (NULL);
