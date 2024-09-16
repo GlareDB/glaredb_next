@@ -24,6 +24,7 @@ use crate::{
         planner::plan_statement::StatementPlanner,
         resolver::{ResolveMode, Resolver},
     },
+    optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},
 };
 
@@ -211,9 +212,8 @@ where
                 let (bound_stmt, mut bind_context) = binder.bind(resolved_stmt)?;
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
 
-                // TODO:
-                // let optimizer = Optimizer::new();
-                // logical = optimizer.optimize(logical)?;
+                let optimizer = Optimizer::new();
+                logical = optimizer.optimize(&mut bind_context, logical)?;
 
                 // If we're an explain, put a copy of the optimized plan on the
                 // node.

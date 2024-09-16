@@ -18,7 +18,7 @@ pub struct LocationRule {}
 
 impl OptimizeRule for LocationRule {
     fn optimize(
-        &self,
+        &mut self,
         _bind_context: &mut BindContext,
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
