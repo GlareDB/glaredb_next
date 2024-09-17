@@ -56,6 +56,9 @@ pub struct RunConfig {
     /// still be populated, which allows for testing if a certain action can
     /// create a directory.
     pub create_slt_tmp: bool,
+
+    /// Max duration a query can be executing before being canceled.
+    pub query_timeout: Duration,
 }
 
 /// Run all SLTs from the provided paths.
@@ -288,19 +291,23 @@ impl TestSession {
 
         let typs = schema_to_types(&results[0].output_schema);
 
-        loop {
-            // Each pull on the stream has a 5 sec timeout. If it takes longer than
-            // 5 secs, we can assume that the query is stuck.
-            let timeout = tokio::time::timeout(Duration::from_secs(30), results[0].stream.next());
+        // Timeout for the entire query.
+        let mut timeout = Box::pin(tokio::time::sleep(self.conf.query_timeout));
 
-            match timeout.await {
-                Ok(Some(result)) => {
-                    let batch = result?;
-                    rows.extend(batch_to_rows(batch)?);
+        // Continually read from the stream, erroring if we exceed timeout.
+        loop {
+            tokio::select! {
+                result = results[0].stream.next() => {
+                    match result {
+                        Some(result) => {
+                            let batch = result?;
+                            rows.extend(batch_to_rows(batch)?);
+                        }
+                        None => break,
+                    }
                 }
-                Ok(None) => break,
-                Err(_) => {
-                    // Timed out.
+                _ = &mut timeout => {
+                     // Timed out.
                     results[0].handle.cancel();
 
                     let prof_data = results[0].handle.generate_profile_data().await.unwrap();
