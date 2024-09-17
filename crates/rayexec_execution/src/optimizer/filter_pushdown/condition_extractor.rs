@@ -1,7 +1,7 @@
 use crate::{
     expr::{comparison_expr::ComparisonExpr, Expression},
     logical::{
-        binder::bind_context::{BindContext, TableRef},
+        binder::bind_context::TableRef,
         logical_join::{ComparisonCondition, JoinType},
     },
     optimizer::filter_pushdown::split::split_conjunction,

@@ -1,5 +1,5 @@
 use crate::{
-    config::{vars::SessionVars, IntermediatePlanConfig},
+    config::IntermediatePlanConfig,
     database::create::{CreateSchemaInfo, CreateTableInfo},
     execution::{
         intermediate::PipelineSink,
