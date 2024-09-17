@@ -1,6 +1,6 @@
 use std::ops::Neg;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -231,6 +231,13 @@ pub enum Expr<T: AstMeta> {
     /// `INTERVAL '1 year 2 months'`
     /// `INTERVAL 1 YEAR`
     Interval(Interval<T>),
+    /// `<expr> BETWEEN <low> AND <high>`
+    Between {
+        negated: bool,
+        expr: Box<Expr<T>>,
+        low: Box<Expr<T>>,
+        high: Box<Expr<T>>,
+    },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -448,8 +455,9 @@ impl Expr<Raw> {
 
             match kw {
                 Keyword::IS => {
-                    unimplemented!()
+                    not_implemented!("IS parse")
                 }
+                // TODO: Loop on the NOT so we don't need to repeat.
                 Keyword::NOT => match parser.next_keyword()? {
                     Keyword::LIKE => Ok(Expr::Like {
                         not_like: true,
@@ -481,6 +489,17 @@ impl Expr<Raw> {
                     expr: Box::new(prefix),
                     pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                 }),
+                Keyword::BETWEEN => {
+                    let low = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                    parser.expect_keyword(Keyword::AND)?;
+                    let high = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                    Ok(Expr::Between {
+                        negated: false,
+                        expr: Box::new(prefix),
+                        low: Box::new(low),
+                        high: Box::new(high),
+                    })
+                }
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unexpected keyword in infix expression: {other}"
@@ -1187,6 +1206,18 @@ mod tests {
             left: Box::new(Expr::Ident(Ident::from_string("s1"))),
             op: BinaryOperator::StringStartsWith,
             right: Box::new(Expr::Ident(Ident::from_string("s2"))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn between() {
+        let expr: Expr<_> = parse_ast("col BETWEEN a AND b").unwrap();
+        let expected = Expr::Between {
+            negated: false,
+            expr: Box::new(Expr::Ident(Ident::from_string("col"))),
+            low: Box::new(Expr::Ident(Ident::from_string("a"))),
+            high: Box::new(Expr::Ident(Ident::from_string("b"))),
         };
         assert_eq!(expected, expr);
     }

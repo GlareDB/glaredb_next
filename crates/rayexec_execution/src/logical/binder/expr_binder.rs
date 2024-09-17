@@ -648,6 +648,76 @@ impl<'a> BaseExpressionBinder<'a> {
                     })),
                 }
             }
+            ast::Expr::Between {
+                negated,
+                expr,
+                low,
+                high,
+            } => {
+                let bind = &mut |expr| {
+                    self.bind_expression(
+                        bind_context,
+                        expr,
+                        column_binder,
+                        RecursionContext {
+                            is_root: false,
+                            ..recur
+                        },
+                    )
+                };
+
+                let expr = bind(expr)?;
+                let low = bind(low)?;
+                let high = bind(high)?;
+
+                // c1 BETWEEN a AND b
+                // c1 >= a AND c1 <= b
+                //
+                // c1 NOT BETWEEN a AND b
+                // c1 < a OR c1 > b
+
+                let low_op = if !negated {
+                    ComparisonOperator::GtEq
+                } else {
+                    ComparisonOperator::Lt
+                };
+                let [low_left, low_right] =
+                    self.apply_cast_for_operator(bind_context, low_op, [expr.clone(), low])?;
+
+                let left = Expression::Comparison(ComparisonExpr {
+                    left: Box::new(low_left),
+                    right: Box::new(low_right),
+                    op: low_op,
+                });
+
+                let high_op = if !negated {
+                    ComparisonOperator::LtEq
+                } else {
+                    ComparisonOperator::Gt
+                };
+                let [high_left, high_right] =
+                    self.apply_cast_for_operator(bind_context, high_op, [expr, high])?;
+
+                let right = Expression::Comparison(ComparisonExpr {
+                    left: Box::new(high_left),
+                    right: Box::new(high_right),
+                    op: high_op,
+                });
+
+                let conj_op = if !negated {
+                    ConjunctionOperator::And
+                } else {
+                    ConjunctionOperator::Or
+                };
+                let [left, right] =
+                    self.apply_cast_for_operator(bind_context, conj_op, [left, right])?;
+
+                Ok(Expression::Conjunction(ConjunctionExpr {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    op: conj_op,
+                }))
+            }
         }
     }
 

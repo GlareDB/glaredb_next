@@ -449,7 +449,23 @@ impl<'a> ExpressionResolver<'a> {
                     pattern: Box::new(pattern),
                 })
             }
-            other => not_implemented!("bind expr {other:?}"),
+            ast::Expr::Between {
+                negated,
+                expr,
+                low,
+                high,
+            } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let low = Box::pin(self.resolve_expression(*low, resolve_context)).await?;
+                let high = Box::pin(self.resolve_expression(*high, resolve_context)).await?;
+                Ok(ast::Expr::Between {
+                    negated,
+                    expr: Box::new(expr),
+                    low: Box::new(low),
+                    high: Box::new(high),
+                })
+            }
+            other => not_implemented!("resolve expr {other:?}"),
         }
     }
 }
