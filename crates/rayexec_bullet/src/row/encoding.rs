@@ -1,5 +1,5 @@
 use crate::array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Binary-encoded rows suitable for comparisons.
 #[derive(Debug)]
@@ -143,7 +143,7 @@ impl ComparableRowEncoder {
             }
         }
 
-        let size = self.compute_data_size(columns);
+        let size = self.compute_data_size(columns)?;
         let mut data = vec![0; size];
 
         let mut offsets: Vec<usize> = vec![0];
@@ -152,8 +152,6 @@ impl ComparableRowEncoder {
             let mut row_offset = *offsets.last().unwrap();
             for (arr, cmp_col) in columns.iter().zip(self.columns.iter()) {
                 row_offset = match arr {
-                    Array::Null(_) => unimplemented!(),
-                    Array::Boolean(_) => unimplemented!(),
                     Array::Int8(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
@@ -224,6 +222,34 @@ impl ComparableRowEncoder {
                         data.as_mut_slice(),
                         row_offset,
                     ),
+                    Array::Decimal64(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr.get_primitive(),
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
+                    Array::Decimal128(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr.get_primitive(),
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
+                    Array::Date32(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr,
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
+                    Array::Date64(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr,
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
                     Array::Utf8(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
@@ -236,7 +262,7 @@ impl ComparableRowEncoder {
                     Array::LargeBinary(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
-                    _ => unimplemented!(),
+                    other => not_implemented!("row enc: {}", other.datatype()),
                 };
             }
 
@@ -248,7 +274,7 @@ impl ComparableRowEncoder {
 
     /// Compute the size of the data buffer we'll need for storing all encoded
     /// rows.
-    fn compute_data_size(&self, columns: &[&Array]) -> usize {
+    fn compute_data_size(&self, columns: &[&Array]) -> Result<usize> {
         let mut size = 0;
         for arr in columns {
             let mut arr_size = match arr {
@@ -258,17 +284,23 @@ impl ComparableRowEncoder {
                 Array::Int16(arr) => arr.len() * std::mem::size_of::<i16>(),
                 Array::Int32(arr) => arr.len() * std::mem::size_of::<i32>(),
                 Array::Int64(arr) => arr.len() * std::mem::size_of::<i64>(),
+                Array::Int128(arr) => arr.len() * std::mem::size_of::<i64>(),
                 Array::UInt8(arr) => arr.len() * std::mem::size_of::<u8>(),
                 Array::UInt16(arr) => arr.len() * std::mem::size_of::<u16>(),
                 Array::UInt32(arr) => arr.len() * std::mem::size_of::<u32>(),
                 Array::UInt64(arr) => arr.len() * std::mem::size_of::<u64>(),
+                Array::UInt128(arr) => arr.len() * std::mem::size_of::<u64>(),
                 Array::Float32(arr) => arr.len() * std::mem::size_of::<f32>(),
                 Array::Float64(arr) => arr.len() * std::mem::size_of::<f64>(),
+                Array::Decimal64(arr) => arr.get_primitive().len() * std::mem::size_of::<i64>(),
+                Array::Decimal128(arr) => arr.get_primitive().len() * std::mem::size_of::<i128>(),
+                Array::Date32(arr) => arr.len() * std::mem::size_of::<i32>(),
+                Array::Date64(arr) => arr.len() * std::mem::size_of::<i64>(),
                 Array::Utf8(arr) => arr.data().as_ref().len(),
                 Array::LargeUtf8(arr) => arr.data().as_ref().len(),
                 Array::Binary(arr) => arr.data().as_ref().len(),
                 Array::LargeBinary(arr) => arr.data().as_ref().len(),
-                _ => unimplemented!(),
+                other => not_implemented!("compute data size: {}", other.datatype()),
             };
 
             // Account for validities.
@@ -281,7 +313,7 @@ impl ComparableRowEncoder {
             size += arr_size;
         }
 
-        size
+        Ok(size)
     }
 
     /// Encodes a variable length array into `buf` starting at `start`.
@@ -365,6 +397,7 @@ comparable_encode_unsigned!(u8);
 comparable_encode_unsigned!(u16);
 comparable_encode_unsigned!(u32);
 comparable_encode_unsigned!(u64);
+comparable_encode_unsigned!(u128);
 
 /// Implements `ComparableEncode` for signed ints.
 macro_rules! comparable_encode_signed {
@@ -383,6 +416,7 @@ comparable_encode_signed!(i8);
 comparable_encode_signed!(i16);
 comparable_encode_signed!(i32);
 comparable_encode_signed!(i64);
+comparable_encode_signed!(i128);
 
 impl ComparableEncode for f32 {
     fn encode(&self, buf: &mut [u8]) {

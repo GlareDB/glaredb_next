@@ -46,6 +46,10 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             let arrs = collect_arrays_of_type!(arrays, Int64, datatype)?;
             Ok(Array::Int64(interleave_primitive(&arrs, indices)?))
         }
+        DataType::Int128 => {
+            let arrs = collect_arrays_of_type!(arrays, Int128, datatype)?;
+            Ok(Array::Int128(interleave_primitive(&arrs, indices)?))
+        }
         DataType::UInt8 => {
             let arrs = collect_arrays_of_type!(arrays, UInt8, datatype)?;
             Ok(Array::UInt8(interleave_primitive(&arrs, indices)?))
@@ -61,6 +65,10 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
         DataType::UInt64 => {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
             Ok(Array::UInt64(interleave_primitive(&arrs, indices)?))
+        }
+        DataType::UInt128 => {
+            let arrs = collect_arrays_of_type!(arrays, UInt128, datatype)?;
+            Ok(Array::UInt128(interleave_primitive(&arrs, indices)?))
         }
         DataType::Float32 => {
             let arrs = collect_arrays_of_type!(arrays, Float32, datatype)?;
@@ -89,6 +97,14 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
                 meta.scale,
                 interleaved,
             )))
+        }
+        DataType::Date32 => {
+            let arrs = collect_arrays_of_type!(arrays, Date32, datatype)?;
+            Ok(Array::Date32(interleave_primitive(&arrs, indices)?))
+        }
+        DataType::Date64 => {
+            let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
+            Ok(Array::Date64(interleave_primitive(&arrs, indices)?))
         }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
