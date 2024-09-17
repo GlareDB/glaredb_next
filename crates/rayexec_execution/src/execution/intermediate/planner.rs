@@ -1120,14 +1120,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         self.walk(materializations, id_gen, input)?;
 
-        // TODO: Who sets partitioning? How was that working before?
-
+        // This is a global limit, ensure this operator is only receiving a
+        // single input partition.
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit::new(
                 limit.node.limit,
                 limit.node.offset,
             ))),
-            partitioning_requirement: None,
+            partitioning_requirement: Some(1),
         };
 
         self.push_intermediate_operator(operator, location, id_gen)?;
