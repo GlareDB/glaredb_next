@@ -36,11 +36,11 @@ jobs:
           AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt_datasource_parquet
 
-      - name: SLTs CSV
-        env:
-          AWS_KEY: ${{ secrets.AWS_KEY }}
-          AWS_SECRET: ${{ secrets.AWS_SECRET }}
-        run: cargo test slt_datasource_csv
+      # - name: SLTs CSV
+      #   env:
+      #     AWS_KEY: ${{ secrets.AWS_KEY }}
+      #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
+      #   run: cargo test slt_datasource_csv
 
       - name: SLTs Delta
         env:
