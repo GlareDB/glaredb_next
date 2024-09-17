@@ -5,7 +5,8 @@ use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionI
 
 use super::{PlannedScalarFunction, ScalarFunction};
 use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_bullet::scalar::interval::Interval;
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
@@ -518,11 +519,26 @@ impl ScalarFunction for Mul {
             | (DataType::UInt32, DataType::UInt32)
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Date32, DataType::Int64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
-            | (DataType::Decimal128(_), DataType::Decimal128(_))
             | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulImpl {
                 datatype: inputs[0].clone(),
             })),
+            (DataType::Decimal64(a), DataType::Decimal64(b)) => {
+                // Since we're multiplying, might as well go wide as possible.
+                // Eventually we'll want to bumpt up to 128 if the precision is
+                // over some threshold to be more resilient to overflows.
+                let precision = Decimal64Type::MAX_PRECISION;
+                let scale = a.scale + b.scale;
+                Ok(Box::new(MulImpl {
+                    datatype: DataType::Decimal64(DecimalTypeMeta { precision, scale }),
+                }))
+            }
+            (DataType::Decimal128(a), DataType::Decimal128(b)) => {
+                let precision = Decimal128Type::MAX_PRECISION;
+                let scale = a.scale + b.scale;
+                Ok(Box::new(MulImpl {
+                    datatype: DataType::Decimal128(DecimalTypeMeta { precision, scale }),
+                }))
+            }
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -581,10 +597,10 @@ impl PlannedScalarFunction for MulImpl {
                 primitive_binary_execute!(first, second, Float64, |a, b| a * b)
             }
             (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale
+                let meta = self.datatype.try_get_decimal_type_meta()?;
                 Decimal64Array::new(
-                    first.precision(),
-                    first.scale(),
+                    meta.precision,
+                    meta.scale,
                     primitive_binary_execute_no_wrap!(
                         first.get_primitive(),
                         second.get_primitive(),
@@ -596,10 +612,10 @@ impl PlannedScalarFunction for MulImpl {
                 .into()
             }
             (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale
+                let meta = self.datatype.try_get_decimal_type_meta()?;
                 Decimal128Array::new(
-                    first.precision(),
-                    first.scale(),
+                    meta.precision,
+                    meta.scale,
                     primitive_binary_execute_no_wrap!(
                         first.get_primitive(),
                         second.get_primitive(),

@@ -53,6 +53,13 @@ jobs:
           ./scripts/create-test-postgres-db.sh
           cargo test slt_datasource_postgres
 
+      - name: SLTs TPC-H SF=0.1
+        env:
+          DEBUG_PRINT_EXPLAIN: 1
+          DEBUG_PRINT_PROFILE_DATA: 1
+        run: |
+          cargo test slt/tpch/q01
+
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings
 

@@ -463,6 +463,18 @@ impl DataType {
                 | DataType::Decimal128(_)
         )
     }
+
+    pub fn try_get_decimal_type_meta(&self) -> Result<DecimalTypeMeta> {
+        match self {
+            Self::Decimal64(m) => Ok(*m),
+            Self::Decimal128(m) => Ok(*m),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Cannot get decimal type meta from type {other}"
+                )))
+            }
+        }
+    }
 }
 
 impl ProtoConv for DataType {
