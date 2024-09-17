@@ -223,7 +223,7 @@ pub enum Expr<T: AstMeta> {
     Like {
         expr: Box<Expr<T>>,
         pattern: Box<Expr<T>>,
-        not_like: bool,
+        negated: bool,
         case_insensitive: bool,
     },
     /// Interval
@@ -460,13 +460,13 @@ impl Expr<Raw> {
                 // TODO: Loop on the NOT so we don't need to repeat.
                 Keyword::NOT => match parser.next_keyword()? {
                     Keyword::LIKE => Ok(Expr::Like {
-                        not_like: true,
+                        negated: true,
                         case_insensitive: false,
                         expr: Box::new(prefix),
                         pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                     }),
                     Keyword::ILIKE => Ok(Expr::Like {
-                        not_like: true,
+                        negated: true,
                         case_insensitive: true,
                         expr: Box::new(prefix),
                         pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
@@ -478,13 +478,13 @@ impl Expr<Raw> {
                     }
                 },
                 Keyword::LIKE => Ok(Expr::Like {
-                    not_like: false,
+                    negated: false,
                     case_insensitive: false,
                     expr: Box::new(prefix),
                     pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                 }),
                 Keyword::ILIKE => Ok(Expr::Like {
-                    not_like: false,
+                    negated: false,
                     case_insensitive: true,
                     expr: Box::new(prefix),
                     pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),

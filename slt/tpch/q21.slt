@@ -1,5 +1,6 @@
-# Error source: query failed: Expected RightParen, got Some(TokenWithLocation { token: Period, line: 0, col: 0 })
-query TI
+# Correlated exists
+
+query TT
 DESCRIBE SELECT
     s_name,
     count(*) AS numwait
@@ -17,7 +18,7 @@ WHERE
         SELECT
             *
         FROM
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l2,
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l2
         WHERE
             l2.l_orderkey = l1.l_orderkey
             AND l2.l_suppkey <> l1.l_suppkey)
@@ -25,7 +26,7 @@ WHERE
         SELECT
             *
         FROM
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l3,
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l3
         WHERE
             l3.l_orderkey = l1.l_orderkey
             AND l3.l_suppkey <> l1.l_suppkey
@@ -38,3 +39,47 @@ ORDER BY
     numwait DESC,
     s_name
 LIMIT 100;
+----
+s_name   Utf8
+numwait  Int64
+
+query ??
+SELECT
+    s_name,
+    count(*) AS numwait
+FROM
+    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l1,
+    '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
+    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+WHERE
+    s_suppkey = l1.l_suppkey
+    AND o_orderkey = l1.l_orderkey
+    AND o_orderstatus = 'F'
+    AND l1.l_receiptdate > l1.l_commitdate
+    AND EXISTS (
+        SELECT
+            *
+        FROM
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l2
+        WHERE
+            l2.l_orderkey = l1.l_orderkey
+            AND l2.l_suppkey <> l1.l_suppkey)
+    AND NOT EXISTS (
+        SELECT
+            *
+        FROM
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l3
+        WHERE
+            l3.l_orderkey = l1.l_orderkey
+            AND l3.l_suppkey <> l1.l_suppkey
+            AND l3.l_receiptdate > l3.l_commitdate)
+    AND s_nationkey = n_nationkey
+    AND n_name = 'SAUDI ARABIA'
+GROUP BY
+    s_name
+ORDER BY
+    numwait DESC,
+    s_name
+LIMIT 100;
+----

@@ -1,5 +1,6 @@
-# Correlated
-query TI
+# GROUP BY alias
+
+query TT
 DESCRIBE SELECT
     s_suppkey,
     s_name,
@@ -37,3 +38,4 @@ WHERE
                 supplier_no) revenue1)
 ORDER BY
     s_suppkey;
+----

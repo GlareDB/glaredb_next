@@ -1,5 +1,5 @@
 # Aliased nested from
-query TI
+query TT
 DESCRIBE SELECT
     cntrycode,
     count(*) AS numcust,

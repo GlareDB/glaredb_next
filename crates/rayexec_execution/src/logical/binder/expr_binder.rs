@@ -539,10 +539,10 @@ impl<'a> BaseExpressionBinder<'a> {
             ast::Expr::Like {
                 expr,
                 pattern,
-                not_like,
+                negated,
                 case_insensitive,
             } => {
-                if *not_like {
+                if *negated {
                     not_implemented!("NOT LIKE")
                 }
                 if *case_insensitive {

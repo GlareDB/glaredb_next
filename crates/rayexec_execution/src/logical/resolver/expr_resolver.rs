@@ -435,7 +435,7 @@ impl<'a> ExpressionResolver<'a> {
                 }))
             }
             ast::Expr::Like {
-                not_like,
+                negated: not_like,
                 case_insensitive,
                 expr,
                 pattern,
@@ -443,7 +443,7 @@ impl<'a> ExpressionResolver<'a> {
                 let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
                 let pattern = Box::pin(self.resolve_expression(*pattern, resolve_context)).await?;
                 Ok(ast::Expr::Like {
-                    not_like,
+                    negated: not_like,
                     case_insensitive,
                     expr: Box::new(expr),
                     pattern: Box::new(pattern),
