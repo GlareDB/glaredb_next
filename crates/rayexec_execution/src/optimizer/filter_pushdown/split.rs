@@ -6,24 +6,16 @@ use crate::expr::{
 /// Recursively split an expression on AND, putting the split expressions in
 /// `out`.
 pub fn split_conjunction(expr: Expression, out: &mut Vec<Expression>) {
-    fn inner(expr: Expression, out: &mut Vec<Expression>) -> Option<Expression> {
-        if let Expression::Conjunction(ConjunctionExpr {
+    match expr {
+        Expression::Conjunction(ConjunctionExpr {
             left,
             right,
             op: ConjunctionOperator::And,
-        }) = expr
-        {
-            out.push(*left);
-            if let Some(other_expr) = inner(*right, out) {
-                out.push(other_expr);
-            }
-            return None;
+        }) => {
+            split_conjunction(*left, out);
+            split_conjunction(*right, out);
         }
-        Some(expr)
-    }
-
-    if let Some(expr) = inner(expr, out) {
-        out.push(expr)
+        other => out.push(other),
     }
 }
 
@@ -75,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn split_conjunction_nested_and() {
+    fn split_conjunction_right_nested_and() {
         let expr = Expression::Conjunction(ConjunctionExpr {
             left: Box::new(Expression::Literal(LiteralExpr {
                 literal: ScalarValue::Boolean(true),
@@ -104,6 +96,41 @@ mod tests {
             }),
             Expression::Literal(LiteralExpr {
                 literal: ScalarValue::Boolean(false),
+            }),
+        ];
+        assert_eq!(expected, out);
+    }
+
+    #[test]
+    fn split_conjunction_left_nested_and() {
+        let expr = Expression::Conjunction(ConjunctionExpr {
+            left: Box::new(Expression::Conjunction(ConjunctionExpr {
+                left: Box::new(Expression::Literal(LiteralExpr {
+                    literal: ScalarValue::Boolean(true),
+                })),
+                right: Box::new(Expression::Literal(LiteralExpr {
+                    literal: ScalarValue::Boolean(false),
+                })),
+                op: ConjunctionOperator::And,
+            })),
+            right: Box::new(Expression::Literal(LiteralExpr {
+                literal: ScalarValue::Boolean(true),
+            })),
+            op: ConjunctionOperator::And,
+        });
+
+        let mut out = Vec::new();
+        split_conjunction(expr, &mut out);
+
+        let expected = vec![
+            Expression::Literal(LiteralExpr {
+                literal: ScalarValue::Boolean(true),
+            }),
+            Expression::Literal(LiteralExpr {
+                literal: ScalarValue::Boolean(false),
+            }),
+            Expression::Literal(LiteralExpr {
+                literal: ScalarValue::Boolean(true),
             }),
         ];
         assert_eq!(expected, out);

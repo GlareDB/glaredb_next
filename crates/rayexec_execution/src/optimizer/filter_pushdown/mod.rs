@@ -85,6 +85,15 @@ impl OptimizeRule for FilterPushdownRule {
 }
 
 impl FilterPushdownRule {
+    /// Adds an expression as a filter that we'll be pushing down.
+    fn add_filter(&mut self, expr: Expression) {
+        let mut split = Vec::new();
+        split_conjunction(expr, &mut split);
+
+        self.filters
+            .extend(split.into_iter().map(ExtractedFilter::from_expr))
+    }
+
     /// Stops the push down for this set of filters, and wraps the plan in a new
     /// filter node.
     ///
@@ -197,13 +206,7 @@ impl FilterPushdownRule {
         mut plan: Node<LogicalFilter>,
     ) -> Result<LogicalOperator> {
         let child = plan.take_one_child_exact()?;
-
-        let mut split = Vec::new();
-        split_conjunction(plan.node.filter, &mut split);
-
-        self.filters
-            .extend(split.into_iter().map(ExtractedFilter::from_expr));
-
+        self.add_filter(plan.node.filter);
         self.optimize(bind_context, child)
     }
 
@@ -215,8 +218,7 @@ impl FilterPushdownRule {
         match plan.node.join_type {
             JoinType::Inner => {
                 // Convert to cross join, push down on cross join.
-                self.filters
-                    .push(ExtractedFilter::from_expr(plan.node.condition));
+                self.add_filter(plan.node.condition);
 
                 let plan = Node {
                     node: LogicalCrossJoin,
@@ -227,7 +229,7 @@ impl FilterPushdownRule {
                 self.pushdown_cross_join(bind_context, plan)
             }
             // TODO: Other optimizations.
-            _ => Ok(LogicalOperator::ArbitraryJoin(plan)),
+            _ => self.stop_pushdown(bind_context, LogicalOperator::ArbitraryJoin(plan)),
         }
     }
 
@@ -239,12 +241,10 @@ impl FilterPushdownRule {
         match plan.node.join_type {
             JoinType::Inner => {
                 // Convert to cross join, push down on cross join.
-                let filters = plan.node.conditions.into_iter().map(|cond| {
+                for cond in plan.node.conditions {
                     let expr = cond.into_expression();
-                    ExtractedFilter::from_expr(expr)
-                });
-
-                self.filters.extend(filters);
+                    self.add_filter(expr);
+                }
 
                 let plan = Node {
                     node: LogicalCrossJoin,
@@ -255,7 +255,7 @@ impl FilterPushdownRule {
                 self.pushdown_cross_join(bind_context, plan)
             }
             // TODO: Other optimizations.
-            _ => Ok(LogicalOperator::ComparisonJoin(plan)),
+            _ => self.stop_pushdown(bind_context, LogicalOperator::ComparisonJoin(plan)),
         }
     }
 
