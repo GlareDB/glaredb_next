@@ -12,7 +12,7 @@ use crate::{
     logical::{
         binder::bind_context::{BindContext, TableRef},
         logical_filter::LogicalFilter,
-        logical_join::{JoinType, LogicalCrossJoin},
+        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -71,6 +71,12 @@ impl OptimizeRule for FilterPushdownRule {
         match plan {
             LogicalOperator::Filter(filter) => self.pushdown_filter(bind_context, filter),
             LogicalOperator::CrossJoin(join) => self.pushdown_cross_join(bind_context, join),
+            LogicalOperator::ArbitraryJoin(join) => {
+                self.pushdown_arbitrary_join(bind_context, join)
+            }
+            LogicalOperator::ComparisonJoin(join) => {
+                self.pushdown_comparison_join(bind_context, join)
+            }
             LogicalOperator::Project(project) => self.pushdown_project(bind_context, project),
             LogicalOperator::Order(order) => self.pushdown_order_by(bind_context, order),
             other => self.stop_pushdown(bind_context, other),
@@ -199,6 +205,58 @@ impl FilterPushdownRule {
             .extend(split.into_iter().map(ExtractedFilter::from_expr));
 
         self.optimize(bind_context, child)
+    }
+
+    fn pushdown_arbitrary_join(
+        &mut self,
+        bind_context: &mut BindContext,
+        plan: Node<LogicalArbitraryJoin>,
+    ) -> Result<LogicalOperator> {
+        match plan.node.join_type {
+            JoinType::Inner => {
+                // Convert to cross join, push down on cross join.
+                self.filters
+                    .push(ExtractedFilter::from_expr(plan.node.condition));
+
+                let plan = Node {
+                    node: LogicalCrossJoin,
+                    location: plan.location,
+                    children: plan.children,
+                };
+
+                self.pushdown_cross_join(bind_context, plan)
+            }
+            // TODO: Other optimizations.
+            _ => Ok(LogicalOperator::ArbitraryJoin(plan)),
+        }
+    }
+
+    fn pushdown_comparison_join(
+        &mut self,
+        bind_context: &mut BindContext,
+        plan: Node<LogicalComparisonJoin>,
+    ) -> Result<LogicalOperator> {
+        match plan.node.join_type {
+            JoinType::Inner => {
+                // Convert to cross join, push down on cross join.
+                let filters = plan.node.conditions.into_iter().map(|cond| {
+                    let expr = cond.into_expression();
+                    ExtractedFilter::from_expr(expr)
+                });
+
+                self.filters.extend(filters);
+
+                let plan = Node {
+                    node: LogicalCrossJoin,
+                    location: plan.location,
+                    children: plan.children,
+                };
+
+                self.pushdown_cross_join(bind_context, plan)
+            }
+            // TODO: Other optimizations.
+            _ => Ok(LogicalOperator::ComparisonJoin(plan)),
+        }
     }
 
     /// Push down through a cross join.

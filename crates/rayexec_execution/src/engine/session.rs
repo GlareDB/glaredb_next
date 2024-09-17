@@ -212,8 +212,8 @@ where
                 let (bound_stmt, mut bind_context) = binder.bind(resolved_stmt)?;
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
 
-                let optimizer = Optimizer::new();
-                logical = optimizer.optimize(&mut bind_context, logical)?;
+                let mut optimizer = Optimizer::new();
+                logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
 
                 // If we're an explain, put a copy of the optimized plan on the
                 // node.
