@@ -746,11 +746,49 @@ impl<'a> BaseExpressionBinder<'a> {
         operator: impl AsScalarFunction,
         inputs: [Expression; N],
     ) -> Result<[Expression; N]> {
-        let inputs = self.apply_casts_for_scalar_function(
+        let mut inputs = self.apply_casts_for_scalar_function(
             bind_context,
             operator.as_scalar_function(),
             inputs.to_vec(),
         )?;
+
+        // Further refine the types. When we're applying casts for an operator,
+        // we know there's some relationship between the inputs.
+        //
+        // TODO: This may be useful for all functions, might pull this out.
+        let mut decimal64_meta = None;
+        let mut decimal128_meta = None;
+
+        for input in &inputs {
+            if matches!(input, Expression::Cast(_)) {
+                continue;
+            }
+
+            match input.datatype(bind_context)? {
+                DataType::Decimal64(m) => decimal64_meta = Some(m),
+                DataType::Decimal128(m) => decimal128_meta = Some(m),
+                _ => (),
+            }
+        }
+
+        for input in &mut inputs {
+            if let Expression::Cast(cast) = input {
+                match &mut cast.to {
+                    DataType::Decimal64(curr) => {
+                        if let Some(m) = decimal64_meta {
+                            *curr = m;
+                        }
+                    }
+                    DataType::Decimal128(curr) => {
+                        if let Some(m) = decimal128_meta {
+                            *curr = m;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+
         inputs
             .try_into()
             .map_err(|_| RayexecError::new("Number of casted inputs incorrect"))

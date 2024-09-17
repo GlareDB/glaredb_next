@@ -1,4 +1,4 @@
-use num::{cast::AsPrimitive, FromPrimitive, PrimInt, Signed};
+use num::{FromPrimitive, PrimInt, Signed};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};

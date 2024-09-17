@@ -8,7 +8,7 @@ pub mod table;
 use std::{borrow::Borrow, fmt::Display};
 
 use fmtutil::IntoDisplayableSlice;
-use implicit::implicit_cast_score;
+use implicit::{implicit_cast_score, META_TYPE_CAST_SCORE, NO_CAST_SCORE};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
 
@@ -120,7 +120,6 @@ pub trait FunctionInfo {
 pub enum CastType {
     /// Need to cast the type to this one.
     Cast { to: DataTypeId, score: u32 },
-
     /// Casting isn't needed, the original data type works.
     NoCastNeeded,
 }
@@ -129,7 +128,7 @@ impl CastType {
     fn score(&self) -> u32 {
         match self {
             Self::Cast { score, .. } => *score,
-            Self::NoCastNeeded => 400, // Arbitrary, higher than any of the implicit cast scores.
+            Self::NoCastNeeded => NO_CAST_SCORE,
         }
     }
 }
