@@ -1,4 +1,4 @@
-use num::{PrimInt, Signed};
+use num::{cast::AsPrimitive, FromPrimitive, PrimInt, Signed};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,7 @@ use std::fmt::{Debug, Display};
 /// Default scale to use for decimals if one isn't provided.
 pub const DECIMAL_DEFUALT_SCALE: i8 = 9;
 
-pub trait DecimalPrimitive: PrimInt + Signed + Debug + Display {
+pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Debug + Display {
     /// Returns the base 10 log of this number, rounded down.
     fn ilog10(self) -> u32;
 }
