@@ -59,6 +59,8 @@ jobs:
           DEBUG_PRINT_PROFILE_DATA: 1
         run: |
           cargo test slt/tpch/q01
+          # cargo test slt/tpch/q02
+          cargo test slt/tpch/q03
 
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings

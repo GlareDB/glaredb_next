@@ -257,7 +257,10 @@ impl TestSession {
         println!("{sql}");
 
         match handle.generate_profile_data().await {
-            Ok(data) => println!("{data}"),
+            Ok(data) => {
+                println!("----");
+                println!("{data}");
+            }
             Err(e) => println!("Profiling data not available: {e}"),
         }
     }
