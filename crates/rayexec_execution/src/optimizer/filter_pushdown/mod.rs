@@ -327,10 +327,14 @@ impl FilterPushdownRule {
         // filters that get pushed to the left/right ops. Both of these should
         // be empty.
         if !conditions.left_filter.is_empty() {
-            return Err(RayexecError::new("Left filters unexpected has expression"));
+            return Err(RayexecError::new(
+                "Left filters unexpectedly has expression",
+            ));
         }
         if !conditions.right_filter.is_empty() {
-            return Err(RayexecError::new("Left filters unexpected has expression"));
+            return Err(RayexecError::new(
+                "Right filters unexpectedly has expression",
+            ));
         }
 
         // Create the join using the extracted conditions.
