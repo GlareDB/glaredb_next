@@ -63,6 +63,7 @@ jobs:
           cargo test slt/tpch/q03
           # cargo test slt/tpch/q04
           cargo test slt/tpch/q05
+          cargo test slt/tpch/q06
 
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings
