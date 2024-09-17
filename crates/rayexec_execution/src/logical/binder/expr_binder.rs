@@ -790,8 +790,6 @@ impl<'a> BaseExpressionBinder<'a> {
 
             // TODO: Maybe more sophisticated candidate selection.
             //
-            // TODO: Sort by score
-            //
             // We should do some lightweight const folding and prefer candidates
             // that cast the consts over ones that need array inputs to be
             // casted.

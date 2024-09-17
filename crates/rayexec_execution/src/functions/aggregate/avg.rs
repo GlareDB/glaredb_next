@@ -138,7 +138,7 @@ impl PlannedAggregateFunction for AvgImpl {
             Self::Decimal64(s) => DataType::Decimal64(DecimalTypeMeta::new(s.precision, s.scale)),
             Self::Decimal128(s) => DataType::Decimal128(DecimalTypeMeta::new(s.precision, s.scale)),
             Self::Float64(_) => DataType::Float64,
-            Self::Int64(_) => DataType::Int64,
+            Self::Int64(_) => DataType::Float64,
         }
     }
 

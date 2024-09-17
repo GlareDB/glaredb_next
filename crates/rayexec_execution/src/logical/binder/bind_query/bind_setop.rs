@@ -125,7 +125,7 @@ impl<'a> SetOpBinder<'a> {
             let left_score = implicit_cast_score(&right, left.datatype_id());
             let right_score = implicit_cast_score(&left, right.datatype_id());
 
-            if left_score == 0 && right_score == 0 {
+            if left_score.is_none() && right_score.is_none() {
                 return Err(RayexecError::new(format!(
                     "Cannot find suitable cast type for {left} and {right}"
                 )));
