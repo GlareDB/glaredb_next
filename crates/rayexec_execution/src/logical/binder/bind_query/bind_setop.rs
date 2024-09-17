@@ -162,7 +162,8 @@ impl<'a> SetOpBinder<'a> {
         let table_ref = bind_context.push_table(self.current, None, output_types, left_names)?;
 
         // ORDER BY and LIMIT on output of the setop.
-        let modifier_binder = ModifierBinder::new(vec![self.current], self.resolve_context);
+        let modifier_binder =
+            ModifierBinder::new(vec![left_scope, right_scope], self.resolve_context);
         // TODO: This select list should be able to reference aliases in the output.
         let mut empty_select_list =
             SelectList::try_new(self.current, bind_context, self.resolve_context, Vec::new())?;

@@ -301,7 +301,7 @@ impl Expression {
     pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
         match self {
             Self::Literal(lit) => Ok(lit.literal),
-            other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not a literal: {other}"))),
         }
     }
 }
