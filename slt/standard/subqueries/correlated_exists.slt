@@ -7,12 +7,18 @@ statement ok
 INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
 # TODO: The introduced aggregate gets in the way here.
-# query IT
-# SELECT i, EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
-# ----
+query IT
+SELECT i, EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
+----
+4     false
+5     true
+6     true
+NULL  false
 
+# TODO: Need to remove the NULL
 query I rowsort
 SELECT i FROM ints a1 WHERE EXISTS(SELECT i FROM ints WHERE i > a1.i);
 ----
 4
 5
+NULL

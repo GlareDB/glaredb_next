@@ -14,12 +14,31 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
+    /// Standard LEFT join.
     Left,
+    /// Standard RIGHT join.
     Right,
+    /// Standard INNER join.
     Inner,
+    /// Standard full/outer join.
     Full,
+    /// Left semi join.
     Semi,
+    /// Left anti join.
     Anti,
+    /// A left join that emits all rows on the left side joined with a column
+    /// that indicates if there was a join partner on the right.
+    ///
+    /// These essentially exposes the left visit bitmaps to other operators.
+    ///
+    /// Idea taken from duckdb.
+    LeftMark {
+        /// The table ref to use in logical planning the reference the visit
+        /// bitmap output.
+        ///
+        /// This should have a single column of type bool.
+        table_ref: TableRef,
+    },
 }
 
 impl fmt::Display for JoinType {
@@ -31,6 +50,7 @@ impl fmt::Display for JoinType {
             Self::Full => write!(f, "FULL"),
             Self::Semi => write!(f, "SEMI"),
             Self::Anti => write!(f, "ANTI"),
+            Self::LeftMark { table_ref } => write!(f, "LEFT MARK (ref = {table_ref})"),
         }
     }
 }
@@ -89,7 +109,17 @@ impl Explainable for LogicalComparisonJoin {
 
 impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.get_children_table_refs()
+        if let JoinType::LeftMark { table_ref } = self.node.join_type {
+            let mut refs = self
+                .children
+                .get(0)
+                .map(|c| c.get_output_table_refs())
+                .unwrap_or_default();
+            refs.push(table_ref);
+            refs
+        } else {
+            self.get_children_table_refs()
+        }
     }
 }
 
@@ -109,7 +139,17 @@ impl Explainable for LogicalArbitraryJoin {
 
 impl LogicalNode for Node<LogicalArbitraryJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.get_children_table_refs()
+        if let JoinType::LeftMark { table_ref } = self.node.join_type {
+            let mut refs = self
+                .children
+                .get(0)
+                .map(|c| c.get_output_table_refs())
+                .unwrap_or_default();
+            refs.push(table_ref);
+            refs
+        } else {
+            self.get_children_table_refs()
+        }
     }
 }
 

@@ -31,6 +31,11 @@ pub struct JoinHashTable {
     left_types: Vec<DataType>,
     /// If we're a right join.
     right_join: bool,
+    /// If we're a mark join.
+    ///
+    /// If true, we won't actually be doing any joining, and instead just update
+    /// the visit bitmaps.
+    is_mark: bool,
 }
 
 impl JoinHashTable {
@@ -38,6 +43,7 @@ impl JoinHashTable {
         left_types: Vec<DataType>,
         conditions: &[HashJoinCondition],
         right_join: bool,
+        is_mark: bool,
     ) -> Self {
         let conditions = conditions.iter().map(|c| c.clone().into()).collect();
 
@@ -47,6 +53,7 @@ impl JoinHashTable {
             hash_table: RawTable::new(),
             left_types,
             right_join,
+            is_mark,
         }
     }
 
@@ -173,6 +180,11 @@ impl JoinHashTable {
             // RIGHT JOIN.
             if let Some(right_outer_tracker) = right_tracker.as_mut() {
                 right_outer_tracker.mark_rows_visited(&right_rows);
+            }
+
+            // Don't actually do any work.
+            if self.is_mark {
+                return Ok(batches);
             }
 
             // Initial right side of the batch.

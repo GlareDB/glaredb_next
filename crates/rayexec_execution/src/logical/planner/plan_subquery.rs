@@ -4,6 +4,7 @@ use crate::{
         column_expr::ColumnExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         literal_expr::LiteralExpr,
+        negate_expr::{NegateExpr, NegateOperator},
         subquery_expr::{SubqueryExpr, SubqueryType},
         Expression,
     },
@@ -108,135 +109,37 @@ impl SubqueryPlanner {
                 let ([left, right], conditions) =
                     self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
 
-                // Get the table refs for the left side of the join, we'll be
-                // grouping on all columns in the left to determine the
-                // existence of a join partner for right.
-                let left_refs = left.get_output_table_refs();
+                let mark_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    mark_table,
+                    "__generated_visited_bool",
+                    DataType::Boolean,
+                )?;
 
-                let right_out = Expression::Column(ColumnExpr {
-                    table_scope: right.get_output_table_refs()[0],
-                    column: 0,
-                });
-
-                // Similar to scalar, join the sides.
-                let join = LogicalOperator::ComparisonJoin(Node {
+                *plan = LogicalOperator::ComparisonJoin(Node {
                     node: LogicalComparisonJoin {
-                        join_type: JoinType::Left,
+                        join_type: JoinType::LeftMark {
+                            table_ref: mark_table,
+                        },
                         conditions,
                     },
                     location: LocationRequirement::Any,
                     children: vec![left, right],
                 });
 
-                // Now wrap in aggregate.
-                //
-                // TODO: We can definitely be more efficient here. We don't
-                // actually need to produce all rows from a join, but instead
-                // produce all rows from the left side, and whether or not we
-                // successfully joined to a row on the right.
-                //
-                // Hash join could be modified to only emit the the first joined
-                // row on the right, and skip the rest.
+                let mut visited_expr = Expression::Column(ColumnExpr {
+                    table_scope: mark_table,
+                    column: 0,
+                });
 
-                let agg_table = bind_context.new_ephemeral_table()?;
-                bind_context.push_column_for_table(
-                    agg_table,
-                    "__generated_correlated_agg",
-                    DataType::Int64,
-                )?;
-
-                let group_table = bind_context.new_ephemeral_table()?;
-                bind_context.push_column_for_table(
-                    agg_table,
-                    "__generated_correlated_group",
-                    DataType::Int64,
-                )?;
-
-                let projection_table = bind_context.new_ephemeral_table()?;
-                bind_context.push_column_for_table(
-                    projection_table,
-                    "__generated_correlate_exists",
-                    DataType::Boolean,
-                )?;
-
-                let mut group_exprs = Vec::new();
-                for &table_ref in &left_refs {
-                    let table = bind_context.get_table(table_ref)?;
-                    group_exprs.extend((0..table.column_types.len()).map(|idx| {
-                        Expression::Column(ColumnExpr {
-                            table_scope: table_ref,
-                            column: idx,
-                        })
-                    }));
+                if negated {
+                    visited_expr = Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(visited_expr),
+                    })
                 }
 
-                // Projections after the aggregate.
-                let projections: Vec<_> = (0..group_exprs.len())
-                    .map(|idx| {
-                        Expression::Column(ColumnExpr {
-                            table_scope: group_table,
-                            column: idx,
-                        })
-                    })
-                    .chain([
-                        // Not negated:
-                        // 'COUNT(*) > 0'
-                        //
-                        // Negated:
-                        // 'COUNT(*) = 0'
-                        Expression::Comparison(ComparisonExpr {
-                            left: Box::new(Expression::Column(ColumnExpr {
-                                table_scope: agg_table,
-                                column: 0,
-                            })),
-                            right: Box::new(Expression::Literal(LiteralExpr {
-                                literal: ScalarValue::Int64(0),
-                            })),
-                            op: if !negated {
-                                ComparisonOperator::Gt
-                            } else {
-                                ComparisonOperator::Eq
-                            },
-                        }),
-                    ])
-                    .collect();
-
-                // Reference to the output of projection containing the count
-                // comparison. Will be the final expression we return.
-                let final_subqery_expr = Expression::Column(ColumnExpr {
-                    table_scope: projection_table,
-                    column: projections.len() - 1,
-                });
-
-                let grouping_sets = vec![(0..group_exprs.len()).collect()];
-
-                let agg = LogicalOperator::Aggregate(Node {
-                    node: LogicalAggregate {
-                        aggregates_table: agg_table,
-                        aggregates: vec![Expression::Aggregate(AggregateExpr {
-                            agg: Box::new(CountNonNullImpl),
-                            inputs: vec![right_out],
-                            filter: None,
-                        })],
-                        group_table: Some(group_table),
-                        group_exprs,
-                        grouping_sets: Some(grouping_sets),
-                    },
-                    location: LocationRequirement::Any,
-                    children: vec![join],
-                });
-
-                // Replace original plan with the projection.
-                *plan = LogicalOperator::Project(Node {
-                    node: LogicalProject {
-                        projections,
-                        projection_table,
-                    },
-                    location: LocationRequirement::Any,
-                    children: vec![agg],
-                });
-
-                Ok(final_subqery_expr)
+                Ok(visited_expr)
             }
             other => not_implemented!("correlated subquery type: {other:?}"),
         }

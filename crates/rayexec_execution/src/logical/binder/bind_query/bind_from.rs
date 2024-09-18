@@ -468,7 +468,8 @@ impl<'a> FromBinder<'a> {
                 | JoinType::Inner
                 | JoinType::Full
                 | JoinType::Semi
-                | JoinType::Anti => UsingColumn {
+                | JoinType::Anti
+                | JoinType::LeftMark { .. } => UsingColumn {
                     column: using,
                     table_ref: left_table,
                     col_idx: left_col_idx,
