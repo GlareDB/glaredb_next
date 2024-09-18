@@ -57,6 +57,7 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(struct_funcs::StructPack),
         // Unary
         Box::new(negate::Negate),
+        Box::new(negate::Not),
         // Random
         Box::new(random::Random),
         // List

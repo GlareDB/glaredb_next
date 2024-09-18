@@ -215,14 +215,29 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 Ok(match op {
                     ast::UnaryOperator::Plus => expr,
-                    ast::UnaryOperator::Not => Expression::Negate(NegateExpr {
-                        op: NegateOperator::Not,
-                        expr: Box::new(expr),
-                    }),
-                    ast::UnaryOperator::Minus => Expression::Negate(NegateExpr {
-                        op: NegateOperator::Negate,
-                        expr: Box::new(expr),
-                    }),
+                    ast::UnaryOperator::Not => {
+                        let [expr] = self.apply_cast_for_operator(
+                            bind_context,
+                            NegateOperator::Not,
+                            [expr],
+                        )?;
+                        Expression::Negate(NegateExpr {
+                            op: NegateOperator::Not,
+                            expr: Box::new(expr),
+                        })
+                    }
+                    ast::UnaryOperator::Minus => {
+                        let [expr] = self.apply_cast_for_operator(
+                            bind_context,
+                            NegateOperator::Negate,
+                            [expr],
+                        )?;
+
+                        Expression::Negate(NegateExpr {
+                            op: NegateOperator::Negate,
+                            expr: Box::new(expr),
+                        })
+                    }
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {

@@ -1,3 +1,5 @@
+# Produces no results
+
 query TT
 DESCRIBE SELECT
     ps_partkey,

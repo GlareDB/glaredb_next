@@ -16,3 +16,9 @@ SELECT 8 IN (SELECT * FROM ints);
 ----
 false
 
+query T
+SELECT 4 IN (SELECT * FROM ints) FROM generate_series(1, 3);
+----
+true
+true
+true
