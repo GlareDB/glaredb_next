@@ -78,6 +78,179 @@ impl SubqueryPlanner {
         subquery: &mut SubqueryExpr,
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
+        match subquery.subquery_type {
+            SubqueryType::Scalar => {
+                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+                let ([left, right], conditions) =
+                    self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
+
+                // Result expression for the subquery, output of the right side
+                // of the join.
+                let right_out = Expression::Column(ColumnExpr {
+                    table_scope: right.get_output_table_refs()[0],
+                    column: 0,
+                });
+
+                // Update plan to now be a comparison join.
+                *plan = LogicalOperator::ComparisonJoin(Node {
+                    node: LogicalComparisonJoin {
+                        join_type: JoinType::Left,
+                        conditions,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![left, right],
+                });
+
+                Ok(right_out)
+            }
+            SubqueryType::Exists { negated } => {
+                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+                let ([left, right], conditions) =
+                    self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
+
+                // Get the table refs for the left side of the join, we'll be
+                // grouping on all columns in the left to determine the
+                // existence of a join partner for right.
+                let left_refs = left.get_output_table_refs();
+
+                let right_out = Expression::Column(ColumnExpr {
+                    table_scope: right.get_output_table_refs()[0],
+                    column: 0,
+                });
+
+                // Similar to scalar, join the sides.
+                let join = LogicalOperator::ComparisonJoin(Node {
+                    node: LogicalComparisonJoin {
+                        join_type: JoinType::Left,
+                        conditions,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![left, right],
+                });
+
+                // Now wrap in aggregate.
+                //
+                // TODO: We can definitely be more efficient here. We don't
+                // actually need to produce all rows from a join, but instead
+                // produce all rows from the left side, and whether or not we
+                // successfully joined to a row on the right.
+                //
+                // Hash join could be modified to only emit the the first joined
+                // row on the right, and skip the rest.
+
+                let agg_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    agg_table,
+                    "__generated_correlated_agg",
+                    DataType::Int64,
+                )?;
+
+                let group_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    agg_table,
+                    "__generated_correlated_group",
+                    DataType::Int64,
+                )?;
+
+                let projection_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    projection_table,
+                    "__generated_correlate_exists",
+                    DataType::Boolean,
+                )?;
+
+                let mut group_exprs = Vec::new();
+                for &table_ref in &left_refs {
+                    let table = bind_context.get_table(table_ref)?;
+                    group_exprs.extend((0..table.column_types.len()).map(|idx| {
+                        Expression::Column(ColumnExpr {
+                            table_scope: table_ref,
+                            column: idx,
+                        })
+                    }));
+                }
+
+                // Projections after the aggregate.
+                let projections: Vec<_> = (0..group_exprs.len())
+                    .map(|idx| {
+                        Expression::Column(ColumnExpr {
+                            table_scope: group_table,
+                            column: idx,
+                        })
+                    })
+                    .chain([
+                        // Not negated:
+                        // 'COUNT(*) > 0'
+                        //
+                        // Negated:
+                        // 'COUNT(*) = 0'
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(Expression::Column(ColumnExpr {
+                                table_scope: agg_table,
+                                column: 0,
+                            })),
+                            right: Box::new(Expression::Literal(LiteralExpr {
+                                literal: ScalarValue::Int64(0),
+                            })),
+                            op: if !negated {
+                                ComparisonOperator::Gt
+                            } else {
+                                ComparisonOperator::Eq
+                            },
+                        }),
+                    ])
+                    .collect();
+
+                // Reference to the output of projection containing the count
+                // comparison. Will be the final expression we return.
+                let final_subqery_expr = Expression::Column(ColumnExpr {
+                    table_scope: projection_table,
+                    column: projections.len() - 1,
+                });
+
+                let grouping_sets = vec![(0..group_exprs.len()).collect()];
+
+                let agg = LogicalOperator::Aggregate(Node {
+                    node: LogicalAggregate {
+                        aggregates_table: agg_table,
+                        aggregates: vec![Expression::Aggregate(AggregateExpr {
+                            agg: Box::new(CountNonNullImpl),
+                            inputs: vec![right_out],
+                            filter: None,
+                        })],
+                        group_table: Some(group_table),
+                        group_exprs,
+                        grouping_sets: Some(grouping_sets),
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![join],
+                });
+
+                // Replace original plan with the projection.
+                *plan = LogicalOperator::Project(Node {
+                    node: LogicalProject {
+                        projections,
+                        projection_table,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![agg],
+                });
+
+                Ok(final_subqery_expr)
+            }
+            other => not_implemented!("correlated subquery type: {other:?}"),
+        }
+    }
+
+    /// Plans the left and right side of a join for decorrelated a subquery.
+    ///
+    /// This will place `plan` in a materialization.
+    fn plan_left_right_for_correlated(
+        &self,
+        bind_context: &mut BindContext,
+        subquery: &mut SubqueryExpr,
+        plan: LogicalOperator,
+    ) -> Result<([LogicalOperator; 2], Vec<ComparisonCondition>)> {
         let mut subquery_plan =
             QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
@@ -91,82 +264,59 @@ impl SubqueryPlanner {
             .cloned()
             .collect();
 
-        match subquery.subquery_type {
-            SubqueryType::Scalar => {
-                // Create dependent join between left (original query) and right
-                // (subquery). Left requires duplication elimination on the
-                // correlated columns.
-                //
-                // The resulting plan may have nodes scanning from the left
-                // multiple times.
+        // Create dependent join between left (original query) and right
+        // (subquery). Left requires duplication elimination on the
+        // correlated columns.
+        //
+        // The resulting plan may have nodes scanning from the left
+        // multiple times.
 
-                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
-                let mat_ref = bind_context.new_materialization(orig)?;
+        let mat_ref = bind_context.new_materialization(plan)?;
 
-                let left = LogicalOperator::MaterializationScan(Node {
-                    node: LogicalMaterializationScan {
-                        mat: mat_ref,
-                        table_refs: plan_tables,
-                    },
-                    location: LocationRequirement::Any,
-                    children: Vec::new(),
-                });
-                bind_context.inc_materialization_scan_count(mat_ref, 1)?;
+        let left = LogicalOperator::MaterializationScan(Node {
+            node: LogicalMaterializationScan {
+                mat: mat_ref,
+                table_refs: plan_tables,
+            },
+            location: LocationRequirement::Any,
+            children: Vec::new(),
+        });
+        bind_context.inc_materialization_scan_count(mat_ref, 1)?;
 
-                // Flatten the right side. This assumes we're doing a dependent
-                // join with left. The goal is after flattening here, the join
-                // we make at the end _shouldn't_ be a dependent join, but just
-                // a normal comparison join.
-                let mut planner = DependentJoinPushdown::new(mat_ref, correlated_columns);
+        // Flatten the right side. This assumes we're doing a dependent
+        // join with left. The goal is after flattening here, the join
+        // we make at the end _shouldn't_ be a dependent join, but just
+        // a normal comparison join.
+        let mut planner = DependentJoinPushdown::new(mat_ref, correlated_columns);
 
-                planner.find_correlations(&subquery_plan)?;
-                planner.pushdown(bind_context, &mut subquery_plan)?;
+        planner.find_correlations(&subquery_plan)?;
+        planner.pushdown(bind_context, &mut subquery_plan)?;
 
-                // Make comparison join between left & right using the updated
-                // column map from the push down.
+        // Make comparison join between left & right using the updated
+        // column map from the push down.
 
-                let mut conditions = Vec::with_capacity(planner.columns.len());
-                for correlated in planner.columns {
-                    // Correlated points to left, the materialized side.
-                    let left = Expression::Column(ColumnExpr {
-                        table_scope: correlated.table,
-                        column: correlated.col_idx,
-                    });
+        let mut conditions = Vec::with_capacity(planner.columns.len());
+        for correlated in planner.columns {
+            // Correlated points to left, the materialized side.
+            let left = Expression::Column(ColumnExpr {
+                table_scope: correlated.table,
+                column: correlated.col_idx,
+            });
 
-                    let right = planner.column_map.get(&correlated).ok_or_else(|| {
-                        RayexecError::new(format!(
-                            "Missing updated right side for correlate column: {correlated:?}"
-                        ))
-                    })?;
+            let right = planner.column_map.get(&correlated).ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Missing updated right side for correlate column: {correlated:?}"
+                ))
+            })?;
 
-                    conditions.push(ComparisonCondition {
-                        left,
-                        right: Expression::Column(*right),
-                        op: ComparisonOperator::Eq,
-                    });
-                }
-
-                // Result expression for the subquery, output of the right side
-                // of the join.
-                let right_out = Expression::Column(ColumnExpr {
-                    table_scope: subquery_plan.get_output_table_refs()[0],
-                    column: 0,
-                });
-
-                // Update plan to now be a comparison join.
-                *plan = LogicalOperator::ComparisonJoin(Node {
-                    node: LogicalComparisonJoin {
-                        join_type: JoinType::Left,
-                        conditions,
-                    },
-                    location: LocationRequirement::Any,
-                    children: vec![left, subquery_plan],
-                });
-
-                Ok(right_out)
-            }
-            other => not_implemented!("correlated subquery type: {other:?}"),
+            conditions.push(ComparisonCondition {
+                left,
+                right: Expression::Column(*right),
+                op: ComparisonOperator::Eq,
+            });
         }
+
+        Ok(([left, subquery_plan], conditions))
     }
 
     fn plan_uncorrelated(

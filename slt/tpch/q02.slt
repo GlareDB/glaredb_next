@@ -1,3 +1,6 @@
+# Not pushing filters down through materialization, resulting in too many cross
+# joins.
+
 query TT
 DESCRIBE SELECT
     s_acctbal,
