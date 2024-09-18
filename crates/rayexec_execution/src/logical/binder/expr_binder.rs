@@ -559,7 +559,35 @@ impl<'a> BaseExpressionBinder<'a> {
                 negated,
                 expr,
                 subquery,
-            } => unimplemented!(),
+            } => {
+                let bound_expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let mut expr = self.bind_subquery(
+                    bind_context,
+                    subquery,
+                    SubqueryType::Any {
+                        expr: Box::new(bound_expr),
+                        op: ComparisonOperator::Eq,
+                    },
+                )?;
+
+                if *negated {
+                    expr = Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(expr),
+                    });
+                }
+
+                Ok(expr)
+            }
             ast::Expr::InList { .. } => not_implemented!("IN (<list>)"),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
