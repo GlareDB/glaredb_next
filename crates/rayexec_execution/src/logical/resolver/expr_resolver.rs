@@ -465,6 +465,38 @@ impl<'a> ExpressionResolver<'a> {
                     high: Box::new(high),
                 })
             }
+            ast::Expr::AnySubquery { left, op, right } => {
+                let left = Box::pin(self.resolve_expression(*left, resolve_context)).await?;
+                let right = Box::pin(self.resolver.resolve_query(*right, resolve_context)).await?;
+                Ok(ast::Expr::AnySubquery {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
+            }
+            ast::Expr::AllSubquery { left, op, right } => {
+                let left = Box::pin(self.resolve_expression(*left, resolve_context)).await?;
+                let right = Box::pin(self.resolver.resolve_query(*right, resolve_context)).await?;
+                Ok(ast::Expr::AllSubquery {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
+            }
+            ast::Expr::InSubquery {
+                negated,
+                expr,
+                subquery,
+            } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let subquery =
+                    Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
+                Ok(ast::Expr::InSubquery {
+                    negated,
+                    expr: Box::new(expr),
+                    subquery: Box::new(subquery),
+                })
+            }
             other => not_implemented!("resolve expr {other:?}"),
         }
     }

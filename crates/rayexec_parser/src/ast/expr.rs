@@ -205,6 +205,30 @@ pub enum Expr<T: AstMeta> {
         subquery: Box<QueryNode<T>>,
         not_exists: bool,
     },
+    /// ANY (<subquery>)
+    AnySubquery {
+        left: Box<Expr<T>>,
+        op: BinaryOperator,
+        right: Box<QueryNode<T>>,
+    },
+    /// ALL (<subquery>)
+    AllSubquery {
+        left: Box<Expr<T>>,
+        op: BinaryOperator,
+        right: Box<QueryNode<T>>,
+    },
+    /// IN (<subquery>)
+    InSubquery {
+        negated: bool,
+        expr: Box<Expr<T>>,
+        subquery: Box<QueryNode<T>>,
+    },
+    /// IN (<list>)
+    InList {
+        negated: bool,
+        expr: Box<Expr<T>>,
+        list: Vec<Expr<T>>,
+    },
     /// DATE '1992-10-11'
     TypedString {
         datatype: T::DataType,
@@ -434,8 +458,27 @@ impl Expr<Raw> {
         };
 
         if let Some(op) = bin_op {
-            if let Some(_kw) = parser.parse_one_of_keywords(&[Keyword::ALL, Keyword::ANY]) {
-                unimplemented!()
+            if let Some(kw) =
+                parser.parse_one_of_keywords(&[Keyword::ALL, Keyword::ANY, Keyword::SOME])
+            {
+                // TODO: Need to also allow array expressions instead of subqueries.
+                parser.expect_token(&Token::LeftParen)?;
+                let right = QueryNode::parse(parser)?;
+                parser.expect_token(&Token::RightParen)?;
+
+                match kw {
+                    Keyword::ALL => Ok(Expr::AllSubquery {
+                        left: Box::new(prefix),
+                        op,
+                        right: Box::new(right),
+                    }),
+                    Keyword::ANY | Keyword::SOME => Ok(Expr::AnySubquery {
+                        left: Box::new(prefix),
+                        op,
+                        right: Box::new(right),
+                    }),
+                    _ => unreachable!(),
+                }
             } else {
                 Ok(Expr::BinaryExpr {
                     left: Box::new(prefix),
@@ -477,6 +520,24 @@ impl Expr<Raw> {
                         )))
                     }
                 },
+                Keyword::IN => {
+                    parser.expect_token(&Token::LeftParen)?;
+                    let expr = if QueryNode::is_query_node_start(parser) {
+                        Expr::InSubquery {
+                            negated: false,
+                            expr: Box::new(prefix),
+                            subquery: Box::new(QueryNode::parse(parser)?),
+                        }
+                    } else {
+                        Expr::InList {
+                            negated: false,
+                            expr: Box::new(prefix),
+                            list: parser.parse_comma_separated(Expr::parse)?,
+                        }
+                    };
+                    parser.expect_token(&Token::RightParen)?;
+                    Ok(expr)
+                }
                 Keyword::LIKE => Ok(Expr::Like {
                     negated: false,
                     case_insensitive: false,

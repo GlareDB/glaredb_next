@@ -75,14 +75,7 @@ impl ComparisonCondition {
     }
 
     pub fn flip_sides(&mut self) {
-        self.op = match self.op {
-            ComparisonOperator::Eq => ComparisonOperator::Eq,
-            ComparisonOperator::NotEq => ComparisonOperator::NotEq,
-            ComparisonOperator::Lt => ComparisonOperator::Gt,
-            ComparisonOperator::LtEq => ComparisonOperator::GtEq,
-            ComparisonOperator::Gt => ComparisonOperator::Lt,
-            ComparisonOperator::GtEq => ComparisonOperator::LtEq,
-        };
+        self.op = self.op.flip();
         std::mem::swap(&mut self.left, &mut self.right);
     }
 }

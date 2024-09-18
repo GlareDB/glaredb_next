@@ -176,6 +176,7 @@ define_keywords!(
     SHOW,
     SIMILAR,
     SMALLINT,
+    SOME,
     SORT,
     STRING,
     TABLE,

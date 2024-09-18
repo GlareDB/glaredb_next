@@ -79,12 +79,12 @@ impl SubqueryPlanner {
         subquery: &mut SubqueryExpr,
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
-        match subquery.subquery_type {
-            SubqueryType::Scalar => {
-                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
-                let ([left, right], conditions) =
-                    self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
+        let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+        let ([left, right], conditions) =
+            self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
 
+        match &subquery.subquery_type {
+            SubqueryType::Scalar => {
                 // Result expression for the subquery, output of the right side
                 // of the join.
                 let right_out = Expression::Column(ColumnExpr {
@@ -105,10 +105,6 @@ impl SubqueryPlanner {
                 Ok(right_out)
             }
             SubqueryType::Exists { negated } => {
-                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
-                let ([left, right], conditions) =
-                    self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
-
                 let mark_table = bind_context.new_ephemeral_table()?;
                 bind_context.push_column_for_table(
                     mark_table,
@@ -132,7 +128,7 @@ impl SubqueryPlanner {
                     column: 0,
                 });
 
-                if negated {
+                if *negated {
                     visited_expr = Expression::Negate(NegateExpr {
                         op: NegateOperator::Not,
                         expr: Box::new(visited_expr),
@@ -231,7 +227,7 @@ impl SubqueryPlanner {
         // Generate subquery logical plan.
         let subquery_plan = QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
-        match subquery.subquery_type {
+        match &subquery.subquery_type {
             SubqueryType::Scalar => {
                 // Normal subquery.
                 //
@@ -306,7 +302,7 @@ impl SubqueryPlanner {
                             right: Box::new(Expression::Literal(LiteralExpr {
                                 literal: ScalarValue::Int64(1),
                             })),
-                            op: if negated {
+                            op: if *negated {
                                 ComparisonOperator::NotEq
                             } else {
                                 ComparisonOperator::Eq

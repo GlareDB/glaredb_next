@@ -7,13 +7,22 @@ use crate::logical::binder::{
 };
 use std::fmt;
 
-use super::Expression;
+use super::{comparison_expr::ComparisonOperator, Expression};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SubqueryType {
     Scalar,
-    Exists { negated: bool },
-    Any,
+    Exists {
+        negated: bool,
+    },
+    Any {
+        /// Expression for ANY/IN/ALL subqueries
+        ///
+        /// ... WHERE <expr> > ALL (<subquery>) ...
+        expr: Box<Expression>,
+        /// The comparison operator to use.
+        op: ComparisonOperator,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,11 +31,6 @@ pub struct SubqueryExpr {
     pub subquery: Box<BoundQuery>,
     pub subquery_type: SubqueryType,
     pub return_type: DataType,
-
-    /// Optional operator for ANY/IN/ALL subqueries
-    ///
-    /// ... WHERE x > ALL (<subquery>) ...
-    pub operator: Option<Box<Expression>>,
 }
 
 impl SubqueryExpr {
@@ -38,15 +42,11 @@ impl SubqueryExpr {
 
 impl fmt::Display for SubqueryExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(operator) = &self.operator {
-            write!(f, "{operator} ")?;
-        }
-
-        match self.subquery_type {
+        match &self.subquery_type {
             SubqueryType::Scalar => (),
             SubqueryType::Exists { negated: false } => write!(f, "EXISTS ")?,
             SubqueryType::Exists { negated: true } => write!(f, "NOT EXISTS ")?,
-            SubqueryType::Any => write!(f, "ANY ")?,
+            SubqueryType::Any { expr, op } => write!(f, "{expr} {op} ANY ")?,
         }
 
         write!(f, "<subquery>")

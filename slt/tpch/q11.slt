@@ -5,7 +5,7 @@ DESCRIBE SELECT
 FROM
     '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
     '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
+    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
 WHERE
     ps_suppkey = s_suppkey
     AND s_nationkey = n_nationkey
@@ -17,9 +17,41 @@ HAVING
         SELECT
             sum(ps_supplycost * ps_availqty) * 0.0001000000
         FROM
-            partsupp,
-            supplier,
-            nation
+            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
+            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+        WHERE
+            ps_suppkey = s_suppkey
+            AND s_nationkey = n_nationkey
+            AND n_name = 'GERMANY')
+ORDER BY
+    value DESC;
+----
+ps_partkey  Int32
+value       Decimal64(18,4)
+
+query ??
+SELECT
+    ps_partkey,
+    sum(ps_supplycost * ps_availqty) AS value
+FROM
+    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
+    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+WHERE
+    ps_suppkey = s_suppkey
+    AND s_nationkey = n_nationkey
+    AND n_name = 'GERMANY'
+GROUP BY
+    ps_partkey
+HAVING
+    sum(ps_supplycost * ps_availqty) > (
+        SELECT
+            sum(ps_supplycost * ps_availqty) * 0.0001000000
+        FROM
+            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
+            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
         WHERE
             ps_suppkey = s_suppkey
             AND s_nationkey = n_nationkey

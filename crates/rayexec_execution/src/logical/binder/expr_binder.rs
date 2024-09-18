@@ -510,6 +510,14 @@ impl<'a> BaseExpressionBinder<'a> {
                 column_binder,
                 recur,
             ),
+            ast::Expr::AnySubquery { left, op, right } => unimplemented!(),
+            ast::Expr::AllSubquery { left, op, right } => unimplemented!(),
+            ast::Expr::InSubquery {
+                negated,
+                expr,
+                subquery,
+            } => unimplemented!(),
+            ast::Expr::InList { .. } => not_implemented!("IN (<list>)"),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to
@@ -744,8 +752,10 @@ impl<'a> BaseExpressionBinder<'a> {
             DataType::Boolean
         };
 
-        if matches!(subquery_type, SubqueryType::Scalar | SubqueryType::Any)
-            && table.num_columns() != 1
+        if matches!(
+            subquery_type,
+            SubqueryType::Scalar | SubqueryType::Any { .. }
+        ) && table.num_columns() != 1
         {
             return Err(RayexecError::new(format!(
                 "Expected subquery to return 1 column, returns {} columns",
@@ -768,7 +778,6 @@ impl<'a> BaseExpressionBinder<'a> {
             subquery: Box::new(bound),
             subquery_type,
             return_type,
-            operator: None, // TODO
         }))
     }
 
