@@ -502,6 +502,19 @@ impl<'a> ExpressionResolver<'a> {
                     subquery: Box::new(subquery),
                 })
             }
+            ast::Expr::InList {
+                negated,
+                expr,
+                list,
+            } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let list = Box::pin(self.resolve_expressions(list, resolve_context)).await?;
+                Ok(ast::Expr::InList {
+                    negated,
+                    expr: Box::new(expr),
+                    list,
+                })
+            }
             other => not_implemented!("resolve expr {other:?}"),
         }
     }

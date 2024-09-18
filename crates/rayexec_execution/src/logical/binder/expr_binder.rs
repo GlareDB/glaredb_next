@@ -603,7 +603,62 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 Ok(expr)
             }
-            ast::Expr::InList { .. } => not_implemented!("IN (<list>)"),
+            ast::Expr::InList {
+                negated,
+                expr,
+                list,
+            } => {
+                let needle = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let list = self.bind_expressions(
+                    bind_context,
+                    list,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                // 'IN (..)' => '(false OR needle = a OR needle = b ...))'
+                // 'NOT IN (..)' => '(true AND needle <> a AND needle <> b ...))'
+                let (mut acc, conj_op, cmp_op) = if !negated {
+                    let acc = Expression::Literal(LiteralExpr {
+                        literal: ScalarValue::Boolean(false),
+                    });
+                    (acc, ConjunctionOperator::Or, ComparisonOperator::Eq)
+                } else {
+                    let acc = Expression::Literal(LiteralExpr {
+                        literal: ScalarValue::Boolean(true),
+                    });
+                    (acc, ConjunctionOperator::And, ComparisonOperator::NotEq)
+                };
+
+                for expr in list {
+                    let [needle, expr] =
+                        self.apply_cast_for_operator(bind_context, cmp_op, [needle.clone(), expr])?;
+
+                    acc = Expression::Conjunction(ConjunctionExpr {
+                        left: Box::new(acc),
+                        right: Box::new(Expression::Comparison(ComparisonExpr {
+                            left: Box::new(needle),
+                            right: Box::new(expr),
+                            op: cmp_op,
+                        })),
+                        op: conj_op,
+                    })
+                }
+
+                Ok(acc)
+            }
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to
