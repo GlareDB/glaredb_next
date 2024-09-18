@@ -489,13 +489,9 @@ impl<'a> BaseExpressionBinder<'a> {
                     ..recur
                 },
             ),
-            ast::Expr::Subquery(subquery) => self.bind_subquery(
-                bind_context,
-                subquery,
-                SubqueryType::Scalar,
-                column_binder,
-                recur,
-            ),
+            ast::Expr::Subquery(subquery) => {
+                self.bind_subquery(bind_context, subquery, SubqueryType::Scalar)
+            }
             ast::Expr::Tuple(_) => not_implemented!("tuple expressions"),
             ast::Expr::Collate { .. } => not_implemented!("COLLATE"),
             ast::Expr::Exists {
@@ -507,11 +503,58 @@ impl<'a> BaseExpressionBinder<'a> {
                 SubqueryType::Exists {
                     negated: *not_exists,
                 },
-                column_binder,
-                recur,
             ),
-            ast::Expr::AnySubquery { left, op, right } => unimplemented!(),
-            ast::Expr::AllSubquery { left, op, right } => unimplemented!(),
+            ast::Expr::AnySubquery { left, op, right }
+            | ast::Expr::AllSubquery { left, op, right } => {
+                let bound_expr = self.bind_expression(
+                    bind_context,
+                    left,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let op = match op {
+                    ast::BinaryOperator::Eq => ComparisonOperator::Eq,
+                    ast::BinaryOperator::NotEq => ComparisonOperator::NotEq,
+                    ast::BinaryOperator::Gt => ComparisonOperator::Gt,
+                    ast::BinaryOperator::GtEq => ComparisonOperator::GtEq,
+                    ast::BinaryOperator::Lt => ComparisonOperator::Lt,
+                    ast::BinaryOperator::LtEq => ComparisonOperator::LtEq,
+                    _ => {
+                        return Err(RayexecError::new(
+                            "ANY/ALL can only have =, <>, <, >, <=, or >= as an operator",
+                        ))
+                    }
+                };
+
+                match expr {
+                    ast::Expr::AnySubquery { .. } => {
+                        let typ = SubqueryType::Any {
+                            expr: Box::new(bound_expr),
+                            op,
+                        };
+                        self.bind_subquery(bind_context, right, typ)
+                    }
+                    ast::Expr::AllSubquery { .. } => {
+                        // Negate the op, and negate the resulting sbuquery expr.
+                        // '= ALL(..)' => 'NOT(<> ANY(..))'
+                        let typ = SubqueryType::Any {
+                            expr: Box::new(bound_expr),
+                            op: op.negate(),
+                        };
+                        let subquery = self.bind_subquery(bind_context, right, typ)?;
+
+                        Ok(Expression::Negate(NegateExpr {
+                            op: NegateOperator::Not,
+                            expr: Box::new(subquery),
+                        }))
+                    }
+                    _ => unreachable!(),
+                }
+            }
             ast::Expr::InSubquery {
                 negated,
                 expr,
@@ -734,20 +777,20 @@ impl<'a> BaseExpressionBinder<'a> {
         bind_context: &mut BindContext,
         subquery: &QueryNode<ResolvedMeta>,
         subquery_type: SubqueryType,
-        _column_binder: &mut impl ExpressionColumnBinder,
-        _recur: RecursionContext,
     ) -> Result<Expression> {
         let nested = bind_context.new_child_scope(self.current);
         let bound =
             QueryBinder::new(nested, self.resolve_context).bind(bind_context, subquery.clone())?;
 
         let table = bind_context.get_table(bound.output_table_ref())?;
+        let query_return_type = table
+            .column_types
+            .first()
+            .cloned()
+            .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?;
+
         let return_type = if subquery_type == SubqueryType::Scalar {
-            table
-                .column_types
-                .first()
-                .cloned()
-                .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?
+            query_return_type.clone()
         } else {
             DataType::Boolean
         };
@@ -762,6 +805,25 @@ impl<'a> BaseExpressionBinder<'a> {
                 table.num_columns(),
             )));
         }
+
+        // Apply cast to expression to try to match the output of the subquery
+        // if needed.
+        let subquery_type = match subquery_type {
+            SubqueryType::Any { expr, op } => {
+                if expr.datatype(bind_context)? != return_type {
+                    SubqueryType::Any {
+                        expr: Box::new(Expression::Cast(CastExpr {
+                            to: query_return_type,
+                            expr,
+                        })),
+                        op,
+                    }
+                } else {
+                    SubqueryType::Any { expr, op }
+                }
+            }
+            other => other,
+        };
 
         // Move correlated columns that don't reference the current scope to the
         // current scope's list of correlated columns.

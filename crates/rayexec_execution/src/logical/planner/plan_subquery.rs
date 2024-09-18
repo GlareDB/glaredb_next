@@ -348,7 +348,51 @@ impl SubqueryPlanner {
                     column: 0,
                 }))
             }
-            other => not_implemented!("subquery type {other:?}"),
+            SubqueryType::Any { expr, op } => {
+                // Any subquery.
+                //
+                // Join original plan (left) with subquery (right) with
+                // comparison referencing left/right sides.
+                //
+                // Resulting expression is boolean indicating if there was join
+                // between left and right.
+
+                let mark_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    mark_table,
+                    "__generated_visited_bool",
+                    DataType::Boolean,
+                )?;
+
+                let subquery_table = subquery_plan.get_output_table_refs()[0];
+                let column = ColumnExpr {
+                    table_scope: subquery_table,
+                    column: 0,
+                };
+
+                let condition = ComparisonCondition {
+                    left: expr.as_ref().clone(),
+                    right: Expression::Column(column),
+                    op: *op,
+                };
+
+                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+                *plan = LogicalOperator::ComparisonJoin(Node {
+                    node: LogicalComparisonJoin {
+                        join_type: JoinType::LeftMark {
+                            table_ref: mark_table,
+                        },
+                        conditions: vec![condition],
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![orig, subquery_plan],
+                });
+
+                Ok(Expression::Column(ColumnExpr {
+                    table_scope: mark_table,
+                    column: 0,
+                }))
+            }
         }
     }
 }
