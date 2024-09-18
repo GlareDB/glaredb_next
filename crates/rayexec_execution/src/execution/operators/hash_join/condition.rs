@@ -1,6 +1,7 @@
 use rayexec_bullet::{
-    array::{Array, BooleanArray},
+    array::{validity, Array, BooleanArray},
     batch::Batch,
+    bitmap::Bitmap,
     compute::take::take,
 };
 use rayexec_error::{RayexecError, Result};
@@ -91,7 +92,7 @@ impl LeftPrecomputedJoinConditions {
         left_batch_idx: usize,
         left_rows: &[usize],
         right: &Batch,
-    ) -> Result<BooleanArray> {
+    ) -> Result<Bitmap> {
         assert_eq!(left_rows.len(), right.num_rows());
 
         let mut results = Vec::with_capacity(self.conditions.len());
@@ -119,7 +120,7 @@ impl LeftPrecomputedJoinConditions {
 
         let refs: Vec<_> = results.iter().collect();
         let out = match AndImpl.execute(&refs)? {
-            Array::Boolean(arr) => arr,
+            Array::Boolean(arr) => arr.into_selection_bitmap(),
             other => {
                 return Err(RayexecError::new(format!(
                     "Expect boolean array as result for condition, got {}",

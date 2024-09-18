@@ -1,10 +1,10 @@
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
+use std::fmt;
 
 use crate::logical::binder::bind_context::BindContext;
 
 use super::Expression;
-use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WhenThen {

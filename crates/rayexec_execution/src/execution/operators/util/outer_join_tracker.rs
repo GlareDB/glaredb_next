@@ -145,12 +145,10 @@ impl LeftOuterJoinDrainState {
             return Ok(Some(batch));
         }
 
-        let selection = BooleanArray::new(bitmap, None);
-
         let left_cols = batch
             .columns()
             .iter()
-            .map(|c| filter(c, &selection))
+            .map(|c| filter(c, &bitmap))
             .collect::<Result<Vec<_>>>()?;
 
         let right_cols = self
@@ -198,11 +196,10 @@ impl RightOuterJoinTracker {
     pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Batch> {
         let unvisited_count = self.unvisited.count_trues();
 
-        let selection = BooleanArray::new(self.unvisited, None);
         let right_unvisited = right
             .columns()
             .iter()
-            .map(|a| compute::filter::filter(a, &selection))
+            .map(|a| compute::filter::filter(a, &self.unvisited))
             .collect::<Result<Vec<_>>>()?;
 
         let left_null_cols = left_types

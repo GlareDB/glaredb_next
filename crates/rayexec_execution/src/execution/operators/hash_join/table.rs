@@ -207,7 +207,7 @@ impl JoinHashTable {
             // Prune left row indices using selection.
             let left_rows: Vec<_> = left_rows
                 .into_iter()
-                .zip(selection.values().iter())
+                .zip(selection.iter())
                 .filter_map(|(left_row, selected)| if selected { Some(left_row) } else { None })
                 .collect();
 

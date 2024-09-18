@@ -444,7 +444,7 @@ fn cross_join(
         if let Some(filter_expr) = &filter_expr {
             let arr = filter_expr.eval(&batch)?;
             let selection = match arr.as_ref() {
-                Array::Boolean(arr) => arr,
+                Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
                 other => {
                     return Err(RayexecError::new(format!(
                         "Expected filter predicate in cross join to return a boolean, got {}",
@@ -456,13 +456,13 @@ fn cross_join(
             let filtered = batch
                 .columns()
                 .iter()
-                .map(|col| filter(col, selection))
+                .map(|col| filter(col, &selection))
                 .collect::<Result<Vec<_>, _>>()?;
 
             // If we're left joining, compute indices in the left batch that we
             // visited.
             if let Some(left_outer_tracker) = &mut left_outer_tracker {
-                let indices: Vec<_> = selection.values().index_iter().collect();
+                let indices: Vec<_> = selection.index_iter().collect();
                 left_outer_tracker.mark_rows_visited_for_batch(left_batch_idx, &indices);
             }
 

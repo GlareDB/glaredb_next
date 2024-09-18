@@ -8,9 +8,9 @@ use crate::{
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 // TODO: Probably make this just accept an iterator.
-pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
+pub fn filter(arr: &Array, selection: &Bitmap) -> Result<Array> {
     Ok(match arr {
-        Array::Null(_) => Array::Null(NullArray::new(selection.true_count())),
+        Array::Null(_) => Array::Null(NullArray::new(selection.count_trues())),
         Array::Boolean(arr) => Array::Boolean(filter_boolean(arr, selection)?),
         Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
         Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),
@@ -52,7 +52,7 @@ pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
     })
 }
 
-pub fn filter_boolean(arr: &BooleanArray, selection: &BooleanArray) -> Result<BooleanArray> {
+pub fn filter_boolean(arr: &BooleanArray, selection: &Bitmap) -> Result<BooleanArray> {
     if arr.len() != selection.len() {
         return Err(RayexecError::new(
             "Selection array length doesn't equal array length",
@@ -60,21 +60,21 @@ pub fn filter_boolean(arr: &BooleanArray, selection: &BooleanArray) -> Result<Bo
     }
 
     let values_iter = arr.values().iter();
-    let select_iter = selection.values().iter();
+    let select_iter = selection.iter();
 
     let values: Bitmap = values_iter
         .zip(select_iter)
         .filter_map(|(v, take)| if take { Some(v) } else { None })
         .collect();
 
-    let validity = filter_validity(arr.validity(), selection.values());
+    let validity = filter_validity(arr.validity(), selection);
 
     Ok(BooleanArray::new(values, validity))
 }
 
 pub fn filter_primitive<T: Copy>(
     arr: &PrimitiveArray<T>,
-    selection: &BooleanArray,
+    selection: &Bitmap,
 ) -> Result<PrimitiveArray<T>> {
     if arr.len() != selection.len() {
         return Err(RayexecError::new(
@@ -83,14 +83,14 @@ pub fn filter_primitive<T: Copy>(
     }
 
     let values_iter = arr.values().as_ref().iter();
-    let select_iter = selection.values().iter();
+    let select_iter = selection.iter();
 
     let values: Vec<_> = values_iter
         .zip(select_iter)
         .filter_map(|(v, take)| if take { Some(*v) } else { None })
         .collect();
 
-    let validity = filter_validity(arr.validity(), selection.values());
+    let validity = filter_validity(arr.validity(), selection);
 
     let arr = PrimitiveArray::new(values, validity);
 
@@ -99,7 +99,7 @@ pub fn filter_primitive<T: Copy>(
 
 pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     arr: &VarlenArray<T, O>,
-    selection: &BooleanArray,
+    selection: &Bitmap,
 ) -> Result<VarlenArray<T, O>> {
     if arr.len() != selection.len() {
         return Err(RayexecError::new(
@@ -108,14 +108,14 @@ pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     }
 
     let values_iter = arr.values_iter();
-    let select_iter = selection.values().iter();
+    let select_iter = selection.iter();
 
     let values: VarlenValuesBuffer<O> = values_iter
         .zip(select_iter)
         .filter_map(|(v, take)| if take { Some(v) } else { None })
         .collect();
 
-    let validity = filter_validity(arr.validity(), selection.values());
+    let validity = filter_validity(arr.validity(), selection);
 
     let arr = VarlenArray::new(values, validity);
 
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn simple_filter_primitive() {
         let arr = Int32Array::from_iter([6, 7, 8, 9]);
-        let selection = BooleanArray::from_iter([true, false, true, false]);
+        let selection = Bitmap::from_iter([true, false, true, false]);
 
         let filtered = filter_primitive(&arr, &selection).unwrap();
         let expected = Int32Array::from_iter([6, 8]);
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn simple_filter_varlen() {
         let arr = Utf8Array::from_iter(["aaa", "bbb", "ccc", "ddd"]);
-        let selection = BooleanArray::from_iter([true, false, true, false]);
+        let selection = Bitmap::from_iter([true, false, true, false]);
 
         let filtered = filter_varlen(&arr, &selection).unwrap();
         let expected = Utf8Array::from_iter(["aaa", "ccc"]);
@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn filter_primitive_with_nulls() {
         let arr = Int32Array::from_iter([Some(6), Some(7), None, None]);
-        let selection = BooleanArray::from_iter([true, false, true, false]);
+        let selection = Bitmap::from_iter([true, false, true, false]);
 
         let filtered = filter_primitive(&arr, &selection).unwrap();
         let expected = Int32Array::from_iter([Some(6), None]);

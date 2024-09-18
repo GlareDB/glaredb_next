@@ -1,4 +1,5 @@
-# Error source: query failed: Unexpected keyword in infix expression: IN
+# Cross joining
+
 query TT
 DESCRIBE SELECT
     c_name,

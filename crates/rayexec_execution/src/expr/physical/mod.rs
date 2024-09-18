@@ -1,5 +1,6 @@
 pub mod planner;
 
+pub mod case_expr;
 pub mod cast_expr;
 pub mod column_expr;
 pub mod literal_expr;
