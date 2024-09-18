@@ -15,6 +15,8 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 /// the final array. (array, row) pairs may be provided more than once.
 ///
 /// Errors if no arrays are provided, or if not all arrays are of the same type.
+// TODO: Possibly make this an iterator (that needs to run twice, once for the
+// values and once for the validities).
 pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array> {
     let datatype = match arrays.first() {
         Some(arr) => arr.datatype(),

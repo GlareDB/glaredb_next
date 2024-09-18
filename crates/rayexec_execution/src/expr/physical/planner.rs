@@ -1,6 +1,9 @@
 use crate::{
     execution::operators::hash_join::condition::HashJoinCondition,
-    expr::{physical::PhysicalScalarExpression, AsScalarFunction, Expression},
+    expr::{
+        physical::{case_expr::PhyscialWhenThen, PhysicalScalarExpression},
+        AsScalarFunction, Expression,
+    },
     logical::{
         binder::{
             bind_context::{BindContext, TableRef},
@@ -10,10 +13,11 @@ use crate::{
     },
 };
 use fmtutil::IntoDisplayableSlice;
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    cast_expr::PhysicalCastExpr, column_expr::PhysicalColumnExpr,
+    case_expr::PhysicalCaseExpr, cast_expr::PhysicalCastExpr, column_expr::PhysicalColumnExpr,
     literal_expr::PhysicalLiteralExpr, scalar_function_expr::PhysicalScalarFunctionExpr,
     PhysicalSortExpression,
 };
@@ -155,6 +159,29 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                         inputs: vec![self.plan_scalar(table_refs, &expr.expr)?],
                     },
                 ))
+            }
+            Expression::Case(expr) => {
+                let cases = expr
+                    .cases
+                    .iter()
+                    .map(|when_then| {
+                        let when = self.plan_scalar(table_refs, &when_then.when)?;
+                        let then = self.plan_scalar(table_refs, &when_then.then)?;
+                        Ok(PhyscialWhenThen { when, then })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let else_expr = match &expr.else_expr {
+                    Some(else_expr) => self.plan_scalar(table_refs, else_expr)?,
+                    None => PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                        literal: ScalarValue::Null,
+                    }),
+                };
+
+                Ok(PhysicalScalarExpression::Case(PhysicalCaseExpr {
+                    cases,
+                    else_expr: Box::new(else_expr),
+                }))
             }
             other => Err(RayexecError::new(format!(
                 "Unsupported scalar expression: {other}"

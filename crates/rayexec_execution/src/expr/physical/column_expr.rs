@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::{array::Array, batch::Batch};
+use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute};
 use rayexec_error::{RayexecError, Result};
 
 use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
@@ -12,8 +12,8 @@ pub struct PhysicalColumnExpr {
 }
 
 impl PhysicalColumnExpr {
-    pub fn eval(&self, batch: &Batch) -> Result<Arc<Array>> {
-        batch
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+        let col = batch
             .column(self.idx)
             .ok_or_else(|| {
                 RayexecError::new(format!(
@@ -21,8 +21,15 @@ impl PhysicalColumnExpr {
                     self.idx,
                     batch.columns().len()
                 ))
-            })
-            .cloned()
+            })?;
+
+        match selection {
+            Some(selection) => {
+                let arr = compute::filter::filter(col.as_ref(), selection)?;
+                Ok(Arc::new(arr))
+            },
+            None => Ok(col.clone())
+        }
     }
 }
 

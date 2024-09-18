@@ -75,7 +75,7 @@ impl LeftPrecomputedJoinConditions {
     /// input.
     pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
         for condition in &mut self.conditions {
-            let precomputed = condition.left.eval(left)?;
+            let precomputed = condition.left.eval(left, None)?;
             condition.left_precomputed.push(precomputed)
         }
 
@@ -111,7 +111,7 @@ impl LeftPrecomputedJoinConditions {
             // TODO: Use selection instead of taking for left.
 
             let left_input = Arc::new(take(left_precomputed.as_ref(), left_rows)?);
-            let right_input = condition.right.eval(right)?;
+            let right_input = condition.right.eval(right, None)?;
 
             let result = condition.function.execute(&[&left_input, &right_input])?;
 

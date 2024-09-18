@@ -148,6 +148,19 @@ impl Bitmap {
         Ok(())
     }
 
+    /// Bit AND NOT this bitmap with some other bitmap.
+    pub fn bit_and_not_mut(&mut self, other: &Bitmap) -> Result<()> {
+        if self.len() != other.len() {
+            return Err(RayexecError::new("Bitmap lengths do not match"));
+        }
+
+        for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
+            *byte &= !*other;
+        }
+
+        Ok(())
+    }
+
     pub fn bit_negate(&mut self) {
         for b in self.data.iter_mut() {
             *b = !*b;

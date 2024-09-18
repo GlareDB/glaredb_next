@@ -21,7 +21,7 @@ impl FilterOperation {
 
 impl StatelessOperation for FilterOperation {
     fn execute(&self, batch: Batch) -> Result<Batch> {
-        let selection = self.predicate.eval(&batch)?;
+        let selection = self.predicate.eval(&batch, None)?;
         let selection = match selection.as_ref() {
             Array::Boolean(arr) => arr,
             other => {
