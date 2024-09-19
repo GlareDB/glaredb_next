@@ -701,9 +701,6 @@ impl<'a> BaseExpressionBinder<'a> {
                 negated,
                 case_insensitive,
             } => {
-                if *negated {
-                    not_implemented!("NOT LIKE")
-                }
                 if *case_insensitive {
                     not_implemented!("case insensitive LIKE")
                 }
@@ -729,10 +726,19 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 let scalar = like::Like.plan_from_expressions(bind_context, &[&expr, &pattern])?;
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr {
                     function: scalar,
                     inputs: vec![expr, pattern],
-                }))
+                });
+
+                if *negated {
+                    expr = Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(expr),
+                    })
+                }
+
+                Ok(expr)
             }
             ast::Expr::Interval(ast::Interval {
                 value,
