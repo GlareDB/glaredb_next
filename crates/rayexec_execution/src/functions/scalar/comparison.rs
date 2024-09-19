@@ -112,14 +112,14 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
 ];
 
 /// Describes a comparison betweeen a left and right element.
-pub trait ComparisonOperation {
+trait ComparisonOperation {
     fn compare<T>(left: T, right: T) -> bool
     where
         T: PartialEq + PartialOrd;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EqOperation;
+struct EqOperation;
 
 impl ComparisonOperation for EqOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -131,7 +131,7 @@ impl ComparisonOperation for EqOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NotEqOperation;
+struct NotEqOperation;
 
 impl ComparisonOperation for NotEqOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -143,7 +143,7 @@ impl ComparisonOperation for NotEqOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LtOperation;
+struct LtOperation;
 
 impl ComparisonOperation for LtOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -155,7 +155,7 @@ impl ComparisonOperation for LtOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LtEqOperation;
+struct LtEqOperation;
 
 impl ComparisonOperation for LtEqOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -167,7 +167,7 @@ impl ComparisonOperation for LtEqOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GtOperation;
+struct GtOperation;
 
 impl ComparisonOperation for GtOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -179,7 +179,7 @@ impl ComparisonOperation for GtOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GtEqOperation;
+struct GtEqOperation;
 
 impl ComparisonOperation for GtEqOperation {
     fn compare<T>(left: T, right: T) -> bool

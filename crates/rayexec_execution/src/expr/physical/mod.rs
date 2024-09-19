@@ -16,7 +16,7 @@ use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, datatype::DataType};
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
@@ -35,6 +35,7 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
+    /// Evaluates an expression on a batch using an optional row selection.
     pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
         match self {
             Self::Case(expr) => expr.eval(batch, selection),
@@ -43,6 +44,32 @@ impl PhysicalScalarExpression {
             Self::Literal(expr) => expr.eval(batch, selection),
             Self::ScalarFunction(expr) => expr.eval(batch, selection),
         }
+    }
+
+    pub fn select(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
+        let arr = self.eval(batch, selection)?;
+        let bitmap = match arr.as_ref() {
+            Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Expected expression to return bools for select, got {}",
+                    other.datatype()
+                )))
+            }
+        };
+
+        let selection = match selection {
+            Some(sel) => sel,
+            None => return Ok(bitmap),
+        };
+
+        let mut zipped = Bitmap::all_false(selection.len());
+
+        for (row_idx, selected) in selection.index_iter().zip(bitmap.iter()) {
+            zipped.set(row_idx, selected);
+        }
+
+        Ok(zipped)
     }
 }
 

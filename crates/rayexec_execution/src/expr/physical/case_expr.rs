@@ -1,7 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
 
@@ -25,23 +25,16 @@ pub struct PhysicalCaseExpr {
 
 impl PhysicalCaseExpr {
     pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
-        // TODO: Don't think this is necessary, we could probably just encode
-        // the selection in the initial 'needs_results' bitmap.
-        let batch = match selection {
-            Some(selection) => Batch::try_new(
-                batch
-                    .columns()
-                    .iter()
-                    .map(|c| compute::filter::filter(c.as_ref(), selection))
-                    .collect::<Result<Vec<_>>>()?,
-            )?,
-            None => batch.clone(),
-        };
-
         let mut interleave_indices: Vec<_> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
 
         let mut case_outputs = Vec::new();
-        let mut needs_results = Bitmap::all_true(batch.num_rows());
+
+        // Determines which rows we need to compute results for. If we already
+        // have a selection, use that, otherwise we'll be looking at all rows.
+        let mut needs_results = match selection {
+            Some(selection) => selection.clone(),
+            None => Bitmap::all_true(batch.num_rows()),
+        };
 
         for case in &self.cases {
             // No need to evaluate any more cases.
@@ -49,36 +42,26 @@ impl PhysicalCaseExpr {
                 break;
             }
 
-            let when_result = case.when.eval(&batch, Some(&needs_results))?;
-            let mut when_bitmap = match when_result.as_ref() {
-                Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "WHEN returned non-bool results: {}",
-                        other.datatype()
-                    )))
-                }
-            };
-
+            let mut selected_rows = case.when.select(&batch, Some(&needs_results))?;
             // No cases returned true.
-            if when_bitmap.count_trues() == 0 {
+            if selected_rows.count_trues() == 0 {
                 continue;
             }
 
             // Update when bitmap to evaluate only the rows we haven't computed
             // results for yet.
-            when_bitmap.bit_and_mut(&needs_results)?;
+            selected_rows.bit_and_mut(&needs_results)?;
 
-            let then_result = case.then.eval(&batch, Some(&when_bitmap))?;
+            let then_result = case.then.eval(&batch, Some(&selected_rows))?;
 
             // Update bitmap to skip these rows in the next case.
-            needs_results.bit_and_not_mut(&when_bitmap)?;
+            needs_results.bit_and_not_mut(&selected_rows)?;
 
             // Store array, update interleave indices to point to these rows.
             let arr_idx = case_outputs.len();
             case_outputs.push(then_result);
 
-            for (arr_row_idx, final_row_idx) in when_bitmap.index_iter().enumerate() {
+            for (arr_row_idx, final_row_idx) in selected_rows.index_iter().enumerate() {
                 interleave_indices[final_row_idx] = (arr_idx, arr_row_idx);
             }
         }
@@ -109,7 +92,7 @@ impl fmt::Display for PhysicalCaseExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CASE ")?;
         for case in &self.cases {
-            write!(f, "{}", case)?;
+            write!(f, "{} ", case)?;
         }
         write!(f, "ELSE {}", self.else_expr)?;
 
