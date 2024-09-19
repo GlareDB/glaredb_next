@@ -10,6 +10,7 @@ use crate::{
     expr::{
         aggregate_expr::AggregateExpr,
         arith_expr::{ArithExpr, ArithOperator},
+        case_expr::{CaseExpr, WhenThen},
         cast_expr::CastExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
@@ -50,6 +51,15 @@ pub struct RecursionContext {
     pub allow_windows: bool,
     /// If we're in the root expression.
     pub is_root: bool,
+}
+
+impl RecursionContext {
+    fn not_root(self) -> Self {
+        RecursionContext {
+            is_root: false,
+            ..self
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -865,6 +875,76 @@ impl<'a> BaseExpressionBinder<'a> {
                     left: Box::new(left),
                     right: Box::new(right),
                     op: conj_op,
+                }))
+            }
+            ast::Expr::Case {
+                expr,
+                conditions,
+                results,
+                else_expr,
+            } => {
+                if conditions.len() != results.len() {
+                    return Err(RayexecError::new(
+                        "CASE conditions and results differ in lengths",
+                    ));
+                }
+
+                let expr = expr
+                    .as_ref()
+                    .map(|expr| {
+                        self.bind_expression(bind_context, expr, column_binder, recur.not_root())
+                    })
+                    .transpose()?;
+
+                let else_expr = else_expr
+                    .as_ref()
+                    .map(|expr| {
+                        self.bind_expression(bind_context, expr, column_binder, recur.not_root())
+                    })
+                    .transpose()?;
+
+                let conditions = self.bind_expressions(
+                    bind_context,
+                    conditions,
+                    column_binder,
+                    recur.not_root(),
+                )?;
+
+                let results =
+                    self.bind_expressions(bind_context, results, column_binder, recur.not_root())?;
+
+                // When leading expr is provided, conditions are implicit equalities.
+                let build_condition = |cond_expr| match &expr {
+                    Some(expr) => {
+                        let [left, right] = self.apply_cast_for_operator(
+                            bind_context,
+                            ComparisonOperator::Eq,
+                            [expr.clone(), cond_expr],
+                        )?;
+
+                        Ok::<_, RayexecError>(Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op: ComparisonOperator::Eq,
+                        }))
+                    }
+                    None => Ok(cond_expr),
+                };
+
+                // TODO: Cast the results so they all produce the same type.
+                let mut cases = Vec::with_capacity(conditions.len());
+
+                for (condition, result) in conditions.into_iter().zip(results) {
+                    let condition = build_condition(condition)?;
+                    cases.push(WhenThen {
+                        when: condition,
+                        then: result,
+                    });
+                }
+
+                Ok(Expression::Case(CaseExpr {
+                    cases,
+                    else_expr: else_expr.map(Box::new),
                 }))
             }
         }

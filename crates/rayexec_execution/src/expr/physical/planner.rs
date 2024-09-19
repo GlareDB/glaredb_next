@@ -161,6 +161,8 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 ))
             }
             Expression::Case(expr) => {
+                let datatype = expr.datatype(self.bind_context)?;
+
                 let cases = expr
                     .cases
                     .iter()
@@ -173,8 +175,11 @@ impl<'a> PhysicalExpressionPlanner<'a> {
 
                 let else_expr = match &expr.else_expr {
                     Some(else_expr) => self.plan_scalar(table_refs, else_expr)?,
-                    None => PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                        literal: ScalarValue::Null,
+                    None => PhysicalScalarExpression::Cast(PhysicalCastExpr {
+                        to: datatype,
+                        expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                            literal: ScalarValue::Null,
+                        })),
                     }),
                 };
 

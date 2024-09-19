@@ -54,9 +54,11 @@ pub fn filter(arr: &Array, selection: &Bitmap) -> Result<Array> {
 
 pub fn filter_boolean(arr: &BooleanArray, selection: &Bitmap) -> Result<BooleanArray> {
     if arr.len() != selection.len() {
-        return Err(RayexecError::new(
-            "Selection array length doesn't equal array length",
-        ));
+        return Err(RayexecError::new(format!(
+            "Selection array length doesn't equal array length, got {}, want {}",
+            selection.len(),
+            arr.len()
+        )));
     }
 
     let values_iter = arr.values().iter();
@@ -77,9 +79,11 @@ pub fn filter_primitive<T: Copy>(
     selection: &Bitmap,
 ) -> Result<PrimitiveArray<T>> {
     if arr.len() != selection.len() {
-        return Err(RayexecError::new(
-            "Selection array length doesn't equal array length",
-        ));
+        return Err(RayexecError::new(format!(
+            "Selection array length doesn't equal array length, got {}, want {}",
+            selection.len(),
+            arr.len()
+        )));
     }
 
     let values_iter = arr.values().as_ref().iter();
@@ -102,9 +106,11 @@ pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     selection: &Bitmap,
 ) -> Result<VarlenArray<T, O>> {
     if arr.len() != selection.len() {
-        return Err(RayexecError::new(
-            "Selection array length doesn't equal array length",
-        ));
+        return Err(RayexecError::new(format!(
+            "Selection array length doesn't equal array length, got {}, want {}",
+            selection.len(),
+            arr.len()
+        )));
     }
 
     let values_iter = arr.values_iter();

@@ -23,12 +23,6 @@ pub struct PhysicalCaseExpr {
     pub else_expr: Box<PhysicalScalarExpression>,
 }
 
-/// Array output for a single case alongside the selection bitmap used.
-struct CaseOutput {
-    when_bitmap: Bitmap,
-    arr: Arc<Array>,
-}
-
 impl PhysicalCaseExpr {
     pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
         // TODO: Don't think this is necessary, we could probably just encode
@@ -44,6 +38,8 @@ impl PhysicalCaseExpr {
             None => batch.clone(),
         };
 
+        let mut interleave_indices: Vec<_> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
+
         let mut case_outputs = Vec::new();
         let mut needs_results = Bitmap::all_true(batch.num_rows());
 
@@ -54,7 +50,7 @@ impl PhysicalCaseExpr {
             }
 
             let when_result = case.when.eval(&batch, Some(&needs_results))?;
-            let when_bitmap = match when_result.as_ref() {
+            let mut when_bitmap = match when_result.as_ref() {
                 Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
                 other => {
                     return Err(RayexecError::new(format!(
@@ -69,40 +65,41 @@ impl PhysicalCaseExpr {
                 continue;
             }
 
+            // Update when bitmap to evaluate only the rows we haven't computed
+            // results for yet.
+            when_bitmap.bit_and_mut(&needs_results)?;
+
             let then_result = case.then.eval(&batch, Some(&when_bitmap))?;
 
             // Update bitmap to skip these rows in the next case.
             needs_results.bit_and_not_mut(&when_bitmap)?;
 
-            case_outputs.push(CaseOutput {
-                when_bitmap,
-                arr: then_result,
-            })
+            // Store array, update interleave indices to point to these rows.
+            let arr_idx = case_outputs.len();
+            case_outputs.push(then_result);
+
+            for (arr_row_idx, final_row_idx) in when_bitmap.index_iter().enumerate() {
+                interleave_indices[final_row_idx] = (arr_idx, arr_row_idx);
+            }
         }
 
         // Evaluate any remaining rows.
         if needs_results.count_trues() != 0 {
             let else_result = self.else_expr.eval(&batch, Some(&needs_results))?;
-            case_outputs.push(CaseOutput {
-                when_bitmap: needs_results,
-                arr: else_result,
-            })
+
+            let arr_idx = case_outputs.len();
+            case_outputs.push(else_result);
+
+            for (arr_row_idx, final_row_idx) in needs_results.index_iter().enumerate() {
+                interleave_indices[final_row_idx] = (arr_idx, arr_row_idx);
+            }
         }
 
         // All rows accounted for, compute 'interleave' indices for building the
         // final batch.
-        let indices: Vec<(usize, usize)> = case_outputs
-            .iter()
-            .enumerate()
-            .flat_map(|(arr_idx, case)| {
-                case.when_bitmap
-                    .index_iter()
-                    .map(move |row_idx| (arr_idx, row_idx))
-            })
-            .collect();
 
-        let arrs: Vec<_> = case_outputs.iter().map(|case| case.arr.as_ref()).collect();
-        let out = compute::interleave::interleave(&arrs, &indices)?;
+        let arrs: Vec<_> = case_outputs.iter().map(|arr| arr.as_ref()).collect();
+        let out = compute::interleave::interleave(&arrs, &interleave_indices)?;
 
         Ok(Arc::new(out))
     }

@@ -13,22 +13,20 @@ pub struct PhysicalColumnExpr {
 
 impl PhysicalColumnExpr {
     pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
-        let col = batch
-            .column(self.idx)
-            .ok_or_else(|| {
-                RayexecError::new(format!(
-                    "Tried to get column at index {} in a batch with {} columns",
-                    self.idx,
-                    batch.columns().len()
-                ))
-            })?;
+        let col = batch.column(self.idx).ok_or_else(|| {
+            RayexecError::new(format!(
+                "Tried to get column at index {} in a batch with {} columns",
+                self.idx,
+                batch.columns().len()
+            ))
+        })?;
 
         match selection {
             Some(selection) => {
                 let arr = compute::filter::filter(col.as_ref(), selection)?;
                 Ok(Arc::new(arr))
-            },
-            None => Ok(col.clone())
+            }
+            None => Ok(col.clone()),
         }
     }
 }

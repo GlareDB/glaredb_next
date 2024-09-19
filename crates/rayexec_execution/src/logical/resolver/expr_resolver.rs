@@ -515,6 +515,34 @@ impl<'a> ExpressionResolver<'a> {
                     list,
                 })
             }
+            ast::Expr::Case {
+                expr,
+                conditions,
+                results,
+                else_expr,
+            } => {
+                let expr = match expr {
+                    Some(expr) => Some(Box::new(
+                        Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
+                    )),
+                    None => None,
+                };
+                let else_expr = match else_expr {
+                    Some(expr) => Some(Box::new(
+                        Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
+                    )),
+                    None => None,
+                };
+                let conditions =
+                    Box::pin(self.resolve_expressions(conditions, resolve_context)).await?;
+                let results = Box::pin(self.resolve_expressions(results, resolve_context)).await?;
+                Ok(ast::Expr::Case {
+                    expr,
+                    conditions,
+                    results,
+                    else_expr,
+                })
+            }
             other => not_implemented!("resolve expr {other:?}"),
         }
     }

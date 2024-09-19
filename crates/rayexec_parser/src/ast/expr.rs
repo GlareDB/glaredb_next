@@ -262,6 +262,18 @@ pub enum Expr<T: AstMeta> {
         low: Box<Expr<T>>,
         high: Box<Expr<T>>,
     },
+    /// Case epxression.
+    ///
+    /// `CASE <expr> WHEN <condition> THEN <result> ... ELSE <else_expr> END`
+    /// `CASE <expr> WHEN <condition> THEN <result> ... END`
+    /// `CASE WHEN <condition> THEN <result> ... ELSE <else_expr> END`
+    /// `CASE WHEN <condition> THEN <result> ... END`
+    Case {
+        expr: Option<Box<Expr<T>>>,
+        conditions: Vec<Expr<T>>,
+        results: Vec<Expr<T>>,
+        else_expr: Option<Box<Expr<T>>>,
+    },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -373,6 +385,42 @@ impl Expr<Raw> {
                         Expr::Cast {
                             datatype,
                             expr: Box::new(expr),
+                        }
+                    }
+                    Keyword::CASE => {
+                        let expr = if !parser.parse_keyword(Keyword::WHEN) {
+                            let expr = Expr::parse(parser)?;
+                            parser.expect_keyword(Keyword::WHEN)?;
+                            Some(Box::new(expr))
+                        } else {
+                            None
+                        };
+
+                        let mut conditions = Vec::new();
+                        let mut results = Vec::new();
+
+                        loop {
+                            conditions.push(Expr::parse(parser)?);
+                            parser.expect_keyword(Keyword::THEN)?;
+                            results.push(Expr::parse(parser)?);
+                            if !parser.parse_keyword(Keyword::WHEN) {
+                                break;
+                            }
+                        }
+
+                        let else_expr = if parser.parse_keyword(Keyword::ELSE) {
+                            Some(Box::new(Expr::parse(parser)?))
+                        } else {
+                            None
+                        };
+
+                        parser.expect_keyword(Keyword::END)?;
+
+                        Expr::Case {
+                            expr,
+                            conditions,
+                            results,
+                            else_expr,
                         }
                     }
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
@@ -1279,6 +1327,64 @@ mod tests {
             expr: Box::new(Expr::Ident(Ident::from_string("col"))),
             low: Box::new(Expr::Ident(Ident::from_string("a"))),
             high: Box::new(Expr::Ident(Ident::from_string("b"))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_no_leading_expr_no_else() {
+        let expr: Expr<_> = parse_ast("CASE WHEN a > b THEN c").unwrap();
+        let expected = Expr::Case {
+            expr: None,
+            conditions: vec![Expr::BinaryExpr {
+                left: Box::new(Expr::Ident(Ident::from_string("a"))),
+                op: BinaryOperator::Gt,
+                right: Box::new(Expr::Ident(Ident::from_string("b"))),
+            }],
+            results: vec![Expr::Ident(Ident::from_string("c"))],
+            else_expr: None,
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_with_leading_expr_no_else() {
+        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c").unwrap();
+        let expected = Expr::Case {
+            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
+            conditions: vec![Expr::Ident(Ident::from_string("b"))],
+            results: vec![Expr::Ident(Ident::from_string("c"))],
+            else_expr: None,
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_with_leading_expr_with_else() {
+        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c ELSE d").unwrap();
+        let expected = Expr::Case {
+            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
+            conditions: vec![Expr::Ident(Ident::from_string("b"))],
+            results: vec![Expr::Ident(Ident::from_string("c"))],
+            else_expr: Some(Box::new(Expr::Ident(Ident::from_string("d")))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_multiple_conditions() {
+        let expr: Expr<_> = parse_ast("CASE a WHEN b1 THEN c1 WHEN b2 THEN c2 ELSE d").unwrap();
+        let expected = Expr::Case {
+            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
+            conditions: vec![
+                Expr::Ident(Ident::from_string("b1")),
+                Expr::Ident(Ident::from_string("b2")),
+            ],
+            results: vec![
+                Expr::Ident(Ident::from_string("c1")),
+                Expr::Ident(Ident::from_string("c2")),
+            ],
+            else_expr: Some(Box::new(Expr::Ident(Ident::from_string("d")))),
         };
         assert_eq!(expected, expr);
     }
