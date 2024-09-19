@@ -1,14 +1,24 @@
 use crate::{
     array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
+    compute::util::IntoExtactSizeIterator,
 };
 use rayexec_error::{RayexecError, Result};
+
+pub trait OutputSelection {
+    /// Exact size of the selection.
+    fn len(&self) -> usize;
+
+    /// Sets the provided index as selected or not selected.
+    fn set(&mut self, idx: usize, selected: bool);
+}
 
 /// Execute an operation on two arrays.
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryExecutor;
 
 impl BinaryExecutor {
+    /// Executes a binary operator on two arrays.
     pub fn execute<Array1, Type1, Iter1, Array2, Type2, Iter2, Output>(
         left: Array1,
         right: Array2,
@@ -55,6 +65,105 @@ impl BinaryExecutor {
         }
 
         Ok(validity)
+    }
+
+    /// Executes a boolean operation on two array, writing the output to
+    /// `output`.
+    ///
+    /// The provided `selection` is used to skip executing on certain rows.
+    ///
+    /// Invalid values are considered not selected, and so `set` will be called
+    /// with false for that index.
+    ///
+    /// This provides a way of repeatedly pruning down rows of interest during
+    /// conditional execution. The the CASE physical expression for what this is
+    /// for.
+    pub fn select<Array1, Type1, Iter1, Array2, Type2, Iter2>(
+        left: Array1,
+        right: Array2,
+        selection: impl IntoExtactSizeIterator<Item = bool>,
+        output: &mut impl OutputSelection,
+        mut operation: impl FnMut(Type1, Type2) -> bool,
+    ) -> Result<()>
+    where
+        Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
+        Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
+        Iter1: Iterator<Item = Type1>,
+        Iter2: Iterator<Item = Type2>,
+    {
+        if left.len() != right.len() {
+            return Err(RayexecError::new(format!(
+                "Differing lengths of arrays, got {} and {}",
+                left.len(),
+                right.len()
+            )));
+        }
+
+        let selection = selection.into_iter();
+
+        if selection.len() != right.len() {
+            return Err(RayexecError::new(format!(
+                "Selection has incorrecnt length, got {}, want{}",
+                selection.len(),
+                right.len()
+            )));
+        }
+
+        if output.len() != right.len() {
+            return Err(RayexecError::new(format!(
+                "Output has incorrecnt length, got {}, want{}",
+                output.len(),
+                right.len()
+            )));
+        }
+
+        // TODO: Don't need to allocate this.
+        let validity = union_validities([left.validity(), right.validity()])?;
+
+        match &validity {
+            Some(validity) => {
+                for (row_idx, (((left_val, right_val), valid), selected)) in left
+                    .values_iter()
+                    .zip(right.values_iter())
+                    .zip(validity.iter())
+                    .zip(selection)
+                    .enumerate()
+                {
+                    if !selected {
+                        // Skip
+                        continue;
+                    }
+
+                    if valid {
+                        // Compute, write to output.
+                        let out = operation(left_val, right_val);
+                        output.set(row_idx, out);
+                    } else {
+                        // Not valid, write false
+                        output.set(row_idx, false);
+                    }
+                }
+            }
+            None => {
+                for (row_idx, ((left_val, right_val), selected)) in left
+                    .values_iter()
+                    .zip(right.values_iter())
+                    .zip(selection)
+                    .enumerate()
+                {
+                    if !selected {
+                        // Skip
+                        continue;
+                    }
+
+                    // Compute, write to output.
+                    let out = operation(left_val, right_val);
+                    output.set(row_idx, out);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
