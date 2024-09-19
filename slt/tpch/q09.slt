@@ -1,6 +1,4 @@
-# Error source: query failed: Expected RightParen, got Some(TokenWithLocation {
-# token: Word(Word { value: "FROM", quote: None, keyword: Some(FROM) }), line:
-# 0, col: 0 })
+# EXTRACT
 
 query TT
 DESCRIBE SELECT

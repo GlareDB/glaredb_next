@@ -1,4 +1,4 @@
-# CASE
+# EXTRACT
 
 query TT
 DESCRIBE SELECT
