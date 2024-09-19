@@ -51,6 +51,12 @@ impl UniformExecutor {
                         let out = operation(&row_vals);
                         buffer.push_value(out);
                     } else {
+                        // When not valid, we still need to move through the
+                        // underlying values iterators.
+                        for iter in values_iters.iter_mut() {
+                            let _ = iter.next().expect("value to exist");
+                        }
+
                         buffer.push_null();
                     }
                 }
@@ -78,7 +84,7 @@ impl UniformExecutor {
 mod tests {
     use super::*;
 
-    use crate::array::{Utf8Array, VarlenArray, VarlenValuesBuffer};
+    use crate::array::{Int32Array, Utf8Array, VarlenArray, VarlenValuesBuffer};
 
     #[test]
     fn uniform_string_concat_row_wise() {
@@ -95,6 +101,35 @@ mod tests {
 
         let got = VarlenArray::new(buffer, validity);
         let expected = Utf8Array::from_iter(["a1dog", "b2cat", "c3horse"]);
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn uniform_with_invalid_data() {
+        let a_vals = vec![1, 2, 3];
+        let a_validity = Bitmap::from_iter([true, false, true]);
+        let a = Int32Array::new(a_vals, Some(a_validity));
+
+        let b_vals = vec![50, 60, 70];
+        let b_validity = Bitmap::from_iter([true, true, true]);
+        let b = Int32Array::new(b_vals, Some(b_validity));
+
+        let mut buffer = Vec::new();
+
+        let validity = UniformExecutor::execute(
+            &[&a, &b],
+            |nums| nums.iter().copied().sum::<i32>(),
+            &mut buffer,
+        )
+        .unwrap();
+
+        let got = Int32Array::new(buffer, validity);
+
+        // This ensures we've properly moved the value iters forward even when
+        // iterating over invalid data. The last value would be incorrect if we
+        // didn't.
+        let expected = Int32Array::from_iter([Some(51), None, Some(73)]);
 
         assert_eq!(expected, got);
     }

@@ -1403,7 +1403,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             other => {
                 // TODO: Other join types.
                 return Err(RayexecError::new(format!(
-                    "Unhandled join type for any join: {other:?}"
+                    "Unhandled join type for arbitrary join: {other:?}"
                 )));
             }
         };

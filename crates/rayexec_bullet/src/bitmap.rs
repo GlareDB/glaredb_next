@@ -1,10 +1,11 @@
 use rayexec_error::{RayexecError, Result};
 use std::borrow::BorrowMut;
+use std::fmt;
 
 use crate::compute::util::IntoExtactSizeIterator;
 
 /// An LSB ordered bitmap.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Bitmap {
     len: usize,
     data: Vec<u8>,
@@ -179,6 +180,13 @@ impl Bitmap {
         for b in self.data.iter_mut() {
             *b = !*b;
         }
+    }
+}
+
+impl fmt::Debug for Bitmap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let values: Vec<_> = self.iter().collect();
+        f.debug_struct("Bitmap").field("values", &values).finish()
     }
 }
 

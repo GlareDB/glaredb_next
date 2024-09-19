@@ -168,23 +168,10 @@ impl JoinHashTable {
         for (batch_idx, row_indices) in row_indices {
             let (left_rows, right_rows): (Vec<_>, Vec<_>) = row_indices.into_iter().unzip();
 
-            // Update left visit bitmaps with rows we're visiting from batches
-            // in the hash table.
-            //
-            // May be None if we're not doing a LEFT JOIN.
-            if let Some(left_outer_tracker) = left_outer_tracker.as_mut() {
-                left_outer_tracker.mark_rows_visited_for_batch(batch_idx, &left_rows);
-            }
-
             // Update right unvisited bitmap. May be None if we're not doing a
             // RIGHT JOIN.
             if let Some(right_outer_tracker) = right_tracker.as_mut() {
                 right_outer_tracker.mark_rows_visited(&right_rows);
-            }
-
-            // Don't actually do any work.
-            if self.is_mark {
-                return Ok(batches);
             }
 
             // Initial right side of the batch.
@@ -210,6 +197,23 @@ impl JoinHashTable {
                 .zip(selection.iter())
                 .filter_map(|(left_row, selected)| if selected { Some(left_row) } else { None })
                 .collect();
+
+            // Update left visit bitmaps with rows we're visiting from batches
+            // in the hash table.
+            //
+            // This is done _after_ evaluating the join conditions which may
+            // result in fewer rows on the left that we're actually joining
+            // with.
+            //
+            // May be None if we're not doing a LEFT JOIN.
+            if let Some(left_outer_tracker) = left_outer_tracker.as_mut() {
+                left_outer_tracker.mark_rows_visited_for_batch(batch_idx, &left_rows);
+            }
+
+            // Don't actually do the join.
+            if self.is_mark {
+                return Ok(batches);
+            }
 
             // Get the left columns for this batch.
             let left_batch = self.batches.get(batch_idx).expect("batch to exist");

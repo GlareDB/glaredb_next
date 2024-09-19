@@ -22,10 +22,8 @@ SELECT i, NOT EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
 6     false
 NULL  true
 
-# TODO: Need to remove the NULL
 query I rowsort
 SELECT i FROM ints a1 WHERE EXISTS(SELECT i FROM ints WHERE i > a1.i);
 ----
 4
 5
-NULL

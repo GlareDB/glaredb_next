@@ -80,7 +80,7 @@ impl SubqueryPlanner {
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
         let orig = std::mem::replace(plan, LogicalOperator::Invalid);
-        let ([left, right], conditions) =
+        let ([left, right], mut conditions) =
             self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
 
         match &subquery.subquery_type {
@@ -137,7 +137,44 @@ impl SubqueryPlanner {
 
                 Ok(visited_expr)
             }
-            other => not_implemented!("correlated subquery type: {other:?}"),
+            SubqueryType::Any { expr, op } => {
+                // Similar to EXISTS, just with an extra join condition
+                // representing the ANY condition.
+
+                let right_out = Expression::Column(ColumnExpr {
+                    table_scope: right.get_output_table_refs()[0],
+                    column: 0,
+                });
+
+                let mark_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    mark_table,
+                    "__generated_visited_bool",
+                    DataType::Boolean,
+                )?;
+
+                conditions.push(ComparisonCondition {
+                    left: expr.as_ref().clone(),
+                    right: right_out,
+                    op: *op,
+                });
+
+                *plan = LogicalOperator::ComparisonJoin(Node {
+                    node: LogicalComparisonJoin {
+                        join_type: JoinType::LeftMark {
+                            table_ref: mark_table,
+                        },
+                        conditions,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![left, right],
+                });
+
+                Ok(Expression::Column(ColumnExpr {
+                    table_scope: mark_table,
+                    column: 0,
+                }))
+            }
         }
     }
 
