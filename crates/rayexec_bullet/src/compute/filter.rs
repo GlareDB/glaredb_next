@@ -13,7 +13,8 @@ use super::util::IntoExtactSizeIterator;
 ///
 /// This implements `Copy`, as the iterator needs to be ran twice, once for the
 /// values and once for the validity. The `Copy` essentially enforces that we
-/// only pass in a reference.
+/// only pass in a reference which we can use to create two separate iterators
+/// for the same data.
 pub trait FilterSelection: IntoExtactSizeIterator<Item = bool> + Copy {
     /// Returns the exact size of the iterator that will be created after a call
     /// to `into_iter`.

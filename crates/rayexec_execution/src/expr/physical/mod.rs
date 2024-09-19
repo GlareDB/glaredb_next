@@ -6,6 +6,8 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
+mod row_selection;
+
 use std::fmt;
 use std::sync::Arc;
 
