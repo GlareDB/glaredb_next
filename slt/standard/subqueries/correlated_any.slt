@@ -1,4 +1,4 @@
-# Correlated ANY/ALL/IN subqueries
+# Correlated ANY/ALL subqueries
 
 statement ok
 CREATE TEMP TABLE ints (i INT);
@@ -6,7 +6,9 @@ CREATE TEMP TABLE ints (i INT);
 statement ok
 INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
-query T
+# ANY
+
+query IT
 SELECT i, i = ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 ----
 4     true
@@ -14,7 +16,7 @@ SELECT i, i = ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 6     true
 NULL  false
 
-query T
+query IT
 SELECT i, i > ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 ----
 4     false
@@ -22,3 +24,40 @@ SELECT i, i > ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 6     false
 NULL  false
 
+query IT
+SELECT i, i > ANY(SELECT i FROM ints WHERE i + 1 = a1.i) FROM ints a1;
+----
+4     false
+5     true
+6     true
+NULL  false
+
+query I
+SELECT * FROM ints a1 WHERE i > ANY(SELECT i FROM ints WHERE i != a1.i);
+----
+5
+6
+
+query I
+SELECT * FROM ints a1 WHERE i < ANY(SELECT i FROM ints WHERE i != a1.i);
+----
+4
+5
+
+# ALL
+
+query IT
+SELECT i, i = ALL(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
+----
+4     true
+5     true
+6     true
+NULL  true
+
+query IT
+SELECT i, i != ALL(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
+----
+4     false
+5     false
+6     false
+NULL  true
