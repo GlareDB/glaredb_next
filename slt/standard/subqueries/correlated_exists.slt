@@ -14,14 +14,13 @@ SELECT i, EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
 6     true
 NULL  false
 
-# TODO: Unsupported scalar expression: NOT(#8.0)
-# query IT
-# SELECT i, NOT EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
-# ----
-# 4     true
-# 5     false
-# 6     false
-# NULL  true
+query IT
+SELECT i, NOT EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
+----
+4     true
+5     false
+6     false
+NULL  true
 
 # TODO: Need to remove the NULL
 query I rowsort
