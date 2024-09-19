@@ -1,6 +1,11 @@
 # Decimal casts
 
 query R
+select 0::DECIMAL;
+----
+0.000000000
+
+query R
 select '1.00'::DECIMAL
 ----
 1.000000000

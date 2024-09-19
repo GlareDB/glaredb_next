@@ -1,4 +1,4 @@
-use num::{FromPrimitive, PrimInt, Signed};
+use num::{FromPrimitive, PrimInt, Signed, Zero};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,8 @@ pub const DECIMAL_DEFUALT_SCALE: i8 = 9;
 
 pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Debug + Display {
     /// Returns the base 10 log of this number, rounded down.
+    ///
+    /// This is guaranteed to be called with a non-zero positive number.
     fn ilog10(self) -> u32;
 }
 
@@ -33,6 +35,10 @@ pub trait DecimalType: Debug {
 
     /// Validates that the value is within the provided precision.
     fn validate_precision(value: Self::Primitive, precision: u8) -> Result<()> {
+        if value.is_zero() {
+            return Ok(());
+        }
+
         if precision > Self::MAX_PRECISION {
             return Err(RayexecError::new(format!(
                 "Precision {precision} is greater than max precision {}",

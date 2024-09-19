@@ -894,6 +894,10 @@ impl<'a> BaseExpressionBinder<'a> {
                         "CASE conditions and results differ in lengths",
                     ));
                 }
+                // Parser shouldn't allow this, but just in case.
+                if conditions.is_empty() {
+                    return Err(RayexecError::new("CASE requires at least one condition"));
+                }
 
                 let expr = expr
                     .as_ref()
@@ -902,7 +906,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     })
                     .transpose()?;
 
-                let else_expr = else_expr
+                let mut else_expr = else_expr
                     .as_ref()
                     .map(|expr| {
                         self.bind_expression(bind_context, expr, column_binder, recur.not_root())
@@ -946,6 +950,24 @@ impl<'a> BaseExpressionBinder<'a> {
                         when: condition,
                         then: result,
                     });
+                }
+
+                // Apply cast to else if needed.
+                if let Some(expr) = else_expr {
+                    let first_case_dt = cases
+                        .first()
+                        .expect("at least one case")
+                        .then
+                        .datatype(bind_context)?;
+
+                    if expr.datatype(bind_context)? != first_case_dt {
+                        else_expr = Some(Expression::Cast(CastExpr {
+                            to: first_case_dt,
+                            expr: Box::new(expr),
+                        }));
+                    } else {
+                        else_expr = Some(expr);
+                    }
                 }
 
                 Ok(Expression::Case(CaseExpr {

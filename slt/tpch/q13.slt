@@ -1,4 +1,4 @@
-# NOT LIKE
+# String search
 
 query TI
 DESCRIBE SELECT

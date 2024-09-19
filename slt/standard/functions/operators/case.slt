@@ -6,6 +6,11 @@ CREATE TEMP TABLE ints (i INT);
 statement ok
 INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
+# No conditions
+# TODO: Parser errors need to be better.
+statement error Expected WHEN, got
+SELECT CASE ELSE 2 END;
+
 # Bool conditions
 
 query I
@@ -92,3 +97,16 @@ b
 cat
 cat
 cat
+
+# Else expr cast
+
+query R
+SELECT CASE i
+            WHEN 4 THEN 8.5
+            ELSE i
+       END FROM ints;
+----
+8.5
+5
+6
+NULL
