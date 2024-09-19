@@ -1,4 +1,4 @@
-# case
+# DIV decimal scale
 
 query TT
 DESCRIBE SELECT

@@ -1333,7 +1333,7 @@ mod tests {
 
     #[test]
     fn case_no_leading_expr_no_else() {
-        let expr: Expr<_> = parse_ast("CASE WHEN a > b THEN c").unwrap();
+        let expr: Expr<_> = parse_ast("CASE WHEN a > b THEN c END").unwrap();
         let expected = Expr::Case {
             expr: None,
             conditions: vec![Expr::BinaryExpr {
@@ -1349,7 +1349,7 @@ mod tests {
 
     #[test]
     fn case_with_leading_expr_no_else() {
-        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c").unwrap();
+        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c END").unwrap();
         let expected = Expr::Case {
             expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
             conditions: vec![Expr::Ident(Ident::from_string("b"))],
@@ -1361,7 +1361,7 @@ mod tests {
 
     #[test]
     fn case_with_leading_expr_with_else() {
-        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c ELSE d").unwrap();
+        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c ELSE d END").unwrap();
         let expected = Expr::Case {
             expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
             conditions: vec![Expr::Ident(Ident::from_string("b"))],
@@ -1373,7 +1373,7 @@ mod tests {
 
     #[test]
     fn case_multiple_conditions() {
-        let expr: Expr<_> = parse_ast("CASE a WHEN b1 THEN c1 WHEN b2 THEN c2 ELSE d").unwrap();
+        let expr: Expr<_> = parse_ast("CASE a WHEN b1 THEN c1 WHEN b2 THEN c2 ELSE d END").unwrap();
         let expected = Expr::Case {
             expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
             conditions: vec![

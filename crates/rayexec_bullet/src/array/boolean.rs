@@ -125,10 +125,6 @@ impl BooleanArray {
         &self.values
     }
 
-    pub fn into_values_and_validity(self) -> (Bitmap, Option<Bitmap>) {
-        (self.values, self.validity)
-    }
-
     /// Turns this boolean array into a selection bitmap for filtering.
     ///
     /// This will treat invalid (NULL) values as false.

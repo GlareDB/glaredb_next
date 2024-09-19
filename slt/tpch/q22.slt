@@ -1,4 +1,5 @@
 # Aliased nested from
+
 query TT
 DESCRIBE SELECT
     cntrycode,

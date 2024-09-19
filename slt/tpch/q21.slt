@@ -1,4 +1,4 @@
-# Correlated exists
+# Slow, cross joins
 
 query TT
 DESCRIBE SELECT
