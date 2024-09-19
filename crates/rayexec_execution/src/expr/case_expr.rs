@@ -55,7 +55,7 @@ impl fmt::Display for CaseExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CASE ")?;
         for case in &self.cases {
-            write!(f, "{}", case)?;
+            write!(f, "{} ", case)?;
         }
 
         if let Some(else_expr) = self.else_expr.as_ref() {
