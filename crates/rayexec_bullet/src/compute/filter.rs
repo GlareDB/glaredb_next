@@ -7,10 +7,33 @@ use crate::{
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 
+use super::util::IntoExtactSizeIterator;
+
+/// A trait for determining which rows should be selected during a filter.
+///
+/// This implements `Copy`, as the iterator needs to be ran twice, once for the
+/// values and once for the validity. The `Copy` essentially enforces that we
+/// only pass in a reference.
+pub trait FilterSelection: IntoExtactSizeIterator<Item = bool> + Copy {
+    /// Returns the exact size of the iterator that will be created after a call
+    /// to `into_iter`.
+    fn len(&self) -> usize;
+}
+
+/// Bitmap can be used to filter.
+impl FilterSelection for &Bitmap {
+    fn len(&self) -> usize {
+        Bitmap::len(self)
+    }
+}
+
 // TODO: Probably make this just accept an iterator.
-pub fn filter(arr: &Array, selection: &Bitmap) -> Result<Array> {
+pub fn filter(arr: &Array, selection: impl FilterSelection) -> Result<Array> {
     Ok(match arr {
-        Array::Null(_) => Array::Null(NullArray::new(selection.count_trues())),
+        Array::Null(_) => {
+            let len = selection.into_iter().filter(|&b| b).count();
+            Array::Null(NullArray::new(len))
+        }
         Array::Boolean(arr) => Array::Boolean(filter_boolean(arr, selection)?),
         Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
         Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),
@@ -52,7 +75,7 @@ pub fn filter(arr: &Array, selection: &Bitmap) -> Result<Array> {
     })
 }
 
-pub fn filter_boolean(arr: &BooleanArray, selection: &Bitmap) -> Result<BooleanArray> {
+pub fn filter_boolean(arr: &BooleanArray, selection: impl FilterSelection) -> Result<BooleanArray> {
     if arr.len() != selection.len() {
         return Err(RayexecError::new(format!(
             "Selection array length doesn't equal array length, got {}, want {}",
@@ -62,10 +85,9 @@ pub fn filter_boolean(arr: &BooleanArray, selection: &Bitmap) -> Result<BooleanA
     }
 
     let values_iter = arr.values().iter();
-    let select_iter = selection.iter();
 
     let values: Bitmap = values_iter
-        .zip(select_iter)
+        .zip(selection.into_iter())
         .filter_map(|(v, take)| if take { Some(v) } else { None })
         .collect();
 
@@ -76,7 +98,7 @@ pub fn filter_boolean(arr: &BooleanArray, selection: &Bitmap) -> Result<BooleanA
 
 pub fn filter_primitive<T: Copy>(
     arr: &PrimitiveArray<T>,
-    selection: &Bitmap,
+    selection: impl FilterSelection,
 ) -> Result<PrimitiveArray<T>> {
     if arr.len() != selection.len() {
         return Err(RayexecError::new(format!(
@@ -87,10 +109,9 @@ pub fn filter_primitive<T: Copy>(
     }
 
     let values_iter = arr.values().as_ref().iter();
-    let select_iter = selection.iter();
 
     let values: Vec<_> = values_iter
-        .zip(select_iter)
+        .zip(selection.into_iter())
         .filter_map(|(v, take)| if take { Some(*v) } else { None })
         .collect();
 
@@ -103,7 +124,7 @@ pub fn filter_primitive<T: Copy>(
 
 pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     arr: &VarlenArray<T, O>,
-    selection: &Bitmap,
+    selection: impl FilterSelection,
 ) -> Result<VarlenArray<T, O>> {
     if arr.len() != selection.len() {
         return Err(RayexecError::new(format!(
@@ -114,10 +135,9 @@ pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     }
 
     let values_iter = arr.values_iter();
-    let select_iter = selection.iter();
 
     let values: VarlenValuesBuffer<O> = values_iter
-        .zip(select_iter)
+        .zip(selection.into_iter())
         .filter_map(|(v, take)| if take { Some(v) } else { None })
         .collect();
 
@@ -128,11 +148,11 @@ pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     Ok(arr)
 }
 
-fn filter_validity(validity: Option<&Bitmap>, selection: &Bitmap) -> Option<Bitmap> {
+fn filter_validity(validity: Option<&Bitmap>, selection: impl FilterSelection) -> Option<Bitmap> {
     validity.map(|validity| {
         validity
             .iter()
-            .zip(selection.iter())
+            .zip(selection.into_iter())
             .filter_map(|(v, take)| if take { Some(v) } else { None })
             .collect()
     })

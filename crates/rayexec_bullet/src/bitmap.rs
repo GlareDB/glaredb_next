@@ -1,6 +1,8 @@
 use rayexec_error::{RayexecError, Result};
 use std::borrow::BorrowMut;
 
+use crate::compute::util::IntoExtactSizeIterator;
+
 /// An LSB ordered bitmap.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Bitmap {
@@ -125,7 +127,11 @@ impl Bitmap {
     /// Bit OR this bitmap with some other bitmap.
     pub fn bit_or_mut(&mut self, other: &Bitmap) -> Result<()> {
         if self.len() != other.len() {
-            return Err(RayexecError::new("Bitmap lengths do not match"));
+            return Err(RayexecError::new(format!(
+                "Bitmap lengths do not match (or), got {} and {}",
+                self.len(),
+                other.len()
+            )));
         }
 
         for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
@@ -138,7 +144,11 @@ impl Bitmap {
     /// Bit AND this bitmap with some other bitmap.
     pub fn bit_and_mut(&mut self, other: &Bitmap) -> Result<()> {
         if self.len() != other.len() {
-            return Err(RayexecError::new("Bitmap lengths do not match"));
+            return Err(RayexecError::new(format!(
+                "Bitmap lengths do not match (and), got {} and {}",
+                self.len(),
+                other.len()
+            )));
         }
 
         for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
@@ -151,7 +161,11 @@ impl Bitmap {
     /// Bit AND NOT this bitmap with some other bitmap.
     pub fn bit_and_not_mut(&mut self, other: &Bitmap) -> Result<()> {
         if self.len() != other.len() {
-            return Err(RayexecError::new("Bitmap lengths do not match"));
+            return Err(RayexecError::new(format!(
+                "Bitmap lengths do not match (and not), got {} and {}",
+                self.len(),
+                other.len()
+            )));
         }
 
         for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
@@ -208,6 +222,15 @@ impl Extend<bool> for Bitmap {
     }
 }
 
+impl<'a> IntoExtactSizeIterator for &'a Bitmap {
+    type Item = bool;
+    type IntoIter = BitmapIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// Iterator over individual bits (bools) in the bitmap.
 #[derive(Debug)]
 pub struct BitmapIter<'a> {
@@ -235,6 +258,8 @@ impl<'a> Iterator for BitmapIter<'a> {
         )
     }
 }
+
+impl<'a> ExactSizeIterator for BitmapIter<'a> {}
 
 /// Iterator over all "valid" indexes in the bitmap.
 #[derive(Debug)]
