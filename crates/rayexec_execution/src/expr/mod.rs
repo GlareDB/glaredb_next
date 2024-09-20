@@ -84,15 +84,14 @@ impl Expression {
     /// ANDs all expressions, only returning None if iterator contains no
     /// expressions.
     pub fn and_all(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
-        let mut exprs = exprs.into_iter();
-        let left = exprs.next()?;
+        let exprs: Vec<_> = exprs.into_iter().collect();
+        if exprs.is_empty() {
+            return None;
+        }
 
-        Some(exprs.fold(left, |left, right| {
-            Expression::Conjunction(ConjunctionExpr {
-                left: Box::new(left),
-                right: Box::new(right),
-                op: ConjunctionOperator::And,
-            })
+        Some(Expression::Conjunction(ConjunctionExpr {
+            op: ConjunctionOperator::And,
+            expressions: exprs,
         }))
     }
 
@@ -136,8 +135,9 @@ impl Expression {
                 func(&mut comp.right)?;
             }
             Self::Conjunction(conj) => {
-                func(&mut conj.left)?;
-                func(&mut conj.right)?;
+                for child in &mut conj.expressions {
+                    func(child)?;
+                }
             }
             Self::Is(is) => func(&mut is.input)?,
             Self::Literal(_) => (),
@@ -201,8 +201,9 @@ impl Expression {
                 func(&comp.right)?;
             }
             Self::Conjunction(conj) => {
-                func(&conj.left)?;
-                func(&conj.right)?;
+                for child in &conj.expressions {
+                    func(child)?;
+                }
             }
             Self::Is(is) => func(&is.input)?,
             Self::Literal(_) => (),

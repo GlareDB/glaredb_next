@@ -9,7 +9,7 @@ use rayexec_error::Result;
 use super::OptimizeRule;
 
 pub trait ExpressionRewriteRule {
-    fn rewrite(expressions: Vec<Expression>) -> Result<Vec<Expression>>;
+    fn rewrite(expression: Expression) -> Result<Expression>;
 }
 
 /// Rewrites expression to be amenable to futher optimization.

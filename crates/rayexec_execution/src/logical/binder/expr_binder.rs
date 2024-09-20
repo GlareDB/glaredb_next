@@ -386,8 +386,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, op, [left, right])?;
                         Expression::Conjunction(ConjunctionExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
+                            expressions: vec![left, right],
                             op,
                         })
                     }
@@ -396,8 +395,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, op, [left, right])?;
                         Expression::Conjunction(ConjunctionExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
+                            expressions: vec![left, right],
                             op,
                         })
                     }
@@ -638,36 +636,36 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                // 'IN (..)' => '(false OR needle = a OR needle = b ...))'
-                // 'NOT IN (..)' => '(true AND needle <> a AND needle <> b ...))'
-                let (mut acc, conj_op, cmp_op) = if !negated {
-                    let acc = Expression::Literal(LiteralExpr {
-                        literal: ScalarValue::Boolean(false),
-                    });
-                    (acc, ConjunctionOperator::Or, ComparisonOperator::Eq)
+                // 'IN (..)' => '(needle = a OR needle = b ...))'
+                // 'NOT IN (..)' => '(needle <> a AND needle <> b ...))'
+                let (conj_op, cmp_op) = if !negated {
+                    (ConjunctionOperator::Or, ComparisonOperator::Eq)
                 } else {
-                    let acc = Expression::Literal(LiteralExpr {
-                        literal: ScalarValue::Boolean(true),
-                    });
-                    (acc, ConjunctionOperator::And, ComparisonOperator::NotEq)
+                    (ConjunctionOperator::And, ComparisonOperator::NotEq)
                 };
 
-                for expr in list {
-                    let [needle, expr] =
-                        self.apply_cast_for_operator(bind_context, cmp_op, [needle.clone(), expr])?;
-
-                    acc = Expression::Conjunction(ConjunctionExpr {
-                        left: Box::new(acc),
-                        right: Box::new(Expression::Comparison(ComparisonExpr {
+                let cmp_exprs = list
+                    .into_iter()
+                    .map(|expr| {
+                        let [needle, expr] = self.apply_cast_for_operator(
+                            bind_context,
+                            cmp_op,
+                            [needle.clone(), expr],
+                        )?;
+                        Ok(Expression::Comparison(ComparisonExpr {
                             left: Box::new(needle),
                             right: Box::new(expr),
                             op: cmp_op,
-                        })),
-                        op: conj_op,
+                        }))
                     })
-                }
+                    .collect::<Result<Vec<_>>>()?;
 
-                Ok(acc)
+                // TODO: Error on no epxressions?
+
+                Ok(Expression::Conjunction(ConjunctionExpr {
+                    op: conj_op,
+                    expressions: cmp_exprs,
+                }))
             }
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
@@ -878,8 +876,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.apply_cast_for_operator(bind_context, conj_op, [left, right])?;
 
                 Ok(Expression::Conjunction(ConjunctionExpr {
-                    left: Box::new(left),
-                    right: Box::new(right),
+                    expressions: vec![left, right],
                     op: conj_op,
                 }))
             }

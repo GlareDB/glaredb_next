@@ -121,17 +121,13 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             }
             Expression::Conjunction(expr) => {
                 let scalar = expr.op.as_scalar_function();
-                let function =
-                    scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
+                let refs: Vec<_> = expr.expressions.iter().collect();
+                let function = scalar.plan_from_expressions(self.bind_context, &refs)?;
+
+                let inputs = self.plan_scalars(table_refs, &expr.expressions)?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
-                    PhysicalScalarFunctionExpr {
-                        function,
-                        inputs: vec![
-                            self.plan_scalar(table_refs, &expr.left)?,
-                            self.plan_scalar(table_refs, &expr.right)?,
-                        ],
-                    },
+                    PhysicalScalarFunctionExpr { function, inputs },
                 ))
             }
             Expression::Arith(expr) => {
