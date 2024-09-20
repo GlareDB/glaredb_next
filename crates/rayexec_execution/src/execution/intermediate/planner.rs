@@ -900,7 +900,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan_result {
             Ok(_) => {
                 type_strings.push("physical".to_string());
-                plan_strings.push(formatter.format_intermedate_groups(&[
+                plan_strings.push(formatter.format_intermediate_groups(&[
                     ("local", &planner.local_group),
                     ("remote", &planner.remote_group),
                 ])?);

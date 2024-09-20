@@ -1,4 +1,5 @@
 pub mod filter_pushdown;
+pub mod limit_pushdown;
 pub mod location;
 
 use std::time::Duration;
@@ -8,6 +9,7 @@ use crate::{
     runtime::time::{RuntimeInstant, Timer},
 };
 use filter_pushdown::FilterPushdownRule;
+use limit_pushdown::LimitPushdownRule;
 use rayexec_error::Result;
 use tracing::debug;
 
@@ -15,6 +17,7 @@ use tracing::debug;
 pub struct OptimizerProfileData {
     pub filter_pushdown_1: Option<Duration>,
     pub filter_pushdown_2: Option<Duration>,
+    pub limit_pushdown: Option<Duration>,
 }
 
 #[derive(Debug)]
@@ -49,6 +52,12 @@ impl Optimizer {
         let mut rule = FilterPushdownRule::default();
         let plan = rule.optimize(bind_context, plan)?;
         self.profile_data.filter_pushdown_1 = Some(timer.stop());
+
+        // Limit pushdown.
+        let timer = Timer::<I>::start();
+        let mut rule = LimitPushdownRule;
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data.limit_pushdown = Some(timer.stop());
 
         // DO THE OTHER RULES
 

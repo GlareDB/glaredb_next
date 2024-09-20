@@ -40,7 +40,7 @@ impl<'a> ExplainFormatter<'a> {
         self.format(&node)
     }
 
-    pub fn format_intermedate_groups(
+    pub fn format_intermediate_groups(
         &self,
         groups: &[(&str, &IntermediatePipelineGroup)],
     ) -> Result<String> {
