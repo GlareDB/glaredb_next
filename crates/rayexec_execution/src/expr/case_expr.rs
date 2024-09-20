@@ -6,7 +6,7 @@ use crate::logical::binder::bind_context::BindContext;
 
 use super::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhenThen {
     pub when: Expression,
     pub then: Expression,
@@ -18,7 +18,7 @@ impl fmt::Display for WhenThen {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CaseExpr {
     pub cases: Vec<WhenThen>,
     pub else_expr: Option<Box<Expression>>,

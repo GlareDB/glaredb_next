@@ -15,6 +15,7 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::sync::Arc;
 
 use crate::expr::Expression;
@@ -123,6 +124,8 @@ impl PartialEq for dyn ScalarFunction + '_ {
     }
 }
 
+impl Eq for dyn ScalarFunction {}
+
 /// A scalar function with potentially some state associated with it.
 pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// The scalar function that's able to produce an instance of this planned
@@ -155,9 +158,18 @@ impl PartialEq for dyn PlannedScalarFunction + '_ {
     }
 }
 
+impl Eq for dyn PlannedScalarFunction {}
+
 impl Clone for Box<dyn PlannedScalarFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
+    }
+}
+
+impl Hash for dyn PlannedScalarFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.scalar_function().name().hash(state);
+        self.return_type().hash(state);
     }
 }
 

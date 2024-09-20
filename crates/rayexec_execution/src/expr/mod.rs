@@ -37,7 +37,7 @@ use std::fmt::{self, Debug};
 use subquery_expr::SubqueryExpr;
 use window_expr::WindowExpr;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
     Aggregate(AggregateExpr),
     Arith(ArithExpr),

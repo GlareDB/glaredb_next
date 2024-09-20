@@ -1,3 +1,4 @@
+pub mod expr_rewrite;
 pub mod filter_pushdown;
 pub mod limit_pushdown;
 pub mod location;
@@ -8,8 +9,8 @@ use crate::{
     logical::{binder::bind_context::BindContext, operator::LogicalOperator},
     runtime::time::{RuntimeInstant, Timer},
 };
-use filter_pushdown::FilterPushdownRule;
-use limit_pushdown::LimitPushdownRule;
+use filter_pushdown::FilterPushdown;
+use limit_pushdown::LimitPushdown;
 use rayexec_error::Result;
 use tracing::debug;
 
@@ -49,13 +50,13 @@ impl Optimizer {
     {
         // First filter pushdown.
         let timer = Timer::<I>::start();
-        let mut rule = FilterPushdownRule::default();
+        let mut rule = FilterPushdown::default();
         let plan = rule.optimize(bind_context, plan)?;
         self.profile_data.filter_pushdown_1 = Some(timer.stop());
 
         // Limit pushdown.
         let timer = Timer::<I>::start();
-        let mut rule = LimitPushdownRule;
+        let mut rule = LimitPushdown;
         let plan = rule.optimize(bind_context, plan)?;
         self.profile_data.limit_pushdown = Some(timer.stop());
 
@@ -66,7 +67,7 @@ impl Optimizer {
 
         // Filter pushdown again.
         let timer = Timer::<I>::start();
-        let mut rule = FilterPushdownRule::default();
+        let mut rule = FilterPushdown::default();
         let plan = rule.optimize(bind_context, plan)?;
         self.profile_data.filter_pushdown_2 = Some(timer.stop());
 

@@ -58,11 +58,11 @@ impl ExtractedFilter {
 }
 
 #[derive(Debug, Default)]
-pub struct FilterPushdownRule {
+pub struct FilterPushdown {
     filters: Vec<ExtractedFilter>,
 }
 
-impl OptimizeRule for FilterPushdownRule {
+impl OptimizeRule for FilterPushdown {
     fn optimize(
         &mut self,
         bind_context: &mut BindContext,
@@ -84,7 +84,7 @@ impl OptimizeRule for FilterPushdownRule {
     }
 }
 
-impl FilterPushdownRule {
+impl FilterPushdown {
     /// Adds an expression as a filter that we'll be pushing down.
     fn add_filter(&mut self, expr: Expression) {
         let mut split = Vec::new();
@@ -107,7 +107,7 @@ impl FilterPushdownRule {
         // Continue with a separate pushdown step for the children.
         let mut children = Vec::with_capacity(plan.children().len());
         for mut child in plan.children_mut().drain(..) {
-            let mut pushdown = FilterPushdownRule::default();
+            let mut pushdown = FilterPushdown::default();
             child = pushdown.optimize(bind_context, child)?;
             children.push(child)
         }

@@ -63,7 +63,7 @@ impl fmt::Display for ComparisonOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ComparisonExpr {
     pub left: Box<Expression>,
     pub right: Box<Expression>,

@@ -6,9 +6,9 @@ use super::OptimizeRule;
 
 /// Push down a limit below a project.
 #[derive(Debug)]
-pub struct LimitPushdownRule;
+pub struct LimitPushdown;
 
-impl OptimizeRule for LimitPushdownRule {
+impl OptimizeRule for LimitPushdown {
     fn optimize(
         &mut self,
         bind_context: &mut BindContext,

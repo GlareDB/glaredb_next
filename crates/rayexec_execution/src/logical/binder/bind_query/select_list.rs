@@ -15,13 +15,13 @@ use std::collections::HashMap;
 
 use super::{bind_group_by::BoundGroupBy, select_expr_expander::ExpandedSelectExpr};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Preprojection {
     pub table: TableRef,
     pub expressions: Vec<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrunedProjectionTable {
     /// Table containing just column references.
     pub table: TableRef,
@@ -30,7 +30,7 @@ pub struct PrunedProjectionTable {
     pub expressions: Vec<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelectList {
     /// Optional pruned table to use at the end of select planning.
     ///

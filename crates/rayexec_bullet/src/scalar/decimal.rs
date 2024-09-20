@@ -57,7 +57,7 @@ pub trait DecimalType: Debug {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal64Type;
 
 impl DecimalType for Decimal64Type {
@@ -65,7 +65,7 @@ impl DecimalType for Decimal64Type {
     const MAX_PRECISION: u8 = 18;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal128Type;
 
 impl DecimalType for Decimal128Type {
@@ -74,7 +74,7 @@ impl DecimalType for Decimal128Type {
 }
 
 /// Represents a single decimal value.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Hash)]
 pub struct DecimalScalar<T: DecimalType> {
     pub precision: u8,
     pub scale: i8,

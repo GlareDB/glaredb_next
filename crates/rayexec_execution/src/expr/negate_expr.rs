@@ -9,7 +9,7 @@ use crate::{
 use super::{AsScalarFunction, Expression};
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NegateOperator {
     Not,    // Boolean,
     Negate, // Numeric
@@ -24,7 +24,7 @@ impl AsScalarFunction for NegateOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NegateExpr {
     pub op: NegateOperator,
     pub expr: Box<Expression>,

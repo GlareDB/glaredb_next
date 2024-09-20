@@ -5,11 +5,11 @@ use crate::logical::binder::{
     bind_context::{BindContext, BindScopeRef},
     bind_query::BoundQuery,
 };
-use std::fmt;
+use std::{fmt, hash::Hash};
 
 use super::{comparison_expr::ComparisonOperator, Expression};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SubqueryType {
     Scalar,
     Exists {
@@ -25,7 +25,7 @@ pub enum SubqueryType {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubqueryExpr {
     pub bind_idx: BindScopeRef,
     pub subquery: Box<BoundQuery>,
@@ -50,5 +50,14 @@ impl fmt::Display for SubqueryExpr {
         }
 
         write!(f, "<subquery>")
+    }
+}
+
+// Purposely skips the bound query part, eq impl will check it.
+impl Hash for SubqueryExpr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.bind_idx.hash(state);
+        self.subquery_type.hash(state);
+        self.return_type.hash(state);
     }
 }
