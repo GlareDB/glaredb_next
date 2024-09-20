@@ -257,6 +257,20 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
             Array::Decimal128(Decimal128Array::new(m.precision, m.scale, prim))
         }
 
+        // From Decimal
+        (Array::Decimal64(arr), DataType::Float32) => {
+            Array::Float32(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+        }
+        (Array::Decimal64(arr), DataType::Float64) => {
+            Array::Float64(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+        }
+        (Array::Decimal128(arr), DataType::Float32) => {
+            Array::Float32(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+        }
+        (Array::Decimal128(arr), DataType::Float64) => {
+            Array::Float64(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+        }
+
         // From Utf8
         (Array::Utf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
         (Array::LargeUtf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
@@ -495,6 +509,32 @@ where
     })
 }
 
+fn cast_decimal_to_float<F, D>(arr: &DecimalArray<D::Primitive>) -> Result<PrimitiveArray<F>>
+where
+    F: Float + fmt::Display,
+    D: DecimalType,
+{
+    let mut new_vals: Vec<F> = Vec::with_capacity(arr.len());
+
+    let scale = <F as NumCast>::from((10.0).powi(arr.scale() as i32)).ok_or_else(|| {
+        RayexecError::new(format!("Failed to cast scale {} to float", arr.scale()))
+    })?;
+
+    for val in arr.get_primitive().values().as_ref().iter() {
+        let val = <F as NumCast>::from(*val)
+            .ok_or_else(|| RayexecError::new(format!("Failed to convert {val} to float")))?;
+
+        let scale = val.div(scale);
+
+        new_vals.push(scale);
+    }
+
+    Ok(PrimitiveArray::new(
+        new_vals,
+        arr.get_primitive().validity().cloned(),
+    ))
+}
+
 fn cast_float_to_decimal<F, D>(
     arr: &PrimitiveArray<F>,
     precision: u8,
@@ -504,6 +544,12 @@ where
     F: Float + fmt::Display,
     D: DecimalType,
 {
+    if scale.is_negative() {
+        return Err(RayexecError::new(
+            "Casting to decimal with negative scale not yet supported",
+        ));
+    }
+
     let mut new_vals: Vec<D::Primitive> = Vec::with_capacity(arr.len());
 
     let scale = <F as NumCast>::from(10.pow(scale.unsigned_abs() as u32))

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     field::Field,
-    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -377,11 +377,11 @@ impl DataType {
             DataTypeId::Float64 => DataType::Float64,
             DataTypeId::Decimal64 => DataType::Decimal64(DecimalTypeMeta::new(
                 Decimal64Type::MAX_PRECISION,
-                DECIMAL_DEFUALT_SCALE,
+                Decimal64Type::DEFAULT_SCALE,
             )),
             DataTypeId::Decimal128 => DataType::Decimal128(DecimalTypeMeta::new(
                 Decimal128Type::MAX_PRECISION,
-                DECIMAL_DEFUALT_SCALE,
+                Decimal128Type::DEFAULT_SCALE,
             )),
             DataTypeId::Timestamp => DataType::Timestamp(TimestampTypeMeta {
                 unit: TimeUnit::Microsecond,

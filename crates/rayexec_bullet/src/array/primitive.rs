@@ -234,6 +234,10 @@ impl<T> DecimalArray<T> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.array.len()
+    }
+
     pub fn get_primitive(&self) -> &PrimitiveArray<T> {
         &self.array
     }

@@ -4,6 +4,7 @@ pub mod split;
 use std::collections::HashSet;
 
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
+use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 use split::split_conjunction;
 
@@ -13,6 +14,7 @@ use crate::{
         binder::bind_context::{BindContext, TableRef},
         logical_filter::LogicalFilter,
         logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_materialization::LogicalMaterializationScan,
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -79,6 +81,9 @@ impl OptimizeRule for FilterPushdown {
             }
             LogicalOperator::Project(project) => self.pushdown_project(bind_context, project),
             LogicalOperator::Order(order) => self.pushdown_order_by(bind_context, order),
+            LogicalOperator::MaterializationScan(mat) => {
+                self.pushdown_materialized_scan(bind_context, mat)
+            }
             other => self.stop_pushdown(bind_context, other),
         }
     }
@@ -126,6 +131,35 @@ impl FilterPushdown {
             location: LocationRequirement::Any,
             children: vec![plan],
         }))
+    }
+
+    fn pushdown_materialized_scan(
+        &mut self,
+        bind_context: &mut BindContext,
+        plan: Node<LogicalMaterializationScan>,
+    ) -> Result<LogicalOperator> {
+        // TODO: I have no idea how this will work with recursively called
+        // scans.
+
+        // Note we may end up trying to optimize the materialized plan multiple
+        // times if it's being scanned multiple times, but that shouldn't impact
+        // anything, we'll just try to optimize an optimized plan some
+        // additional number of times.
+        let orig = {
+            let mat = &mut bind_context.get_materialization_mut(plan.node.mat)?;
+            std::mem::replace(&mut mat.plan, LogicalOperator::Invalid)
+        };
+
+        // Optimize the materialized plan _without_ our current set of
+        // filters.
+        let mut pushdown = FilterPushdown::default();
+        let optimized = pushdown.optimize(bind_context, orig)?;
+
+        let mat = bind_context.get_materialization_mut(plan.node.mat)?;
+        mat.plan = optimized;
+
+        // Ensure we wrap this scan in any remaining filters.
+        self.stop_pushdown(bind_context, LogicalOperator::MaterializationScan(plan))
     }
 
     fn pushdown_project(

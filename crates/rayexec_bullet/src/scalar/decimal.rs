@@ -4,9 +4,6 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 
-/// Default scale to use for decimals if one isn't provided.
-pub const DECIMAL_DEFUALT_SCALE: i8 = 9;
-
 pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Debug + Display {
     /// Returns the base 10 log of this number, rounded down.
     ///
@@ -32,6 +29,9 @@ pub trait DecimalType: Debug {
 
     /// Max precision for this decimal type.
     const MAX_PRECISION: u8;
+
+    /// Default scale to use if none provided.
+    const DEFAULT_SCALE: i8;
 
     /// Validates that the value is within the provided precision.
     fn validate_precision(value: Self::Primitive, precision: u8) -> Result<()> {
@@ -63,6 +63,7 @@ pub struct Decimal64Type;
 impl DecimalType for Decimal64Type {
     type Primitive = i64;
     const MAX_PRECISION: u8 = 18;
+    const DEFAULT_SCALE: i8 = 3;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,6 +72,7 @@ pub struct Decimal128Type;
 impl DecimalType for Decimal128Type {
     type Primitive = i128;
     const MAX_PRECISION: u8 = 38;
+    const DEFAULT_SCALE: i8 = 9;
 }
 
 /// Represents a single decimal value.

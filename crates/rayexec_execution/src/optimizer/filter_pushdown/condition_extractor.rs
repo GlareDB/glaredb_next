@@ -151,6 +151,7 @@ impl<'a> JoinConditionExtractor<'a> {
 
         for expr in split_exprs {
             let side = ExprJoinSide::try_from_expr(&expr, self.left_tables, self.right_tables)?;
+
             match side {
                 ExprJoinSide::Both => {
                     // If we have a comparison expr, try to split it with each
