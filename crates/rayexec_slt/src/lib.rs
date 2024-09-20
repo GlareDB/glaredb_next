@@ -1,6 +1,6 @@
 mod vars;
 use rayexec_bullet::format::pretty::table::pretty_format_batches;
-use rayexec_execution::runtime::handle::QueryHandle;
+use rayexec_execution::engine::result::ExecutionResult;
 pub use vars::*;
 
 mod convert;
@@ -247,7 +247,7 @@ impl TestSession {
         self.debug_partitions_set = true;
     }
 
-    async fn debug_print_profile_data(&self, handle: &dyn QueryHandle, sql: &str) {
+    async fn debug_print_profile_data(&self, results: &ExecutionResult, sql: &str) {
         if std::env::var(DEBUG_PRINT_PROFILE_DATA_VAR).is_err() {
             // Not set.
             return;
@@ -256,9 +256,12 @@ impl TestSession {
         println!("---- PROFILE ----");
         println!("{sql}");
 
-        match handle.generate_profile_data().await {
+        println!("---- PLANNING ----");
+        println!("{}", results.planning_profile);
+
+        match results.handle.generate_execution_profile_data().await {
             Ok(data) => {
-                println!("----");
+                println!("---- EXECUTION ----");
                 println!("{data}");
             }
             Err(e) => println!("Profiling data not available: {e}"),
@@ -313,7 +316,7 @@ impl TestSession {
                      // Timed out.
                     results[0].handle.cancel();
 
-                    let prof_data = results[0].handle.generate_profile_data().await.unwrap();
+                    let prof_data = results[0].handle.generate_execution_profile_data().await.unwrap();
                     return Err(RayexecError::new(format!(
                         "Variables\n{}\nQuery timed out\n---{prof_data}",
                         self.conf.vars
@@ -322,8 +325,7 @@ impl TestSession {
             }
         }
 
-        self.debug_print_profile_data(results[0].handle.as_ref(), sql)
-            .await;
+        self.debug_print_profile_data(&results[0], sql).await;
 
         Ok(sqllogictest::DBOutput::Rows { types: typs, rows })
     }

@@ -16,14 +16,13 @@ use tracing::debug;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OptimizerProfileData {
-    pub filter_pushdown_1: Option<Duration>,
-    pub filter_pushdown_2: Option<Duration>,
-    pub limit_pushdown: Option<Duration>,
+    pub total: Duration,
+    pub timings: Vec<(&'static str, Duration)>,
 }
 
 #[derive(Debug)]
 pub struct Optimizer {
-    profile_data: OptimizerProfileData,
+    pub profile_data: OptimizerProfileData,
 }
 
 impl Default for Optimizer {
@@ -48,17 +47,23 @@ impl Optimizer {
     where
         I: RuntimeInstant,
     {
+        let total = Timer::<I>::start();
+
         // First filter pushdown.
         let timer = Timer::<I>::start();
         let mut rule = FilterPushdown::default();
         let plan = rule.optimize(bind_context, plan)?;
-        self.profile_data.filter_pushdown_1 = Some(timer.stop());
+        self.profile_data
+            .timings
+            .push(("filter_pushdown_1", timer.stop()));
 
         // Limit pushdown.
         let timer = Timer::<I>::start();
         let mut rule = LimitPushdown;
         let plan = rule.optimize(bind_context, plan)?;
-        self.profile_data.limit_pushdown = Some(timer.stop());
+        self.profile_data
+            .timings
+            .push(("limit_pushdown", timer.stop()));
 
         // DO THE OTHER RULES
 
@@ -69,7 +74,11 @@ impl Optimizer {
         let timer = Timer::<I>::start();
         let mut rule = FilterPushdown::default();
         let plan = rule.optimize(bind_context, plan)?;
-        self.profile_data.filter_pushdown_2 = Some(timer.stop());
+        self.profile_data
+            .timings
+            .push(("filter_pushdown_2", timer.stop()));
+
+        self.profile_data.total = total.stop();
 
         debug!(?self.profile_data, "optimizer timings");
 
