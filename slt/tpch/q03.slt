@@ -1,5 +1,3 @@
-# Referencing alias in order by
-
 query TT
 DESCRIBE SELECT
     l_orderkey,

@@ -1,6 +1,4 @@
-# Correlated
-
-query TI
+query TT
 DESCRIBE SELECT
     o_orderpriority,
     count(*) AS order_count

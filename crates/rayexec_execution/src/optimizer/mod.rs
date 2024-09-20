@@ -9,6 +9,7 @@ use crate::{
     logical::{binder::bind_context::BindContext, operator::LogicalOperator},
     runtime::time::{RuntimeInstant, Timer},
 };
+use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
 use limit_pushdown::LimitPushdown;
 use rayexec_error::Result;
@@ -48,6 +49,15 @@ impl Optimizer {
         I: RuntimeInstant,
     {
         let total = Timer::<I>::start();
+
+        // Rewrite expressions first, makes it more likely the later
+        // optimizations rules will be applied.
+        let timer = Timer::<I>::start();
+        let mut rule = ExpressionRewriter;
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("expression_rewrite", timer.stop()));
 
         // First filter pushdown.
         let timer = Timer::<I>::start();
