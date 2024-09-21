@@ -8,7 +8,7 @@ pub mod table;
 use std::{borrow::Borrow, fmt::Display};
 
 use fmtutil::IntoDisplayableSlice;
-use implicit::{implicit_cast_score, META_TYPE_CAST_SCORE, NO_CAST_SCORE};
+use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_bullet::{
     array::Array,
     datatype::{DataType, DataTypeId},

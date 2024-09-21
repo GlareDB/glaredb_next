@@ -3,12 +3,6 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 /// Score that should be used if no cast is needed.
 pub const NO_CAST_SCORE: u32 = 400;
 
-/// Score that should be used for type casts that are changes to the type meta.
-///
-/// For example, this might be for the case of casting a Decimal64(15, 2) to a
-/// Decimal64(18, 9).
-pub const META_TYPE_CAST_SCORE: u32 = 200;
-
 /// Return the score for casting from `have` to `want`.
 ///
 /// Returns None if there's not a valid implicit cast.

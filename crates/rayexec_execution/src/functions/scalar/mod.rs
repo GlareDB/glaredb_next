@@ -2,6 +2,7 @@ pub mod arith;
 pub mod boolean;
 pub mod comparison;
 pub mod concat;
+pub mod datetime;
 pub mod like;
 pub mod list;
 pub mod negate;
@@ -65,6 +66,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         // List
         Box::new(list::ListExtract),
         Box::new(list::ListValues),
+        // Datetime
+        Box::new(datetime::DatePart),
     ]
 });
 

@@ -63,6 +63,8 @@ pub struct Decimal64Type;
 impl DecimalType for Decimal64Type {
     type Primitive = i64;
     const MAX_PRECISION: u8 = 18;
+    // Note that changing this would require changing some of the date functions
+    // since they assume this is 3.
     const DEFAULT_SCALE: i8 = 3;
 }
 

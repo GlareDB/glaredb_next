@@ -262,6 +262,10 @@ impl TimestampArray {
         TimestampArray { unit, array }
     }
 
+    pub fn len(&self) -> usize {
+        self.array.len()
+    }
+
     pub fn get_primitive(&self) -> &PrimitiveArray<i64> {
         &self.array
     }
