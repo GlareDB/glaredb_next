@@ -86,6 +86,7 @@ impl ExpressionRewriter {
     pub fn apply_rewrites(expr: Expression) -> Result<Expression> {
         let expr = UnnestConjunctionRewrite::rewrite(expr)?;
         let expr = DistributiveOrRewrite::rewrite(expr)?;
+        // TODO: Undecided if we want to try to unnest again.
         Ok(expr)
     }
 }

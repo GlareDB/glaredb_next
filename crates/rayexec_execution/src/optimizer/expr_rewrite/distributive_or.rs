@@ -80,12 +80,30 @@ fn maybe_rewrite_or(orig_expr: &mut ConjunctionExpr) -> Result<()> {
                 op: ConjunctionOperator::And,
                 expressions,
             }) => {
-                // Only include expressions that won't be in the top-level AND.
-                new_or_children.extend(
-                    expressions
-                        .into_iter()
-                        .filter(|expr| !common_exprs.contains(expr)),
-                );
+                // Remove any children that will be in the top-level AND.
+                let mut new_and_children: Vec<_> = expressions
+                    .into_iter()
+                    .filter(|expr| !common_exprs.contains(expr))
+                    .collect();
+
+                match new_and_children.len() {
+                    0 => {
+                        // All AND expressions were pulled out.
+                        ()
+                    }
+                    1 => {
+                        // We have single AND child remaining, just use that
+                        // instead.
+                        new_or_children.push(new_and_children.pop().unwrap());
+                    }
+                    _ => {
+                        // Add the modified AND to the OR
+                        new_or_children.push(Expression::Conjunction(ConjunctionExpr {
+                            op: ConjunctionOperator::And,
+                            expressions: new_and_children,
+                        }));
+                    }
+                }
             }
             other => {
                 if !common_exprs.contains(&other) {
@@ -197,5 +215,26 @@ mod tests {
 
         let got = DistributiveOrRewrite::rewrite(expr).unwrap();
         assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn distribute_or_keep_inner_and() {
+        // '(0 AND 1 AND 2 AND 3) OR (0 AND 4)
+        // =>
+        // '((0) AND ((1 AND 2 AND 3) OR (4))'
+        let expr = or([
+            and([lit(0), lit(1), lit(2), lit(3)]).unwrap(),
+            and([lit(0), lit(4)]).unwrap(),
+        ])
+        .unwrap();
+
+        let expected = and([
+            lit(0),
+            or([and([lit(1), lit(2), lit(3)]).unwrap(), lit(4)]).unwrap(),
+        ])
+        .unwrap();
+
+        let got = DistributiveOrRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got, "expected: {expected:#?}\n, got: {got:#?}");
     }
 }
