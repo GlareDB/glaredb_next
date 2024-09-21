@@ -8,6 +8,7 @@ use crate::{
         operator::LogicalOperator,
     },
 };
+use distributive_or::DistributiveOrRewrite;
 use rayexec_error::Result;
 use unnest_conjunction::UnnestConjunctionRewrite;
 
@@ -90,6 +91,7 @@ impl ExpressionRewriter {
     /// Apply all rewrite rules to an expression.
     pub fn apply_rewrites(expr: Expression) -> Result<Expression> {
         let expr = UnnestConjunctionRewrite::rewrite(expr)?;
+        let expr = DistributiveOrRewrite::rewrite(expr)?;
         Ok(expr)
     }
 }
