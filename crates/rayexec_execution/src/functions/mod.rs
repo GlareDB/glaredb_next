@@ -9,8 +9,12 @@ use std::{borrow::Borrow, fmt::Display};
 
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, META_TYPE_CAST_SCORE, NO_CAST_SCORE};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::{
+    array::Array,
+    datatype::{DataType, DataTypeId},
+};
 use rayexec_error::{RayexecError, Result};
+use scalar::PlannedScalarFunction;
 
 /// Function signature.
 #[derive(Debug, Clone, PartialEq)]
@@ -292,13 +296,41 @@ pub fn plan_check_num_args<T>(
 ) -> Result<()> {
     if inputs.len() != expected {
         return Err(RayexecError::new(format!(
-            "Expected {} input for '{}', received {}",
+            "Expected {} {} for '{}', received {}",
             expected,
+            if expected == 1 { "input" } else { "inputs" },
             func.name(),
             inputs.len(),
         )));
     }
     Ok(())
+}
+
+pub fn plan_check_num_args_one_of<T, const N: usize>(
+    func: &impl FunctionInfo,
+    inputs: &[T],
+    one_of: [usize; N],
+) -> Result<()> {
+    if !one_of.contains(&inputs.len()) {
+        return Err(RayexecError::new(format!(
+            "Expected {} inputs for '{}', received {}",
+            one_of.display_with_brackets(),
+            func.name(),
+            inputs.len(),
+        )));
+    }
+    Ok(())
+}
+
+pub fn exec_invalid_array_type_err(
+    scalar: &impl PlannedScalarFunction,
+    arr: &Array,
+) -> RayexecError {
+    RayexecError::new(format!(
+        "Invalid array type: {}, function: {}",
+        arr.datatype(),
+        scalar.scalar_function().name()
+    ))
 }
 
 /// Return an error indicating the input types we got are not ones we can

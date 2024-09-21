@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{
     array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
@@ -17,6 +19,7 @@ impl TernaryExecutor {
         buffer: &mut impl ValuesBuffer<Output>,
     ) -> Result<Option<Bitmap>>
     where
+        Output: Debug,
         Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
         Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
         Array3: ArrayAccessor<Type3, ValueIter = Iter3>,
