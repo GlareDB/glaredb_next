@@ -37,6 +37,7 @@ impl fmt::Display for ConjunctionExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut iter = self.expressions.iter();
 
+        write!(f, "(")?;
         match iter.next() {
             Some(expr) => write!(f, "{}", expr)?,
             None => return Ok(()),
@@ -45,6 +46,7 @@ impl fmt::Display for ConjunctionExpr {
         for expr in iter {
             write!(f, " {} {}", self.op, expr)?;
         }
+        write!(f, ")")?;
 
         Ok(())
     }

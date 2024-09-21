@@ -272,6 +272,25 @@ impl LogicalOperator {
         unimplemented!()
     }
 
+    /// Replaces the children in the operator by running them through `modify`.
+    ///
+    /// Children will be left in an undetermined state if `modify` errors.
+    pub fn modify_replace_children<F>(&mut self, modify: &mut F) -> Result<()>
+    where
+        F: FnMut(LogicalOperator) -> Result<LogicalOperator>,
+    {
+        let children = self.children_mut();
+        let mut new_children = Vec::with_capacity(children.len());
+
+        for child in children.drain(..) {
+            new_children.push(modify(child)?);
+        }
+
+        *children = new_children;
+
+        Ok(())
+    }
+
     pub fn children(&self) -> &[LogicalOperator] {
         match self {
             Self::Invalid => panic!("attempting to get children for invalid operator"),

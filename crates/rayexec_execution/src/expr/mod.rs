@@ -84,9 +84,14 @@ impl Expression {
     /// ANDs all expressions, only returning None if iterator contains no
     /// expressions.
     pub fn and_all(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
-        let exprs: Vec<_> = exprs.into_iter().collect();
+        let mut exprs: Vec<_> = exprs.into_iter().collect();
         if exprs.is_empty() {
             return None;
+        }
+
+        // ANDing one expression is the same as just the expression itself.
+        if exprs.len() == 1 {
+            return exprs.pop();
         }
 
         Some(Expression::Conjunction(ConjunctionExpr {

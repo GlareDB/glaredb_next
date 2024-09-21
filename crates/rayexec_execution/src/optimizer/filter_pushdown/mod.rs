@@ -110,13 +110,10 @@ impl FilterPushdown {
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
         // Continue with a separate pushdown step for the children.
-        let mut children = Vec::with_capacity(plan.children().len());
-        for mut child in plan.children_mut().drain(..) {
+        plan.modify_replace_children(&mut |child| {
             let mut pushdown = FilterPushdown::default();
-            child = pushdown.optimize(bind_context, child)?;
-            children.push(child)
-        }
-        *plan.children_mut() = children;
+            pushdown.optimize(bind_context, child)
+        })?;
 
         if self.filters.is_empty() {
             // No remaining filters.

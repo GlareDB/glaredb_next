@@ -28,11 +28,8 @@ impl OptimizeRule for LimitPushdown {
             }
         }
 
-        let mut new_children = Vec::with_capacity(plan.children().len());
-        for child in plan.children_mut().drain(..) {
-            new_children.push(self.optimize(bind_context, child)?)
-        }
-        *plan.children_mut() = new_children;
+        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
+
         Ok(plan)
     }
 }

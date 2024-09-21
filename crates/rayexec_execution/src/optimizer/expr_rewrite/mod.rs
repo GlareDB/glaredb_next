@@ -68,13 +68,7 @@ impl OptimizeRule for ExpressionRewriter {
             other => other,
         };
 
-        let mut children = Vec::with_capacity(plan.children().len());
-        for child in plan.children_mut().drain(..) {
-            let child = self.optimize(bind_context, child)?;
-            children.push(child);
-        }
-
-        *plan.children_mut() = children;
+        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
 
         Ok(plan)
     }
