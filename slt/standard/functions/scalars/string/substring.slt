@@ -6,6 +6,12 @@ SELECT substring('hello', 1);
 hello
 
 query T
+SELECT substring('hello', 10);
+----
+(empty)
+
+
+query T
 SELECT substring('hello', 2);
 ----
 ello
@@ -21,6 +27,11 @@ SELECT substring('hello', 2, 3);
 ell
 
 query T
+SELECT substring('hello', 2, 8);
+----
+ello
+
+query T
 SELECT substring('😤🤝👀', 2);
 ----
 🤝👀
@@ -30,3 +41,19 @@ SELECT substring('😤🤝👀', 2, 1);
 ----
 🤝
 
+query T
+SELECT substring('😤🤝👀', 4);
+----
+(empty)
+
+# FROM/FOR keywords
+
+query T
+SELECT substring('hello' FROM 1);
+----
+hello
+
+query T
+SELECT substring('hello' FROM 2 FOR 3);
+----
+ell

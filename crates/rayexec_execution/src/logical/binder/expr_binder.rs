@@ -26,6 +26,7 @@ use crate::{
             concat::Concat,
             like::{self, StartsWith},
             list::{ListExtract, ListValues},
+            string::Substring,
             ScalarFunction,
         },
         CastType,
@@ -970,6 +971,42 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(Expression::Case(CaseExpr {
                     cases,
                     else_expr: else_expr.map(Box::new),
+                }))
+            }
+            ast::Expr::Substring { expr, from, count } => {
+                let func = Box::new(Substring);
+                let expr =
+                    self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
+                let from =
+                    self.bind_expression(bind_context, from, column_binder, recur.not_root())?;
+
+                let inputs = match count {
+                    Some(count) => {
+                        let count = self.bind_expression(
+                            bind_context,
+                            count,
+                            column_binder,
+                            recur.not_root(),
+                        )?;
+                        self.apply_casts_for_scalar_function(
+                            bind_context,
+                            func.as_ref(),
+                            vec![expr, from, count],
+                        )?
+                    }
+                    None => self.apply_casts_for_scalar_function(
+                        bind_context,
+                        func.as_ref(),
+                        vec![expr, from],
+                    )?,
+                };
+
+                let refs: Vec<_> = inputs.iter().collect();
+                let function = func.plan_from_expressions(bind_context, &refs)?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function,
+                    inputs,
                 }))
             }
         }

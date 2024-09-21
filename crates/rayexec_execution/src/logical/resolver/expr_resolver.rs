@@ -543,6 +543,22 @@ impl<'a> ExpressionResolver<'a> {
                     else_expr,
                 })
             }
+            ast::Expr::Substring { expr, from, count } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let from = Box::pin(self.resolve_expression(*from, resolve_context)).await?;
+                let count = match count {
+                    Some(count) => {
+                        Some(Box::pin(self.resolve_expression(*count, resolve_context)).await?)
+                    }
+                    None => None,
+                };
+
+                Ok(ast::Expr::Substring {
+                    expr: Box::new(expr),
+                    from: Box::new(from),
+                    count: count.map(Box::new),
+                })
+            }
             other => not_implemented!("resolve expr {other:?}"),
         }
     }

@@ -274,6 +274,15 @@ pub enum Expr<T: AstMeta> {
         results: Vec<Expr<T>>,
         else_expr: Option<Box<Expr<T>>>,
     },
+    /// Substrings expression.
+    ///
+    /// `SUBSTRING(<string>, FROM <from>, [FOR <count>]),
+    /// `SUBSTRING(<string>, <from>, [<count>]),
+    Substring {
+        expr: Box<Expr<T>>,
+        from: Box<Expr<T>>,
+        count: Option<Box<Expr<T>>>,
+    },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -423,6 +432,35 @@ impl Expr<Raw> {
                             else_expr,
                         }
                     }
+                    Keyword::SUBSTRING => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let expr = Expr::parse(parser)?;
+
+                        let from = if parser.consume_token(&Token::Comma)
+                            || parser.parse_keyword(Keyword::FROM)
+                        {
+                            Box::new(Expr::parse(parser)?)
+                        } else {
+                            return Err(RayexecError::new("Missing FROM argument for SUBSTRING"));
+                        };
+
+                        let count = if parser.consume_token(&Token::Comma)
+                            || parser.parse_keyword(Keyword::FOR)
+                        {
+                            Some(Box::new(Expr::parse(parser)?))
+                        } else {
+                            None
+                        };
+
+                        parser.expect_token(&Token::RightParen)?;
+
+                        Expr::Substring {
+                            expr: Box::new(expr),
+                            from,
+                            count,
+                        }
+                    }
+
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
                 },
                 None => Self::parse_ident_expr(w.clone(), parser)?,
@@ -1385,6 +1423,19 @@ mod tests {
                 Expr::Ident(Ident::from_string("c2")),
             ],
             else_expr: Some(Box::new(Expr::Ident(Ident::from_string("d")))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn substring_from() {
+        let expr: Expr<_> = parse_ast("SUBSTRING('string' FROM 3)").unwrap();
+        let expected = Expr::Substring {
+            expr: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                "string".to_string(),
+            ))),
+            from: Box::new(Expr::Literal(Literal::Number("3".to_string()))),
+            count: None,
         };
         assert_eq!(expected, expr);
     }
