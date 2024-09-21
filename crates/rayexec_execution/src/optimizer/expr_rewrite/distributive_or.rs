@@ -153,42 +153,18 @@ fn insert_children_to_common_set<'a>(child: &'a Expression, exprs: &mut IndexSet
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::scalar::ScalarValue;
-
-    use crate::expr::literal_expr::LiteralExpr;
+    use crate::expr::{and, lit, or};
 
     use super::*;
 
     #[test]
     fn distribute_none() {
-        // '(0 AND 1) OR (0 AND 1)' => '(0 AND 1)'
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::Or,
-            expressions: vec![
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::And,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(0),
-                        }),
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                    ],
-                }),
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::And,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(2),
-                        }),
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(3),
-                        }),
-                    ],
-                }),
-            ],
-        });
+        // '(0 AND 1) OR (2 AND 3)' => '(0 AND 1)'
+        let expr = or([
+            and([lit(0), lit(1)]).unwrap(),
+            and([lit(2), lit(3)]).unwrap(),
+        ])
+        .unwrap();
 
         // No changes.
         let expected = expr.clone();
@@ -200,45 +176,13 @@ mod tests {
     #[test]
     fn distribute_eliminate_redundant_or() {
         // '(0 AND 1) OR (0 AND 1)' => '(0 AND 1)'
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::Or,
-            expressions: vec![
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::And,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(0),
-                        }),
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                    ],
-                }),
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::And,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(0),
-                        }),
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                    ],
-                }),
-            ],
-        });
+        let expr = or([
+            and([lit(0), lit(1)]).unwrap(),
+            and([lit(0), lit(1)]).unwrap(),
+        ])
+        .unwrap();
 
-        let expected = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(1),
-                }),
-            ],
-        });
+        let expected = and([lit(0), lit(1)]).unwrap();
 
         let got = DistributiveOrRewrite::rewrite(expr).unwrap();
         assert_eq!(expected, got);
@@ -247,37 +191,9 @@ mod tests {
     #[test]
     fn distribute_eliminate_or_with_single_remaining() {
         // '(0) OR (0 AND 1)' => '(0 AND 1)'
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::Or,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::And,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(0),
-                        }),
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                    ],
-                }),
-            ],
-        });
+        let expr = or([lit(0), and([lit(0), lit(1)]).unwrap()]).unwrap();
 
-        let expected = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(1),
-                }),
-            ],
-        });
+        let expected = and([lit(0), lit(1)]).unwrap();
 
         let got = DistributiveOrRewrite::rewrite(expr).unwrap();
         assert_eq!(expected, got);

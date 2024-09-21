@@ -4,12 +4,11 @@ pub mod split;
 use std::collections::HashSet;
 
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
-use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 use split::split_conjunction;
 
 use crate::{
-    expr::Expression,
+    expr::{self, Expression},
     logical::{
         binder::bind_context::{BindContext, TableRef},
         logical_filter::LogicalFilter,
@@ -120,7 +119,7 @@ impl FilterPushdown {
             return Ok(plan);
         }
 
-        let filter = Expression::and_all(self.filters.drain(..).map(|ex| ex.filter))
+        let filter = expr::and(self.filters.drain(..).map(|ex| ex.filter))
             .expect("expression to be created from non-empty iter");
 
         Ok(LogicalOperator::Filter(Node {

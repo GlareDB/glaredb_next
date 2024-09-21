@@ -81,25 +81,6 @@ impl Expression {
         })
     }
 
-    /// ANDs all expressions, only returning None if iterator contains no
-    /// expressions.
-    pub fn and_all(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
-        let mut exprs: Vec<_> = exprs.into_iter().collect();
-        if exprs.is_empty() {
-            return None;
-        }
-
-        // ANDing one expression is the same as just the expression itself.
-        if exprs.len() == 1 {
-            return exprs.pop();
-        }
-
-        Some(Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: exprs,
-        }))
-    }
-
     pub fn for_each_child_mut<F>(&mut self, func: &mut F) -> Result<()>
     where
         F: FnMut(&mut Expression) -> Result<()>,
@@ -310,6 +291,46 @@ impl Expression {
             other => Err(RayexecError::new(format!("Not a literal: {other}"))),
         }
     }
+}
+
+pub fn and(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
+    let mut exprs: Vec<_> = exprs.into_iter().collect();
+    if exprs.is_empty() {
+        return None;
+    }
+
+    // ANDing one expression is the same as just the expression itself.
+    if exprs.len() == 1 {
+        return exprs.pop();
+    }
+
+    Some(Expression::Conjunction(ConjunctionExpr {
+        op: ConjunctionOperator::And,
+        expressions: exprs,
+    }))
+}
+
+pub fn or(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
+    let mut exprs: Vec<_> = exprs.into_iter().collect();
+    if exprs.is_empty() {
+        return None;
+    }
+
+    // ORing one expression is the same as just the expression itself.
+    if exprs.len() == 1 {
+        return exprs.pop();
+    }
+
+    Some(Expression::Conjunction(ConjunctionExpr {
+        op: ConjunctionOperator::Or,
+        expressions: exprs,
+    }))
+}
+
+pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
+    Expression::Literal(LiteralExpr {
+        literal: scalar.into(),
+    })
 }
 
 impl fmt::Display for Expression {

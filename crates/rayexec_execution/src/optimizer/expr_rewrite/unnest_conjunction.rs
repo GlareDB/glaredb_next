@@ -25,7 +25,15 @@ impl ExpressionRewriteRule for UnnestConjunctionRewrite {
                     *expression = Expression::Conjunction(ConjunctionExpr {
                         op: *op,
                         expressions: new_expressions,
-                    })
+                    });
+
+                    // Recurse into the children too.
+                    expression
+                        .for_each_child_mut(&mut |child| {
+                            inner(child);
+                            Ok(())
+                        })
+                        .expect("unnest to not fail")
                 }
                 other => other
                     .for_each_child_mut(&mut |child| {
@@ -55,25 +63,14 @@ fn unnest_op(expr: Expression, search_op: ConjunctionOperator, out: &mut Vec<Exp
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::scalar::ScalarValue;
-
-    use crate::expr::literal_expr::LiteralExpr;
+    use crate::expr::{and, lit, or};
 
     use super::*;
 
     #[test]
     fn unnest_none() {
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(1),
-                }),
-            ],
-        });
+        // '(0 AND 1)' => '(0 AND 1)'
+        let expr = and([lit(0), lit(1)]).unwrap();
 
         // No change.
         let expected = expr.clone();
@@ -84,40 +81,10 @@ mod tests {
 
     #[test]
     fn unnest_one_level() {
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::And,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(2),
-                        }),
-                    ],
-                }),
-            ],
-        });
+        // '(0 AND (1 AND 2))' => '(0 AND 1 AND 2)'
+        let expr = and([lit(0), and([lit(1), lit(2)]).unwrap()]).unwrap();
 
-        let expected = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(1),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(2),
-                }),
-            ],
-        });
+        let expected = and([lit(0), lit(1), lit(2)]).unwrap();
 
         let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
         assert_eq!(expected, got);
@@ -125,25 +92,8 @@ mod tests {
 
     #[test]
     fn no_unnest_different_ops() {
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::Or,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(2),
-                        }),
-                    ],
-                }),
-            ],
-        });
+        // '(0 AND (1 OR 2))' => '(0 AND (1 OR 2))'
+        let expr = and([lit(0), or([lit(1), lit(2)]).unwrap()]).unwrap();
 
         // No change.
         let expected = expr.clone();
@@ -154,33 +104,12 @@ mod tests {
 
     #[test]
     fn no_unnest_different_ops_nested() {
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::Or,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                        Expression::Conjunction(ConjunctionExpr {
-                            op: ConjunctionOperator::And,
-                            expressions: vec![
-                                Expression::Literal(LiteralExpr {
-                                    literal: ScalarValue::Int8(2),
-                                }),
-                                Expression::Literal(LiteralExpr {
-                                    literal: ScalarValue::Int8(3),
-                                }),
-                            ],
-                        }),
-                    ],
-                }),
-            ],
-        });
+        // '(0 AND (1 OR (2 AND 3)))' => '(0 AND (1 OR (2 AND 3)))'
+        let expr = and([
+            lit(0),
+            or([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
+        ])
+        .unwrap();
 
         // No change.
         let expected = expr.clone();
@@ -190,52 +119,38 @@ mod tests {
     }
 
     #[test]
-    fn unnest_three_levels() {
-        let expr = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Conjunction(ConjunctionExpr {
-                    op: ConjunctionOperator::And,
-                    expressions: vec![
-                        Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Int8(1),
-                        }),
-                        Expression::Conjunction(ConjunctionExpr {
-                            op: ConjunctionOperator::And,
-                            expressions: vec![
-                                Expression::Literal(LiteralExpr {
-                                    literal: ScalarValue::Int8(2),
-                                }),
-                                Expression::Literal(LiteralExpr {
-                                    literal: ScalarValue::Int8(3),
-                                }),
-                            ],
-                        }),
-                    ],
-                }),
-            ],
-        });
+    fn unnest_different_ops_nested() {
+        // '(0 AND (1 OR (2 AND (3 AND 4))))' => '(0 AND (1 OR (2 AND 3 AND 4)))'
+        let expr = and([
+            lit(0),
+            or([
+                lit(1),
+                and([lit(2), and([lit(3), lit(4)]).unwrap()]).unwrap(),
+            ])
+            .unwrap(),
+        ])
+        .unwrap();
 
-        let expected = Expression::Conjunction(ConjunctionExpr {
-            op: ConjunctionOperator::And,
-            expressions: vec![
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(0),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(1),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(2),
-                }),
-                Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Int8(3),
-                }),
-            ],
-        });
+        let expected = and([
+            lit(0),
+            or([lit(1), and([lit(2), lit(3), lit(4)]).unwrap()]).unwrap(),
+        ])
+        .unwrap();
+
+        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn unnest_three_levels() {
+        // '(0 AND (1 AND (2 AND 3)))' => '(0 AND 1 AND 2 AND 3)'
+        let expr = and([
+            lit(0),
+            and([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
+        ])
+        .unwrap();
+
+        let expected = and([lit(0), lit(1), lit(2), lit(3)]).unwrap();
 
         let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
         assert_eq!(expected, got);
