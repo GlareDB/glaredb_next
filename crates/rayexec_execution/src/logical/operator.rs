@@ -12,7 +12,7 @@ use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
 use super::logical_join::{LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin};
 use super::logical_limit::LogicalLimit;
-use super::logical_materialization::LogicalMaterializationScan;
+use super::logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan};
 use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
@@ -228,6 +228,7 @@ pub enum LogicalOperator {
     SetOp(Node<LogicalSetop>),
     Scan(Node<LogicalScan>),
     MaterializationScan(Node<LogicalMaterializationScan>),
+    MagicMaterializationScan(Node<LogicalMagicMaterializationScan>),
     Empty(Node<LogicalEmpty>),
     SetVar(Node<LogicalSetVar>),
     ResetVar(Node<LogicalResetVar>),
@@ -315,6 +316,7 @@ impl LogicalOperator {
             Self::Distinct(n) => &n.children,
             Self::Scan(n) => &n.children,
             Self::MaterializationScan(n) => &n.children,
+            Self::MagicMaterializationScan(n) => &n.children,
             Self::Aggregate(n) => &n.children,
             Self::SetOp(n) => &n.children,
             Self::Empty(n) => &n.children,
@@ -346,6 +348,7 @@ impl LogicalOperator {
             Self::Distinct(n) => &mut n.children,
             Self::Scan(n) => &mut n.children,
             Self::MaterializationScan(n) => &mut n.children,
+            Self::MagicMaterializationScan(n) => &mut n.children,
             Self::Aggregate(n) => &mut n.children,
             Self::SetOp(n) => &mut n.children,
             Self::Empty(n) => &mut n.children,
@@ -379,6 +382,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Distinct(n) => n.get_output_table_refs(),
             LogicalOperator::Scan(n) => n.get_output_table_refs(),
             LogicalOperator::MaterializationScan(n) => n.get_output_table_refs(),
+            LogicalOperator::MagicMaterializationScan(n) => n.get_output_table_refs(),
             LogicalOperator::Aggregate(n) => n.get_output_table_refs(),
             LogicalOperator::SetOp(n) => n.get_output_table_refs(),
             LogicalOperator::Empty(n) => n.get_output_table_refs(),

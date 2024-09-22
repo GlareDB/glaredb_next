@@ -238,6 +238,20 @@ impl ExplainNode {
 
                 return ExplainNode { entry, children };
             }
+            LogicalOperator::MagicMaterializationScan(n) => {
+                // TODO: Do we actually want too show the children?
+                let entry = n.explain_entry(config);
+
+                let children = match bind_context.get_materialization(n.node.mat) {
+                    Ok(mat) => vec![Self::walk_logical_plan(bind_context, &mat.plan, config)],
+                    Err(e) => {
+                        error!(%e, "failed to get materialization from bind context");
+                        Vec::new()
+                    }
+                };
+
+                return ExplainNode { entry, children };
+            }
         };
 
         let children = children

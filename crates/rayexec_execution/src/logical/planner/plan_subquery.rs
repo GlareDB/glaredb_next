@@ -12,10 +12,9 @@ use crate::{
     logical::{
         binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef},
         logical_aggregate::LogicalAggregate,
-        logical_distinct::LogicalDistinct,
         logical_join::{ComparisonCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin},
         logical_limit::LogicalLimit,
-        logical_materialization::LogicalMaterializationScan,
+        logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan},
         logical_project::LogicalProject,
         logical_scan::ScanSource,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -598,62 +597,55 @@ impl DependentJoinPushdown {
             // Operator (and children) do not have correlated columns. Cross
             // join with materialized scan with duplicates eliminated.
 
-            let mut mappings = Vec::new();
-            for correlated in self.columns.iter() {
-                // Push a mapping of correlated -> materialized column.
-                //
-                // This uses the original correlated column info since the
-                // column should already be pointing to the output of the
-                // materialization.
+            let projection_ref = bind_context.new_ephemeral_table()?;
+            let mut projected_cols = Vec::with_capacity(self.columns.len());
+
+            for (idx, correlated) in self.columns.iter().enumerate() {
+                // Push a mapping of correlated -> projected materialized column.
                 //
                 // As we walk back up the tree, the mappings will be updated to
                 // point to the appropriate column.
-                mappings.push((
-                    correlated,
+                self.column_map.insert(
+                    correlated.clone(),
                     ColumnExpr {
-                        table_scope: correlated.table,
-                        column: correlated.col_idx,
+                        table_scope: projection_ref,
+                        column: idx,
                     },
-                ))
+                );
+
+                let (_, datatype) =
+                    bind_context.get_column_info(correlated.table, correlated.col_idx)?;
+
+                bind_context.push_column_for_table(
+                    projection_ref,
+                    format!("__generated_mat_scan_projection_{idx}"),
+                    datatype.clone(),
+                )?;
+
+                // This uses the original correlated column info since the
+                // column should already be pointing to the output of the
+                // materialization.
+                projected_cols.push(Expression::Column(ColumnExpr {
+                    table_scope: correlated.table,
+                    column: correlated.col_idx,
+                }));
             }
 
-            // Update mapping.
-            for (corr, expr) in mappings.clone() {
-                self.column_map.insert(corr.clone(), expr);
-            }
-
-            // Distinct on only the correlated columns, since that's what the
-            // subquery actually cares about.
-            //
-            // TODO: Maybe the distinct should be in the materialization
-            // instead? I think a more specializated materialization scheme
-            // needs to be added since the original plan may included
-            // duplicates, but the plan being fed into the subquery needs all
-            // duplicated removed (on the correlated columns).
-            let distinct_on = mappings
-                .into_iter()
-                .map(|(_, expr)| Expression::Column(expr))
-                .collect();
-
-            // Note this distinct is reading from the left side of the query,
-            // but being placed on the right side of the join. This is to make
+            // Note this scan is reading from the left side of the query, but
+            // being placed on the right side of the join. This is to make
             // rewriting operators (projections) further up this subtree easier.
             //
             // For projections, we have to to ensure that there's column exprs
-            // that point to the materialized node, and be having the
+            // that point to the materialized node, and by having the
             // materialization on the right, we can just append the expressions.
-            let materialization = bind_context.get_materialization(self.mat_ref)?;
-            let right = LogicalOperator::Distinct(Node {
-                node: LogicalDistinct { on: distinct_on },
+            let right = LogicalOperator::MagicMaterializationScan(Node {
+                node: LogicalMagicMaterializationScan {
+                    mat: self.mat_ref,
+                    projections: projected_cols,
+                    table_ref: projection_ref,
+                },
                 location: LocationRequirement::Any,
-                children: vec![LogicalOperator::MaterializationScan(Node {
-                    node: LogicalMaterializationScan {
-                        mat: self.mat_ref,
-                        table_refs: materialization.table_refs.clone(),
-                    },
-                    location: LocationRequirement::Any,
-                    children: Vec::new(),
-                })],
+                children: Vec::new(),
             });
             bind_context.inc_materialization_scan_count(self.mat_ref, 1)?;
 
