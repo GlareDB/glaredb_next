@@ -24,6 +24,7 @@ use crate::{
         aggregate::AggregateFunction,
         scalar::{
             concat::Concat,
+            datetime::DatePart,
             like::{self, StartsWith},
             list::{ListExtract, ListValues},
             string::Substring,
@@ -1007,6 +1008,23 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function,
                     inputs,
+                }))
+            }
+            ast::Expr::Extract { date_part, expr } => {
+                let date_part_expr = Expression::Literal(LiteralExpr {
+                    literal: date_part.into_kw().to_string().into(),
+                });
+
+                let expr =
+                    self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
+
+                let func = Box::new(DatePart);
+                let function =
+                    func.plan_from_expressions(bind_context, &[&date_part_expr, &expr])?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function,
+                    inputs: vec![date_part_expr, expr],
                 }))
             }
         }

@@ -1,10 +1,10 @@
-use std::ops::Neg;
+use std::{ops::Neg, str::FromStr};
 
 use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    keywords::Keyword,
+    keywords::{keyword_from_str, Keyword},
     meta::{AstMeta, Raw},
     parser::Parser,
     tokens::{Token, Word},
@@ -283,6 +283,13 @@ pub enum Expr<T: AstMeta> {
         from: Box<Expr<T>>,
         count: Option<Box<Expr<T>>>,
     },
+    /// Extract expression.
+    ///
+    /// `EXTRACT(<date_part> FROM <expr>)`
+    Extract {
+        date_part: DatePart,
+        expr: Box<Expr<T>>,
+    },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -458,6 +465,18 @@ impl Expr<Raw> {
                             expr: Box::new(expr),
                             from,
                             count,
+                        }
+                    }
+                    Keyword::EXTRACT => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let date_part = DatePart::parse(parser)?;
+                        parser.expect_keyword(Keyword::FROM)?;
+                        let expr = Expr::parse(parser)?;
+                        parser.expect_token(&Token::RightParen)?;
+
+                        Expr::Extract {
+                            date_part,
+                            expr: Box::new(expr),
                         }
                     }
 
@@ -943,6 +962,136 @@ impl AstParseable for Interval<Raw> {
             leading: None,
             trailing,
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DatePart {
+    Century,
+    Day,
+    Decade,
+    DayOfWeek,
+    DayOfYear,
+    Epoch,
+    Hour,
+    IsoDayOfWeek,
+    IsoYear,
+    Julian,
+    Microseconds,
+    Millenium,
+    Milliseconds,
+    Minute,
+    Month,
+    Quarter,
+    Second,
+    Timezone,
+    TimezoneHour,
+    TimezoneMinute,
+    Week,
+    Year,
+}
+
+impl AstParseable for DatePart {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        let tok = match parser.peek() {
+            Some(tok) => tok,
+            None => {
+                return Err(RayexecError::new(
+                    "Expected keyword or string, got end of statement",
+                ))
+            }
+        };
+
+        match &tok.token {
+            Token::Word(word) => {
+                let keyword = match word.keyword {
+                    Some(k) => k,
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "Expected a keyword, got {}",
+                            word.value,
+                        )))
+                    }
+                };
+                let _ = parser.next(); // Consume
+                Self::try_from_kw(keyword)
+            }
+            Token::SingleQuotedString(s) => {
+                let kw = keyword_from_str(s)
+                    .ok_or_else(|| RayexecError::new(format!("Unexpected date part: {s}")))?;
+                let _ = parser.next(); // Consume
+                Self::try_from_kw(kw)
+            }
+            other => Err(RayexecError::new(format!(
+                "Expected a keyword: got {other:?}"
+            ))),
+        }
+    }
+}
+
+impl DatePart {
+    pub fn try_from_kw(kw: Keyword) -> Result<Self> {
+        Ok(match kw {
+            Keyword::CENTURY => DatePart::Century,
+            Keyword::DAY => DatePart::Day,
+            Keyword::DECADE => DatePart::Decade,
+            Keyword::DOW => DatePart::DayOfWeek,
+            Keyword::DOY => DatePart::DayOfYear,
+            Keyword::EPOCH => DatePart::Epoch,
+            Keyword::HOUR => DatePart::Hour,
+            Keyword::ISODOW => DatePart::IsoDayOfWeek,
+            Keyword::ISOYEAR => DatePart::IsoYear,
+            Keyword::JULIAN => DatePart::Julian,
+            Keyword::MICROSECONDS => DatePart::Microseconds,
+            Keyword::MILLENIUM => DatePart::Millenium,
+            Keyword::MILLISECONDS => DatePart::Milliseconds,
+            Keyword::MINUTE => DatePart::Minute,
+            Keyword::MONTH => DatePart::Month,
+            Keyword::QUARTER => DatePart::Quarter,
+            Keyword::SECOND => DatePart::Second,
+            Keyword::TIMEZONE => DatePart::Timezone,
+            Keyword::TIMEZONE_HOUR => DatePart::TimezoneHour,
+            Keyword::TIMEZONE_MINUTE => DatePart::TimezoneMinute,
+            Keyword::WEEK => DatePart::Week,
+            Keyword::YEAR => DatePart::Year,
+            other => return Err(RayexecError::new(format!("Unexepcted date part: {other}"))),
+        })
+    }
+
+    pub fn into_kw(self) -> Keyword {
+        match self {
+            DatePart::Century => Keyword::CENTURY,
+            DatePart::Day => Keyword::DAY,
+            DatePart::Decade => Keyword::DECADE,
+            DatePart::DayOfWeek => Keyword::DOW,
+            DatePart::DayOfYear => Keyword::DOY,
+            DatePart::Epoch => Keyword::EPOCH,
+            DatePart::Hour => Keyword::HOUR,
+            DatePart::IsoDayOfWeek => Keyword::ISODOW,
+            DatePart::IsoYear => Keyword::ISOYEAR,
+            DatePart::Julian => Keyword::JULIAN,
+            DatePart::Microseconds => Keyword::MICROSECONDS,
+            DatePart::Millenium => Keyword::MILLENIUM,
+            DatePart::Milliseconds => Keyword::MILLISECONDS,
+            DatePart::Minute => Keyword::MINUTE,
+            DatePart::Month => Keyword::MONTH,
+            DatePart::Quarter => Keyword::QUARTER,
+            DatePart::Second => Keyword::SECOND,
+            DatePart::Timezone => Keyword::TIMEZONE,
+            DatePart::TimezoneHour => Keyword::TIMEZONE_HOUR,
+            DatePart::TimezoneMinute => Keyword::TIMEZONE_MINUTE,
+            DatePart::Week => Keyword::WEEK,
+            DatePart::Year => Keyword::YEAR,
+        }
+    }
+}
+
+impl FromStr for DatePart {
+    type Err = RayexecError;
+    fn from_str(s: &str) -> Result<Self> {
+        let kw = keyword_from_str(s)
+            .ok_or_else(|| RayexecError::new(format!("'{s}' is not a valid date part")))?;
+        Self::try_from_kw(kw)
     }
 }
 

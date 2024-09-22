@@ -559,6 +559,13 @@ impl<'a> ExpressionResolver<'a> {
                     count: count.map(Box::new),
                 })
             }
+            ast::Expr::Extract { date_part, expr } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                Ok(ast::Expr::Extract {
+                    date_part,
+                    expr: Box::new(expr),
+                })
+            }
             other => not_implemented!("resolve expr {other:?}"),
         }
     }

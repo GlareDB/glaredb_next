@@ -67,37 +67,6 @@ pub enum DatePart {
     Year,
 }
 
-impl FromStr for DatePart {
-    type Err = RayexecError;
-    fn from_str(s: &str) -> Result<Self> {
-        Ok(match s {
-            "century" => DatePart::Century,
-            "day" => DatePart::Day,
-            "decade" => DatePart::Decade,
-            "dow" => DatePart::DayOfWeek,
-            "doy" => DatePart::DayOfYear,
-            "epoch" => DatePart::Epoch,
-            "hour" => DatePart::Hour,
-            "isodow" => DatePart::IsoDayOfWeek,
-            "isoyear" => DatePart::IsoYear,
-            "julian" => DatePart::Julian,
-            "microseconds" => DatePart::Microseconds,
-            "millenium" => DatePart::Millenium,
-            "milliseconds" => DatePart::Milliseconds,
-            "minute" => DatePart::Minute,
-            "month" => DatePart::Month,
-            "quarter" => DatePart::Quarter,
-            "second" => DatePart::Second,
-            "timezone" => DatePart::Timezone,
-            "timezone_hour" => DatePart::TimezoneHour,
-            "timezone_minute" => DatePart::TimezoneMinute,
-            "week" => DatePart::Week,
-            "year" => DatePart::Year,
-            other => return Err(RayexecError::new(format!("Not a valid date part: {other}"))),
-        })
-    }
-}
-
 pub trait ExtractDatePart {
     /// Extracts a date part from the array.
     ///

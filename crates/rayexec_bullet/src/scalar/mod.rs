@@ -459,6 +459,12 @@ impl<'a> From<&'a str> for ScalarValue<'a> {
     }
 }
 
+impl From<String> for ScalarValue<'static> {
+    fn from(value: String) -> Self {
+        ScalarValue::Utf8(Cow::Owned(value))
+    }
+}
+
 impl<'a> From<&'a [u8]> for ScalarValue<'a> {
     fn from(value: &'a [u8]) -> Self {
         ScalarValue::Binary(Cow::Borrowed(value))

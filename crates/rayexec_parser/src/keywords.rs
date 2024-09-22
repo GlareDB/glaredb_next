@@ -21,6 +21,7 @@ pub fn str_from_keyword(kw: &Keyword) -> &'static str {
 macro_rules! define_keywords {
     ($($ident:ident),* $(,)?) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[allow(non_camel_case_types)]
         pub enum Keyword {
             $($ident),*
         }
@@ -84,13 +85,17 @@ define_keywords!(
     DISTINCT,
     DISTRIBUTE,
     DOUBLE,
+    DOW,
+    DOY,
     DROP,
     ELSE,
     END,
+    EPOCH,
     EXCEPT,
     EXISTS,
     EXPLAIN,
     EXTERNAL,
+    EXTRACT,
     FALSE,
     FETCH,
     FILTER,
@@ -124,8 +129,11 @@ define_keywords!(
     INTERVAL,
     INTO,
     IS,
+    ISODOW,
+    ISOYEAR,
     JOIN,
     JSON,
+    JULIAN,
     LAST,
     LATERAL,
     LEFT,
@@ -158,6 +166,7 @@ define_keywords!(
     PIVOT,
     PRIMARY,
     QUALIFY,
+    QUARTER,
     REAL,
     RECURSIVE,
     REGEXP,
@@ -189,6 +198,9 @@ define_keywords!(
     THEN,
     TIMESTAMP,
     TIMESTAMPTZ,
+    TIMEZONE,
+    TIMEZONE_HOUR,
+    TIMEZONE_MINUTE,
     TINYINT,
     TO,
     TOP,

@@ -7,6 +7,10 @@ use rayexec_bullet::{
     scalar::decimal::{Decimal64Type, DecimalType},
 };
 use rayexec_error::{not_implemented, Result};
+use rayexec_parser::{
+    ast::{self, AstParseable},
+    keywords,
+};
 
 use crate::{
     expr::Expression,
@@ -69,14 +73,14 @@ impl ScalarFunction for DatePart {
         // TODO: 3rd arg for optional timezone
         plan_check_num_args(self, &datatypes, 2)?;
 
-        // Requires first argument to be constant.
-        let mut part = ConstEval::default()
+        // Requires first argument to be constant (for now)
+        let part = ConstEval::default()
             .fold(inputs[0].clone())?
             .try_unwrap_constant()?
             .try_into_string()?;
-        part.make_ascii_lowercase();
 
-        let part = part.parse::<date::DatePart>()?;
+        let part = part.parse::<ast::DatePart>()?;
+        let part = convert_ast_date_part(part);
 
         match &datatypes[1] {
             DataType::Date32 | DataType::Date64 | DataType::Timestamp(_) => {
@@ -119,5 +123,32 @@ impl PlannedScalarFunction for DatePartImpl {
         };
 
         Ok(Array::Decimal64(dec_arr))
+    }
+}
+
+pub fn convert_ast_date_part(date_part: ast::DatePart) -> date::DatePart {
+    match date_part {
+        ast::DatePart::Century => date::DatePart::Century,
+        ast::DatePart::Day => date::DatePart::Day,
+        ast::DatePart::Decade => date::DatePart::Decade,
+        ast::DatePart::DayOfWeek => date::DatePart::DayOfWeek,
+        ast::DatePart::DayOfYear => date::DatePart::DayOfYear,
+        ast::DatePart::Epoch => date::DatePart::Epoch,
+        ast::DatePart::Hour => date::DatePart::Hour,
+        ast::DatePart::IsoDayOfWeek => date::DatePart::IsoDayOfWeek,
+        ast::DatePart::IsoYear => date::DatePart::IsoYear,
+        ast::DatePart::Julian => date::DatePart::Julian,
+        ast::DatePart::Microseconds => date::DatePart::Microseconds,
+        ast::DatePart::Millenium => date::DatePart::Millenium,
+        ast::DatePart::Milliseconds => date::DatePart::Milliseconds,
+        ast::DatePart::Minute => date::DatePart::Minute,
+        ast::DatePart::Month => date::DatePart::Month,
+        ast::DatePart::Quarter => date::DatePart::Quarter,
+        ast::DatePart::Second => date::DatePart::Second,
+        ast::DatePart::Timezone => date::DatePart::Timezone,
+        ast::DatePart::TimezoneHour => date::DatePart::TimezoneHour,
+        ast::DatePart::TimezoneMinute => date::DatePart::TimezoneMinute,
+        ast::DatePart::Week => date::DatePart::Week,
+        ast::DatePart::Year => date::DatePart::Year,
     }
 }
