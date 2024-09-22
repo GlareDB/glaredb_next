@@ -11,6 +11,7 @@ use crate::{
     expr::{self, Expression},
     logical::{
         binder::bind_context::{BindContext, TableRef},
+        logical_distinct::LogicalDistinct,
         logical_filter::LogicalFilter,
         logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
         logical_materialization::LogicalMaterializationScan,
@@ -80,6 +81,7 @@ impl OptimizeRule for FilterPushdown {
             }
             LogicalOperator::Project(project) => self.pushdown_project(bind_context, project),
             LogicalOperator::Order(order) => self.pushdown_order_by(bind_context, order),
+            LogicalOperator::Distinct(distinct) => self.pushdown_distinct(bind_context, distinct),
             LogicalOperator::MaterializationScan(mat) => {
                 self.pushdown_materialized_scan(bind_context, mat)
             }
@@ -214,14 +216,25 @@ impl FilterPushdown {
         Ok(LogicalOperator::Project(plan))
     }
 
+    fn pushdown_distinct(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut plan: Node<LogicalDistinct>,
+    ) -> Result<LogicalOperator> {
+        // TODO: This will likely need to be revisited when DISTINCT ON is
+        // supported for real.
+        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
+
+        Ok(LogicalOperator::Distinct(plan))
+    }
+
     fn pushdown_order_by(
         &mut self,
         bind_context: &mut BindContext,
         mut plan: Node<LogicalOrder>,
     ) -> Result<LogicalOperator> {
-        let mut child = plan.take_one_child_exact()?;
-        child = self.optimize(bind_context, child)?;
-        plan.children = vec![child];
+        // No changes needed for this node, just pass the filter(s) through.
+        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
 
         Ok(LogicalOperator::Order(plan))
     }

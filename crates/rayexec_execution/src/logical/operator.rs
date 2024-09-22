@@ -178,6 +178,22 @@ impl<N> Node<N> {
             refs
         })
     }
+
+    // TODO: Duplicated with LogicalOperator.
+    pub fn modify_replace_children<F>(&mut self, modify: &mut F) -> Result<()>
+    where
+        F: FnMut(LogicalOperator) -> Result<LogicalOperator>,
+    {
+        let mut new_children = Vec::with_capacity(self.children.len());
+
+        for child in self.children.drain(..) {
+            new_children.push(modify(child)?);
+        }
+
+        self.children = new_children;
+
+        Ok(())
+    }
 }
 
 impl<N: Explainable> Explainable for Node<N> {
