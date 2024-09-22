@@ -279,7 +279,7 @@ impl FilterPushdown {
     fn pushdown_comparison_join(
         &mut self,
         bind_context: &mut BindContext,
-        plan: Node<LogicalComparisonJoin>,
+        mut plan: Node<LogicalComparisonJoin>,
     ) -> Result<LogicalOperator> {
         match plan.node.join_type {
             JoinType::Inner => {
@@ -296,6 +296,43 @@ impl FilterPushdown {
                 };
 
                 self.pushdown_cross_join(bind_context, plan)
+            }
+            JoinType::Left => {
+                let mut left_pushdown = Self::default();
+                let mut right_pushdown = Self::default();
+
+                let [mut left, mut right] = plan.take_two_children_exact()?;
+
+                let left_tables = left.get_output_table_refs();
+                let right_tables = right.get_output_table_refs();
+
+                let mut remaining_filters = Vec::new();
+                for filter in self.filters.drain(..) {
+                    let side = ExprJoinSide::try_from_table_refs(
+                        &filter.tables_refs,
+                        &left_tables,
+                        &right_tables,
+                    )?;
+
+                    // Can only push filters to left side.
+                    if side == ExprJoinSide::Left {
+                        left_pushdown.filters.push(filter);
+                        continue;
+                    }
+
+                    remaining_filters.push(filter);
+                }
+
+                // Put back remaining filters.
+                self.filters = remaining_filters;
+
+                // Left/right pushdown.
+                left = left_pushdown.optimize(bind_context, left)?;
+                right = right_pushdown.optimize(bind_context, right)?;
+
+                plan.children = vec![left, right];
+
+                self.stop_pushdown(bind_context, LogicalOperator::ComparisonJoin(plan))
             }
             // TODO: Other optimizations.
             _ => self.stop_pushdown(bind_context, LogicalOperator::ComparisonJoin(plan)),
