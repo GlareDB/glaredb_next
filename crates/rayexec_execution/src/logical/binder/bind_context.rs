@@ -23,6 +23,12 @@ pub struct TableRef {
     pub table_idx: usize,
 }
 
+impl From<usize> for TableRef {
+    fn from(value: usize) -> Self {
+        TableRef { table_idx: value }
+    }
+}
+
 impl fmt::Display for TableRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{}", self.table_idx)

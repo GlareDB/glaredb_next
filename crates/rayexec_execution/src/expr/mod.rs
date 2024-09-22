@@ -16,8 +16,8 @@ pub mod window_expr;
 
 pub mod physical;
 
-use crate::functions::scalar::ScalarFunction;
 use crate::logical::binder::bind_context::BindContext;
+use crate::{functions::scalar::ScalarFunction, logical::binder::bind_context::TableRef};
 use aggregate_expr::AggregateExpr;
 use arith_expr::ArithExpr;
 use between_expr::BetweenExpr;
@@ -279,6 +279,26 @@ impl Expression {
         inner(self, &mut found)
     }
 
+    /// Get all column references in the expression.
+    pub fn get_column_references(&self) -> Vec<ColumnExpr> {
+        fn inner(expr: &Expression, cols: &mut Vec<ColumnExpr>) {
+            match expr {
+                Expression::Column(col) => cols.push(*col),
+                other => other
+                    .for_each_child(&mut |child| {
+                        inner(child, cols);
+                        Ok(())
+                    })
+                    .expect("not to fail"),
+            }
+        }
+
+        let mut cols = Vec::new();
+        inner(self, &mut cols);
+
+        cols
+    }
+
     pub const fn is_column_expr(&self) -> bool {
         matches!(self, Self::Column(_))
     }
@@ -327,6 +347,13 @@ pub fn or(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
     }))
 }
 
+pub fn col_ref(table_ref: impl Into<TableRef>, column_idx: usize) -> Expression {
+    Expression::Column(ColumnExpr {
+        table_scope: table_ref.into(),
+        column: column_idx,
+    })
+}
+
 pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
     Expression::Literal(LiteralExpr {
         literal: scalar.into(),
@@ -362,5 +389,42 @@ pub trait AsScalarFunction {
 impl<S: ScalarFunction> AsScalarFunction for S {
     fn as_scalar_function(&self) -> &dyn ScalarFunction {
         self as _
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_column_refs_simple() {
+        let expr = and([
+            col_ref(0, 0),
+            col_ref(0, 1),
+            or([col_ref(1, 8), col_ref(2, 4)]).unwrap(),
+        ])
+        .unwrap();
+
+        let expected = vec![
+            ColumnExpr {
+                table_scope: 0.into(),
+                column: 0,
+            },
+            ColumnExpr {
+                table_scope: 0.into(),
+                column: 1,
+            },
+            ColumnExpr {
+                table_scope: 1.into(),
+                column: 8,
+            },
+            ColumnExpr {
+                table_scope: 2.into(),
+                column: 4,
+            },
+        ];
+
+        let got = expr.get_column_references();
+        assert_eq!(expected, got);
     }
 }

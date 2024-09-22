@@ -54,3 +54,25 @@ SELECT * FROM cte;
 1  1
 2  2
 3  3
+
+# Should push down through aggregate.
+query III rowsort
+SELECT * FROM (
+  SELECT sum(a), a, b
+    FROM t1 AS alias1(a), t1 AS alias2(b)
+    GROUP BY a, b
+  ) WHERE a = b;
+----
+1  1  1
+2  2  2
+3  3  3
+
+# Partially push down filter, 's > 2' still needs to be applied to output.
+query III rowsort
+SELECT * FROM (
+  SELECT sum(a) as s, a, b
+    FROM t1 AS alias1(a), t1 AS alias2(b)
+    GROUP BY a, b
+  ) WHERE a = b AND s > 2;
+----
+3  3  3
