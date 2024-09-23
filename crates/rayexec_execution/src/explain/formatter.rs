@@ -223,6 +223,7 @@ impl ExplainNode {
             LogicalOperator::CrossJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ArbitraryJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ComparisonJoin(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::MagicJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::MaterializationScan(n) => {
                 // Materialization special case, walk children by get
                 // materialization from bind context.

@@ -10,7 +10,9 @@ use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
 use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
-use super::logical_join::{LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin};
+use super::logical_join::{
+    LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin, LogicalMagicJoin,
+};
 use super::logical_limit::LogicalLimit;
 use super::logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan};
 use super::logical_order::LogicalOrder;
@@ -245,6 +247,7 @@ pub enum LogicalOperator {
     CrossJoin(Node<LogicalCrossJoin>),
     ComparisonJoin(Node<LogicalComparisonJoin>),
     ArbitraryJoin(Node<LogicalArbitraryJoin>),
+    MagicJoin(Node<LogicalMagicJoin>),
 }
 
 impl LogicalOperator {
@@ -337,6 +340,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => &n.children,
             Self::ArbitraryJoin(n) => &n.children,
             Self::ComparisonJoin(n) => &n.children,
+            Self::MagicJoin(n) => &n.children,
         }
     }
 
@@ -369,6 +373,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => &mut n.children,
             Self::ArbitraryJoin(n) => &mut n.children,
             Self::ComparisonJoin(n) => &mut n.children,
+            Self::MagicJoin(n) => &mut n.children,
         }
     }
 }
@@ -403,6 +408,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::CrossJoin(n) => n.get_output_table_refs(),
             LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(),
             LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(),
+            LogicalOperator::MagicJoin(n) => n.get_output_table_refs(),
         }
     }
 }

@@ -12,7 +12,11 @@ use crate::{
     logical::{
         binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef},
         logical_aggregate::LogicalAggregate,
-        logical_join::{ComparisonCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_distinct::LogicalDistinct,
+        logical_join::{
+            ComparisonCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin,
+            LogicalMagicJoin,
+        },
         logical_limit::LogicalLimit,
         logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan},
         logical_project::LogicalProject,
@@ -79,7 +83,7 @@ impl SubqueryPlanner {
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
         let orig = std::mem::replace(plan, LogicalOperator::Invalid);
-        let ([left, right], mut conditions) =
+        let ([left, right], mut conditions, mat_ref) =
             self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
 
         match &subquery.subquery_type {
@@ -92,8 +96,9 @@ impl SubqueryPlanner {
                 });
 
                 // Update plan to now be a comparison join.
-                *plan = LogicalOperator::ComparisonJoin(Node {
-                    node: LogicalComparisonJoin {
+                *plan = LogicalOperator::MagicJoin(Node {
+                    node: LogicalMagicJoin {
+                        mat_ref,
                         join_type: JoinType::Left,
                         conditions,
                     },
@@ -111,8 +116,9 @@ impl SubqueryPlanner {
                     DataType::Boolean,
                 )?;
 
-                *plan = LogicalOperator::ComparisonJoin(Node {
-                    node: LogicalComparisonJoin {
+                *plan = LogicalOperator::MagicJoin(Node {
+                    node: LogicalMagicJoin {
+                        mat_ref,
                         join_type: JoinType::LeftMark {
                             table_ref: mark_table,
                         },
@@ -158,8 +164,9 @@ impl SubqueryPlanner {
                     op: *op,
                 });
 
-                *plan = LogicalOperator::ComparisonJoin(Node {
-                    node: LogicalComparisonJoin {
+                *plan = LogicalOperator::MagicJoin(Node {
+                    node: LogicalMagicJoin {
+                        mat_ref,
                         join_type: JoinType::LeftMark {
                             table_ref: mark_table,
                         },
@@ -185,7 +192,11 @@ impl SubqueryPlanner {
         bind_context: &mut BindContext,
         subquery: &mut SubqueryExpr,
         plan: LogicalOperator,
-    ) -> Result<([LogicalOperator; 2], Vec<ComparisonCondition>)> {
+    ) -> Result<(
+        [LogicalOperator; 2],
+        Vec<ComparisonCondition>,
+        MaterializationRef,
+    )> {
         let mut subquery_plan =
             QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
@@ -251,7 +262,7 @@ impl SubqueryPlanner {
             });
         }
 
-        Ok(([left, subquery_plan], conditions))
+        Ok(([left, subquery_plan], conditions, mat_ref))
     }
 
     fn plan_uncorrelated(

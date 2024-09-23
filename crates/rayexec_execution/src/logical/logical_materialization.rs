@@ -39,12 +39,14 @@ impl LogicalNode for Node<LogicalMaterializationScan> {
 /// An alternative materialized scan operator that projects out of the
 /// materialization and removes duplicates.
 ///
+/// This should only be found in the child of a magic join.
+///
 /// These are created during subquery decorrelation such that the branch in the
 /// plan representing work for a subquery is working with deduplicated inputs.
 ///
 /// Essentially this encodes a disctint, project, and materialized scan into a
 /// single operator, e.g.:
-/// ```
+/// ```text
 /// DISTINCT column1, column2
 ///   PROJECT <expr> as column1, <expr> as column2
 ///      MATERIALIZED_SCAN ...

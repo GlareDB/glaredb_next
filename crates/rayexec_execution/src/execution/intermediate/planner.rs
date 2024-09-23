@@ -50,7 +50,10 @@ use crate::{
         logical_explain::LogicalExplain,
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
-        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_join::{
+            JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin,
+            LogicalMagicJoin,
+        },
         logical_limit::LogicalLimit,
         logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan},
         logical_order::LogicalOrder,
@@ -67,7 +70,7 @@ use rayexec_bullet::{
     compute::concat::concat,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 use tracing::error;
 use uuid::Uuid;
 
@@ -260,6 +263,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             }
             LogicalOperator::ComparisonJoin(join) => {
                 self.push_comparison_join(id_gen, materializations, join)
+            }
+            LogicalOperator::MagicJoin(join) => {
+                self.push_magic_join(id_gen, materializations, join)
             }
             LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
@@ -1092,7 +1098,45 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // TODO: Actually implement <https://github.com/GlareDB/rayexec/issues/226>
 
         let input = distinct.take_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
+
+        // Create group expressions from the distinct.
+        let group_types = distinct
+            .node
+            .on
+            .iter()
+            .map(|expr| expr.datatype(self.bind_context))
+            .collect::<Result<Vec<_>>>()?;
+        let group_exprs = self
+            .expr_planner
+            .plan_scalars(&input_refs, &distinct.node.on)?;
+
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
+                    operation: ProjectOperation::new(group_exprs),
+                })),
+                partitioning_requirement: None,
+            },
+            distinct.location,
+            id_gen,
+        )?;
+
+        let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];
+
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+                    group_types,
+                    Vec::new(),
+                    grouping_sets,
+                ))),
+                partitioning_requirement: None,
+            },
+            distinct.location,
+            id_gen,
+        )?;
 
         Ok(())
     }
@@ -1324,6 +1368,28 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         });
 
         Ok(())
+    }
+
+    fn push_magic_join(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        join: Node<LogicalMagicJoin>,
+    ) -> Result<()> {
+        // Planning is no different from a comparison join. Materialization
+        // scans will be planned appropriately as we get there.
+        self.push_comparison_join(
+            id_gen,
+            materializations,
+            Node {
+                node: LogicalComparisonJoin {
+                    join_type: join.node.join_type,
+                    conditions: join.node.conditions,
+                },
+                location: join.location,
+                children: join.children,
+            },
+        )
     }
 
     fn push_comparison_join(
