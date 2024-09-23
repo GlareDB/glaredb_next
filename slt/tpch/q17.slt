@@ -1,4 +1,5 @@
-# Slow, cross joins
+# Wrong result
+# Get 30116.98, should be 23512.75.. (probably decimal scale)
 
 query TT
 DESCRIBE SELECT

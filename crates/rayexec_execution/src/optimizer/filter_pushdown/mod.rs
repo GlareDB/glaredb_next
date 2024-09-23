@@ -358,6 +358,28 @@ impl FilterPushdown {
     ) -> Result<LogicalOperator> {
         match plan.node.join_type {
             JoinType::Left => {
+                // Push down filters that reference only the left side.
+                //
+                // This **requires** the materialization scans on the right to
+                // produce deduplicated tuples (on the correlated columns). The
+                // "magic" scan enforces this.
+                //
+                // # Magic
+                //
+                // A filter may reference a previously correlated column,
+                // however the decorrelation step only exposes the original
+                // reference on the left side. The right side exposes new column
+                // references (which corresponds to the same underlying
+                // correlated column).
+                //
+                // By having scan on the left keep the original column
+                // references, and the scans on right exposing new ones, filters
+                // that reference the original correlated column will be seen to
+                // only apply to the left side (and thus we're able push into
+                // the materialization). The filters are implicitly applied to
+                // the right by way of the "magic" scans referencing the same
+                // materialization.
+
                 let mut left_pushdown = Self::default();
                 let mut right_pushdown = Self::default();
 
@@ -427,6 +449,7 @@ impl FilterPushdown {
                     }),
                 )
             }
+            // TODO: Left mark
             _ => self.stop_pushdown(bind_context, LogicalOperator::MagicJoin(plan)),
         }
     }
