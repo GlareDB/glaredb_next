@@ -369,6 +369,7 @@ impl SubqueryPlanner {
                             group_table: None,
                             group_exprs: Vec::new(),
                             grouping_sets: None,
+                            grouping_set_table: None,
                         },
                         location: LocationRequirement::Any,
                         children: vec![LogicalOperator::Limit(Node {

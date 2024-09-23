@@ -1,5 +1,6 @@
 pub mod expr_rewrite;
 pub mod filter_pushdown;
+pub mod join_reorder;
 pub mod limit_pushdown;
 pub mod location;
 

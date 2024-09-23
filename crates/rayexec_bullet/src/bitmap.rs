@@ -181,6 +181,27 @@ impl Bitmap {
             *b = !*b;
         }
     }
+
+    pub fn try_as_u64(&self) -> Result<u64> {
+        if self.len() > 64 {
+            return Err(RayexecError::new("Bitmap too large, cannot turn into u64"));
+        }
+
+        let mut val = [0; 8];
+        let mut last = 0;
+        for (idx, byte) in self.data.iter().enumerate() {
+            val[idx] = *byte;
+            last = idx;
+        }
+
+        let rem = self.len % 8;
+        if rem != 0 {
+            let mask = (255 << (8 - rem)) >> (8 - rem);
+            val[last] &= mask;
+        }
+
+        Ok(u64::from_le_bytes(val))
+    }
 }
 
 impl fmt::Debug for Bitmap {
@@ -487,5 +508,48 @@ mod tests {
         let bm = Bitmap::from_iter([true, false, false, true, false, true]);
         let indexes: Vec<_> = bm.index_iter().rev().collect();
         assert_eq!(vec![5, 3, 0], indexes);
+    }
+
+    #[test]
+    fn try_as_u64_cases() {
+        struct TestCase {
+            bitmap: Bitmap,
+            expected: u64,
+        }
+
+        let cases = [
+            TestCase {
+                bitmap: Bitmap::from_iter([false, false, false, false, false]),
+                expected: 0,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([true, false, false, false, false]),
+                expected: 1,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([true, false, true, false, false]),
+                expected: 5,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([
+                    true, false, true, false, false, false, false, false, //
+                    false, true, true, false, false, false, false, false, //
+                ]),
+                expected: 1541,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([
+                    true, false, true, false, false, false, false, false, //
+                    false, true, true, false, false, false, false, false, //
+                    true,
+                ]),
+                expected: 1541,
+            },
+        ];
+
+        for case in cases {
+            let got = case.bitmap.try_as_u64().unwrap();
+            assert_eq!(case.expected, got);
+        }
     }
 }

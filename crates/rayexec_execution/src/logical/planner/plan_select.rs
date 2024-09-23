@@ -57,6 +57,7 @@ impl SelectPlanner {
                 group_exprs,
                 group_table,
                 grouping_sets,
+                grouping_set_table: None,
             };
 
             plan = LogicalOperator::Aggregate(Node {
