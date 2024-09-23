@@ -356,76 +356,79 @@ impl FilterPushdown {
         bind_context: &mut BindContext,
         mut plan: Node<LogicalMagicJoin>,
     ) -> Result<LogicalOperator> {
-        return self.stop_pushdown(bind_context, LogicalOperator::MagicJoin(plan));
+        match plan.node.join_type {
+            JoinType::Left => {
+                let mut left_pushdown = Self::default();
+                let mut right_pushdown = Self::default();
 
-        let mut left_pushdown = Self::default();
-        let mut right_pushdown = Self::default();
+                let [left, right] = plan.take_two_children_exact()?;
 
-        let [left, right] = plan.take_two_children_exact()?;
+                let left_tables = left.get_output_table_refs();
+                let right_tables = right.get_output_table_refs();
 
-        let left_tables = left.get_output_table_refs();
-        let right_tables = right.get_output_table_refs();
+                let mut remaining_filters = Vec::new();
 
-        let mut remaining_filters = Vec::new();
+                for filter in self.filters.drain(..) {
+                    let side = ExprJoinSide::try_from_table_refs(
+                        &filter.tables_refs,
+                        &left_tables,
+                        &right_tables,
+                    )?;
 
-        for filter in self.filters.drain(..) {
-            let side = ExprJoinSide::try_from_table_refs(
-                &filter.tables_refs,
-                &left_tables,
-                &right_tables,
-            )?;
-
-            match side {
-                ExprJoinSide::Left => {
-                    // Filter should be pushed to materialization.
-                    left_pushdown.filters.push(filter);
+                    match side {
+                        ExprJoinSide::Left => {
+                            // Filter should be pushed to materialization.
+                            left_pushdown.filters.push(filter);
+                        }
+                        _ => remaining_filters.push(filter),
+                    }
                 }
-                _ => remaining_filters.push(filter),
-            }
-        }
-        self.filters = remaining_filters;
+                self.filters = remaining_filters;
 
-        match &left {
-            LogicalOperator::MaterializationScan(scan) => {
-                // Sanity check.
-                if scan.node.mat != plan.node.mat_ref {
-                    return Err(RayexecError::new(format!(
-                        "Different materialization refs: {} and {}",
-                        scan.node.mat, plan.node.mat_ref
-                    )));
+                match &left {
+                    LogicalOperator::MaterializationScan(scan) => {
+                        // Sanity check.
+                        if scan.node.mat != plan.node.mat_ref {
+                            return Err(RayexecError::new(format!(
+                                "Different materialization refs: {} and {}",
+                                scan.node.mat, plan.node.mat_ref
+                            )));
+                        }
+
+                        let orig = {
+                            let mat = &mut bind_context.get_materialization_mut(scan.node.mat)?;
+                            std::mem::replace(&mut mat.plan, LogicalOperator::Invalid)
+                        };
+
+                        let optimized = left_pushdown.optimize(bind_context, orig)?;
+
+                        let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                        mat.plan = optimized;
+                    }
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "Unexpected operator on left side of magic join: {other:?}"
+                        )))
+                    }
                 }
 
-                let orig = {
-                    let mat = &mut bind_context.get_materialization_mut(scan.node.mat)?;
-                    std::mem::replace(&mut mat.plan, LogicalOperator::Invalid)
-                };
+                let new_right = right_pushdown.optimize(bind_context, right)?;
 
-                let optimized = left_pushdown.optimize(bind_context, orig)?;
-
-                let mat = bind_context.get_materialization_mut(scan.node.mat)?;
-                mat.plan = optimized;
+                self.stop_pushdown(
+                    bind_context,
+                    LogicalOperator::MagicJoin(Node {
+                        node: LogicalMagicJoin {
+                            mat_ref: plan.node.mat_ref,
+                            join_type: plan.node.join_type,
+                            conditions: plan.node.conditions,
+                        },
+                        location: plan.location,
+                        children: vec![left, new_right], // Left doesn't change, just a reference to a materialization.
+                    }),
+                )
             }
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Unexpected operator on left side of magic join: {other:?}"
-                )))
-            }
+            _ => self.stop_pushdown(bind_context, LogicalOperator::MagicJoin(plan)),
         }
-
-        let new_right = right_pushdown.optimize(bind_context, right)?;
-
-        self.stop_pushdown(
-            bind_context,
-            LogicalOperator::MagicJoin(Node {
-                node: LogicalMagicJoin {
-                    mat_ref: plan.node.mat_ref,
-                    join_type: plan.node.join_type,
-                    conditions: plan.node.conditions,
-                },
-                location: plan.location,
-                children: vec![left, new_right], // Left doesn't change, just a reference to a materialization.
-            }),
-        )
     }
 
     /// Pushdown through a comparison join.
