@@ -1,14 +1,15 @@
 pub mod condition_extractor;
+pub mod extracted_filter;
 pub mod split;
 
-use std::collections::HashSet;
+use extracted_filter::ExtractedFilter;
 
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
 use rayexec_error::{RayexecError, Result};
 use split::split_conjunction;
 
 use crate::{
-    expr::{self, column_expr::ColumnExpr, Expression},
+    expr::{self, Expression},
     logical::{
         binder::bind_context::{BindContext, TableRef},
         logical_aggregate::LogicalAggregate,
@@ -27,41 +28,6 @@ use crate::{
 };
 
 use super::OptimizeRule;
-
-/// Holds a filtering expression and all table refs the expression references.
-#[derive(Debug)]
-struct ExtractedFilter {
-    /// The filter expression.
-    filter: Expression,
-    /// Tables refs this expression references.
-    tables_refs: HashSet<TableRef>,
-}
-
-impl ExtractedFilter {
-    fn from_expr(expr: Expression) -> Self {
-        fn inner(child: &Expression, refs: &mut HashSet<TableRef>) {
-            match child {
-                Expression::Column(col) => {
-                    refs.insert(col.table_scope);
-                }
-                other => other
-                    .for_each_child(&mut |child| {
-                        inner(child, refs);
-                        Ok(())
-                    })
-                    .expect("getting table refs to not fail"),
-            }
-        }
-
-        let mut refs = HashSet::new();
-        inner(&expr, &mut refs);
-
-        ExtractedFilter {
-            filter: expr,
-            tables_refs: refs,
-        }
-    }
-}
 
 #[derive(Debug, Default)]
 pub struct FilterPushdown {
