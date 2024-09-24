@@ -212,7 +212,8 @@ impl JoinHashTable {
 
             // Don't actually do the join.
             if self.is_mark {
-                return Ok(batches);
+                // But continue working on the next batch.
+                continue;
             }
 
             // Get the left columns for this batch.
