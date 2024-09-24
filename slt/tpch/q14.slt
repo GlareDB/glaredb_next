@@ -16,7 +16,7 @@ WHERE
     AND l_shipdate >= date '1995-09-01'
     AND l_shipdate < CAST('1995-10-01' AS date);
 ----
-promo_revenue  Decimal64(18,8)
+promo_revenue  Float64
 
 query ?
 SELECT
@@ -34,3 +34,4 @@ WHERE
     AND l_shipdate >= date '1995-09-01'
     AND l_shipdate < CAST('1995-10-01' AS date);
 ----
+16.283855689005982

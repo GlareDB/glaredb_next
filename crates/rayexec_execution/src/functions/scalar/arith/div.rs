@@ -4,9 +4,10 @@ use crate::functions::scalar::macros::{
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
+use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array, Float64Array};
+use rayexec_bullet::compute::cast::array::cast_decimal_to_float;
 use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
@@ -93,7 +94,12 @@ impl FunctionInfo for Div {
             Signature {
                 input: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
                 variadic: None,
-                return_type: DataTypeId::Decimal64,
+                return_type: DataTypeId::Float64,
+            },
+            Signature {
+                input: &[DataTypeId::Decimal128, DataTypeId::Decimal128],
+                variadic: None,
+                return_type: DataTypeId::Float64,
             },
         ]
     }
@@ -121,16 +127,12 @@ impl ScalarFunction for Div {
             | (DataType::Date32, DataType::Int64) => Ok(Box::new(DivImpl {
                 datatype: inputs[0].clone(),
             })),
-            (DataType::Decimal64(a), DataType::Decimal64(b)) => {
-                let scale =
-                    (a.scale + DIV_DECIMAL_SCALE_INC).min(Decimal64Type::MAX_PRECISION as i8);
-                Ok(Box::new(DivImpl {
-                    datatype: DataType::Decimal64(DecimalTypeMeta::new(
-                        Decimal64Type::MAX_PRECISION,
-                        scale,
-                    )),
-                }))
-            }
+            (DataType::Decimal64(a), DataType::Decimal64(b)) => Ok(Box::new(DivImpl {
+                datatype: DataType::Float64,
+            })),
+            (DataType::Decimal128(a), DataType::Decimal128(b)) => Ok(Box::new(DivImpl {
+                datatype: DataType::Float64,
+            })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -189,57 +191,17 @@ impl PlannedScalarFunction for DivImpl {
                 primitive_binary_execute!(first, second, Float64, |a, b| a / b)
             }
             (Array::Decimal64(first), Array::Decimal64(second)) => {
-                let meta = self.datatype.try_get_decimal_type_meta()?;
-                let dividend_scale = first.scale();
-                let divisor_scale = second.scale();
-                Decimal64Array::new(
-                    meta.precision,
-                    meta.scale,
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| decimal64_div(dividend_scale, divisor_scale, a, b)
-                    ),
-                )
-                .into()
+                let first = cast_decimal_to_float::<f64, Decimal64Type>(first)?;
+                let second = cast_decimal_to_float::<f64, Decimal64Type>(second)?;
+                primitive_binary_execute!(&first, &second, Float64, |a, b| a / b)
             }
             (Array::Decimal128(first), Array::Decimal128(second)) => {
-                let meta = self.datatype.try_get_decimal_type_meta()?;
-                let dividend_scale = first.scale();
-                let divisor_scale = second.scale();
-                Decimal128Array::new(
-                    meta.precision,
-                    meta.scale,
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| decimal128_div(dividend_scale, divisor_scale, a, b)
-                    ),
-                )
-                .into()
+                let first = cast_decimal_to_float::<f64, Decimal128Type>(first)?;
+                let second = cast_decimal_to_float::<f64, Decimal128Type>(second)?;
+                primitive_binary_execute!(&first, &second, Float64, |a, b| a / b)
             }
 
             other => panic!("unexpected array type: {other:?}"),
         })
     }
-}
-
-fn decimal64_div(dividend_scale: i8, divisor_scale: i8, dividend: i64, divisor: i64) -> i64 {
-    let new_scale =
-        (dividend_scale + DIV_DECIMAL_SCALE_INC).min(Decimal64Type::MAX_PRECISION as i8);
-
-    let factor = i64::pow(10, (new_scale - dividend_scale + divisor_scale) as u32);
-    let dividend = dividend * factor;
-
-    dividend / divisor
-}
-
-fn decimal128_div(dividend_scale: i8, divisor_scale: i8, dividend: i128, divisor: i128) -> i128 {
-    let new_scale =
-        (dividend_scale + DIV_DECIMAL_SCALE_INC).min(Decimal64Type::MAX_PRECISION as i8);
-
-    let factor = i128::pow(10, (new_scale - dividend_scale + divisor_scale) as u32);
-    let dividend = dividend * factor;
-
-    dividend / divisor
 }

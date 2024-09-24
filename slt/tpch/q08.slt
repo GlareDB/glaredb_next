@@ -39,7 +39,7 @@ ORDER BY
     o_year;
 ----
 o_year     Decimal64(18,3)
-mkt_share  Decimal64(18,8)
+mkt_share  Float64
 
 query ??
 SELECT
@@ -81,5 +81,5 @@ GROUP BY
 ORDER BY
     o_year;
 ----
-1995.000  0.02864874
-1996.000  0.01825027
+1995.000  0.028648741305617557
+1996.000  0.018250279107962147

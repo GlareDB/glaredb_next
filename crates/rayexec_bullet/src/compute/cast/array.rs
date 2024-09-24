@@ -509,7 +509,7 @@ where
     })
 }
 
-fn cast_decimal_to_float<F, D>(arr: &DecimalArray<D::Primitive>) -> Result<PrimitiveArray<F>>
+pub fn cast_decimal_to_float<F, D>(arr: &DecimalArray<D::Primitive>) -> Result<PrimitiveArray<F>>
 where
     F: Float + fmt::Display,
     D: DecimalType,

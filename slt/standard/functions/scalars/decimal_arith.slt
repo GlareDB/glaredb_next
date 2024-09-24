@@ -48,20 +48,20 @@ SELECT 10.3::DECIMAL * 12.1::DECIMAL;
 query R
 SELECT 10.4::DECIMAL / 2.0::DECIMAL;
 ----
-5.2000000
+5.2
 
 query TT
 DESCRIBE SELECT 10.4::DECIMAL(12, 7) / 2.0::DECIMAL;
 ----
-?column? Decimal64(18,11)
+?column? Float64
 
 query R
 SELECT 10.4::DECIMAL(12, 7) / 2.0::DECIMAL;
 ----
-5.20000000000
+5.2
 
 query R
 SELECT 10.4::DECIMAL / 2.0::DECIMAL(12, 7);
 ----
-5.2000000
+5.2
 

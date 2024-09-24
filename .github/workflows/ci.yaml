@@ -71,7 +71,7 @@ jobs:
           # cargo test slt/tpch/q11
           cargo test slt/tpch/q12
           # cargo test slt/tpch/q13
-          # cargo test slt/tpch/q14
+          cargo test slt/tpch/q14
           cargo test slt/tpch/q15
           # cargo test slt/tpch/q16
           # cargo test slt/tpch/q17
