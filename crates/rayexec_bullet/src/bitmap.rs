@@ -543,7 +543,7 @@ mod tests {
                     false, true, true, false, false, false, false, false, //
                     true,
                 ]),
-                expected: 1541,
+                expected: 67077,
             },
         ];
 
