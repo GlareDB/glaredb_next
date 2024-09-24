@@ -1,7 +1,5 @@
-use std::str::FromStr;
-
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{not_implemented, Result};
 
 use crate::{
     array::{Date32Array, Date64Array, Decimal64Array, PrimitiveArray, TimestampArray},

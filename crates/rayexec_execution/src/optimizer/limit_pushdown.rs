@@ -11,7 +11,7 @@ pub struct LimitPushdown;
 impl OptimizeRule for LimitPushdown {
     fn optimize(
         &mut self,
-        bind_context: &mut BindContext,
+        _bind_context: &mut BindContext,
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
         if let LogicalOperator::Limit(mut limit) = plan {
@@ -28,7 +28,7 @@ impl OptimizeRule for LimitPushdown {
             }
         }
 
-        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
+        plan.modify_replace_children(&mut |child| self.optimize(_bind_context, child))?;
 
         Ok(plan)
     }

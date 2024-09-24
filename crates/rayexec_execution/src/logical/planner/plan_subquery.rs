@@ -12,7 +12,6 @@ use crate::{
     logical::{
         binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef},
         logical_aggregate::LogicalAggregate,
-        logical_distinct::LogicalDistinct,
         logical_join::{
             ComparisonCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin,
             LogicalMagicJoin,

@@ -72,7 +72,7 @@ impl Explainable for LogicalMagicMaterializationScan {
             .with_value("materialization_ref", self.mat)
             .with_values("projections", &self.projections);
         if conf.verbose {
-            ent = ent.with_value("table_ref", &self.table_ref)
+            ent = ent.with_value("table_ref", self.table_ref)
         }
         ent
     }

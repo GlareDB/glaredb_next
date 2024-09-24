@@ -1,9 +1,4 @@
-use rayexec_bullet::{
-    array::{validity, Array, BooleanArray},
-    batch::Batch,
-    bitmap::Bitmap,
-    compute::take::take,
-};
+use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute::take::take};
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::sync::Arc;

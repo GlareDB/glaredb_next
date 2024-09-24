@@ -1,21 +1,17 @@
-use crate::functions::scalar::macros::{
-    primitive_binary_execute, primitive_binary_execute_no_wrap,
-};
+use crate::functions::scalar::macros::primitive_binary_execute;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array, Float64Array};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::compute::cast::array::cast_decimal_to_float;
-use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
-
-const DIV_DECIMAL_SCALE_INC: i8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Div;
@@ -127,10 +123,10 @@ impl ScalarFunction for Div {
             | (DataType::Date32, DataType::Int64) => Ok(Box::new(DivImpl {
                 datatype: inputs[0].clone(),
             })),
-            (DataType::Decimal64(a), DataType::Decimal64(b)) => Ok(Box::new(DivImpl {
+            (DataType::Decimal64(_), DataType::Decimal64(_)) => Ok(Box::new(DivImpl {
                 datatype: DataType::Float64,
             })),
-            (DataType::Decimal128(a), DataType::Decimal128(b)) => Ok(Box::new(DivImpl {
+            (DataType::Decimal128(_), DataType::Decimal128(_)) => Ok(Box::new(DivImpl {
                 datatype: DataType::Float64,
             })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),

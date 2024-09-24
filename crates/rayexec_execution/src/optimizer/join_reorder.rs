@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 use crate::{
     expr::{self, Expression},
@@ -297,8 +297,8 @@ impl JoinTree {
                 let mut conditions = extractor.extract(vec![filter.filter])?;
 
                 // Extend node specific filters.
-                left.filters.extend(conditions.left_filter.drain(..));
-                right.filters.extend(conditions.right_filter.drain(..));
+                left.filters.append(&mut conditions.left_filter);
+                right.filters.append(&mut conditions.right_filter);
 
                 // Build up left side of join.
                 let mut left_plan = left.plan.take().expect("plan to be some");

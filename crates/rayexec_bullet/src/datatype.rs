@@ -472,11 +472,9 @@ impl DataType {
         match self {
             Self::Decimal64(m) => Ok(*m),
             Self::Decimal128(m) => Ok(*m),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Cannot get decimal type meta from type {other}"
-                )))
-            }
+            other => Err(RayexecError::new(format!(
+                "Cannot get decimal type meta from type {other}"
+            ))),
         }
     }
 }

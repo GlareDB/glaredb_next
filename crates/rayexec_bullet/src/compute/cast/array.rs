@@ -1,14 +1,13 @@
 use crate::{
     array::{
         Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
-        DecimalArray, Float32Array, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray,
-        VarlenValuesBuffer,
+        DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
     },
     datatype::{DataType, TimeUnit},
     executor::scalar::UnaryExecutor,
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
-use num::{cast::AsPrimitive, Float, NumCast, PrimInt, ToPrimitive};
+use num::{Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
 use std::{
     fmt::{self, Display},

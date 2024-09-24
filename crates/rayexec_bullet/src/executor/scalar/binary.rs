@@ -9,6 +9,10 @@ pub trait OutputSelection {
     /// Exact size of the selection.
     fn len(&self) -> usize;
 
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Sets the provided index as selected or not selected.
     fn set(&mut self, idx: usize, selected: bool);
 }

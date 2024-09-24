@@ -7,10 +7,7 @@ use rayexec_bullet::{
     scalar::decimal::{Decimal64Type, DecimalType},
 };
 use rayexec_error::{not_implemented, Result};
-use rayexec_parser::{
-    ast::{self, AstParseable},
-    keywords,
-};
+use rayexec_parser::ast;
 
 use crate::{
     expr::Expression,

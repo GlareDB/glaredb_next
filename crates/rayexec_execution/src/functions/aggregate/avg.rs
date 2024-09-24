@@ -3,7 +3,7 @@ use rayexec_bullet::{
     array::{Array, PrimitiveArray},
     bitmap::Bitmap,
     compute::cast::array::cast_decimal_to_float,
-    datatype::{DataType, DataTypeId, DecimalTypeMeta},
+    datatype::{DataType, DataTypeId},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
     scalar::decimal::Decimal64Type,
 };

@@ -19,6 +19,10 @@ pub trait FilterSelection: IntoExtactSizeIterator<Item = bool> + Copy {
     /// Returns the exact size of the iterator that will be created after a call
     /// to `into_iter`.
     fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// Bitmap can be used to filter.

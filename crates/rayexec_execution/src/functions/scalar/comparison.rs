@@ -7,6 +7,7 @@ use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_error::{not_implemented, Result};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -229,75 +230,81 @@ fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Boolea
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
         (Array::Decimal64(left), Array::Decimal64(right)) => {
-            if left.scale() > right.scale() {
-                let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
-                    &right,
-                    Decimal64Type::MAX_PRECISION,
-                    left.scale(),
-                )?;
+            match left.scale().cmp(&right.scale()) {
+                Ordering::Greater => {
+                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
+                        right,
+                        Decimal64Type::MAX_PRECISION,
+                        left.scale(),
+                    )?;
 
-                BinaryExecutor::execute(
+                    BinaryExecutor::execute(
+                        left.get_primitive(),
+                        scaled_right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+                Ordering::Less => {
+                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
+                        left,
+                        Decimal64Type::MAX_PRECISION,
+                        right.scale(),
+                    )?;
+
+                    BinaryExecutor::execute(
+                        scaled_left.get_primitive(),
+                        right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+                Ordering::Equal => BinaryExecutor::execute(
                     left.get_primitive(),
-                    scaled_right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?
-            } else if left.scale() < right.scale() {
-                let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
-                    &left,
-                    Decimal64Type::MAX_PRECISION,
-                    right.scale(),
-                )?;
-
-                BinaryExecutor::execute(
-                    scaled_left.get_primitive(),
                     right.get_primitive(),
                     O::compare,
                     &mut buffer,
-                )?
-            } else {
-                BinaryExecutor::execute(
-                    left.get_primitive(),
-                    right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?
+                )?,
             }
         }
         (Array::Decimal128(left), Array::Decimal128(right)) => {
-            if left.scale() > right.scale() {
-                let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
-                    &right,
-                    Decimal128Type::MAX_PRECISION,
-                    left.scale(),
-                )?;
+            match left.scale().cmp(&right.scale()) {
+                Ordering::Greater => {
+                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
+                        right,
+                        Decimal128Type::MAX_PRECISION,
+                        left.scale(),
+                    )?;
 
-                BinaryExecutor::execute(
+                    BinaryExecutor::execute(
+                        left.get_primitive(),
+                        scaled_right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+
+                Ordering::Less => {
+                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
+                        left,
+                        Decimal128Type::MAX_PRECISION,
+                        right.scale(),
+                    )?;
+
+                    BinaryExecutor::execute(
+                        scaled_left.get_primitive(),
+                        right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+
+                Ordering::Equal => BinaryExecutor::execute(
                     left.get_primitive(),
-                    scaled_right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?
-            } else if left.scale() < right.scale() {
-                let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
-                    &left,
-                    Decimal128Type::MAX_PRECISION,
-                    right.scale(),
-                )?;
-
-                BinaryExecutor::execute(
-                    scaled_left.get_primitive(),
                     right.get_primitive(),
                     O::compare,
                     &mut buffer,
-                )?
-            } else {
-                BinaryExecutor::execute(
-                    left.get_primitive(),
-                    right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?
+                )?,
             }
         }
         (Array::Timestamp(left), Array::Timestamp(right)) => {

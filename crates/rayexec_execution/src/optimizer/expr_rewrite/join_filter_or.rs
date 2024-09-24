@@ -32,7 +32,7 @@ impl ExpressionRewriteRule for JoinFilterOrRewrite {
                     // Don't recurse here.
                     Ok(())
                 }
-                other => other.for_each_child_mut(&mut |child| inner(child)),
+                other => other.for_each_child_mut(&mut inner),
             }
         }
 

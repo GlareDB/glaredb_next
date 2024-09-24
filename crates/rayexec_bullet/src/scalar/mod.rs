@@ -64,7 +64,7 @@ impl<'a> Eq for ScalarValue<'a> {}
 impl<'a> Hash for ScalarValue<'a> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            Self::Null => ().hash(state),
+            Self::Null => 0_u8.hash(state),
             Self::Boolean(v) => v.hash(state),
             Self::Float32(v) => v.to_le_bytes().hash(state),
             Self::Float64(v) => v.to_le_bytes().hash(state),

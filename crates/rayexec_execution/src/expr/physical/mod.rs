@@ -6,8 +6,6 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
-mod row_selection;
-
 use std::fmt;
 use std::sync::Arc;
 
@@ -16,7 +14,7 @@ use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, datatype::DataType};
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
@@ -92,7 +90,7 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
         use rayexec_proto::generated::physical_expr::physical_scalar_expression::Value;
 
         let value = match self {
-            Self::Case(case) => unimplemented!(),
+            Self::Case(_) => not_implemented!("proto encode CASE"),
             Self::Cast(cast) => Value::Cast(Box::new(cast.to_proto_ctx(context)?)),
             Self::Column(cast) => Value::Column(cast.to_proto_ctx(context)?),
             Self::Literal(cast) => Value::Literal(cast.to_proto_ctx(context)?),

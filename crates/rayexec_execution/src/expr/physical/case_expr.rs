@@ -42,7 +42,7 @@ impl PhysicalCaseExpr {
                 break;
             }
 
-            let mut selected_rows = case.when.select(&batch, Some(&needs_results))?;
+            let mut selected_rows = case.when.select(batch, Some(&needs_results))?;
             // No cases returned true.
             if selected_rows.count_trues() == 0 {
                 continue;
@@ -52,7 +52,7 @@ impl PhysicalCaseExpr {
             // results for yet.
             selected_rows.bit_and_mut(&needs_results)?;
 
-            let then_result = case.then.eval(&batch, Some(&selected_rows))?;
+            let then_result = case.then.eval(batch, Some(&selected_rows))?;
 
             // Update bitmap to skip these rows in the next case.
             needs_results.bit_and_not_mut(&selected_rows)?;
@@ -68,7 +68,7 @@ impl PhysicalCaseExpr {
 
         // Evaluate any remaining rows.
         if needs_results.count_trues() != 0 {
-            let else_result = self.else_expr.eval(&batch, Some(&needs_results))?;
+            let else_result = self.else_expr.eval(batch, Some(&needs_results))?;
 
             let arr_idx = case_outputs.len();
             case_outputs.push(else_result);

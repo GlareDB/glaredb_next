@@ -238,6 +238,10 @@ impl<T> DecimalArray<T> {
         self.array.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn get_primitive(&self) -> &PrimitiveArray<T> {
         &self.array
     }
@@ -264,6 +268,10 @@ impl TimestampArray {
 
     pub fn len(&self) -> usize {
         self.array.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn get_primitive(&self) -> &PrimitiveArray<i64> {

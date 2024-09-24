@@ -28,7 +28,7 @@ impl ExpressionRewriteRule for DistributiveOrRewrite {
 
                     Ok(())
                 }
-                other => other.for_each_child_mut(&mut |child| inner(child)),
+                other => other.for_each_child_mut(&mut inner),
             }
         }
 
@@ -89,7 +89,6 @@ fn maybe_rewrite_or(orig_expr: &mut ConjunctionExpr) -> Result<()> {
                 match new_and_children.len() {
                     0 => {
                         // All AND expressions were pulled out.
-                        ()
                     }
                     1 => {
                         // We have single AND child remaining, just use that
@@ -127,7 +126,6 @@ fn maybe_rewrite_or(orig_expr: &mut ConjunctionExpr) -> Result<()> {
             //
             // Would happen in a case like '(a AND b) OR (a AND b)' which is
             // just the same as '(a AND b)'
-            ()
         }
         1 => {
             // We have a single remaining child in the OR.

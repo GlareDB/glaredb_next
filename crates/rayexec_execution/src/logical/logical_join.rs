@@ -47,7 +47,7 @@ impl JoinType {
         if let JoinType::LeftMark { table_ref } = self {
             let mut refs = node
                 .children
-                .get(0)
+                .first()
                 .map(|c| c.get_output_table_refs())
                 .unwrap_or_default();
             refs.push(table_ref);
@@ -119,7 +119,7 @@ impl Explainable for LogicalComparisonJoin {
 
 impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.node.join_type.output_refs(&self)
+        self.node.join_type.output_refs(self)
     }
 }
 
@@ -157,7 +157,7 @@ impl Explainable for LogicalMagicJoin {
 
 impl LogicalNode for Node<LogicalMagicJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.node.join_type.output_refs(&self)
+        self.node.join_type.output_refs(self)
     }
 }
 
@@ -177,7 +177,7 @@ impl Explainable for LogicalArbitraryJoin {
 
 impl LogicalNode for Node<LogicalArbitraryJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.node.join_type.output_refs(&self)
+        self.node.join_type.output_refs(self)
     }
 }
 
