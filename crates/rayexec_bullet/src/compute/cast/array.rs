@@ -588,7 +588,7 @@ where
             .expect("to be in range");
 
     let mut new_vals: Vec<D::Primitive> = arr.get_primitive().values().as_ref().to_vec();
-    if arr.scale() > new_scale {
+    if arr.scale() < new_scale {
         new_vals.iter_mut().for_each(|v| *v = v.mul(scale_amount))
     } else {
         new_vals.iter_mut().for_each(|v| *v = v.div(scale_amount))
