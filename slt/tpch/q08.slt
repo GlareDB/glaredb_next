@@ -1,5 +1,3 @@
-# TODO: Div scale
-
 query TT
 DESCRIBE SELECT
     o_year,
@@ -41,7 +39,7 @@ ORDER BY
     o_year;
 ----
 o_year     Decimal64(18,3)
-mkt_share  Decimal64(18,4)
+mkt_share  Decimal64(18,8)
 
 query ??
 SELECT
@@ -83,3 +81,5 @@ GROUP BY
 ORDER BY
     o_year;
 ----
+1995.000  0.02864874
+1996.000  0.01825027
