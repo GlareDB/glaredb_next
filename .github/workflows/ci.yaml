@@ -78,7 +78,7 @@ jobs:
           cargo test slt/tpch/q18
           cargo test slt/tpch/q19
           # cargo test slt/tpch/q20
-          # cargo test slt/tpch/q21
+          cargo test slt/tpch/q21
           cargo test slt/tpch/q22
 
       - name: Lint
