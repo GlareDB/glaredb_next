@@ -19,7 +19,7 @@ WHERE
         WHERE
             l_partkey = p_partkey);
 ----
-avg_yearly  Decimal64(15,2)
+avg_yearly  Float64
 
 query ?
 SELECT
@@ -39,3 +39,4 @@ WHERE
         WHERE
             l_partkey = p_partkey);
 ----
+23512.752857142856

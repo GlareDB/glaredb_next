@@ -74,3 +74,8 @@ query R
 select (1.4::decimal(4,2) * 8.2::decimal(4,2))::float;
 ----
 11.48
+
+query R
+SELECT CAST(0.2 AS DECIMAL(15, 2));
+----
+0.20
