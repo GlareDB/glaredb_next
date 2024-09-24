@@ -33,6 +33,7 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
+use std::collections::HashSet;
 use std::fmt::{self, Debug};
 use subquery_expr::SubqueryExpr;
 use window_expr::WindowExpr;
@@ -297,6 +298,27 @@ impl Expression {
         inner(self, &mut cols);
 
         cols
+    }
+
+    pub fn get_table_references(&self) -> HashSet<TableRef> {
+        fn inner(expr: &Expression, tables: &mut HashSet<TableRef>) {
+            match expr {
+                Expression::Column(col) => {
+                    tables.insert(col.table_scope);
+                }
+                other => other
+                    .for_each_child(&mut |child| {
+                        inner(child, tables);
+                        Ok(())
+                    })
+                    .expect("not to fail"),
+            }
+        }
+
+        let mut tables = HashSet::new();
+        inner(self, &mut tables);
+
+        tables
     }
 
     pub const fn is_column_expr(&self) -> bool {

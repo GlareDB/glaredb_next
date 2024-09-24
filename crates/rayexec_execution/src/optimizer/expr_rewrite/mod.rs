@@ -1,4 +1,5 @@
 pub mod distributive_or;
+pub mod join_filter_or;
 pub mod unnest_conjunction;
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
     },
 };
 use distributive_or::DistributiveOrRewrite;
+use join_filter_or::JoinFilterOrRewrite;
 use rayexec_error::Result;
 use unnest_conjunction::UnnestConjunctionRewrite;
 
@@ -39,10 +41,12 @@ impl OptimizeRule for ExpressionRewriter {
             }
             LogicalOperator::Filter(mut filter) => {
                 filter.node.filter = Self::apply_rewrites(filter.node.filter)?;
+                filter.node.filter = JoinFilterOrRewrite::rewrite(filter.node.filter)?; // Special rewrite for join condition.
                 LogicalOperator::Filter(filter)
             }
             LogicalOperator::ArbitraryJoin(mut join) => {
                 join.node.condition = Self::apply_rewrites(join.node.condition)?;
+                join.node.condition = JoinFilterOrRewrite::rewrite(join.node.condition)?; // Special rewrite for join condition.
                 LogicalOperator::ArbitraryJoin(join)
             }
             LogicalOperator::ComparisonJoin(mut join) => {
