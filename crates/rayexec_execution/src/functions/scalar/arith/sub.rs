@@ -211,3 +211,32 @@ impl PlannedScalarFunction for SubImpl {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use rayexec_bullet::{
+        array::{Array, Int32Array},
+        datatype::DataType,
+    };
+
+    use crate::functions::scalar::ScalarFunction;
+
+    use super::*;
+
+    #[test]
+    fn sub_i32() {
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+
+        let specialized = Sub
+            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .unwrap();
+
+        let out = specialized.execute(&[&a, &b]).unwrap();
+        let expected = Array::Int32(Int32Array::from_iter([3, 3, 3]));
+
+        assert_eq!(expected, out);
+    }
+}

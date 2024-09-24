@@ -178,3 +178,32 @@ impl PlannedScalarFunction for RemImpl {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use rayexec_bullet::{
+        array::{Array, Int32Array},
+        datatype::DataType,
+    };
+
+    use crate::functions::scalar::ScalarFunction;
+
+    use super::*;
+
+    #[test]
+    fn rem_i32() {
+        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
+        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+
+        let specialized = Rem
+            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .unwrap();
+
+        let out = specialized.execute(&[&a, &b]).unwrap();
+        let expected = Array::Int32(Int32Array::from_iter([0, 1, 0]));
+
+        assert_eq!(expected, out);
+    }
+}

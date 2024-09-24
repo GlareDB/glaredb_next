@@ -87,9 +87,13 @@ impl Optimizer {
 
         // DO THE OTHER RULES
 
+        // TODO: Location clustering once the rest is done.
         // let rule = LocationRule {};
         // let optimized = rule.optimize(bind_context, optimized)?;
 
+        // TODO: Unsure if we actually want to do this again. We've already done
+        // the first filter pushdown, then the join reordering is essentially
+        // it's own filter push down localized to just trying to create inner joins.
         // // Filter pushdown again.
         // let timer = Timer::<I>::start();
         // let mut rule = FilterPushdown::default();
