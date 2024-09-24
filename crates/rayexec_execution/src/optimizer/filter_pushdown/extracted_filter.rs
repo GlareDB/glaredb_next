@@ -1,9 +1,9 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::Hash};
 
 use crate::{expr::Expression, logical::binder::bind_context::TableRef};
 
 /// Holds a filtering expression and all table refs the expression references.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExtractedFilter {
     /// The filter expression.
     pub filter: Expression,
@@ -34,5 +34,11 @@ impl ExtractedFilter {
             filter: expr,
             tables_refs: refs,
         }
+    }
+}
+
+impl Hash for ExtractedFilter {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.filter.hash(state)
     }
 }

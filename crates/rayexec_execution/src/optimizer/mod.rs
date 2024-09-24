@@ -12,6 +12,7 @@ use crate::{
 };
 use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
+use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
 use rayexec_error::Result;
 use tracing::debug;
@@ -68,6 +69,14 @@ impl Optimizer {
             .timings
             .push(("filter_pushdown_1", timer.stop()));
 
+        // Join reordering.
+        let timer = Timer::<I>::start();
+        let mut rule = JoinReorder::default();
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("join_reorder", timer.stop()));
+
         // Limit pushdown.
         let timer = Timer::<I>::start();
         let mut rule = LimitPushdown;
@@ -81,13 +90,13 @@ impl Optimizer {
         // let rule = LocationRule {};
         // let optimized = rule.optimize(bind_context, optimized)?;
 
-        // Filter pushdown again.
-        let timer = Timer::<I>::start();
-        let mut rule = FilterPushdown::default();
-        let plan = rule.optimize(bind_context, plan)?;
-        self.profile_data
-            .timings
-            .push(("filter_pushdown_2", timer.stop()));
+        // // Filter pushdown again.
+        // let timer = Timer::<I>::start();
+        // let mut rule = FilterPushdown::default();
+        // let plan = rule.optimize(bind_context, plan)?;
+        // self.profile_data
+        //     .timings
+        //     .push(("filter_pushdown_2", timer.stop()));
 
         self.profile_data.total = total.stop();
 

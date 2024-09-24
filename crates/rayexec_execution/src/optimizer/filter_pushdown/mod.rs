@@ -323,7 +323,7 @@ impl FilterPushdown {
         mut plan: Node<LogicalMagicJoin>,
     ) -> Result<LogicalOperator> {
         match plan.node.join_type {
-            JoinType::Left => {
+            JoinType::Left | JoinType::LeftMark { .. } => {
                 // Push down filters that reference only the left side.
                 //
                 // This **requires** the materialization scans on the right to
@@ -352,7 +352,11 @@ impl FilterPushdown {
                 let [left, right] = plan.take_two_children_exact()?;
 
                 let left_tables = left.get_output_table_refs();
-                let right_tables = right.get_output_table_refs();
+                let right_tables = match plan.node.join_type {
+                    JoinType::Left => right.get_output_table_refs(),
+                    JoinType::LeftMark { table_ref } => vec![table_ref], // Right side is only able to reference the mark column.
+                    _ => unreachable!("join type checked in outer match"),
+                };
 
                 let mut remaining_filters = Vec::new();
 
@@ -450,14 +454,18 @@ impl FilterPushdown {
 
                 self.pushdown_cross_join(bind_context, plan)
             }
-            JoinType::Left => {
+            JoinType::Left | JoinType::LeftMark { .. } => {
                 let mut left_pushdown = Self::default();
                 let mut right_pushdown = Self::default();
 
                 let [mut left, mut right] = plan.take_two_children_exact()?;
 
                 let left_tables = left.get_output_table_refs();
-                let right_tables = right.get_output_table_refs();
+                let right_tables = match plan.node.join_type {
+                    JoinType::Left => right.get_output_table_refs(),
+                    JoinType::LeftMark { table_ref } => vec![table_ref], // Exprs can only reference the mark column if left mark.
+                    _ => unreachable!("join type checked in outer match"),
+                };
 
                 let mut remaining_filters = Vec::new();
                 for filter in self.filters.drain(..) {
