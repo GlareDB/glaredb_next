@@ -82,7 +82,8 @@ impl SelectPlanner {
         });
 
         // Handle HAVING
-        if let Some(expr) = select.having {
+        if let Some(mut expr) = select.having {
+            plan = SubqueryPlanner.plan(bind_context, &mut expr, plan)?;
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter { filter: expr },
                 location: LocationRequirement::Any,

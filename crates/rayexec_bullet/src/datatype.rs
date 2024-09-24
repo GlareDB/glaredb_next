@@ -464,6 +464,10 @@ impl DataType {
         )
     }
 
+    pub const fn is_decimal(&self) -> bool {
+        matches!(self, DataType::Decimal64(_) | DataType::Decimal128(_))
+    }
+
     pub fn try_get_decimal_type_meta(&self) -> Result<DecimalTypeMeta> {
         match self {
             Self::Decimal64(m) => Ok(*m),

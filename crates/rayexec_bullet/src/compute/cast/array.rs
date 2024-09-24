@@ -575,6 +575,38 @@ where
     Ok(PrimitiveArray::new(new_vals, arr.validity().cloned()))
 }
 
+pub fn cast_decimal_to_new_precision_and_scale<D>(
+    arr: &DecimalArray<D::Primitive>,
+    new_precision: u8,
+    new_scale: i8,
+) -> Result<DecimalArray<D::Primitive>>
+where
+    D: DecimalType,
+{
+    let scale_amount =
+        <D::Primitive as NumCast>::from(10.pow((arr.scale() - new_scale).unsigned_abs() as u32))
+            .expect("to be in range");
+
+    let mut new_vals: Vec<D::Primitive> = arr.get_primitive().values().as_ref().to_vec();
+    if arr.scale() > new_scale {
+        new_vals.iter_mut().for_each(|v| *v = v.mul(scale_amount))
+    } else {
+        new_vals.iter_mut().for_each(|v| *v = v.div(scale_amount))
+    }
+
+    // Validate precision.
+    // TODO: Skip nulls
+    for v in &new_vals {
+        D::validate_precision(*v, new_precision)?;
+    }
+
+    Ok(DecimalArray::new(
+        new_precision,
+        new_scale,
+        PrimitiveArray::new(new_vals, arr.get_primitive().validity().cloned()),
+    ))
+}
+
 /// Cast a primitive int type to the primitive representation of a decimal.
 fn cast_int_to_decimal<I, D>(
     arr: &PrimitiveArray<I>,

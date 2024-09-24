@@ -477,7 +477,13 @@ fn cross_join(
 
 impl Explainable for PhysicalNestedLoopJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("NestedLoopJoin")
+        let mut ent = ExplainEntry::new("NestedLoopJoin").with_value("join_type", self.join_type);
+
+        if let Some(filter) = self.filter.as_ref() {
+            ent = ent.with_value("filter", filter);
+        }
+
+        ent
     }
 }
 
