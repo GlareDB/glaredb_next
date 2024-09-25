@@ -20,4 +20,4 @@ rayexec_rt_native = { path = '../rayexec_rt_native' }
 futures = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }
-
+pyo3 = { version = "0.22.3", features = ["extension-module"] }
