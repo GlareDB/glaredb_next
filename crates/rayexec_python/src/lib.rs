@@ -1,6 +1,7 @@
 mod errors;
 mod event_loop;
 mod session;
+mod table;
 
 use std::sync::OnceLock;
 

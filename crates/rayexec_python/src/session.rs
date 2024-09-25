@@ -1,13 +1,13 @@
-use pyo3::{pyclass, pyfunction};
+use pyo3::{pyclass, pyfunction, pymethods, Python};
 
-use crate::errors::Result;
+use crate::{errors::Result, event_loop::run_until_complete, table::PythonTable};
 
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::session::SingleUserEngine;
+use rayexec_shell::session::{ResultTable, SingleUserEngine};
 
 #[pyfunction]
 pub fn connect() -> Result<PythonSession> {
@@ -22,12 +22,28 @@ pub fn connect() -> Result<PythonSession> {
     let executor = ThreadedNativeExecutor::try_new()?;
     let engine = SingleUserEngine::try_new(executor, runtime.clone(), registry)?;
 
-    Ok(PythonSession { runtime, engine })
+    Ok(PythonSession { engine })
 }
 
 #[pyclass]
 #[derive(Debug)]
 pub struct PythonSession {
-    pub(crate) runtime: NativeRuntime,
     pub(crate) engine: SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>,
+}
+
+#[pymethods]
+impl PythonSession {
+    fn query(&mut self, py: Python, sql: String) -> Result<PythonTable> {
+        let session = self.engine.session().clone();
+        let table = run_until_complete(py, async move {
+            let result = session.query_one(&sql).await?;
+            let table = PythonTable {
+                table: ResultTable::collect_from_result_stream(result).await?,
+            };
+
+            Ok(table)
+        })?;
+
+        Ok(table)
+    }
 }

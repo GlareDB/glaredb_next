@@ -4,7 +4,7 @@ use rayexec_error::RayexecError;
 use std::sync::{Arc, OnceLock};
 use std::{cell::OnceCell, future::Future};
 
-use pyo3::{Bound, IntoPy, PyAny, PyObject, Python};
+use pyo3::{pyclass, pymethods, Bound, IntoPy, Py, PyAny, PyObject, Python};
 
 use crate::errors::Result;
 
@@ -39,9 +39,20 @@ where
 
     // TODO: Could be refcell.
     let output = Arc::new(Mutex::new(None));
-    let py_future = spawn_python_future(py, event_loop.clone(), fut, output.clone())?;
 
-    event_loop.call_method1("run_until_complete", (py_future,))?;
+    let py_future = event_loop.call_method0("create_future")?.unbind();
+    let event_loop = event_loop.unbind();
+
+    spawn_python_future(
+        event_loop.clone_ref(py),
+        py_future.clone_ref(py),
+        fut,
+        output.clone(),
+    )?;
+
+    println!("BEFORE");
+    event_loop.call_method1(py, "run_until_complete", (py_future,))?;
+    println!("AFTER");
 
     let mut output = output.lock();
     match output.take() {
@@ -52,30 +63,49 @@ where
 
 // TODO: Output could possibly be refcell.
 fn spawn_python_future<'py, F, T>(
-    py: Python<'py>,
-    event_loop: Bound<'py, PyAny>,
+    event_loop: Py<PyAny>,
+    py_fut: Py<PyAny>,
     fut: F,
     output: Arc<Mutex<Option<Result<T>>>>,
-) -> Result<Bound<'py, PyAny>>
+) -> Result<()>
 where
     T: Send + 'static,
-    F: Future<Output = Result<T>> + Send + Send + 'static,
+    F: Future<Output = Result<T>> + Send + 'static,
 {
-    let py_future = event_loop.call_method0("create_future")?;
-
-    let py_fut1 = PyObject::from(py_future.clone());
-
     tokio_handle().spawn(async move {
+        println!("SPAWNED");
         let result = fut.await;
-        let mut output = output.lock();
-        output.replace(result);
+        println!("GOT RESULTS");
+
+        {
+            let mut output = output.lock();
+            output.replace(result);
+        }
+
+        println!("LOCKED");
 
         Python::with_gil(move |py| {
-            py_fut1.call_method1(py, "set_result", ("1",)).unwrap();
+            py_fut.call_method1(py, "set_result", ("1",)).unwrap();
+            event_loop
+                .call_method1(py, "call_soon_threadsafe", (PyCallSoonCallback,))
+                .unwrap();
         });
+
+        println!("RESULTS SET");
     });
 
-    Ok(py_future)
+    Ok(())
 }
 
 struct PyDoneCallback {}
+
+/// Callback for the `call_soon_threadsafe call`, doesn't do anything.
+#[pyclass]
+struct PyCallSoonCallback;
+
+#[pymethods]
+impl PyCallSoonCallback {
+    fn __call__(&self) -> Result<()> {
+        Ok(())
+    }
+}
