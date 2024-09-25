@@ -1,10 +1,10 @@
 use parking_lot::Mutex;
 use pyo3::types::PyAnyMethods;
 use rayexec_error::RayexecError;
+use std::future::Future;
 use std::sync::{Arc, OnceLock};
-use std::{cell::OnceCell, future::Future};
 
-use pyo3::{pyclass, pymethods, Bound, IntoPy, Py, PyAny, PyObject, Python};
+use pyo3::{pyclass, pymethods, Py, PyAny, Python};
 
 use crate::errors::Result;
 
@@ -35,12 +35,22 @@ where
     T: Send + 'static,
     F: Future<Output = Result<T>> + Send + 'static,
 {
+    // Create a new event loop for this future.
+    // TODO: I don't know if creating a new one for each future is good or not.
     let event_loop = py.import_bound("asyncio")?.call_method0("new_event_loop")?;
 
+    // Output will contain the result of the (rust) future when it completes.
+    //
     // TODO: Could be refcell.
     let output = Arc::new(Mutex::new(None));
 
-    let py_future = event_loop.call_method0("create_future")?.unbind();
+    // Create a python future on this event loop.
+    let py_future = event_loop.call_method0("create_future")?;
+    py_future.call_method1("add_done_callback", (PyDoneCallback,))?;
+    // Unbind the future from the GIL. Lets us send across threads.
+    let py_future = py_future.unbind();
+
+    // Unbind event loop from GIL, let's us send across threads.
     let event_loop = event_loop.unbind();
 
     spawn_python_future(
@@ -50,9 +60,9 @@ where
         output.clone(),
     )?;
 
-    println!("BEFORE");
+    // Wait for the future to complete on the event loop.
+    // TODO: Idk if this keeps the GIL or not.
     event_loop.call_method1(py, "run_until_complete", (py_future,))?;
-    println!("AFTER");
 
     let mut output = output.lock();
     match output.take() {
@@ -73,34 +83,45 @@ where
     F: Future<Output = Result<T>> + Send + 'static,
 {
     tokio_handle().spawn(async move {
-        println!("SPAWNED");
+        // Await the (rust) future and set the output.
         let result = fut.await;
-        println!("GOT RESULTS");
-
         {
             let mut output = output.lock();
             output.replace(result);
         }
 
-        println!("LOCKED");
-
         Python::with_gil(move |py| {
-            py_fut.call_method1(py, "set_result", ("1",)).unwrap();
+            // Set a dummy result on the python future. Doesn't need an actual
+            // value since we're just using it for signalling.
+            py_fut.call_method1(py, "set_result", (true,)).unwrap();
+            // Trigger the event loop to run. Passed a callback that does
+            // nothing.
             event_loop
                 .call_method1(py, "call_soon_threadsafe", (PyCallSoonCallback,))
                 .unwrap();
         });
-
-        println!("RESULTS SET");
     });
 
     Ok(())
 }
 
-struct PyDoneCallback {}
+/// Callback for the done callback on the py future.
+///
+/// Doesn't do anything yet but should be used for cancellation.
+#[pyclass]
+#[derive(Debug, Clone, Copy)]
+struct PyDoneCallback;
+
+#[pymethods]
+impl PyDoneCallback {
+    fn __call__(&self, _py_fut: Py<PyAny>) -> Result<()> {
+        Ok(())
+    }
+}
 
 /// Callback for the `call_soon_threadsafe call`, doesn't do anything.
 #[pyclass]
+#[derive(Debug, Clone, Copy)]
 struct PyCallSoonCallback;
 
 #[pymethods]
