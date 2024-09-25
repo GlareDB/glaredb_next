@@ -2114,6 +2114,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_python"
+version = "0.0.49"
+dependencies = [
+ "futures",
+ "parking_lot",
+ "rayexec_bullet",
+ "rayexec_csv",
+ "rayexec_delta",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_io",
+ "rayexec_parquet",
+ "rayexec_rt_native",
+ "rayexec_shell",
+ "tracing",
+]
+
+[[package]]
 name = "rayexec_rt_native"
 version = "0.0.49"
 dependencies = [
