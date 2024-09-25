@@ -1,14 +1,19 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+mod errors;
+mod event_loop;
+mod session;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+use std::sync::OnceLock;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+use pyo3::{
+    pyclass, pymodule,
+    types::{PyModule, PyModuleMethods},
+    wrap_pyfunction, Bound, PyResult,
+};
+
+/// Defines the root python module.
+///
+/// 'name' needs to be the same name as the 'lib.name' field in the Cargo.toml.
+#[pymodule(name = "rayexec")]
+fn binding_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(session::connect, m)?)
 }

@@ -2213,6 +2213,7 @@ dependencies = [
  "rayexec_parquet",
  "rayexec_rt_native",
  "rayexec_shell",
+ "tokio",
  "tracing",
 ]
 
