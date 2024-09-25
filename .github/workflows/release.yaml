@@ -24,6 +24,8 @@ jobs:
         run: wasm-pack build crates/rayexec_wasm/ --scope glaredb
 
       - name: Publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           wasm-pack publish crates/rayexec_wasm/
