@@ -35,34 +35,19 @@ where
     T: Send + 'static,
     F: Future<Output = Result<T>> + Send + 'static,
 {
-    // Create a new event loop for this future.
-    // TODO: I don't know if creating a new one for each future is good or not.
-    let event_loop = py.import_bound("asyncio")?.call_method0("new_event_loop")?;
+    // Bind a new python future to the global event loop.
+    let py_fut = get_event_loop(py).call_method0(py, "create_future")?;
+    py_fut.call_method1(py, "add_done_callback", (PyDoneCallback,))?;
 
     // Output will contain the result of the (rust) future when it completes.
     //
     // TODO: Could be refcell.
     let output = Arc::new(Mutex::new(None));
-
-    // Create a python future on this event loop.
-    let py_future = event_loop.call_method0("create_future")?;
-    py_future.call_method1("add_done_callback", (PyDoneCallback,))?;
-    // Unbind the future from the GIL. Lets us send across threads.
-    let py_future = py_future.unbind();
-
-    // Unbind event loop from GIL, let's us send across threads.
-    let event_loop = event_loop.unbind();
-
-    spawn_python_future(
-        event_loop.clone_ref(py),
-        py_future.clone_ref(py),
-        fut,
-        output.clone(),
-    )?;
+    spawn_python_future(py_fut.clone_ref(py), fut, output.clone())?;
 
     // Wait for the future to complete on the event loop.
     // TODO: Idk if this keeps the GIL or not.
-    event_loop.call_method1(py, "run_until_complete", (py_future,))?;
+    get_event_loop(py).call_method1(py, "run_until_complete", (py_fut,))?;
 
     let mut output = output.lock();
     match output.take() {
@@ -71,9 +56,23 @@ where
     }
 }
 
+static ASYNCIO_EVENT_LOOP: OnceLock<Py<PyAny>> = OnceLock::new();
+
+fn get_event_loop(py: Python<'_>) -> &Py<PyAny> {
+    ASYNCIO_EVENT_LOOP.get_or_init(|| {
+        // TODO: Handle unwraps a bit better (`get_or_try_init` would be real
+        // cool right now).
+        // Use once_cell crate if this becomes an issue.
+        py.import_bound("asyncio")
+            .unwrap()
+            .call_method0("new_event_loop")
+            .unwrap()
+            .unbind()
+    })
+}
+
 // TODO: Output could possibly be refcell.
 fn spawn_python_future<'py, F, T>(
-    event_loop: Py<PyAny>,
     py_fut: Py<PyAny>,
     fut: F,
     output: Arc<Mutex<Option<Result<T>>>>,
@@ -96,7 +95,7 @@ where
             py_fut.call_method1(py, "set_result", (true,)).unwrap();
             // Trigger the event loop to run. Passed a callback that does
             // nothing.
-            event_loop
+            get_event_loop(py)
                 .call_method1(py, "call_soon_threadsafe", (PyCallSoonCallback,))
                 .unwrap();
         });
