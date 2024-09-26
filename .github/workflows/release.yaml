@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   wasm:
-    name: Build and publish wasm
+    name: Build and Publish WASM
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,7 +33,7 @@ jobs:
           wasm-pack publish crates/rayexec_wasm/
     
   python-macos-arm:
-    name: Build python (MacOS arm)
+    name: Build Python (macOS ARM)
     runs-on: macos-14
     steps:
       - name: Checkout
