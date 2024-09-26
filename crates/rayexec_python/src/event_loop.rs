@@ -8,6 +8,14 @@ use pyo3::{pyclass, pymethods, Py, PyAny, Python};
 
 use crate::errors::Result;
 
+/// If we should block on tokio instead of using an asyncio event loop.
+///
+/// Added because apparently you can't have nested event loops and some
+/// notebooks (google collab) already have one running. I'm not sure if we care
+/// to keep the asyncio code, or try to do some detection to run on the current
+/// event loop. Right now let's just do the easy thing.
+const BLOCK_ON_TOKIO: bool = true;
+
 static TOKIO_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
 fn tokio_handle() -> &'static tokio::runtime::Handle {
@@ -35,6 +43,10 @@ where
     T: Send + 'static,
     F: Future<Output = Result<T>> + Send + 'static,
 {
+    if BLOCK_ON_TOKIO {
+        return tokio_handle().block_on(fut);
+    }
+
     // Bind a new python future to the global event loop.
     let py_fut = get_event_loop(py).call_method0(py, "create_future")?;
     py_fut.call_method1(py, "add_done_callback", (PyDoneCallback,))?;
