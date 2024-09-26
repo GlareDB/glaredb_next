@@ -33,6 +33,7 @@ pub struct PythonSession {
 
 #[pymethods]
 impl PythonSession {
+    /// Runs a single query, returning the results.
     fn query(&mut self, py: Python, sql: String) -> Result<PythonTable> {
         let session = self.engine.session().clone();
         let table = run_until_complete(py, async move {

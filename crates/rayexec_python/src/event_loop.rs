@@ -81,7 +81,7 @@ fn get_event_loop(py: Python<'_>) -> &Py<PyAny> {
 }
 
 // TODO: Output could possibly be refcell.
-fn spawn_python_future<'py, F, T>(
+fn spawn_python_future<F, T>(
     py_fut: Py<PyAny>,
     fut: F,
     output: Arc<Mutex<Option<Result<T>>>>,
