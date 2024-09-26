@@ -32,12 +32,7 @@ fn tokio_handle() -> &'static tokio::runtime::Handle {
     runtime.handle()
 }
 
-// asyncio docs: https://docs.python.org/3/library/asyncio.html
-
 /// Runs a future until completion.
-///
-/// Executes the future on a global tokio runtime with the await happening in a
-/// python asyncio event loop.
 pub(crate) fn run_until_complete<F, T>(py: Python<'_>, fut: F) -> Result<T>
 where
     T: Send + 'static,
@@ -46,6 +41,8 @@ where
     if BLOCK_ON_TOKIO {
         return tokio_handle().block_on(fut);
     }
+
+    // asyncio docs: https://docs.python.org/3/library/asyncio.html
 
     // Bind a new python future to the global event loop.
     let py_fut = get_event_loop(py).call_method0(py, "create_future")?;

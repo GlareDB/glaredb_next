@@ -3,10 +3,8 @@ mod event_loop;
 mod session;
 mod table;
 
-use std::sync::OnceLock;
-
 use pyo3::{
-    pyclass, pymodule,
+    pymodule,
     types::{PyModule, PyModuleMethods},
     wrap_pyfunction, Bound, PyResult,
 };
