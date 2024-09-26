@@ -88,18 +88,12 @@ jobs:
     needs: [python-macos-arm, python-manylinux]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Download wheels
         uses: actions/download-artifact@v4
         with:
           path: wheels
           pattern: wheels-*
           merge-multiple: true
-
-      - name: Copy pyproject.toml
-        run: "cp ./crates/rayexec_python/pyproject.toml ./wheels/."
 
       - name: List wheels
         run: ls -R wheels
@@ -111,4 +105,5 @@ jobs:
         with:
           working-directory: wheels
           command: upload
+          args: ./*.whl
 
