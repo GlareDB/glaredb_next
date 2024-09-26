@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   wasm:
-    name: Build wasm
+    name: Build and publish wasm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,3 +30,31 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           wasm-pack publish crates/rayexec_wasm/
     
+  python-macos:
+    name: Build python
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Maturin build
+        uses: PyO3/maturin-action@v1
+        with:
+          args: --release --out dist
+          working-directory: crates/rayexec_python
+          container: 'off'
+
+      - name: Upload python wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: crates/rayexec/dist
+
