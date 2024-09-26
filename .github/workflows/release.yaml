@@ -88,11 +88,20 @@ jobs:
     needs: [python-macos-arm, python-manylinux]
     runs-on: ubuntu-latest
     steps:
-    - name: Download All Artifacts
+    - name: Download wheels
       uses: actions/download-artifact@v4
       with:
-        path: wheels
         pattern: wheels-*
         merge-multiple: true
 
-    - run: ls -R wheels
+    - name: List wheels
+      run: ls -R wheels
+
+    - name: Upload to pypi
+      uses: PyO3/maturin-action@v1
+      env:
+        MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      with:
+        working-directory: wheels
+        command: upload
+
