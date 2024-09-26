@@ -32,35 +32,35 @@ jobs:
   #         echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
   #         wasm-pack publish crates/rayexec_wasm/
     
-  # python-macos-arm:
-  #   name: Build python (MacOS arm)
-  #   runs-on: macos-14
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
+  python-macos-arm:
+    name: Build python (MacOS arm)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #     - name: Install protoc
-  #       uses: arduino/setup-protoc@v3
-  #       with:
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-  #     - name: Setup python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.11'
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-  #     - name: Maturin build
-  #       uses: PyO3/maturin-action@v1
-  #       with:
-  #         args: --release --out dist
-  #         working-directory: crates/rayexec_python
-  #         container: 'off'
+      - name: Maturin build
+        uses: PyO3/maturin-action@v1
+        with:
+          args: --release --out dist
+          working-directory: crates/rayexec_python
+          container: 'off'
 
-  #     - name: Upload python wheels
-  #       uses: actions/upload-artifact@v3
-  #       with:
-  #         name: wheels
-  #         path: crates/rayexec_python/dist
+      - name: Upload python wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels-macos
+          path: crates/rayexec_python/dist
 
   python-manylinux:
     name: Build python (Linux x86-64)
@@ -78,8 +78,20 @@ jobs:
           manylinux: 'auto'
 
       - name: Upload python wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-linux
           path: crates/rayexec_python/dist
 
+  python-pypi-upload:
+    needs: [python-macos-arm python-manylinux]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: wheels
+        pattern: wheels-*
+        merge-multiple: true
+
+    - run: ls -R wheels
