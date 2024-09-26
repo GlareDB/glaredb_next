@@ -60,5 +60,26 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: crates/rayexec/dist
+          path: crates/rayexec_python/dist
+
+  python-manylinux:
+    name: Build python (Linux x86-64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Maturin build
+        uses: PyO3/maturin-action@v1
+        with:
+          before-script-linux: "./scripts/install_protoc_linux.sh"
+          args: --release --out dist
+          working-directory: crates/rayexec_python
+          manylinux: 'auto'
+
+      - name: Upload python wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: crates/rayexec_python/dist
 
