@@ -84,7 +84,8 @@ jobs:
           path: crates/rayexec_python/dist
 
   python-pypi-upload:
-    needs: [python-macos-arm python-manylinux]
+    name: Upload to pypi
+    needs: [python-macos-arm, python-manylinux]
     runs-on: ubuntu-latest
     steps:
     - name: Download All Artifacts
