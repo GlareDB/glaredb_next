@@ -57,7 +57,7 @@ jobs:
           container: 'off'
 
       - name: Upload python wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels-macos
           path: crates/rayexec_python/dist
