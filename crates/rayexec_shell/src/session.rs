@@ -104,7 +104,7 @@ where
     P: PipelineExecutor,
     R: Runtime,
 {
-    pub async fn query_one(&self, sql: &str) -> Result<ExecutionResult> {
+    pub async fn query(&self, sql: &str) -> Result<ExecutionResult> {
         let mut session = self.session.lock().await;
         let mut results = session.simple(sql).await?;
 
