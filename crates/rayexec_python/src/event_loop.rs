@@ -52,7 +52,7 @@ where
     //
     // TODO: Could be refcell.
     let output = Arc::new(Mutex::new(None));
-    spawn_python_future(py_fut.clone_ref(py), fut, output.clone())?;
+    spawn_python_future(py_fut.clone_ref(py), fut, output.clone());
 
     // Wait for the future to complete on the event loop.
     // TODO: Idk if this keeps the GIL or not.
@@ -81,11 +81,7 @@ fn get_event_loop(py: Python<'_>) -> &Py<PyAny> {
 }
 
 // TODO: Output could possibly be refcell.
-fn spawn_python_future<F, T>(
-    py_fut: Py<PyAny>,
-    fut: F,
-    output: Arc<Mutex<Option<Result<T>>>>,
-) -> Result<()>
+fn spawn_python_future<F, T>(py_fut: Py<PyAny>, fut: F, output: Arc<Mutex<Option<Result<T>>>>)
 where
     T: Send + 'static,
     F: Future<Output = Result<T>> + Send + 'static,
@@ -109,8 +105,6 @@ where
                 .unwrap();
         });
     });
-
-    Ok(())
 }
 
 /// Callback for the done callback on the py future.
