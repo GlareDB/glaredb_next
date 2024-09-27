@@ -832,6 +832,7 @@ impl<'a> Resolver<'a> {
 
                         let query = match statement {
                             Statement::Query(query) => {
+                                // TODO: Detect a view referencing itself and error.
                                 Box::pin(self.resolve_query(query, resolve_context)).await?
                             }
                             other => {
