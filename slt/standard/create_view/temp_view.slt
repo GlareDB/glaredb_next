@@ -44,3 +44,25 @@ CREATE TEMP VIEW v2 AS SELECT 3;
 # Cannot create a table with the same name.
 statement error Duplicate entry: v2
 CREATE TEMP TABLE v2 (a INT);
+
+# Aliasing
+
+statement ok
+CREATE TEMP VIEW v3(a, b) AS SELECT 3 as a1, 4 as b1, 5 as c1;
+
+query TT
+DESCRIBE SELECT * FROM v3;
+----
+a   Int64
+b   Int64
+c1  Int64
+
+query TT
+DESCRIBE SELECT * FROM v3 view_alias(x, y, z);
+----
+x  Int64
+y  Int64
+z  Int64
+
+statement error Expected at most 3 column aliases for view, got 4
+CREATE TEMP VIEW v4(a, b, c, d) AS SELECT 12, 34, 56;
