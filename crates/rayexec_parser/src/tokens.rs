@@ -74,6 +74,8 @@ pub enum Token {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenWithLocation {
     pub token: Token,
+    /// Starting index of the token within the sql string.
+    pub start_idx: usize,
     /// Line number for the token.
     pub line: usize,
     /// Column number for where the token starts.
@@ -162,6 +164,8 @@ impl<'a> State<'a> {
                 if next == '\n' {
                     self.line += 1;
                     self.col = 0;
+                } else {
+                    self.col += 1;
                 }
 
                 match chars.next() {
@@ -227,8 +231,9 @@ impl<'a> Tokenizer<'a> {
         while let Some(token) = self.next_token()? {
             tokens.push(TokenWithLocation {
                 token,
-                line: 0,
-                col: 0,
+                start_idx: self.state.idx,
+                line: self.state.line,
+                col: self.state.col,
             });
         }
 

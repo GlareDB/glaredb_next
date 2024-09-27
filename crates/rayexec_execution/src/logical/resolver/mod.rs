@@ -23,17 +23,23 @@ use rayexec_io::location::FileLocation;
 use rayexec_parser::{
     ast::{self, ColumnDef, ObjectReference},
     meta::{AstMeta, Raw},
+    parser,
     statement::{RawStatement, Statement},
 };
 use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListIdx};
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_copy_to::ResolvedCopyTo;
 use resolved_cte::ResolvedCte;
+use resolved_table::ResolvedTableOrCteReference;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    database::{catalog::CatalogTx, DatabaseContext},
+    database::{
+        catalog::CatalogTx,
+        catalog_entry::{CatalogEntryInner, CatalogEntryType},
+        DatabaseContext,
+    },
     datasource::FileHandlers,
     functions::{copy::CopyToArgs, proto::FUNCTION_LOOKUP_CATALOG, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
@@ -144,6 +150,10 @@ impl<'a> Resolver<'a> {
             }
             Statement::CreateTable(create) => Statement::CreateTable(
                 self.resolve_create_table(create, &mut resolve_context)
+                    .await?,
+            ),
+            Statement::CreateView(create) => Statement::CreateView(
+                self.resolve_create_view(create, &mut resolve_context)
                     .await?,
             ),
             Statement::CreateSchema(create) => {
@@ -421,6 +431,35 @@ impl<'a> Resolver<'a> {
             name,
             columns,
             source,
+        })
+    }
+
+    async fn resolve_create_view(
+        &self,
+        create: ast::CreateView<Raw>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::CreateView<ResolvedMeta>> {
+        // TODO: Search path
+        let mut name: ItemReference = Self::reference_to_strings(create.name).into();
+        if create.temp {
+            if name.0.len() == 1 {
+                name.0.insert(0, "temp".to_string()); // Schema
+                name.0.insert(0, "temp".to_string()); // Catalog
+            }
+            if name.0.len() == 2 {
+                name.0.insert(0, "temp".to_string()); // Catalog
+            }
+        }
+
+        let query = self.resolve_query(create.query, resolve_context).await?;
+
+        Ok(ast::CreateView {
+            or_replace: create.or_replace,
+            temp: create.temp,
+            name,
+            column_aliases: create.column_aliases,
+            query_sql: create.query_sql,
+            query,
         })
     }
 
@@ -753,6 +792,23 @@ impl<'a> Resolver<'a> {
                         }
                     }
                 };
+
+                // Special case for view. If we resolved, then we'll go ahead
+                // and parse the sql and treat it as a subquery.
+                match table {
+                    MaybeResolved::Resolved(ResolvedTableOrCteReference::Table(ent), _)
+                        if ent.entry.entry_type() == CatalogEntryType::View =>
+                    {
+                        let view = match &ent.entry.entry {
+                            CatalogEntryInner::View(v) => v,
+                            _ => unreachable!("entry type checked"),
+                        };
+                        let statement = parser::parse(&view.query_sql)?;
+
+                        unimplemented!()
+                    }
+                    _ => (),
+                }
 
                 let idx = resolve_context.tables.push_maybe_resolved(table);
                 ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
