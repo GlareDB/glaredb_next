@@ -37,7 +37,7 @@ impl PythonSession {
     fn query(&mut self, py: Python, sql: String) -> Result<PythonTable> {
         let session = self.engine.session().clone();
         let table = run_until_complete(py, async move {
-            let result = session.query(&sql).await?;
+            let result = session.query2(&sql).await?;
             let table = PythonTable {
                 table: ResultTable2::collect_from_result_stream(result).await?,
             };

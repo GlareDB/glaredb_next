@@ -1,24 +1,32 @@
+use std::sync::Arc;
 use std::{
     pin::Pin,
     task::{Context, Poll},
 };
 
 use futures::{stream::Stream, StreamExt, TryStreamExt};
-use rayexec_bullet::{batch::Batch, field::Schema, row::ScalarRow};
+use rayexec_bullet::{
+    batch::Batch, field::Schema, format::pretty::table::PrettyTable, row::ScalarRow,
+};
 use rayexec_error::Result;
 use rayexec_execution::{
     engine::{profiler::PlanningProfileData, result::ExecutionResult},
     execution::executable::profiler::ExecutionProfileData,
+    runtime::handle::QueryHandle,
 };
 
 #[derive(Debug)]
 pub struct StreamingTable {
-    result: ExecutionResult,
+    pub(crate) result: ExecutionResult,
 }
 
 impl StreamingTable {
     pub fn schema(&self) -> &Schema {
         &self.result.output_schema
+    }
+
+    pub fn handle(&self) -> &Arc<dyn QueryHandle> {
+        &self.result.handle
     }
 
     pub async fn collect(self) -> Result<MaterializedResultTable> {
@@ -62,13 +70,29 @@ impl Stream for StreamingTable {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterializedResultTable {
-    schema: Schema,
-    batches: Vec<Batch>,
-    planning_profile: PlanningProfileData,
-    execution_profile: Option<ExecutionProfileData>,
+    pub(crate) schema: Schema,
+    pub(crate) batches: Vec<Batch>,
+    pub(crate) planning_profile: PlanningProfileData,
+    pub(crate) execution_profile: Option<ExecutionProfileData>,
 }
 
 impl MaterializedResultTable {
+    pub fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    pub fn planning_profile_data(&self) -> &PlanningProfileData {
+        &self.planning_profile
+    }
+
+    pub fn execution_profile_data(&self) -> Option<&ExecutionProfileData> {
+        self.execution_profile.as_ref()
+    }
+
+    pub fn pretty_table(&self, width: usize, max_rows: Option<usize>) -> Result<PrettyTable> {
+        PrettyTable::try_new(&self.schema, &self.batches, width, max_rows)
+    }
+
     pub fn iter_batches<'a>(&'a self) -> impl Iterator<Item = &'a Batch> {
         self.batches.iter()
     }

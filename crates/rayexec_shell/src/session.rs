@@ -12,6 +12,8 @@ use rayexec_execution::engine::{session::Session, Engine};
 use rayexec_execution::runtime::{PipelineExecutor, Runtime};
 use tokio::sync::Mutex;
 
+use crate::result_table::StreamingTable;
+
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
@@ -104,7 +106,31 @@ where
     P: PipelineExecutor,
     R: Runtime,
 {
-    pub async fn query(&self, sql: &str) -> Result<ExecutionResult> {
+    pub async fn query(&self, sql: &str) -> Result<StreamingTable> {
+        let mut session = self.session.lock().await;
+
+        let mut statements = session.parse(sql)?;
+        let statement = match statements.len() {
+            1 => statements.pop().unwrap(),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Expected 1 statement, got {}",
+                    other
+                )))
+            }
+        };
+
+        const UNNAMED: &str = "";
+
+        session.prepare(UNNAMED, statement)?;
+        session.bind(UNNAMED, UNNAMED).await?;
+
+        let result = session.execute(UNNAMED).await?;
+
+        Ok(StreamingTable { result })
+    }
+
+    pub async fn query2(&self, sql: &str) -> Result<ExecutionResult> {
         let mut session = self.session.lock().await;
         let mut results = session.simple(sql).await?;
 

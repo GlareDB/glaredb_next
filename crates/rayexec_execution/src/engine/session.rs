@@ -100,16 +100,26 @@ struct PreparedStatement {
     statement: RawStatement,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExecutionMode {
+    /// Locally only execution.
+    LocalOnly,
+    /// Local and remote execution. Should trigger remote execution prior to
+    /// executing local pipelines.
+    Hybrid,
+}
+
 #[derive(Debug)]
 struct Portal {
     /// Query id for this query. Used to begin execution on the remote side if
     /// needed.
     query_id: Uuid,
-    /// Resolve mode used when resolving and generating the pipelines.
+    /// Execution mode of the query.
     ///
-    /// If hybrid, execution of the port will signal the remote side to begin
+    /// This may differ from the resolve mode. For example, hybrid resolving may
+    /// result in only local pipelines, which would indicated local-only
     /// execution.
-    resolve_mode: ResolveMode,
+    execution_mode: ExecutionMode,
     /// Pipelines we'll be executing on this node.
     executable_pipelines: Vec<ExecutablePipeline>,
     /// Output schema of the query.
@@ -213,7 +223,7 @@ where
         .await?;
         profile.resolve_step = Some(timer.stop());
 
-        let (query_id, pipelines, materializations, schema) = self
+        let (execution_mode, query_id, pipelines, materializations, schema) = self
             .plan_intermediate(resolved_stmt, resolve_context, resolve_mode, &mut profile)
             .await?;
 
@@ -236,7 +246,7 @@ where
             portal_name.into(),
             Portal {
                 query_id,
-                resolve_mode,
+                execution_mode,
                 executable_pipelines: pipelines,
                 output_schema: schema,
                 result_stream: stream,
@@ -255,6 +265,7 @@ where
         resolve_mode: ResolveMode,
         profile: &mut PlanningProfileData,
     ) -> Result<(
+        ExecutionMode,
         Uuid,
         IntermediatePipelineGroup,
         IntermediateMaterializationGroup,
@@ -270,6 +281,7 @@ where
                     .await?;
 
                 Ok((
+                    ExecutionMode::Hybrid,
                     resp.query_id,
                     resp.pipelines,
                     IntermediateMaterializationGroup::default(),
@@ -373,6 +385,7 @@ where
                 }
 
                 Ok((
+                    ExecutionMode::LocalOnly,
                     query_id,
                     pipelines.local,
                     pipelines.materializations,
@@ -388,7 +401,7 @@ where
             .remove(portal_name)
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal_name}'")))?;
 
-        if portal.resolve_mode == ResolveMode::Hybrid {
+        if portal.execution_mode == ExecutionMode::Hybrid {
             // Need to begin execution on the remote side.
             let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
             hybrid_client.remote_execute(portal.query_id).await?;
@@ -402,7 +415,7 @@ where
             planning_profile: portal.profile,
             output_schema: portal.output_schema,
             stream: portal.result_stream,
-            handle,
+            handle: handle.into(),
         })
     }
 
