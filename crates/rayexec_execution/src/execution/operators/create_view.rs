@@ -80,7 +80,7 @@ impl ExecutableOperator for PhysicalCreateView {
         _operator_state: &OperatorState,
         _batch: Batch,
     ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to physical create table"))
+        Err(RayexecError::new("Cannot push to physical create view"))
     }
 
     fn poll_finalize_push(
@@ -89,7 +89,7 @@ impl ExecutableOperator for PhysicalCreateView {
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        Err(RayexecError::new("Cannot push to physical create table"))
+        Err(RayexecError::new("Cannot push to physical create view"))
     }
 
     fn poll_pull(
@@ -111,7 +111,7 @@ impl ExecutableOperator for PhysicalCreateView {
 
 impl Explainable for PhysicalCreateView {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CreateSchema").with_value("schema", &self.info.name)
+        ExplainEntry::new("CreateView").with_value("view", &self.info.name)
     }
 }
 
