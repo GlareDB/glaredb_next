@@ -1,6 +1,7 @@
 mod vars;
 use rayexec_bullet::format::pretty::table::pretty_format_batches;
 use rayexec_execution::engine::result::ExecutionResult;
+use rayexec_shell::session::SingleUserEngine;
 pub use vars::*;
 
 mod convert;
@@ -42,7 +43,7 @@ pub const DEBUG_PRINT_PROFILE_DATA_VAR: &str = "DEBUG_PRINT_PROFILE_DATA";
 #[derive(Debug)]
 pub struct RunConfig {
     /// The session to use for this run.
-    pub session: Session<ThreadedNativeExecutor, NativeRuntime>,
+    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>,
 
     /// Variables to replace in the query.
     ///

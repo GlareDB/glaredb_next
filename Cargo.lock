@@ -2286,6 +2286,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
+ "rayexec_shell",
  "sqllogictest",
  "tokio",
  "tracing",
