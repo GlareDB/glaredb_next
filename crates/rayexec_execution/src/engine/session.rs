@@ -164,7 +164,7 @@ where
     ///
     /// Uses the unnamed ("") keys for prepared statements and portals.
     pub async fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
-        let stmts = self.parse(sql)?;
+        let stmts = parser::parse(sql)?;
         let mut results = Vec::with_capacity(stmts.len());
 
         const UNNAMED: &str = "";
@@ -177,10 +177,6 @@ where
         }
 
         Ok(results)
-    }
-
-    pub fn parse(&self, sql: &str) -> Result<Vec<RawStatement>> {
-        parser::parse(sql)
     }
 
     // TODO: Typed parameters at some point.

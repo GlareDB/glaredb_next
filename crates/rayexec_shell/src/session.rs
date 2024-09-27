@@ -2,6 +2,9 @@ use futures::TryStreamExt;
 use rayexec_bullet::format::pretty::table::PrettyTable;
 use rayexec_execution::engine::result::ExecutionResult;
 use rayexec_execution::hybrid::client::{HybridClient, HybridConnectConfig};
+use rayexec_parser::parser;
+use rayexec_parser::statement::RawStatement;
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use rayexec_bullet::batch::Batch;
@@ -108,9 +111,7 @@ where
 {
     /// Execute a single sql query.
     pub async fn query(&self, sql: &str) -> Result<StreamingTable> {
-        let mut session = self.session.lock().await;
-
-        let mut statements = session.parse(sql)?;
+        let mut statements = parser::parse(sql)?;
         let statement = match statements.len() {
             1 => statements.pop().unwrap(),
             other => {
@@ -121,14 +122,29 @@ where
             }
         };
 
-        const UNNAMED: &str = "";
+        PendingQuery {
+            session: self.session.clone(),
+            statement,
+        }
+        .execute()
+        .await
+    }
 
-        session.prepare(UNNAMED, statement)?;
-        session.bind(UNNAMED, UNNAMED).await?;
+    /// Execute multiple queries.
+    ///
+    /// Pending queries must be executed and streamed to completion in order.
+    pub fn query_many(&self, sql: &str) -> Result<VecDeque<PendingQuery<P, R>>> {
+        let statements = parser::parse(sql)?;
 
-        let result = session.execute(UNNAMED).await?;
+        // TODO: Implicit tx
 
-        Ok(StreamingTable { result })
+        Ok(statements
+            .into_iter()
+            .map(|statement| PendingQuery {
+                session: self.session.clone(),
+                statement,
+            })
+            .collect())
     }
 
     pub async fn query2(&self, sql: &str) -> Result<ExecutionResult> {
@@ -142,6 +158,31 @@ where
                 other
             ))),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct PendingQuery<P: PipelineExecutor, R: Runtime> {
+    pub(crate) statement: RawStatement,
+    pub(crate) session: Arc<Mutex<Session<P, R>>>,
+}
+
+impl<P, R> PendingQuery<P, R>
+where
+    P: PipelineExecutor,
+    R: Runtime,
+{
+    pub async fn execute(self) -> Result<StreamingTable> {
+        const UNNAMED: &str = "";
+
+        let mut session = self.session.lock().await;
+
+        session.prepare(UNNAMED, self.statement)?;
+        session.bind(UNNAMED, UNNAMED).await?;
+
+        let result = session.execute(UNNAMED).await?;
+
+        Ok(StreamingTable { result })
     }
 }
 
