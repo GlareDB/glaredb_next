@@ -13,7 +13,7 @@ use rayexec_delta::DeltaDataSource;
 use rayexec_error::RayexecError;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
-use rayexec_shell::session::{ResultTable, SingleUserEngine};
+use rayexec_shell::session::{ResultTable2, SingleUserEngine};
 use tracing::trace;
 use wasm_bindgen::prelude::*;
 
@@ -86,7 +86,7 @@ impl WasmSession {
 /// tables directly.
 #[wasm_bindgen]
 #[derive(Debug)]
-pub struct WasmResultTables(pub(crate) Vec<Rc<ResultTable>>);
+pub struct WasmResultTables(pub(crate) Vec<Rc<ResultTable2>>);
 
 #[wasm_bindgen]
 impl WasmResultTables {
@@ -111,7 +111,7 @@ impl WasmResultTables {
 pub struct WasmResultTable {
     /// Result table for a single query. The result table may contain more than
     /// one batch.
-    pub(crate) table: Rc<ResultTable>,
+    pub(crate) table: Rc<ResultTable2>,
 }
 
 #[wasm_bindgen]
@@ -119,7 +119,7 @@ impl WasmResultTable {
     /// Wraps a result table for wasm.
     ///
     /// Generates first row indices for each batch in the result table.
-    fn new(table: Rc<ResultTable>) -> Self {
+    fn new(table: Rc<ResultTable2>) -> Self {
         WasmResultTable { table }
     }
 
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn format_cells() {
-        let table = ResultTable {
+        let table = ResultTable2 {
             schema: Schema::new([Field::new("c1", DataType::Int32, true)]),
             batches: vec![
                 Batch::try_new([Array::Int32(Int32Array::from_iter([0, 1, 2, 3]))]).unwrap(),

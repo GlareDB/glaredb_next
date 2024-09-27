@@ -48,7 +48,7 @@ where
     ///
     /// The provided sql string may include more than one query which will
     /// result in more than one table.
-    pub async fn sql(&self, sql: &str) -> Result<Vec<ResultTable>> {
+    pub async fn sql(&self, sql: &str) -> Result<Vec<ResultTable2>> {
         let results = {
             let mut session = self.session.session.lock().await;
             session.simple(sql).await?
@@ -57,7 +57,7 @@ where
         let mut tables = Vec::with_capacity(results.len());
         for result in results {
             let batches: Vec<_> = result.stream.try_collect::<Vec<_>>().await?;
-            tables.push(ResultTable {
+            tables.push(ResultTable2 {
                 schema: result.output_schema,
                 batches,
             });
@@ -119,15 +119,15 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ResultTable {
+pub struct ResultTable2 {
     pub schema: Schema,
     pub batches: Vec<Batch>,
 }
 
-impl ResultTable {
+impl ResultTable2 {
     pub async fn collect_from_result_stream(result: ExecutionResult) -> Result<Self> {
         let batches: Vec<_> = result.stream.try_collect::<Vec<_>>().await?;
-        Ok(ResultTable {
+        Ok(ResultTable2 {
             schema: result.output_schema,
             batches,
         })

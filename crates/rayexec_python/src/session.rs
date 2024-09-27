@@ -7,7 +7,7 @@ use rayexec_delta::DeltaDataSource;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::session::{ResultTable, SingleUserEngine};
+use rayexec_shell::session::{ResultTable2, SingleUserEngine};
 
 #[pyfunction]
 pub fn connect() -> Result<PythonSession> {
@@ -39,7 +39,7 @@ impl PythonSession {
         let table = run_until_complete(py, async move {
             let result = session.query(&sql).await?;
             let table = PythonTable {
-                table: ResultTable::collect_from_result_stream(result).await?,
+                table: ResultTable2::collect_from_result_stream(result).await?,
             };
 
             Ok(table)

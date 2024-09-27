@@ -1,5 +1,5 @@
 use pyo3::{pyclass, pymethods};
-use rayexec_shell::session::ResultTable;
+use rayexec_shell::session::ResultTable2;
 
 use crate::errors::Result;
 
@@ -7,7 +7,7 @@ use crate::errors::Result;
 #[pyclass]
 #[derive(Debug)]
 pub struct PythonTable {
-    pub(crate) table: ResultTable,
+    pub(crate) table: ResultTable2,
 }
 
 #[pymethods]
