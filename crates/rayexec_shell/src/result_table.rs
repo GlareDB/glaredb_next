@@ -127,7 +127,7 @@ impl MaterializedResultTable {
         PrettyTable::try_new(&self.schema, &self.batches, width, max_rows)
     }
 
-    pub fn iter_batches<'a>(&'a self) -> impl Iterator<Item = &'a Batch> {
+    pub fn iter_batches(&self) -> impl Iterator<Item = &Batch> {
         self.batches.iter()
     }
 
