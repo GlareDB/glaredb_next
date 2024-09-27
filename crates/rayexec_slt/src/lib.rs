@@ -256,14 +256,19 @@ impl TestSession {
         println!("{sql}");
 
         println!("---- PLANNING ----");
-        println!("{}", table.planning_profile_data());
+        match table.planning_profile_data() {
+            Some(data) => {
+                println!("{}", data);
+            }
+            None => println!("Planning profile data not available"),
+        }
 
+        println!("---- EXECUTION ----");
         match table.execution_profile_data() {
             Some(data) => {
-                println!("---- EXECUTION ----");
                 println!("{data}");
             }
-            None => println!("Profiling data not available"),
+            None => println!("Execution profile data not available"),
         }
     }
 

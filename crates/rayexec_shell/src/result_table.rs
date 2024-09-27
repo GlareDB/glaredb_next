@@ -36,7 +36,7 @@ impl StreamingTable {
         Ok(MaterializedResultTable {
             schema: self.result.output_schema,
             batches,
-            planning_profile: self.result.planning_profile,
+            planning_profile: Some(self.result.planning_profile),
             execution_profile: None,
         })
     }
@@ -48,7 +48,7 @@ impl StreamingTable {
         Ok(MaterializedResultTable {
             schema: self.result.output_schema,
             batches,
-            planning_profile: self.result.planning_profile,
+            planning_profile: Some(self.result.planning_profile),
             execution_profile: Some(execution_profile),
         })
     }
@@ -73,17 +73,50 @@ impl Stream for StreamingTable {
 pub struct MaterializedResultTable {
     pub(crate) schema: Schema,
     pub(crate) batches: Vec<Batch>,
-    pub(crate) planning_profile: PlanningProfileData,
+    pub(crate) planning_profile: Option<PlanningProfileData>,
     pub(crate) execution_profile: Option<ExecutionProfileData>,
 }
 
 impl MaterializedResultTable {
+    /// Create a new materialized result table.
+    ///
+    /// Mostly for testing.
+    pub fn try_new(schema: Schema, batches: impl IntoIterator<Item = Batch>) -> Result<Self> {
+        let batches: Vec<_> = batches.into_iter().collect();
+        for batch in &batches {
+            if batch.columns().len() != schema.fields.len() {
+                return Err(RayexecError::new(format!(
+                    "Batch contains different number of columns than schema, batch: {}, schema: {}",
+                    batch.columns().len(),
+                    schema.fields.len()
+                )));
+            }
+
+            for (col, field) in batch.columns().iter().zip(schema.fields.iter()) {
+                let col_datatype = col.datatype();
+                if col_datatype != field.datatype {
+                    return Err(RayexecError::new(format!(
+                        "Unexpected column datatype, have: {}, want: {}",
+                        col_datatype, field.datatype
+                    )));
+                }
+            }
+        }
+
+        Ok(MaterializedResultTable {
+            schema,
+            batches,
+            planning_profile: None,
+            execution_profile: None,
+        })
+    }
+
     pub fn schema(&self) -> &Schema {
         &self.schema
     }
 
-    pub fn planning_profile_data(&self) -> &PlanningProfileData {
-        &self.planning_profile
+    pub fn planning_profile_data(&self) -> Option<&PlanningProfileData> {
+        self.planning_profile.as_ref()
     }
 
     pub fn execution_profile_data(&self) -> Option<&ExecutionProfileData> {
@@ -112,17 +145,21 @@ impl MaterializedResultTable {
 
     /// Execute a function for a cell in the table.
     ///
-    /// The function will be passed the batch containing the cell, the row
-    /// within that batch, and the column (unchanged).
+    /// The function will be passed the array containing the cell, and the row
+    /// within that array.
     pub fn with_cell<F, T>(&self, cell_fn: F, col: usize, row: usize) -> Result<T>
     where
-        F: Fn(&Batch, usize, usize) -> Result<T>,
+        F: Fn(&Array, usize) -> Result<T>,
     {
         let (batch_idx, row) = find_normalized_row(row, self.batches.iter().map(|b| b.num_rows()))
             .ok_or_else(|| RayexecError::new(format!("Row out of range: {}", row)))?;
 
         let batch = &self.batches[batch_idx];
-        cell_fn(batch, row, col)
+        let arr = batch
+            .column(col)
+            .ok_or_else(|| RayexecError::new(format!("Column out of range: {}", col)))?;
+
+        cell_fn(arr.as_ref(), row)
     }
 
     pub fn column_by_name(&self, name: &str) -> Result<MaterializedColumn> {
