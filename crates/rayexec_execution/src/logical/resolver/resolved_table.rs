@@ -4,10 +4,7 @@ use rayexec_proto::ProtoConv;
 use std::sync::Arc;
 
 use crate::{
-    database::{
-        catalog_entry::{CatalogEntry, CatalogEntryType, ViewEntry},
-        AttachInfo, DatabaseContext,
-    },
+    database::{catalog_entry::CatalogEntry, AttachInfo, DatabaseContext},
     proto::DatabaseProtoConv,
 };
 
