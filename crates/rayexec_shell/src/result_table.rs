@@ -5,10 +5,11 @@ use std::{
 };
 
 use futures::{stream::Stream, StreamExt, TryStreamExt};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::{
     batch::Batch, field::Schema, format::pretty::table::PrettyTable, row::ScalarRow,
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     engine::{profiler::PlanningProfileData, result::ExecutionResult},
     execution::executable::profiler::ExecutionProfileData,
@@ -104,6 +105,86 @@ impl MaterializedResultTable {
             row_idx: 0,
         }
     }
+
+    pub fn num_rows(&self) -> usize {
+        self.batches.iter().map(|b| b.num_rows()).sum()
+    }
+
+    /// Execute a function for a cell in the table.
+    ///
+    /// The function will be passed the batch containing the cell, the row
+    /// within that batch, and the column (unchanged).
+    pub fn with_cell<F, T>(&self, cell_fn: F, col: usize, row: usize) -> Result<T>
+    where
+        F: Fn(&Batch, usize, usize) -> Result<T>,
+    {
+        let (batch_idx, row) = find_normalized_row(row, self.batches.iter().map(|b| b.num_rows()))
+            .ok_or_else(|| RayexecError::new(format!("Row out of range: {}", row)))?;
+
+        let batch = &self.batches[batch_idx];
+        cell_fn(batch, row, col)
+    }
+
+    pub fn column_by_name(&self, name: &str) -> Result<MaterializedColumn> {
+        let col_idx = self
+            .schema
+            .fields
+            .iter()
+            .position(|f| f.name == name)
+            .ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Unable to find column with name '{name}' in results table"
+                ))
+            })?;
+
+        let arrays = self
+            .batches
+            .iter()
+            .map(|b| b.column(col_idx).expect("column to exist").clone())
+            .collect();
+
+        Ok(MaterializedColumn { arrays })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterializedColumn {
+    pub(crate) arrays: Vec<Arc<Array>>,
+}
+
+impl MaterializedColumn {
+    pub fn len(&self) -> usize {
+        self.arrays.iter().map(|a| a.len()).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn with_row<F, T>(&self, row_fn: F, row: usize) -> Result<T>
+    where
+        F: Fn(&Array, usize) -> Result<T>,
+    {
+        let (arr_idx, row) = find_normalized_row(row, self.arrays.iter().map(|arr| arr.len()))
+            .ok_or_else(|| RayexecError::new(format!("Row out of range: {}", row)))?;
+
+        let arr = self.arrays[arr_idx].as_ref();
+        row_fn(arr, row)
+    }
+}
+
+#[inline]
+fn find_normalized_row(
+    mut row: usize,
+    items_rows: impl IntoIterator<Item = usize>,
+) -> Option<(usize, usize)> {
+    for (idx, num_rows) in items_rows.into_iter().enumerate() {
+        if row < num_rows {
+            return Some((idx, row));
+        }
+        row -= num_rows;
+    }
+    None
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -120,6 +201,7 @@ impl<'a> Iterator for MaterializedRowIter<'a> {
         loop {
             let batch = self.table.batches.get(self.batch_idx)?;
 
+            // TODO: Reuse underlying vec
             match batch.row(self.row_idx) {
                 Some(row) => {
                     self.row_idx += 1;

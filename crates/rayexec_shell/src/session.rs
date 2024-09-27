@@ -106,6 +106,7 @@ where
     P: PipelineExecutor,
     R: Runtime,
 {
+    /// Execute a single sql query.
     pub async fn query(&self, sql: &str) -> Result<StreamingTable> {
         let mut session = self.session.lock().await;
 
