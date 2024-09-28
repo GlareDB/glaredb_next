@@ -21,10 +21,6 @@ pub struct PhysicalScalarFunctionExpr {
 
 impl PhysicalScalarFunctionExpr {
     pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
-        println!("FUNC: {}", self.function.scalar_function().name());
-        let s = ugly_format_no_schema([batch]).unwrap();
-        println!("{s}");
-
         let inputs = self
             .inputs
             .iter()

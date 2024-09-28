@@ -6,10 +6,12 @@ use crate::{
         binder::bind_context::{BindContext, TableRef},
         logical_filter::LogicalFilter,
         logical_join::{JoinType, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_materialization::LogicalMaterializationScan,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
     optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor,
 };
+use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
@@ -72,7 +74,20 @@ impl InnerJoinReorder {
                 let mat = bind_context.get_materialization_mut(scan.node.mat)?;
                 mat.plan = plan;
 
-                return Ok(root);
+                // Since the one or children in the plan might've switched
+                // sides, we need to recompute the table refs to ensure they're
+                // updated to be the correct order.
+                //
+                // "magic" materializations don't need to worry about this,
+                // since they project out of the materialization (and the column
+                // refs don't change).
+                let table_refs = mat.plan.get_output_table_refs();
+                mat.table_refs = table_refs.clone();
+
+                let mut new_scan = scan.clone();
+                new_scan.node.table_refs = table_refs;
+
+                return Ok(LogicalOperator::MaterializationScan(new_scan));
             }
             LogicalOperator::Filter(_) | LogicalOperator::CrossJoin(_) => {
                 self.extract_filters_and_join_children(root)?;
