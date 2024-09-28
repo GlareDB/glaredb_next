@@ -8,24 +8,45 @@ CREATE TEMP VIEW partsupp AS SELECT * FROM './crates/rayexec_python/benchmarks/d
 CREATE TEMP VIEW part AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-2/part.parquet';
 
 SELECT
-    l_returnflag,
-    l_linestatus,
-    sum(l_quantity) AS sum_qty,
-    sum(l_extendedprice) AS sum_base_price,
-    sum(l_extendedprice * (1 - l_discount)) AS sum_disc_price,
-    sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) AS sum_charge,
-    avg(l_quantity) AS avg_qty,
-    avg(l_extendedprice) AS avg_price,
-    avg(l_discount) AS avg_disc,
-    count(*) AS count_order
+    s_acctbal,
+    s_name,
+    n_name,
+    p_partkey,
+    p_mfgr,
+    s_address,
+    s_phone,
+    s_comment
 FROM
-    lineitem
+      part,
+      supplier,
+      partsupp,
+      nation,
+      region
 WHERE
-    l_shipdate <= date '1998-09-02'
-GROUP BY
-    l_returnflag,
-    l_linestatus
+    p_partkey = ps_partkey
+    AND s_suppkey = ps_suppkey
+    AND p_size = 15
+    AND p_type LIKE '%BRASS'
+    AND s_nationkey = n_nationkey
+    AND n_regionkey = r_regionkey
+    AND r_name = 'EUROPE'
+    AND ps_supplycost = (
+        SELECT
+            min(ps_supplycost)
+        FROM
+            partsupp,
+            supplier,
+            nation,
+            region
+        WHERE
+            p_partkey = ps_partkey
+            AND s_suppkey = ps_suppkey
+            AND s_nationkey = n_nationkey
+            AND n_regionkey = r_regionkey
+            AND r_name = 'EUROPE')
 ORDER BY
-    l_returnflag,
-    l_linestatus;
-
+    s_acctbal DESC,
+    n_name,
+    s_name,
+    p_partkey
+LIMIT 100;

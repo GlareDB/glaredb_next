@@ -6,7 +6,7 @@ import pandas as pd
 import time
 
 # TPC-H scale factor.
-sf = 1
+sf = 2
 
 
 def generate_data():
@@ -195,7 +195,7 @@ setup_rayexec(rayexec_conn)
 datafusion_ctx = datafusion.SessionContext()
 setup_datafusion(datafusion_ctx)
 
-rayexec_times = execute_rayexec(rayexec_conn, True)
+rayexec_times = execute_rayexec(rayexec_conn, False)
 rayexec_conn.close()
 
 datafusion_times = execute_datafusion(datafusion_ctx)

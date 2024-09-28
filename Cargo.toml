@@ -11,8 +11,6 @@ edition = "2021"
 lto = "thin"
 opt-level = 3
 codegen-units = 1
-strip = true
-debug = true
 
 [workspace.dependencies]
 ahash = { version = "0.8.11", default-features = false }

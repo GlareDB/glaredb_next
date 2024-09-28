@@ -39,7 +39,12 @@ impl VarlenType for str {
     const NULL: &'static Self = "";
 
     fn interpret(input: &[u8]) -> &Self {
-        std::str::from_utf8(input).expect("input should be valid utf8")
+        // SAFETY: Varlen arrays should ("should") only be constructed with
+        // valid utf8 strings.
+        //
+        // Since this is a hot path, we need to avoid additional validations
+        // here.
+        unsafe { std::str::from_utf8_unchecked(input) }
     }
 
     fn as_binary(&self) -> &[u8] {
