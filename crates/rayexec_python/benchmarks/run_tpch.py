@@ -135,17 +135,21 @@ def setup_datafusion(ctx):
         ctx.register_parquet(tbl, f"./benchmarks/data/tpch-{sf}/{tbl}.parquet")
 
 
-def execute_rayexec(conn):
+def execute_rayexec(conn, dump_profile=False):
     df = pd.DataFrame(columns=["dur", "query"])
     for query_id, query in sorted(queries.items()):
         start = time.time()
         print("Query " + str(query_id))
         try:
-            print(conn.query(query))
+            collect_profile_data = dump_profile
+            table = conn.query(query, collect_profile_data)
+            table.show()
             stop = time.time()
             duration = stop - start
-        except Exception as er:
-            print(er)
+            if dump_profile:
+                table.dump_profile()
+        except Exception as err:
+            print(err)
             duration = 0
         print(duration)
         row = {"dur": duration, "query": query_id}
@@ -191,8 +195,12 @@ setup_rayexec(rayexec_conn)
 datafusion_ctx = datafusion.SessionContext()
 setup_datafusion(datafusion_ctx)
 
-rayexec_times = execute_rayexec(rayexec_conn)
-print(rayexec_times)
+rayexec_times = execute_rayexec(rayexec_conn, True)
+rayexec_conn.close()
 
 datafusion_times = execute_datafusion(datafusion_ctx)
+
+print("RAYEXEC")
+print(rayexec_times)
+print("DATAFUSION")
 print(datafusion_times)
