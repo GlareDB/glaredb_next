@@ -129,9 +129,9 @@ pub struct LogicalComparisonJoin {
 }
 
 impl Explainable for LogicalComparisonJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ComparisonJoin")
-            .with_values("conditions", &self.conditions)
+            .with_values_context("conditions", conf, &self.conditions)
             .with_value("join_type", self.join_type)
     }
 }

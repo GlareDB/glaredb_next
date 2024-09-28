@@ -91,7 +91,16 @@ impl InnerJoinReorder {
             }
         }
 
-        let mut join_tree = JoinTree::new(self.child_plans.drain(..), self.filters.drain(..));
+        // Before reordering the join tree at this level, go ahead and reorder
+        // nested joins that we're not able to flatten at this level.
+        let mut child_plans = Vec::with_capacity(self.child_plans.len());
+        for child in self.child_plans.drain(..) {
+            let mut reorder = Self::default();
+            let child = reorder.reorder(bind_context, child)?;
+            child_plans.push(child);
+        }
+
+        let mut join_tree = JoinTree::new(child_plans, self.filters.drain(..));
         // Do the magic.
         let plan = join_tree.try_build()?;
 
