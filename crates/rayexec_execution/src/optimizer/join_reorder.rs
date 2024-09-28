@@ -27,11 +27,11 @@ pub struct JoinReorder {}
 impl OptimizeRule for JoinReorder {
     fn optimize(
         &mut self,
-        _bind_context: &mut BindContext,
+        bind_context: &mut BindContext,
         plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
         let mut reorder = InnerJoinReorder::default();
-        reorder.reorder(plan)
+        reorder.reorder(bind_context, plan)
     }
 }
 
@@ -51,8 +51,29 @@ impl InnerJoinReorder {
             .extend(split.into_iter().map(ExtractedFilter::from_expr))
     }
 
-    fn reorder(&mut self, mut root: LogicalOperator) -> Result<LogicalOperator> {
+    fn reorder(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut root: LogicalOperator,
+    ) -> Result<LogicalOperator> {
+        // Note that we're not matching on "magic" materialization scans as the
+        // normal materialization scan should already handle the reorder within
+        // the plan anyways.
         match &root {
+            LogicalOperator::MaterializationScan(scan) => {
+                // Start a new reorder for this materializations.
+                let mut reorder = InnerJoinReorder::default();
+                let mut plan = {
+                    let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                    std::mem::replace(&mut mat.plan, LogicalOperator::Invalid)
+                };
+                plan = reorder.reorder(bind_context, plan)?;
+
+                let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                mat.plan = plan;
+
+                return Ok(root);
+            }
             LogicalOperator::Filter(_) | LogicalOperator::CrossJoin(_) => {
                 self.extract_filters_and_join_children(root)?;
             }
@@ -64,7 +85,7 @@ impl InnerJoinReorder {
                 // return.
                 root.modify_replace_children(&mut |child| {
                     let mut reorder = Self::default();
-                    reorder.reorder(child)
+                    reorder.reorder(bind_context, child)
                 })?;
                 return Ok(root);
             }

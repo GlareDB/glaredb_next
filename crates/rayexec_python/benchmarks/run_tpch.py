@@ -4,6 +4,7 @@ import rayexec
 import pathlib
 import pandas as pd
 import time
+import os
 
 # TPC-H scale factor.
 sf = 2
@@ -13,6 +14,8 @@ def generate_data():
     con = duckdb.connect()
     con.sql("PRAGMA disable_progress_bar;SET preserve_insertion_order=false")
     con.sql(f"CALL dbgen(sf={sf})")
+    if os.path.isdir(f"./benchmarks/data/tpch-{sf}"):
+        return
     pathlib.Path(f"./benchmarks/data/tpch-{sf}").mkdir(parents=True, exist_ok=True)
     for tbl in [
         "nation",
@@ -100,7 +103,31 @@ ORDER BY
     s_name,
     p_partkey
 LIMIT 100;
-
+    """,
+    3: """
+SELECT
+    l_orderkey,
+    sum(l_extendedprice * (1 - l_discount)) AS revenue,
+    o_orderdate,
+    o_shippriority
+FROM
+    customer,
+    orders,
+    lineitem
+WHERE
+    c_mktsegment = 'BUILDING'
+    AND c_custkey = o_custkey
+    AND l_orderkey = o_orderkey
+    AND o_orderdate < CAST('1995-03-15' AS date)
+    AND l_shipdate > CAST('1995-03-15' AS date)
+GROUP BY
+    l_orderkey,
+    o_orderdate,
+    o_shippriority
+ORDER BY
+    revenue DESC,
+    o_orderdate
+LIMIT 10;
     """,
 }
 
