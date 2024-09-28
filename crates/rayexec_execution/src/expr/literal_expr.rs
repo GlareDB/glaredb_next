@@ -1,13 +1,19 @@
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use std::fmt;
 
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LiteralExpr {
     pub literal: OwnedScalarValue,
 }
 
-impl fmt::Display for LiteralExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for LiteralExpr {
+    fn fmt_using_context(
+        &self,
+        _mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self.literal {
             ScalarValue::Utf8(_) | ScalarValue::LargeUtf8(_) => {
                 // Quote strings.

@@ -8,6 +8,8 @@ use crate::functions::scalar::{
     arith, boolean, comparison, concat, like, negate, PlannedScalarFunction, ScalarFunction,
 };
 
+// TODO: DELETE
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlannedUnaryOperator {
     pub op: UnaryOperator,

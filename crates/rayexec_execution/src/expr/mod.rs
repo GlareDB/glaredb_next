@@ -16,6 +16,7 @@ pub mod window_expr;
 
 pub mod physical;
 
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::logical::binder::bind_context::BindContext;
 use crate::{functions::scalar::ScalarFunction, logical::binder::bind_context::TableRef};
 use aggregate_expr::AggregateExpr;
@@ -384,21 +385,31 @@ pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
 
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_using_context(ContextDisplayMode::Raw, f)
+    }
+}
+
+impl ContextDisplay for Expression {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
-            Self::Aggregate(expr) => write!(f, "{}", expr),
-            Self::Arith(expr) => write!(f, "{}", expr),
-            Self::Between(expr) => write!(f, "{}", expr),
-            Self::Case(expr) => write!(f, "{}", expr),
-            Self::Cast(expr) => write!(f, "{}", expr),
-            Self::Column(expr) => write!(f, "{}", expr),
-            Self::Comparison(expr) => write!(f, "{}", expr),
-            Self::Conjunction(expr) => write!(f, "{}", expr),
-            Self::Is(expr) => write!(f, "{}", expr),
-            Self::Literal(expr) => write!(f, "{}", expr),
-            Self::Negate(expr) => write!(f, "{}", expr),
-            Self::ScalarFunction(expr) => write!(f, "{}", expr),
-            Self::Subquery(expr) => write!(f, "{}", expr),
-            Self::Window(expr) => write!(f, "{}", expr),
+            Self::Aggregate(expr) => expr.fmt_using_context(mode, f),
+            Self::Arith(expr) => expr.fmt_using_context(mode, f),
+            Self::Between(expr) => expr.fmt_using_context(mode, f),
+            Self::Case(expr) => expr.fmt_using_context(mode, f),
+            Self::Cast(expr) => expr.fmt_using_context(mode, f),
+            Self::Column(expr) => expr.fmt_using_context(mode, f),
+            Self::Comparison(expr) => expr.fmt_using_context(mode, f),
+            Self::Conjunction(expr) => expr.fmt_using_context(mode, f),
+            Self::Is(expr) => expr.fmt_using_context(mode, f),
+            Self::Literal(expr) => expr.fmt_using_context(mode, f),
+            Self::Negate(expr) => expr.fmt_using_context(mode, f),
+            Self::ScalarFunction(expr) => expr.fmt_using_context(mode, f),
+            Self::Subquery(expr) => expr.fmt_using_context(mode, f),
+            Self::Window(expr) => expr.fmt_using_context(mode, f),
         }
     }
 }

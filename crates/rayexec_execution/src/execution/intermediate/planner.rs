@@ -28,7 +28,10 @@ use crate::{
             PhysicalOperator,
         },
     },
-    explain::{explainable::ExplainConfig, formatter::ExplainFormatter},
+    explain::{
+        context_display::ContextDisplayMode, explainable::ExplainConfig,
+        formatter::ExplainFormatter,
+    },
     expr::{
         comparison_expr::ComparisonOperator,
         physical::{
@@ -982,6 +985,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let formatter = ExplainFormatter::new(
             self.bind_context,
             ExplainConfig {
+                context_mode: ContextDisplayMode::Enriched(self.bind_context),
                 verbose: explain.node.verbose,
             },
             explain.node.format,

@@ -1,5 +1,8 @@
 use crate::{
-    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    explain::{
+        context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+        explainable::{ExplainConfig, ExplainEntry, Explainable},
+    },
     expr::{
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         Expression,
@@ -103,6 +106,22 @@ impl fmt::Display for ComparisonCondition {
     }
 }
 
+impl ContextDisplay for ComparisonCondition {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            ContextDisplayWrapper::with_mode(&self.left, mode),
+            self.op,
+            ContextDisplayWrapper::with_mode(&self.right, mode),
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
@@ -148,9 +167,9 @@ pub struct LogicalMagicJoin {
 }
 
 impl Explainable for LogicalMagicJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MagicJoin")
-            .with_values("conditions", &self.conditions)
+            .with_values_context("conditions", conf, &self.conditions)
             .with_value("join_type", self.join_type)
     }
 }
@@ -168,10 +187,10 @@ pub struct LogicalArbitraryJoin {
 }
 
 impl Explainable for LogicalArbitraryJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ArbitraryJoin")
             .with_value("join_type", self.join_type)
-            .with_value("condition", &self.condition)
+            .with_value_context("condition", conf, &self.condition)
     }
 }
 

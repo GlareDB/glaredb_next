@@ -35,7 +35,11 @@ pub struct LogicalAggregate {
 
 impl Explainable for LogicalAggregate {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Aggregate").with_values("aggregates", &self.aggregates);
+        let mut ent = ExplainEntry::new("Aggregate").with_values_context(
+            "aggregates",
+            conf,
+            &self.aggregates,
+        );
 
         if conf.verbose {
             ent = ent.with_value("table_ref", self.aggregates_table);
@@ -46,7 +50,7 @@ impl Explainable for LogicalAggregate {
         }
 
         if let Some(group_table) = &self.group_table {
-            ent = ent.with_values("group_expressions", &self.group_exprs);
+            ent = ent.with_values_context("group_expressions", conf, &self.group_exprs);
 
             if conf.verbose {
                 ent = ent.with_value("group_table_ref", group_table);

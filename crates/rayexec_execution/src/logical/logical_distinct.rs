@@ -14,8 +14,8 @@ pub struct LogicalDistinct {
 }
 
 impl Explainable for LogicalDistinct {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Distinct").with_values("on", &self.on)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Distinct").with_values_context("on", conf, &self.on)
     }
 }
 
