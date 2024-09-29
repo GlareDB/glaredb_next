@@ -7,18 +7,12 @@ use crate::execution::operators::util::outer_join_tracker::{
     LeftOuterJoinTracker, RightOuterJoinTracker,
 };
 
-use super::condition::{HashJoinCondition, LeftPrecomputedJoinConditions};
+use super::{
+    condition::{HashJoinCondition, LeftPrecomputedJoinCondition, LeftPrecomputedJoinConditions},
+    partition_hash_table::{PartitionHashTable, RowKey},
+};
 
-/// Points to a row in the hash table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct RowKey {
-    /// Index of the batch in the batches vector.
-    batch_idx: u32,
-    /// Index of the row in the batch.
-    row_idx: u32,
-}
-
-pub struct JoinHashTable {
+pub struct GlobalHashTable {
     /// All collected batches.
     batches: Vec<Batch>,
     /// Conditions we're joining on.
@@ -38,101 +32,86 @@ pub struct JoinHashTable {
     is_mark: bool,
 }
 
-impl JoinHashTable {
+impl GlobalHashTable {
+    /// Merge many partition hash tables into a new global hash table.
     pub fn new(
         left_types: Vec<DataType>,
-        conditions: &[HashJoinCondition],
         right_join: bool,
         is_mark: bool,
+        partition_tables: Vec<PartitionHashTable>,
+        conditions: &[HashJoinCondition],
     ) -> Self {
-        let conditions = conditions.iter().map(|c| c.clone().into()).collect();
+        // Merge all partition tables left to right.
 
-        JoinHashTable {
-            batches: Vec::new(),
-            conditions: LeftPrecomputedJoinConditions { conditions },
-            hash_table: RawTable::new(),
+        let batches_cap: usize = partition_tables.iter().map(|t| t.batches.len()).sum();
+        let hash_table_cap: usize = partition_tables.iter().map(|t| t.hash_table.len()).sum();
+        let precomputed_cap: usize = partition_tables
+            .iter()
+            .map(|t| {
+                t.conditions
+                    .conditions
+                    .iter()
+                    .map(|c| c.left_precomputed.len())
+                    .sum::<usize>()
+            })
+            .sum();
+
+        let mut batches = Vec::with_capacity(batches_cap);
+        let mut hash_table = RawTable::with_capacity(hash_table_cap);
+
+        let mut conditions = LeftPrecomputedJoinConditions {
+            conditions: conditions
+                .iter()
+                .map(|c| {
+                    LeftPrecomputedJoinCondition::from_condition_with_capacity(
+                        c.clone(),
+                        precomputed_cap,
+                    )
+                })
+                .collect(),
+        };
+
+        for mut table in partition_tables {
+            let batch_offset = batches.len();
+
+            // Merge batches.
+            batches.append(&mut table.batches);
+
+            // Merge hash tables, updating row key to point to the correct batch
+            // in the merged batch vec.
+            for (hash, mut row_key) in table.hash_table.drain() {
+                row_key.batch_idx += batch_offset as u32;
+                hash_table.insert(hash, (hash, row_key), |(hash, _)| *hash);
+            }
+
+            // Append all precompute left results.
+            //
+            // We just append precomputed results for each condition which keeps
+            // the offset in sync.
+            for (c1, c2) in conditions
+                .conditions
+                .iter_mut()
+                .zip(table.conditions.conditions.iter_mut())
+            {
+                c1.left_precomputed.append(&mut c2.left_precomputed);
+            }
+        }
+
+        GlobalHashTable {
+            batches,
+            conditions,
+            hash_table,
             left_types,
             right_join,
             is_mark,
         }
     }
 
-    /// Insert a batch into the hash table for the left side of the join.
-    ///
-    /// `hash_indices` indicates which columns in the batch was used to compute
-    /// the hashes.
-    pub fn insert_batch(&mut self, batch: Batch, hashes: &[u64]) -> Result<()> {
-        assert_eq!(batch.num_rows(), hashes.len());
-
-        self.conditions.precompute_for_left_batch(&batch)?;
-
-        // Raw hashbrown reserves 1 at a time on insert if it's out of capacity.
-        // Grow here if needed.
-        //
-        // TODO: We should initalize the hash table using underlying table
-        // statistics.
-        let remaining = self.hash_table.len() - self.hash_table.capacity();
-        if remaining < batch.num_rows() {
-            let additional = batch.num_rows() - remaining;
-            self.hash_table.reserve(additional, |(hash, _)| *hash);
-        }
-
-        let batch_idx = self.batches.len();
-        self.batches.push(batch);
-
-        for (row_idx, hash) in hashes.iter().enumerate() {
-            let row_key = RowKey {
-                batch_idx: batch_idx as u32,
-                row_idx: row_idx as u32,
-            };
-            self.hash_table
-                .insert(*hash, (*hash, row_key), |(hash, _)| *hash);
-        }
-
-        Ok(())
-    }
-
     pub fn collected_batches(&self) -> &[Batch] {
         &self.batches
     }
 
-    /// Merge some other hash table into this one.
-    pub fn merge(&mut self, mut other: Self) -> Result<()> {
-        let batch_offset = self.batches.len();
-
-        // Append all batches from other. When we drain the hash table, we'll
-        // update the row keys to account for the new offset.
-        self.batches.append(&mut other.batches);
-
-        // Append all precompute left results.
-        //
-        // Similar to above, we just append precomputed results for each
-        // condition which keeps the offset in sync.
-        for (c1, c2) in self
-            .conditions
-            .conditions
-            .iter_mut()
-            .zip(other.conditions.conditions.iter_mut())
-        {
-            c1.left_precomputed.append(&mut c2.left_precomputed);
-        }
-
-        // Resize own hash table to reduce rehashing during the merge.
-        let remaining = self.hash_table.len() - self.hash_table.capacity();
-        if remaining < other.hash_table.len() {
-            let additional = other.hash_table.len() - remaining;
-            self.hash_table.reserve(additional, |(hash, _)| *hash);
-        }
-
-        for (hash, mut row_key) in other.hash_table.drain() {
-            row_key.batch_idx += batch_offset as u32;
-            self.hash_table
-                .insert(hash, (hash, row_key), |(hash, _)| *hash);
-        }
-
-        Ok(())
-    }
-
+    /// Probe the table.
     pub fn probe(
         &self,
         right: &Batch,
@@ -267,8 +246,8 @@ impl JoinHashTable {
     }
 }
 
-impl fmt::Debug for JoinHashTable {
+impl fmt::Debug for GlobalHashTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PartitionHashTable").finish_non_exhaustive()
+        f.debug_struct("GlobalHashTable").finish_non_exhaustive()
     }
 }

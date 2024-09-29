@@ -48,14 +48,20 @@ pub struct LeftPrecomputedJoinCondition {
     pub function: Box<dyn PlannedScalarFunction>,
 }
 
+impl LeftPrecomputedJoinCondition {
+    pub fn from_condition_with_capacity(condition: HashJoinCondition, cap: usize) -> Self {
+        LeftPrecomputedJoinCondition {
+            left_precomputed: Vec::with_capacity(cap),
+            left: condition.left,
+            right: condition.right,
+            function: condition.function,
+        }
+    }
+}
+
 impl From<HashJoinCondition> for LeftPrecomputedJoinCondition {
     fn from(value: HashJoinCondition) -> Self {
-        LeftPrecomputedJoinCondition {
-            left_precomputed: Vec::new(),
-            left: value.left,
-            right: value.right,
-            function: value.function,
-        }
+        Self::from_condition_with_capacity(value, 0)
     }
 }
 

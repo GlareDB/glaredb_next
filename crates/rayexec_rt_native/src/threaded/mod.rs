@@ -73,7 +73,7 @@ impl Scheduler for ThreadedScheduler {
 
         for state in task_states {
             let task = PartitionPipelineTask::from_task_state(state);
-            self.pool.spawn_fifo(|| task.execute());
+            self.pool.spawn(|| task.execute());
         }
 
         handle

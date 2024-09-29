@@ -102,6 +102,6 @@ impl Wake for PartitionPipelineWaker {
         let task = PartitionPipelineTask {
             state: self.state.clone(),
         };
-        pool.spawn_fifo(|| task.execute());
+        pool.spawn(|| task.execute());
     }
 }

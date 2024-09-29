@@ -7,7 +7,7 @@ import time
 import os
 
 # TPC-H scale factor.
-sf = 50
+sf = 10
 
 
 def generate_data():
@@ -129,28 +129,28 @@ ORDER BY
     o_orderdate
 LIMIT 10;
     """,
-    4: """
-SELECT
-    o_orderpriority,
-    count(*) AS order_count
-FROM
-    orders
-WHERE
-    o_orderdate >= CAST('1993-07-01' AS date)
-    AND o_orderdate < CAST('1993-10-01' AS date)
-    AND EXISTS (
-        SELECT
-            *
-        FROM
-            lineitem
-        WHERE
-            l_orderkey = o_orderkey
-            AND l_commitdate < l_receiptdate)
-GROUP BY
-    o_orderpriority
-ORDER BY
-    o_orderpriority;
-    """,
+    #     4: """
+    # SELECT
+    #     o_orderpriority,
+    #     count(*) AS order_count
+    # FROM
+    #     orders
+    # WHERE
+    #     o_orderdate >= CAST('1993-07-01' AS date)
+    #     AND o_orderdate < CAST('1993-10-01' AS date)
+    #     AND EXISTS (
+    #         SELECT
+    #             *
+    #         FROM
+    #             lineitem
+    #         WHERE
+    #             l_orderkey = o_orderkey
+    #             AND l_commitdate < l_receiptdate)
+    # GROUP BY
+    #     o_orderpriority
+    # ORDER BY
+    #     o_orderpriority;
+    #     """,
     #     5: """
     # SELECT
     #     n_name,
@@ -177,18 +177,18 @@ ORDER BY
     # ORDER BY
     #     revenue DESC;
     #     """,
-    6: """
-SELECT
-    sum(l_extendedprice * l_discount) AS revenue
-FROM
-    lineitem
-WHERE
-    l_shipdate >= CAST('1994-01-01' AS date)
-    AND l_shipdate < CAST('1995-01-01' AS date)
-    AND l_discount BETWEEN 0.05
-    AND 0.07
-    AND l_quantity < 24;
-    """,
+    #     6: """
+    # SELECT
+    #     sum(l_extendedprice * l_discount) AS revenue
+    # FROM
+    #     lineitem
+    # WHERE
+    #     l_shipdate >= CAST('1994-01-01' AS date)
+    #     AND l_shipdate < CAST('1995-01-01' AS date)
+    #     AND l_discount BETWEEN 0.05
+    #     AND 0.07
+    #     AND l_quantity < 24;
+    #     """,
     #     7: """
     # SELECT
     #     supp_nation,
@@ -229,46 +229,46 @@ WHERE
     #     cust_nation,
     #     l_year;
     #     """,
-    8: """
-SELECT
-    o_year,
-    sum(
-        CASE WHEN nation = 'BRAZIL' THEN
-            volume
-        ELSE
-            0
-        END) / sum(volume) AS mkt_share
-FROM (
-    SELECT
-        extract(year FROM o_orderdate) AS o_year,
-        l_extendedprice * (1 - l_discount) AS volume,
-        n2.n_name AS nation
-    FROM
-       part,
-       supplier,
-       lineitem,
-       orders,
-       customer,
-       nation n1,
-       nation n2,
-       region
-    WHERE
-        p_partkey = l_partkey
-        AND s_suppkey = l_suppkey
-        AND l_orderkey = o_orderkey
-        AND o_custkey = c_custkey
-        AND c_nationkey = n1.n_nationkey
-        AND n1.n_regionkey = r_regionkey
-        AND r_name = 'AMERICA'
-        AND s_nationkey = n2.n_nationkey
-        AND o_orderdate BETWEEN CAST('1995-01-01' AS date)
-        AND CAST('1996-12-31' AS date)
-        AND p_type = 'ECONOMY ANODIZED STEEL') AS all_nations
-GROUP BY
-    o_year
-ORDER BY
-    o_year;
-    """,
+    #     8: """
+    # SELECT
+    #     o_year,
+    #     sum(
+    #         CASE WHEN nation = 'BRAZIL' THEN
+    #             volume
+    #         ELSE
+    #             0
+    #         END) / sum(volume) AS mkt_share
+    # FROM (
+    #     SELECT
+    #         extract(year FROM o_orderdate) AS o_year,
+    #         l_extendedprice * (1 - l_discount) AS volume,
+    #         n2.n_name AS nation
+    #     FROM
+    #        part,
+    #        supplier,
+    #        lineitem,
+    #        orders,
+    #        customer,
+    #        nation n1,
+    #        nation n2,
+    #        region
+    #     WHERE
+    #         p_partkey = l_partkey
+    #         AND s_suppkey = l_suppkey
+    #         AND l_orderkey = o_orderkey
+    #         AND o_custkey = c_custkey
+    #         AND c_nationkey = n1.n_nationkey
+    #         AND n1.n_regionkey = r_regionkey
+    #         AND r_name = 'AMERICA'
+    #         AND s_nationkey = n2.n_nationkey
+    #         AND o_orderdate BETWEEN CAST('1995-01-01' AS date)
+    #         AND CAST('1996-12-31' AS date)
+    #         AND p_type = 'ECONOMY ANODIZED STEEL') AS all_nations
+    # GROUP BY
+    #     o_year
+    # ORDER BY
+    #     o_year;
+    #     """,
 }
 
 
