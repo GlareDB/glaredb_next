@@ -7,7 +7,7 @@ import time
 import os
 
 # TPC-H scale factor.
-sf = 2
+sf = 10
 
 
 def generate_data():

@@ -44,7 +44,7 @@ impl<R: Runtime> DataTable for RowGroupPartitionedDataTable<R> {
             .into_iter()
             .map(|row_groups| {
                 let reader = file_provider.file_source(self.location.clone(), &self.conf)?;
-                const BATCH_SIZE: usize = 2048; // TODO
+                const BATCH_SIZE: usize = 4096; // TODO
                 AsyncBatchReader::try_new(
                     reader,
                     row_groups,

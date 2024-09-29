@@ -66,6 +66,17 @@ impl JoinHashTable {
 
         self.conditions.precompute_for_left_batch(&batch)?;
 
+        // Raw hashbrown reserves 1 at a time on insert if it's out of capacity.
+        // Grow here if needed.
+        //
+        // TODO: We should initalize the hash table using underlying table
+        // statistics.
+        let remaining = self.hash_table.len() - self.hash_table.capacity();
+        if remaining < batch.num_rows() {
+            let additional = batch.num_rows() - remaining;
+            self.hash_table.reserve(additional, |(hash, _)| *hash);
+        }
+
         let batch_idx = self.batches.len();
         self.batches.push(batch);
 
@@ -101,6 +112,13 @@ impl JoinHashTable {
             .zip(other.conditions.conditions.iter_mut())
         {
             c1.left_precomputed.append(&mut c2.left_precomputed);
+        }
+
+        // Resize own hash table to reduce rehashing during the merge.
+        let remaining = self.hash_table.len() - self.hash_table.capacity();
+        if remaining < other.hash_table.len() {
+            let additional = other.hash_table.len() - remaining;
+            self.hash_table.reserve(additional, |(hash, _)| *hash);
         }
 
         for (hash, mut row_key) in other.hash_table.drain() {
