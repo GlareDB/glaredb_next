@@ -242,7 +242,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
         match state {
             UngroupedAggregatePartitionState::Producing { batches, .. } => match batches.pop() {
-                Some(batch) => Ok(PollPull::Batch(batch)),
+                Some(batch) => Ok(PollPull::Computed(batch.into())),
                 None => Ok(PollPull::Exhausted),
             },
             UngroupedAggregatePartitionState::Aggregating { partition_idx, .. } => {

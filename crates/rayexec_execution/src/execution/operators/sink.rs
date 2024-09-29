@@ -371,7 +371,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                                 row_count,
                             ]))])?;
 
-                        return Ok(PollPull::Batch(row_count_batch));
+                        return Ok(PollPull::Computed(row_count_batch.into()));
                     }
 
                     Ok(PollPull::Exhausted)

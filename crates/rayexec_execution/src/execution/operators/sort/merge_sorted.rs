@@ -383,7 +383,7 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
                 loop {
                     // TODO: Configurable batch size.
                     match merger.try_merge(1024)? {
-                        MergeResult::Batch(batch) => return Ok(PollPull::Batch(batch)),
+                        MergeResult::Batch(batch) => return Ok(PollPull::Computed(batch.into())),
                         MergeResult::NeedsInput(input_idx) => {
                             match state.input_buffers.buffered[input_idx].take() {
                                 Some(batch) => {

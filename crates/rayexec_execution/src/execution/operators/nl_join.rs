@@ -19,6 +19,7 @@ use crate::logical::logical_join::JoinType;
 use crate::proto::DatabaseProtoConv;
 
 use super::util::outer_join_tracker::LeftOuterJoinTracker;
+use super::ComputedBatches;
 
 /// Partition-local state on the build side.
 #[derive(Debug, Default)]
@@ -56,7 +57,7 @@ pub struct NestedLoopJoinProbePartitionState {
     is_populated: bool,
 
     /// Buffered batch that's ready to be pulled.
-    buffered: Option<Batch>,
+    buffered: ComputedBatches,
 
     /// Push waker for if buffered isn't empty.
     ///
@@ -84,7 +85,7 @@ impl NestedLoopJoinProbePartitionState {
             partition_idx: partition,
             all_batches: Arc::new(Vec::new()),
             is_populated: false,
-            buffered: None,
+            buffered: ComputedBatches::None,
             push_waker: None,
             pull_waker: None,
             input_finished: false,
@@ -292,7 +293,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
 
                 // If we still have a buffered batch, reschedule the push until
                 // it's empty.
-                if state.buffered.is_some() {
+                if !state.buffered.is_empty() {
                     state.push_waker = Some(cx.waker().clone());
                     return Ok(PollPush::Pending(batch));
                 }
@@ -300,7 +301,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 // Do the join.
                 let mut batches = Vec::new();
                 for (left_idx, left) in state.all_batches.iter().enumerate() {
-                    let out = cross_join(
+                    let mut out = cross_join(
                         left_idx,
                         left,
                         &batch,
@@ -308,10 +309,9 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                         state.partition_outer_join_tracker.as_mut(),
                         false,
                     )?;
-                    batches.push(out);
+                    batches.append(&mut out);
                 }
-                let batch = concat_batches(&batches)?;
-                state.buffered = Some(batch);
+                state.buffered = ComputedBatches::new_multi(batches);
 
                 // We have stuff in the buffer, wake up the puller.
                 if let Some(waker) = state.pull_waker.take() {
@@ -381,19 +381,19 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
     ) -> Result<PollPull> {
         match partition_state {
             PartitionState::NestedLoopJoinProbe(state) => {
-                match state.buffered.take() {
-                    Some(batch) => Ok(PollPull::Batch(batch)),
-                    None => {
-                        if state.input_finished {
-                            Ok(PollPull::Exhausted)
-                        } else {
-                            // We just gotta wait for more input.
-                            if let Some(waker) = state.push_waker.take() {
-                                waker.wake();
-                            }
-                            state.pull_waker = Some(cx.waker().clone());
-                            Ok(PollPull::Pending)
+                let computed = state.buffered.take();
+                if computed.has_batches() {
+                    Ok(PollPull::Computed(computed))
+                } else {
+                    if state.input_finished {
+                        Ok(PollPull::Exhausted)
+                    } else {
+                        // We just gotta wait for more input.
+                        if let Some(waker) = state.push_waker.take() {
+                            waker.wake();
                         }
+                        state.pull_waker = Some(cx.waker().clone());
+                        Ok(PollPull::Pending)
                     }
                 }
             }
@@ -420,7 +420,7 @@ fn cross_join(
     filter_expr: Option<&PhysicalScalarExpression>,
     mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
     _right_join: bool,
-) -> Result<Batch> {
+) -> Result<Vec<Batch>> {
     let mut batches = Vec::with_capacity(left.num_rows() * right.num_rows());
 
     // For each row in the left batch, join the entirety of right.
@@ -472,7 +472,7 @@ fn cross_join(
         batches.push(batch);
     }
 
-    concat_batches(&batches)
+    Ok(batches)
 }
 
 impl Explainable for PhysicalNestedLoopJoin {

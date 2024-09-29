@@ -85,7 +85,7 @@ impl ExecutableOperator for PhysicalValues {
     ) -> Result<PollPull> {
         match partition_state {
             PartitionState::Values(state) => match state.batches.pop() {
-                Some(batch) => Ok(PollPull::Batch(batch)),
+                Some(batch) => Ok(PollPull::Computed(batch.into())),
                 None => Ok(PollPull::Exhausted),
             },
             other => panic!("invalid partition state: {other:?}"),

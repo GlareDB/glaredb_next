@@ -113,7 +113,7 @@ impl ExecutableOperator for PhysicalTableFunction {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(Some(batch))) => {
                             state.future = None; // Future complete, next pull with create a new one.
-                            return Ok(PollPull::Batch(batch));
+                            return Ok(PollPull::Computed(batch.into()));
                         }
                         Poll::Ready(Ok(None)) => return Ok(PollPull::Exhausted),
                         Poll::Ready(Err(e)) => return Err(e),
@@ -123,7 +123,7 @@ impl ExecutableOperator for PhysicalTableFunction {
 
                 let mut future = state.scan.pull();
                 match future.poll_unpin(cx) {
-                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Batch(batch)),
+                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Computed(batch.into())),
                     Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
                     Poll::Ready(Err(e)) => Err(e),
                     Poll::Pending => {

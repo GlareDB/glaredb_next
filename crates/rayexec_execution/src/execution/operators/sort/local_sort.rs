@@ -192,7 +192,7 @@ impl ExecutableOperator for PhysicalLocalSort {
                     // TODO: Configurable batch size.
                     match merger.try_merge(1024)? {
                         MergeResult::Batch(batch) => {
-                            return Ok(PollPull::Batch(batch));
+                            return Ok(PollPull::Computed(batch.into()));
                         }
                         MergeResult::Exhausted => {
                             return Ok(PollPull::Exhausted);

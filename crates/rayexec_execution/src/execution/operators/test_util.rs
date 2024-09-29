@@ -14,7 +14,9 @@ use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
 
-use super::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush};
+use super::{
+    ComputedBatches, ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
+};
 
 pub fn test_database_context() -> DatabaseContext {
     DatabaseContext::new(Arc::new(
@@ -96,7 +98,7 @@ impl Wake for TestWakerInner {
 /// Unwraps a batch from the PollPull::Batch variant.
 pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
     match poll {
-        PollPull::Batch(batch) => batch,
+        PollPull::Computed(ComputedBatches::Single(batch)) => batch,
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }

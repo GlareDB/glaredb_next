@@ -57,6 +57,7 @@ use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
 use sort::local_sort::PhysicalLocalSort;
 use sort::merge_sorted::PhysicalMergeSortedInputs;
 use source::{SourceOperation, SourceOperator, SourcePartitionState};
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::Context;
@@ -164,8 +165,8 @@ pub enum PollPush {
 /// Result of a pull from a Source.
 #[derive(Debug, PartialEq)]
 pub enum PollPull {
-    /// Successfully received a data batch.
-    Batch(Batch),
+    /// Successfully received computed results.
+    Computed(ComputedBatches),
 
     /// A batch could not be be retrieved right now.
     ///
@@ -289,6 +290,69 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollPull>;
+}
+
+/// Computed batch results from an operator.
+#[derive(Debug, Clone, PartialEq)] // TODO: Remove clone.
+pub enum ComputedBatches {
+    /// A single batch was computed.
+    Single(Batch),
+    /// Multiple batches were computed.
+    ///
+    /// These should be ordered by which batch should be pushed to next operator
+    /// first.
+    Multi(VecDeque<Batch>),
+    /// No batches computed.
+    None,
+    // TODO: Spill references
+}
+
+impl ComputedBatches {
+    pub fn new_multi(batches: impl IntoIterator<Item = Batch>) -> Self {
+        Self::Multi(batches.into_iter().collect())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Multi(batches) => batches.is_empty(),
+            Self::None => true,
+            Self::Single(_) => false,
+        }
+    }
+
+    pub fn has_batches(&self) -> bool {
+        !self.is_empty()
+    }
+
+    pub const fn is_multi(&self) -> bool {
+        matches!(self, Self::Multi(_))
+    }
+
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, ComputedBatches::None)
+    }
+
+    pub fn try_next(&mut self) -> Result<Option<Batch>> {
+        match self {
+            Self::Single(_) => {
+                let orig = std::mem::replace(self, Self::None);
+                let batch = match orig {
+                    Self::Single(batch) => batch,
+                    _ => unreachable!(),
+                };
+
+                Ok(Some(batch))
+            }
+            Self::Multi(batches) => Ok(batches.pop_front()),
+            Self::None => Ok(None),
+        }
+    }
+}
+
+impl From<Batch> for ComputedBatches {
+    fn from(value: Batch) -> Self {
+        Self::Single(value)
+    }
 }
 
 // 192 bytes

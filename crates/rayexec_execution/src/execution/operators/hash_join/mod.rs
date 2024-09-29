@@ -23,8 +23,8 @@ use crate::{
 
 use super::{
     util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker},
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ComputedBatches, ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState,
+    PartitionState, PollFinalize, PollPull, PollPush,
 };
 
 #[derive(Debug)]
@@ -48,7 +48,7 @@ pub struct HashJoinProbePartitionState {
     /// Reusable hashes buffer.
     hash_buf: Vec<u64>,
     /// Buffered output batch.
-    buffered_output: Option<Batch>,
+    buffered_output: ComputedBatches,
     /// Waker that's stored from a push if there's already a buffered batch.
     push_waker: Option<Waker>,
     /// Waker that's stored from a pull if there's no batch available.
@@ -195,7 +195,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                     partition_idx: idx,
                     global: None,
                     hash_buf: Vec::new(),
-                    buffered_output: None,
+                    buffered_output: ComputedBatches::None,
                     push_waker: None,
                     pull_waker: None,
                     input_finished: false,
@@ -240,7 +240,7 @@ impl ExecutableOperator for PhysicalHashJoin {
             PartitionState::HashJoinProbe(state) => {
                 // If we have pending output, we need to wait for that to get
                 // pulled before trying to compute additional batches.
-                if state.buffered_output.is_some() {
+                if !state.buffered_output.is_empty() {
                     state.push_waker = Some(cx.waker().clone());
                     return Ok(PollPush::Pending(batch));
                 }
@@ -305,8 +305,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 // TODO: Would be cool not having to do this.
-                let batch = compute::concat::concat_batches(&batches)?;
-                state.buffered_output = Some(batch);
+                state.buffered_output = ComputedBatches::new_multi(batches);
 
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
@@ -484,49 +483,48 @@ impl ExecutableOperator for PhysicalHashJoin {
             other => panic!("invalid partition state: {other:?}"),
         };
 
-        match state.buffered_output.take() {
-            Some(batch) => {
-                // Partition has space available, go ahead an wake a pending
-                // pusher.
-                if let Some(waker) = state.push_waker.take() {
-                    waker.wake();
-                }
-
-                Ok(PollPull::Batch(batch))
+        let computed = state.buffered_output.take();
+        if computed.has_batches() {
+            // Partition has space available, go ahead an wake a pending
+            // pusher.
+            if let Some(waker) = state.push_waker.take() {
+                waker.wake();
             }
-            None => {
-                if state.input_finished {
-                    // Check if we're still draining unvisited left rows.
-                    if let Some(drain_state) = state.outer_join_drain_state.as_mut() {
-                        if matches!(self.join_type, JoinType::LeftMark { .. }) {
-                            // Mark drain
-                            match drain_state.drain_mark_next()? {
-                                Some(batch) => return Ok(PollPull::Batch(batch)),
-                                None => return Ok(PollPull::Exhausted),
-                            }
-                        } else {
-                            // Normal left drain
-                            match drain_state.drain_next()? {
-                                Some(batch) => return Ok(PollPull::Batch(batch)),
-                                None => return Ok(PollPull::Exhausted),
-                            }
+
+            Ok(PollPull::Computed(computed))
+        } else {
+            // No batches computed, check if we're done.
+            if state.input_finished {
+                // Check if we're still draining unvisited left rows.
+                if let Some(drain_state) = state.outer_join_drain_state.as_mut() {
+                    if matches!(self.join_type, JoinType::LeftMark { .. }) {
+                        // Mark drain
+                        match drain_state.drain_mark_next()? {
+                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
+                            None => return Ok(PollPull::Exhausted),
+                        }
+                    } else {
+                        // Normal left drain
+                        match drain_state.drain_next()? {
+                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
+                            None => return Ok(PollPull::Exhausted),
                         }
                     }
-
-                    // We're done.
-                    return Ok(PollPull::Exhausted);
                 }
 
-                // No batch available, come back later.
-                state.pull_waker = Some(cx.waker().clone());
-
-                // Wake up a pusher since there's space available.
-                if let Some(waker) = state.push_waker.take() {
-                    waker.wake();
-                }
-
-                Ok(PollPull::Pending)
+                // We're done.
+                return Ok(PollPull::Exhausted);
             }
+
+            // No batch available, come back later.
+            state.pull_waker = Some(cx.waker().clone());
+
+            // Wake up a pusher since there's space available.
+            if let Some(waker) = state.push_waker.take() {
+                waker.wake();
+            }
+
+            Ok(PollPull::Pending)
         }
     }
 }

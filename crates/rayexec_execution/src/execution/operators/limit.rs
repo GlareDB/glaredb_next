@@ -190,7 +190,7 @@ impl ExecutableOperator for PhysicalLimit {
         };
 
         match state.buffer.take() {
-            Some(batch) => Ok(PollPull::Batch(batch)),
+            Some(batch) => Ok(PollPull::Computed(batch.into())),
             None => {
                 if state.finished {
                     return Ok(PollPull::Exhausted);

@@ -434,7 +434,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
 
                 // Drain should be Some by here.
                 match hashtable_drain.as_mut().unwrap().next() {
-                    Some(Ok(batch)) => Ok(PollPull::Batch(batch)),
+                    Some(Ok(batch)) => Ok(PollPull::Computed(batch.into())),
                     Some(Err(e)) => Err(e),
                     None => Ok(PollPull::Exhausted),
                 }
