@@ -10,6 +10,7 @@ use crate::{
 use super::{
     binder::bind_context::TableRef,
     operator::{LogicalNode, Node},
+    statistics::{Statistics, StatisticsCount},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,6 +31,20 @@ pub enum ScanSource {
         schema: String,
         source: Arc<CatalogEntry>,
     },
+}
+
+impl ScanSource {
+    fn statistics(&self) -> Statistics {
+        match self {
+            Self::Table { .. } => Statistics::unknown(),
+            Self::TableFunction { function } => function.statistics(),
+            Self::ExpressionList { rows } => Statistics {
+                cardinality: StatisticsCount::Exact(rows.len()),
+                column_stats: None,
+            },
+            Self::View { .. } => Statistics::unknown(),
+        }
+    }
 }
 
 /// Represents a scan from some source.
@@ -85,5 +100,9 @@ impl Explainable for LogicalScan {
 impl LogicalNode for Node<LogicalScan> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         vec![self.node.table_ref]
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        self.node.source.statistics()
     }
 }

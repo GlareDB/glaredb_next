@@ -11,11 +11,11 @@ sf = 10
 
 
 def generate_data():
+    if os.path.isdir(f"./benchmarks/data/tpch-{sf}"):
+        return
     con = duckdb.connect()
     con.sql("PRAGMA disable_progress_bar;SET preserve_insertion_order=false")
     con.sql(f"CALL dbgen(sf={sf})")
-    if os.path.isdir(f"./benchmarks/data/tpch-{sf}"):
-        return
     pathlib.Path(f"./benchmarks/data/tpch-{sf}").mkdir(parents=True, exist_ok=True)
     for tbl in [
         "nation",

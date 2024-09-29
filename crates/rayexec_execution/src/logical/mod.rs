@@ -38,6 +38,7 @@
 
 pub mod consteval;
 pub mod operator;
+pub mod statistics;
 
 pub mod binder;
 pub mod planner;

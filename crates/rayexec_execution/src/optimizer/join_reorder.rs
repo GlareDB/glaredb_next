@@ -331,8 +331,11 @@ impl JoinTree {
                 //
                 // These takes will mark the nodes as invalid for the next call
                 // (via the default impl)
-                let mut left = std::mem::take(&mut self.nodes[node_indices[0]]);
-                let mut right = std::mem::take(&mut self.nodes[node_indices[1]]);
+                let left = std::mem::take(&mut self.nodes[node_indices[0]]);
+                let right = std::mem::take(&mut self.nodes[node_indices[1]]);
+
+                // Swap if needed.
+                let [mut left, mut right] = Self::maybe_swap_using_stats([left, right]);
 
                 let left_refs: Vec<_> = left.output_refs.iter().copied().collect();
                 let right_refs: Vec<_> = right.output_refs.iter().copied().collect();
@@ -438,5 +441,29 @@ impl JoinTree {
         }
 
         Ok(true)
+    }
+
+    fn maybe_swap_using_stats([left, right]: [JoinTreeNode; 2]) -> [JoinTreeNode; 2] {
+        let left_stats = left
+            .plan
+            .as_ref()
+            .expect("left plan to exist")
+            .get_statistics();
+        let right_stats = right
+            .plan
+            .as_ref()
+            .expect("right plan to exist")
+            .get_statistics();
+
+        match (
+            left_stats.cardinality.value(),
+            right_stats.cardinality.value(),
+        ) {
+            (Some(left_size), Some(right_size)) if right_size < left_size => {
+                // Swap, we want smaller on the left.
+                [right, left]
+            }
+            _ => [left, right], // Unchanged.
+        }
     }
 }

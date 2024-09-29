@@ -21,6 +21,8 @@ struct Arguments {
     /// Execute file containing sql statements then exit.
     #[clap(short = 'f', long)]
     files: Vec<PathBuf>,
+    #[clap(long)]
+    dump_profile: bool,
     /// Queries to execute.
     ///
     /// If omitted, and no files were given via the `files` argument, then an
@@ -94,8 +96,19 @@ async fn inner(
 
             let pending_queries = engine.session().query_many(&content)?;
             for pending in pending_queries {
-                let table = pending.execute().await?.collect().await?;
+                let table = pending
+                    .execute()
+                    .await?
+                    .collect_with_execution_profile()
+                    .await?;
                 writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+
+                if args.dump_profile {
+                    writeln!(stdout, "---- PLANNING ----")?;
+                    writeln!(stdout, "{}", table.planning_profile_data().unwrap())?;
+                    writeln!(stdout, "---- EXECUTION ----")?;
+                    writeln!(stdout, "{}", table.execution_profile_data().unwrap())?;
+                }
             }
             stdout.flush()?;
         }

@@ -2,6 +2,8 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 use super::operator::LogicalNode;
+use super::statistics::assumptions::DEFAULT_SELECTIVITY;
+use super::statistics::{Statistics, StatisticsCount};
 use super::{binder::bind_context::TableRef, operator::Node};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,5 +20,23 @@ impl Explainable for LogicalFilter {
 impl LogicalNode for Node<LogicalFilter> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.get_children_table_refs()
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        let child_stats = self
+            .iter_child_statistics()
+            .next()
+            .expect("filter has a child");
+
+        if let Some(card) = child_stats.cardinality.value() {
+            let estimated = (card as f64) * DEFAULT_SELECTIVITY;
+
+            return Statistics {
+                cardinality: StatisticsCount::Estimated(estimated as usize),
+                column_stats: None,
+            };
+        }
+
+        Statistics::unknown()
     }
 }

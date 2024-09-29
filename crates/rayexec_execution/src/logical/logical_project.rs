@@ -3,6 +3,7 @@ use crate::expr::Expression;
 use super::{
     binder::bind_context::TableRef,
     operator::{LogicalNode, Node},
+    statistics::Statistics,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -31,5 +32,11 @@ impl Explainable for LogicalProject {
 impl LogicalNode for Node<LogicalProject> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         vec![self.node.projection_table]
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        self.iter_child_statistics()
+            .next()
+            .expect("single child for project")
     }
 }

@@ -7,12 +7,14 @@ use crate::{
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         Expression,
     },
+    logical::statistics::{assumptions::DEFAULT_SELECTIVITY, StatisticsCount},
 };
 use std::fmt;
 
 use super::{
     binder::bind_context::{MaterializationRef, TableRef},
     operator::{LogicalNode, Node},
+    statistics::Statistics,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +59,39 @@ impl JoinType {
             refs
         } else {
             node.get_children_table_refs()
+        }
+    }
+
+    fn statistics<T>(self, node: &Node<T>) -> Statistics {
+        let mut iter = node.iter_child_statistics();
+        let left = iter.next().expect("first child");
+        let right = iter.next().expect("second child");
+
+        let left_card = left.cardinality.value();
+        let right_card = right.cardinality.value();
+
+        let cardinality = match self {
+            Self::Left | Self::LeftMark { .. } => match left_card {
+                Some(v) => StatisticsCount::Estimated(v),
+                _ => StatisticsCount::Unknown,
+            },
+            Self::Right => match right_card {
+                Some(v) => StatisticsCount::Estimated(v),
+                _ => StatisticsCount::Unknown,
+            },
+            Self::Inner => match (left_card, right_card) {
+                (Some(left), Some(right)) => {
+                    let estimated = (left as f64) * (right as f64) * DEFAULT_SELECTIVITY;
+                    StatisticsCount::Estimated(estimated as usize)
+                }
+                _ => StatisticsCount::Unknown,
+            },
+            _ => StatisticsCount::Unknown,
+        };
+
+        Statistics {
+            cardinality,
+            column_stats: None,
         }
     }
 }
@@ -140,6 +175,10 @@ impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
     }
+
+    fn get_statistics(&self) -> Statistics {
+        self.node.join_type.statistics(self)
+    }
 }
 
 /// A magic join behaves the same as a comparison join, is only used to
@@ -178,6 +217,10 @@ impl LogicalNode for Node<LogicalMagicJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
     }
+
+    fn get_statistics(&self) -> Statistics {
+        self.node.join_type.statistics(self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,6 +241,10 @@ impl LogicalNode for Node<LogicalArbitraryJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
     }
+
+    fn get_statistics(&self) -> Statistics {
+        Statistics::unknown()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -212,6 +259,25 @@ impl Explainable for LogicalCrossJoin {
 impl LogicalNode for Node<LogicalCrossJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.get_children_table_refs()
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        let mut iter = self.iter_child_statistics();
+        let left = iter.next().expect("first child");
+        let right = iter.next().expect("second child");
+
+        let left_card = left.cardinality.value();
+        let right_card = right.cardinality.value();
+
+        let cardinality = match (left_card, right_card) {
+            (Some(left), Some(right)) => StatisticsCount::Estimated(left.saturating_mul(right)),
+            _ => StatisticsCount::Unknown,
+        };
+
+        Statistics {
+            cardinality,
+            column_stats: None,
+        }
     }
 }
 

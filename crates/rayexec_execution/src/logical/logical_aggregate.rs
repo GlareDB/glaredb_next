@@ -5,6 +5,7 @@ use crate::expr::Expression;
 
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};
+use super::statistics::{Statistics, StatisticsCount};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAggregate {
@@ -71,5 +72,19 @@ impl LogicalNode for Node<LogicalAggregate> {
             refs.push(grouping_set_table);
         }
         refs
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        if self.node.group_exprs.is_empty() {
+            Statistics {
+                cardinality: StatisticsCount::Exact(1),
+                column_stats: None,
+            }
+        } else {
+            Statistics {
+                cardinality: StatisticsCount::Unknown,
+                column_stats: None,
+            }
+        }
     }
 }

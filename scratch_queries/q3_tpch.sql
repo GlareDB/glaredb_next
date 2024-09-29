@@ -8,24 +8,25 @@ CREATE TEMP VIEW partsupp AS SELECT * FROM './crates/rayexec_python/benchmarks/d
 CREATE TEMP VIEW part AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/part.parquet';
 
 SELECT
-    l_returnflag,
-    l_linestatus,
-    sum(l_quantity) AS sum_qty,
-    sum(l_extendedprice) AS sum_base_price,
-    sum(l_extendedprice * (1 - l_discount)) AS sum_disc_price,
-    sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) AS sum_charge,
-    avg(l_quantity) AS avg_qty,
-    avg(l_extendedprice) AS avg_price,
-    avg(l_discount) AS avg_disc,
-    count(*) AS count_order
+    l_orderkey,
+    sum(l_extendedprice * (1 - l_discount)) AS revenue,
+    o_orderdate,
+    o_shippriority
 FROM
+    customer,
+    orders,
     lineitem
 WHERE
-    l_shipdate <= date '1998-09-02'
+    c_mktsegment = 'BUILDING'
+    AND c_custkey = o_custkey
+    AND l_orderkey = o_orderkey
+    AND o_orderdate < CAST('1995-03-15' AS date)
+    AND l_shipdate > CAST('1995-03-15' AS date)
 GROUP BY
-    l_returnflag,
-    l_linestatus
+    l_orderkey,
+    o_orderdate,
+    o_shippriority
 ORDER BY
-    l_returnflag,
-    l_linestatus;
-
+    revenue DESC,
+    o_orderdate
+LIMIT 10;
