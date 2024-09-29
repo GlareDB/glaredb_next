@@ -13,9 +13,9 @@ use super::condition::{HashJoinCondition, LeftPrecomputedJoinConditions};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct RowKey {
     /// Index of the batch in the batches vector.
-    batch_idx: usize,
+    batch_idx: u32,
     /// Index of the row in the batch.
-    row_idx: usize,
+    row_idx: u32,
 }
 
 pub struct JoinHashTable {
@@ -81,7 +81,10 @@ impl JoinHashTable {
         self.batches.push(batch);
 
         for (row_idx, hash) in hashes.iter().enumerate() {
-            let row_key = RowKey { batch_idx, row_idx };
+            let row_key = RowKey {
+                batch_idx: batch_idx as u32,
+                row_idx: row_idx as u32,
+            };
             self.hash_table
                 .insert(*hash, (*hash, row_key), |(hash, _)| *hash);
         }
@@ -122,7 +125,7 @@ impl JoinHashTable {
         }
 
         for (hash, mut row_key) in other.hash_table.drain() {
-            row_key.batch_idx += batch_offset;
+            row_key.batch_idx += batch_offset as u32;
             self.hash_table
                 .insert(hash, (hash, row_key), |(hash, _)| *hash);
         }
@@ -164,12 +167,12 @@ impl JoinHashTable {
 
                     // This is all safe, just adding to the row_indices vec.
                     use std::collections::hash_map::Entry;
-                    match row_indices.entry(row_key.batch_idx) {
+                    match row_indices.entry(row_key.batch_idx as usize) {
                         Entry::Occupied(mut ent) => {
-                            ent.get_mut().push((row_key.row_idx, right_idx))
+                            ent.get_mut().push((row_key.row_idx as usize, right_idx))
                         }
                         Entry::Vacant(ent) => {
-                            ent.insert(vec![(row_key.row_idx, right_idx)]);
+                            ent.insert(vec![(row_key.row_idx as usize, right_idx)]);
                         }
                     }
                 })
