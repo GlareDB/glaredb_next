@@ -118,12 +118,17 @@ pub struct AsyncBatchReader<R: FileSource> {
     metadata: Arc<Metadata>,
     /// Desired batch size.
     batch_size: usize,
-    /// Builders for each column in the batch.
-    builders: Vec<Box<dyn ArrayBuilder<SerializedPageReader<InMemoryColumnChunk>>>>,
-    /// Columns chunks we've read.
-    column_chunks: Vec<Option<InMemoryColumnChunk>>,
-    /// Root column projections.
-    projections: Projections,
+    /// All column states for columns we're reading.
+    column_states: Vec<ColumnState>,
+}
+
+struct ColumnState {
+    /// Index of the column in the parquet file.
+    column_idx: usize,
+    /// Builder for this column.
+    builder: Box<dyn ArrayBuilder<SerializedPageReader<InMemoryColumnChunk>>>,
+    /// In-memory buffer for reading this column.
+    column_chunk: Option<InMemoryColumnChunk>,
 }
 
 impl<R: FileSource + 'static> AsyncBatchReader<R> {
@@ -135,22 +140,47 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         batch_size: usize,
         projections: Projections,
     ) -> Result<Self> {
-        let column_chunks = (0..schema.fields.len()).map(|_| None).collect();
-        let mut builders = Vec::with_capacity(schema.fields.len());
+        // Create projection bitmap.
+        //
+        // TODO: This will need to change to accomodate structs in parquet
+        // files.
+        let bitmap = match &projections.column_indices {
+            Some(indices) => {
+                let mut bitmap = Bitmap::all_false(schema.fields.len());
+                for &idx in indices {
+                    bitmap.set_unchecked(idx, true);
+                }
+                bitmap
+            }
+            None => Bitmap::all_true(schema.fields.len()),
+        };
 
-        for (datatype, column_chunk_meta) in schema
+        let mut states = Vec::with_capacity(schema.fields.len());
+
+        for (col_idx, ((datatype, column_chunk_meta), projected)) in schema
             .iter()
             .map(|f| f.datatype.clone())
             .zip(metadata.decoded_metadata.row_group(0).columns())
+            .zip(bitmap.iter())
+            .enumerate()
         {
-            let physical = column_chunk_meta.column_type();
-            let builder = builder_for_type(
-                batch_size,
-                datatype,
-                physical,
-                column_chunk_meta.column_descr_ptr(),
-            )?;
-            builders.push(builder)
+            if projected {
+                let physical = column_chunk_meta.column_type();
+                let builder = builder_for_type(
+                    batch_size,
+                    datatype,
+                    physical,
+                    column_chunk_meta.column_descr_ptr(),
+                )?;
+
+                let state = ColumnState {
+                    column_idx: col_idx,
+                    builder,
+                    column_chunk: None,
+                };
+
+                states.push(state)
+            }
         }
 
         Ok(AsyncBatchReader {
@@ -159,9 +189,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             current_row_group: None,
             metadata,
             batch_size,
-            column_chunks,
-            builders,
-            projections,
+            column_states: states,
         })
     }
 
@@ -198,26 +226,14 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     ///
     /// Returns Ok(None) when there's nothing left to read.
     fn maybe_read_batch(&mut self) -> Result<Option<Batch>> {
-        let arrays = match &self.projections.column_indices {
-            Some(indices) => {
-                for &idx in indices {
-                    self.builders[idx].read_rows(self.batch_size)?;
-                }
-                indices
-                    .iter()
-                    .map(|&idx| self.builders[idx].build())
-                    .collect::<Result<Vec<_>>>()?
-            }
-            None => {
-                for builder in self.builders.iter_mut() {
-                    builder.read_rows(self.batch_size)?;
-                }
-                self.builders
-                    .iter_mut()
-                    .map(|builder| builder.build())
-                    .collect::<Result<Vec<_>>>()?
-            }
-        };
+        for state in self.column_states.iter_mut() {
+            state.builder.read_rows(self.batch_size)?;
+        }
+        let arrays = self
+            .column_states
+            .iter_mut()
+            .map(|state| state.builder.build())
+            .collect::<Result<Vec<_>>>()?;
 
         let batch = Batch::try_new(arrays)?;
 
@@ -229,99 +245,55 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     }
 
     fn set_page_readers(&mut self) -> Result<()> {
-        let mut builders = std::mem::take(&mut self.builders);
-        // TODO: Don't clone.
-        match self.projections.column_indices.clone() {
-            Some(indices) => {
-                for idx in indices {
-                    let page_reader = self.take_serialized_page_reader(idx)?;
-                    builders[idx].set_page_reader(page_reader)?;
-                }
-            }
-            None => {
-                for (idx, builder) in builders.iter_mut().enumerate() {
-                    let page_reader = self.take_serialized_page_reader(idx)?;
-                    builder.set_page_reader(page_reader)?;
-                }
-            }
+        for state in self.column_states.iter_mut() {
+            let row_group = self.current_row_group.expect("current row group to be set");
+            let locations = self
+                .metadata
+                .decoded_metadata
+                .offset_index()
+                .map(|row_groups| row_groups[row_group][state.column_idx].clone());
+
+            let row_group_meta = self.metadata.decoded_metadata.row_group(row_group);
+
+            let chunk = match std::mem::take(&mut state.column_chunk) {
+                Some(chunk) => Arc::new(chunk),
+                None => return Err(RayexecError::new("Expected column chunk")),
+            };
+
+            let page_reader = SerializedPageReader::new(
+                chunk,
+                row_group_meta.column(state.column_idx),
+                row_group_meta.num_rows() as usize,
+                locations,
+            )
+            .context("failed to create serialize page reader")?;
+
+            state.builder.set_page_reader(page_reader)?;
         }
-        self.builders = builders;
 
         Ok(())
     }
 
     /// Fetches the column chunks for the current row group.
     async fn fetch_column_chunks(&mut self) -> Result<()> {
-        match &self.projections.column_indices {
-            Some(indices) => {
-                for &idx in indices {
-                    let col = self
-                        .metadata
-                        .decoded_metadata
-                        .row_group(self.current_row_group.expect("current row group to be set"))
-                        .column(idx);
-                    let (start, len) = col.byte_range();
+        for state in self.column_states.iter_mut() {
+            let col = self
+                .metadata
+                .decoded_metadata
+                .row_group(self.current_row_group.expect("current row group to be set"))
+                .column(state.column_idx);
+            let (start, len) = col.byte_range();
 
-                    // TODO: Parallel reads.
-                    let buf = self.reader.read_range(start as usize, len as usize).await?;
+            // TODO: Parallel reads.
+            let buf = self.reader.read_range(start as usize, len as usize).await?;
 
-                    self.column_chunks[idx] = Some(InMemoryColumnChunk {
-                        offset: start as usize,
-                        buf,
-                    })
-                }
-            }
-            None => {
-                for (idx, chunk) in self.column_chunks.iter_mut().enumerate() {
-                    let col = self
-                        .metadata
-                        .decoded_metadata
-                        .row_group(self.current_row_group.expect("current row group to be set"))
-                        .column(idx);
-                    let (start, len) = col.byte_range();
-
-                    // TODO: Parallel reads.
-                    let buf = self.reader.read_range(start as usize, len as usize).await?;
-
-                    *chunk = Some(InMemoryColumnChunk {
-                        offset: start as usize,
-                        buf,
-                    })
-                }
-            }
+            state.column_chunk = Some(InMemoryColumnChunk {
+                offset: start as usize,
+                buf,
+            })
         }
 
         Ok(())
-    }
-
-    /// Take the underlying buffer for a column and convert into a page reader.
-    fn take_serialized_page_reader(
-        &mut self,
-        col: usize,
-    ) -> Result<SerializedPageReader<InMemoryColumnChunk>> {
-        let row_group = self.current_row_group.expect("current row group to be set");
-        let locations = self
-            .metadata
-            .decoded_metadata
-            .offset_index()
-            .map(|row_groups| row_groups[row_group][col].clone());
-
-        let row_group_meta = self.metadata.decoded_metadata.row_group(row_group);
-
-        let chunk = match std::mem::take(&mut self.column_chunks[col]) {
-            Some(chunk) => Arc::new(chunk),
-            None => return Err(RayexecError::new("Expected column chunk")),
-        };
-
-        let page_reader = SerializedPageReader::new(
-            chunk,
-            row_group_meta.column(col),
-            row_group_meta.num_rows() as usize,
-            locations,
-        )
-        .context("failed to create serialize page reader")?;
-
-        Ok(page_reader)
     }
 }
 
