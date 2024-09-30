@@ -1,4 +1,5 @@
 pub mod expr_rewrite;
+pub mod column_prune;
 pub mod filter_pushdown;
 pub mod join_reorder;
 pub mod limit_pushdown;

@@ -1,3 +1,5 @@
+use rayexec_error::Result;
+
 use crate::expr::Expression;
 
 use super::{
@@ -38,5 +40,25 @@ impl LogicalNode for Node<LogicalProject> {
         self.iter_child_statistics()
             .next()
             .expect("single child for project")
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for expr in &self.node.projections {
+            func(expr)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for expr in &mut self.node.projections {
+            func(expr)?;
+        }
+        Ok(())
     }
 }

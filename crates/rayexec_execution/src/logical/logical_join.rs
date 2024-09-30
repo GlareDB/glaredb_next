@@ -1,3 +1,5 @@
+use rayexec_error::Result;
+
 use crate::{
     explain::{
         context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
@@ -179,6 +181,28 @@ impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_statistics(&self) -> Statistics {
         self.node.join_type.statistics(self)
     }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for condition in &self.node.conditions {
+            func(&condition.left)?;
+            func(&condition.right)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for condition in &mut self.node.conditions {
+            func(&mut condition.left)?;
+            func(&mut condition.right)?;
+        }
+        Ok(())
+    }
 }
 
 /// A magic join behaves the same as a comparison join, is only used to
@@ -221,6 +245,28 @@ impl LogicalNode for Node<LogicalMagicJoin> {
     fn get_statistics(&self) -> Statistics {
         self.node.join_type.statistics(self)
     }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for condition in &self.node.conditions {
+            func(&condition.left)?;
+            func(&condition.right)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for condition in &mut self.node.conditions {
+            func(&mut condition.left)?;
+            func(&mut condition.right)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -244,6 +290,20 @@ impl LogicalNode for Node<LogicalArbitraryJoin> {
 
     fn get_statistics(&self) -> Statistics {
         Statistics::unknown()
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        func(&self.node.condition)
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        func(&mut self.node.condition)
     }
 }
 
@@ -278,6 +338,20 @@ impl LogicalNode for Node<LogicalCrossJoin> {
             cardinality,
             column_stats: None,
         }
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }
 

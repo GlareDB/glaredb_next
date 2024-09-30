@@ -1,3 +1,5 @@
+use rayexec_error::Result;
+
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -38,5 +40,19 @@ impl LogicalNode for Node<LogicalFilter> {
         }
 
         Statistics::unknown()
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        func(&self.node.filter)
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        func(&mut self.node.filter)
     }
 }

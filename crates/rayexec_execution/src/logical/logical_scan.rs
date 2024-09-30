@@ -1,3 +1,4 @@
+use rayexec_error::Result;
 use std::sync::Arc;
 
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -104,5 +105,33 @@ impl LogicalNode for Node<LogicalScan> {
 
     fn get_statistics(&self) -> Statistics {
         self.node.source.statistics()
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        if let ScanSource::ExpressionList { rows } = &self.node.source {
+            for row in rows {
+                for expr in row {
+                    func(expr)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        if let ScanSource::ExpressionList { rows } = &mut self.node.source {
+            for row in rows {
+                for expr in row {
+                    func(expr)?;
+                }
+            }
+        }
+        Ok(())
     }
 }

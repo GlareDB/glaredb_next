@@ -132,11 +132,18 @@ pub struct VarlenValuesBuffer<O: OffsetIndex> {
     data: Vec<u8>,
 }
 
+impl<O: OffsetIndex> VarlenValuesBuffer<O> {
+    pub fn with_data_and_offset_caps(data_cap: usize, offset_cap: usize) -> Self {
+        let mut offsets = Vec::with_capacity(offset_cap + 1);
+        offsets.push(O::from_usize(0));
+        let data: Vec<u8> = Vec::with_capacity(data_cap);
+        VarlenValuesBuffer { offsets, data }
+    }
+}
+
 impl<O: OffsetIndex> Default for VarlenValuesBuffer<O> {
     fn default() -> Self {
-        let offsets: Vec<O> = vec![O::from_usize(0)];
-        let data: Vec<u8> = Vec::new();
-        VarlenValuesBuffer { offsets, data }
+        Self::with_data_and_offset_caps(0, 0)
     }
 }
 

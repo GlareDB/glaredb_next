@@ -1,3 +1,4 @@
+use rayexec_error::Result;
 use std::collections::BTreeSet;
 
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -86,5 +87,31 @@ impl LogicalNode for Node<LogicalAggregate> {
                 column_stats: None,
             }
         }
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for expr in &self.node.aggregates {
+            func(expr)?;
+        }
+        for expr in &self.node.group_exprs {
+            func(expr)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for expr in &mut self.node.aggregates {
+            func(expr)?;
+        }
+        for expr in &mut self.node.group_exprs {
+            func(expr)?;
+        }
+        Ok(())
     }
 }

@@ -14,8 +14,10 @@ use rayexec_error::{RayexecError, Result};
 use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};
 
 pub struct PrimitiveArrayReader<T: ParquetDataType, P: PageReader> {
+    batch_size: usize,
     datatype: DataType,
     values_reader: ValuesReader<T, P>,
+    values_buffer: Vec<T::T>,
 }
 
 impl<T, P> PrimitiveArrayReader<T, P>
@@ -24,16 +26,18 @@ where
     P: PageReader,
     Vec<T::T>: IntoArray,
 {
-    pub fn new(datatype: DataType, desc: ColumnDescPtr) -> Self {
+    pub fn new(batch_size: usize, datatype: DataType, desc: ColumnDescPtr) -> Self {
         PrimitiveArrayReader {
+            batch_size,
             datatype,
             values_reader: ValuesReader::new(desc),
+            values_buffer: Vec::with_capacity(batch_size),
         }
     }
 
     /// Take the currently read values and convert into an array.
     pub fn take_array(&mut self) -> Result<Array> {
-        let data = self.values_reader.take_values();
+        let data = std::mem::replace(&mut self.values_buffer, Vec::with_capacity(self.batch_size));
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
 
@@ -91,7 +95,7 @@ where
     }
 
     fn read_rows(&mut self, n: usize) -> Result<usize> {
-        self.values_reader.read_records(n)
+        self.values_reader.read_records(n, &mut self.values_buffer)
     }
 }
 

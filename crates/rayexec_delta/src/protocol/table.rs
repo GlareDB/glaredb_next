@@ -230,7 +230,7 @@ impl TableScan {
         let metadata = Arc::new(Metadata::new_from_source(source.as_mut(), size).await?);
         let row_groups: VecDeque<_> = (0..metadata.decoded_metadata.row_groups().len()).collect();
 
-        const BATCH_SIZE: usize = 2048; // TODO
+        const BATCH_SIZE: usize = 4096; // TODO
         let reader = AsyncBatchReader::try_new(source, row_groups, metadata, schema, BATCH_SIZE)?;
 
         Ok(reader)
