@@ -221,7 +221,7 @@ where
             values.push_value(T::NULL);
         }
 
-        let validity = Bitmap::all_false(len);
+        let validity = Bitmap::new_with_all_false(len);
         Self::new(values, Some(validity))
     }
 

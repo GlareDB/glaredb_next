@@ -34,11 +34,11 @@ impl Bitmap {
         Self::from_iter(std::iter::repeat(val).take(len))
     }
 
-    pub fn all_true(len: usize) -> Self {
+    pub fn new_with_all_true(len: usize) -> Self {
         Self::new_with_val(true, len)
     }
 
-    pub fn all_false(len: usize) -> Self {
+    pub fn new_with_all_false(len: usize) -> Self {
         Self::new_with_val(false, len)
     }
 
@@ -75,6 +75,10 @@ impl Bitmap {
         }
 
         count
+    }
+
+    pub fn is_all_true(&self) -> bool {
+        self.count_trues() == self.len()
     }
 
     /// Push a value onto the end of the bitmap.

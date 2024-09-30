@@ -57,7 +57,7 @@ where
 
     pub fn new_nulls(len: usize) -> Self {
         let mut arr = Self::new_empty_with_n_rows(len);
-        arr.validity = Some(Bitmap::all_false(len));
+        arr.validity = Some(Bitmap::new_with_all_false(len));
         arr
     }
 

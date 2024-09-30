@@ -33,7 +33,7 @@ impl PhysicalCaseExpr {
         // have a selection, use that, otherwise we'll be looking at all rows.
         let mut needs_results = match selection {
             Some(selection) => selection.clone(),
-            None => Bitmap::all_true(batch.num_rows()),
+            None => Bitmap::new_with_all_true(batch.num_rows()),
         };
 
         for case in &self.cases {

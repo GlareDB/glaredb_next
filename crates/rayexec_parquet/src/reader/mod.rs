@@ -146,13 +146,13 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         // files.
         let bitmap = match &projections.column_indices {
             Some(indices) => {
-                let mut bitmap = Bitmap::all_false(schema.fields.len());
+                let mut bitmap = Bitmap::new_with_all_false(schema.fields.len());
                 for &idx in indices {
                     bitmap.set_unchecked(idx, true);
                 }
                 bitmap
             }
-            None => Bitmap::all_true(schema.fields.len()),
+            None => Bitmap::new_with_all_true(schema.fields.len()),
         };
 
         let mut states = Vec::with_capacity(schema.fields.len());
@@ -197,6 +197,8 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         if self.current_row_group.is_none() {
             match self.row_groups.pop_front() {
                 Some(group) => {
+                    // DO TABLE FILTERS HERE.
+
                     self.current_row_group = Some(group);
                     self.fetch_column_chunks().await?;
                     self.set_page_readers()?;

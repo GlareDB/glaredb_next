@@ -3,6 +3,8 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::expr::{literal_expr::LiteralExpr, Expression};
 
+// TODO: REMOVE
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FoldedExpression {
     /// An expression that underwent some amount of folding.

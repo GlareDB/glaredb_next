@@ -48,7 +48,7 @@ list_values  List[Float64]
 query TT
 describe select list_values(1, 2) as my_list;
 ----
-my_list  List[Int64]
+my_list  List[Int32]
 
 # Literal syntax
 

@@ -32,10 +32,16 @@ impl StatelessOperation for FilterOperation {
             }
         };
 
+        // TODO: We should allow storing the bitmap on the batch to avoid
+        // actually needing to reallocate arrays here.
         let filtered_arrays = if let Some(validity) = selection.validity() {
             // Need to account for nulls (which are falsy in this context).
             let mut bitmap = selection.values().clone();
             bitmap.bit_and_mut(validity)?;
+
+            if bitmap.is_all_true() {
+                return Ok(batch);
+            }
 
             batch
                 .columns()
@@ -44,6 +50,10 @@ impl StatelessOperation for FilterOperation {
                 .collect::<Result<Vec<_>, _>>()?
         } else {
             // Can just use the values directly.
+            if selection.values().is_all_true() {
+                return Ok(batch);
+            }
+
             batch
                 .columns()
                 .iter()

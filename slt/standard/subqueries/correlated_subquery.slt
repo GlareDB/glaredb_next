@@ -10,7 +10,7 @@ query TT
 DESCRIBE SELECT a, (SELECT t1.a + 2) FROM t1 ORDER BY a;
 ----
 a         Int32
-?column?  Int64
+?column?  Int32
 
 
 # Simple scalar select.

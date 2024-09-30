@@ -27,7 +27,7 @@ impl LeftOuterJoinTracker {
     pub fn new_for_batches(batches: &[Batch]) -> Self {
         let bitmaps = batches
             .iter()
-            .map(|b| Bitmap::all_false(b.num_rows()))
+            .map(|b| Bitmap::new_with_all_false(b.num_rows()))
             .collect();
 
         LeftOuterJoinTracker { bitmaps }
@@ -176,7 +176,7 @@ impl RightOuterJoinTracker {
     /// Create a new tracker for the provided batch.
     pub fn new_for_batch(batch: &Batch) -> Self {
         RightOuterJoinTracker {
-            unvisited: Bitmap::all_true(batch.num_rows()),
+            unvisited: Bitmap::new_with_all_true(batch.num_rows()),
         }
     }
 

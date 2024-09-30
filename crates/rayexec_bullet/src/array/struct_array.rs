@@ -13,7 +13,7 @@ pub struct StructArray {
 
 impl StructArray {
     pub fn new_nulls(fields: &[Field], len: usize) -> Self {
-        let validity = Bitmap::all_false(len);
+        let validity = Bitmap::new_with_all_false(len);
         let arrays = fields
             .iter()
             .map(|f| (f.name.clone(), Arc::new(Array::new_nulls(&f.datatype, len))))

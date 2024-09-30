@@ -371,10 +371,18 @@ mod tests {
         let mapping_2 = vec![0; partition_2_vals.len()];
 
         states_1
-            .update_states(&Bitmap::all_true(3), &[partition_1_vals], &mapping_1)
+            .update_states(
+                &Bitmap::new_with_all_true(3),
+                &[partition_1_vals],
+                &mapping_1,
+            )
             .unwrap();
         states_2
-            .update_states(&Bitmap::all_true(3), &[partition_2_vals], &mapping_2)
+            .update_states(
+                &Bitmap::new_with_all_true(3),
+                &[partition_2_vals],
+                &mapping_2,
+            )
             .unwrap();
 
         // Combine states.
@@ -427,10 +435,18 @@ mod tests {
         let mapping_2 = vec![1, 1, 0];
 
         states_1
-            .update_states(&Bitmap::all_true(3), &[partition_1_vals], &mapping_1)
+            .update_states(
+                &Bitmap::new_with_all_true(3),
+                &[partition_1_vals],
+                &mapping_1,
+            )
             .unwrap();
         states_2
-            .update_states(&Bitmap::all_true(3), &[partition_2_vals], &mapping_2)
+            .update_states(
+                &Bitmap::new_with_all_true(3),
+                &[partition_2_vals],
+                &mapping_2,
+            )
             .unwrap();
 
         // Combine states.
@@ -498,10 +514,18 @@ mod tests {
         let mapping_2 = vec![0, 1, 1, 1];
 
         states_1
-            .update_states(&Bitmap::all_true(4), &[partition_1_vals], &mapping_1)
+            .update_states(
+                &Bitmap::new_with_all_true(4),
+                &[partition_1_vals],
+                &mapping_1,
+            )
             .unwrap();
         states_2
-            .update_states(&Bitmap::all_true(4), &[partition_2_vals], &mapping_2)
+            .update_states(
+                &Bitmap::new_with_all_true(4),
+                &[partition_2_vals],
+                &mapping_2,
+            )
             .unwrap();
 
         // Combine states.
@@ -533,7 +557,7 @@ mod tests {
 
         let mapping = vec![0, 0, 1, 1, 2, 2];
         states
-            .update_states(&Bitmap::all_true(6), &[vals], &mapping)
+            .update_states(&Bitmap::new_with_all_true(6), &[vals], &mapping)
             .unwrap();
 
         let expected_1 = Array::Int64(Int64Array::from_iter([Some(3), Some(7)]));

@@ -16,7 +16,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     expr::Expression,
     functions::{plan_check_num_args, FunctionInfo, Signature},
-    logical::{binder::bind_context::BindContext, consteval::ConstEval},
+    logical::binder::bind_context::BindContext,
+    optimizer::expr_rewrite::{const_fold::ConstFold, ExpressionRewriteRule},
 };
 
 use super::{PlannedScalarFunction, ScalarFunction};
@@ -65,9 +66,8 @@ impl ScalarFunction for ListExtract {
 
         plan_check_num_args(self, &datatypes, 2)?;
 
-        let index = ConstEval::default()
-            .fold(inputs[1].clone())?
-            .try_unwrap_constant()?
+        let index = ConstFold::rewrite(bind_context, inputs[1].clone())?
+            .try_into_scalar()?
             .try_as_i64()?;
 
         if index <= 0 {

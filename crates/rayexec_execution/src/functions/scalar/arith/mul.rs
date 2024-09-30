@@ -85,6 +85,11 @@ impl FunctionInfo for Mul {
                 return_type: DataTypeId::Date32,
             },
             Signature {
+                input: &[DataTypeId::Interval, DataTypeId::Int32],
+                variadic: None,
+                return_type: DataTypeId::Interval,
+            },
+            Signature {
                 input: &[DataTypeId::Interval, DataTypeId::Int64],
                 variadic: None,
                 return_type: DataTypeId::Interval,
@@ -118,6 +123,7 @@ impl ScalarFunction for Mul {
             | (DataType::UInt32, DataType::UInt32)
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Date32, DataType::Int64)
+            | (DataType::Interval, DataType::Int32)
             | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulImpl {
                 datatype: inputs[0].clone(),
             })),
@@ -224,6 +230,15 @@ impl PlannedScalarFunction for MulImpl {
                     ),
                 )
                 .into()
+            }
+            (Array::Interval(first), Array::Int32(second)) => {
+                primitive_binary_execute!(first, second, Interval, |a, b| {
+                    Interval {
+                        months: a.months * b,
+                        days: a.days * b,
+                        nanos: a.nanos * b as i64,
+                    }
+                })
             }
             (Array::Interval(first), Array::Int64(second)) => {
                 primitive_binary_execute!(first, second, Interval, |a, b| {

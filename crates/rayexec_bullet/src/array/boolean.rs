@@ -55,8 +55,8 @@ pub struct BooleanArray {
 
 impl BooleanArray {
     pub fn new_nulls(len: usize) -> Self {
-        let values = Bitmap::all_false(len);
-        let validity = Bitmap::all_false(len);
+        let values = Bitmap::new_with_all_false(len);
+        let validity = Bitmap::new_with_all_false(len);
         Self::new(values, Some(validity))
     }
 
