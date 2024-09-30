@@ -288,6 +288,22 @@ def setup_rayexec(conn):
         )
 
 
+def setup_duckdb(conn):
+    for tbl in [
+        "nation",
+        "region",
+        "customer",
+        "supplier",
+        "lineitem",
+        "orders",
+        "partsupp",
+        "part",
+    ]:
+        conn.query(
+            f"CREATE TEMP VIEW {tbl} AS SELECT * FROM './benchmarks/data/tpch-{sf}/{tbl}.parquet'"
+        )
+
+
 def setup_datafusion(ctx):
     for tbl in [
         "nation",
@@ -356,18 +372,52 @@ def execute_datafusion(ctx):
     return df
 
 
+def execute_duckdb(conn):
+    df = pd.DataFrame(columns=["dur", "query"])
+    for query_id, query in sorted(queries.items()):
+        start = time.time()
+        print("Query " + str(query_id))
+        try:
+            print(conn.sql(query))
+            stop = time.time()
+            duration = stop - start
+        except Exception as er:
+            print(er)
+            duration = 0
+        print(duration)
+        row = {"dur": duration, "query": query_id}
+        df = pd.concat(
+            [
+                df if not df.empty else None,
+                pd.DataFrame(row, index=[query_id]),
+            ],
+            axis=0,
+            ignore_index=True,
+        )
+    return df
+
+
 rayexec_conn = rayexec.connect()
 setup_rayexec(rayexec_conn)
 
 datafusion_ctx = datafusion.SessionContext()
 setup_datafusion(datafusion_ctx)
 
+duckdb_conn = duckdb.connect()
+setup_duckdb(duckdb_conn)
+
 rayexec_times = execute_rayexec(rayexec_conn, False)
 rayexec_conn.close()
 
 datafusion_times = execute_datafusion(datafusion_ctx)
 
+duckdb_times = execute_duckdb(duckdb_conn)
+duckdb_conn.close()
+
+
 print("RAYEXEC")
 print(rayexec_times)
 print("DATAFUSION")
 print(datafusion_times)
+print("DUCKDB")
+print(duckdb_times)

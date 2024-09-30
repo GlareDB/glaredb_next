@@ -142,7 +142,12 @@ where
             return None;
         }
 
-        Some(self.validity.as_ref().map(|v| v.value(idx)).unwrap_or(true))
+        Some(
+            self.validity
+                .as_ref()
+                .map(|v| v.value_unchecked(idx))
+                .unwrap_or(true),
+        )
     }
 
     pub fn len(&self) -> usize {

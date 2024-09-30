@@ -624,7 +624,7 @@ impl Iterator for UnitIterator {
 ///
 /// Panics if index is out of bounds.
 fn is_valid(validity: Option<&Bitmap>, idx: usize) -> bool {
-    validity.map(|bm| bm.value(idx)).unwrap_or(true)
+    validity.map(|bm| bm.value_unchecked(idx)).unwrap_or(true)
 }
 
 #[cfg(test)]

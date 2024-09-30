@@ -64,7 +64,7 @@ impl PhysicalScalarExpression {
         let mut zipped = Bitmap::all_false(selection.len());
 
         for (row_idx, selected) in selection.index_iter().zip(bitmap.iter()) {
-            zipped.set(row_idx, selected);
+            zipped.set_unchecked(row_idx, selected);
         }
 
         Ok(zipped)

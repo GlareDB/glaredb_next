@@ -85,7 +85,7 @@ impl BooleanArray {
         let valid = self
             .validity
             .as_ref()
-            .map(|bm| bm.value(idx))
+            .map(|bm| bm.value_unchecked(idx))
             .unwrap_or(true);
 
         Some(valid)
@@ -96,7 +96,7 @@ impl BooleanArray {
             return None;
         }
 
-        Some(self.values.value(idx))
+        Some(self.values.value_unchecked(idx))
     }
 
     /// Get the number of non-null true values in the array.

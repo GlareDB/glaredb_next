@@ -60,11 +60,11 @@ pub fn take_boolean(arr: &BooleanArray, indices: &[usize]) -> Result<BooleanArra
     }
 
     let values = arr.values();
-    let new_values = Bitmap::from_iter(indices.iter().map(|idx| values.value(*idx)));
+    let new_values = Bitmap::from_iter(indices.iter().map(|idx| values.value_unchecked(*idx)));
 
-    let validity = arr
-        .validity()
-        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
+    let validity = arr.validity().map(|validity| {
+        Bitmap::from_iter(indices.iter().map(|idx| validity.value_unchecked(*idx)))
+    });
 
     Ok(BooleanArray::new(new_values, validity))
 }
@@ -83,9 +83,9 @@ pub fn take_primitive<T: Copy>(
         .map(|idx| *values.as_ref().get(*idx).unwrap())
         .collect();
 
-    let validity = arr
-        .validity()
-        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
+    let validity = arr.validity().map(|validity| {
+        Bitmap::from_iter(indices.iter().map(|idx| validity.value_unchecked(*idx)))
+    });
 
     let taken = PrimitiveArray::new(new_values, validity);
 
@@ -103,9 +103,9 @@ pub fn take_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     let new_values: VarlenValuesBuffer<_> =
         indices.iter().map(|idx| arr.value(*idx).unwrap()).collect();
 
-    let validity = arr
-        .validity()
-        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
+    let validity = arr.validity().map(|validity| {
+        Bitmap::from_iter(indices.iter().map(|idx| validity.value_unchecked(*idx)))
+    });
 
     let taken = VarlenArray::new(new_values, validity);
 

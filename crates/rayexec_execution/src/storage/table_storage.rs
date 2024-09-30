@@ -67,6 +67,44 @@ pub trait DataTableScan: Debug + Send {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>>;
 }
 
+/// Helper for wrapping an unprojected scan with a projections list to produce
+/// projected batches.
+///
+/// This is inefficient compared to handling the projection in the scan itself
+/// since this projects a batch after it's already been read.
+#[derive(Debug)]
+pub struct ProjectedScan<S> {
+    pub projections: Projections,
+    pub scan: S,
+}
+
+impl<S: DataTableScan> ProjectedScan<S> {
+    pub fn new(scan: S, projections: Projections) -> Self {
+        ProjectedScan { projections, scan }
+    }
+
+    async fn pull_inner(&mut self) -> Result<Option<Batch>> {
+        let batch = match self.scan.pull().await? {
+            Some(batch) => batch,
+            None => return Ok(None),
+        };
+
+        match self.projections.column_indices.as_ref() {
+            Some(indices) => {
+                let batch = batch.project(indices);
+                Ok(Some(batch))
+            }
+            None => Ok(Some(batch)),
+        }
+    }
+}
+
+impl<S: DataTableScan> DataTableScan for ProjectedScan<S> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { self.pull_inner().await })
+    }
+}
+
 /// Implementation of `DataTableScan` that immediately returns exhausted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EmptyTableScan;

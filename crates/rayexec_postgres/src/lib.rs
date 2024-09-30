@@ -27,7 +27,9 @@ use rayexec_execution::{
     runtime::{Runtime, TokioHandlerProvider},
     storage::{
         catalog_storage::CatalogStorage,
-        table_storage::{DataTable, DataTableScan, EmptyTableScan, Projections, TableStorage},
+        table_storage::{
+            DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections, TableStorage,
+        },
     },
 };
 use read_postgres::ReadPostgres;
@@ -166,7 +168,7 @@ pub struct PostgresDataTable {
 impl DataTable for PostgresDataTable {
     fn scan(
         &self,
-        _projections: Projections,
+        projections: Projections,
         num_partitions: usize,
     ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let schema = self.schema.clone();
@@ -219,9 +221,12 @@ impl DataTable for PostgresDataTable {
 
         let binary_copy_stream = binary_copy_open.try_flatten_stream().boxed();
 
-        let mut scans = vec![Box::new(PostgresDataTableScan {
-            stream: binary_copy_stream,
-        }) as _];
+        let mut scans = vec![Box::new(ProjectedScan::new(
+            PostgresDataTableScan {
+                stream: binary_copy_stream,
+            },
+            projections,
+        )) as _];
 
         // Extend with empty scans...
         (1..num_partitions).for_each(|_| scans.push(Box::new(EmptyTableScan) as _));

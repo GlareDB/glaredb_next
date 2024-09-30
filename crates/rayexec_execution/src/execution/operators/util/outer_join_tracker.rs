@@ -48,7 +48,7 @@ impl LeftOuterJoinTracker {
     pub fn mark_rows_visited_for_batch(&mut self, batch_idx: usize, rows: &[usize]) {
         let bitmap = self.bitmaps.get_mut(batch_idx).expect("bitmap to exist");
         for row in rows {
-            bitmap.set(*row, true);
+            bitmap.set_unchecked(*row, true);
         }
     }
 }
@@ -183,7 +183,7 @@ impl RightOuterJoinTracker {
     /// Mark the given row indices as visited.
     pub fn mark_rows_visited(&mut self, rows: &[usize]) {
         for &idx in rows {
-            self.unvisited.set(idx, false);
+            self.unvisited.set_unchecked(idx, false);
         }
     }
 

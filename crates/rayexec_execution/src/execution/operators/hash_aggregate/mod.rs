@@ -129,7 +129,7 @@ impl PhysicalHashAggregate {
             .map(|set| {
                 let mut mask = Bitmap::all_false(distinct_group_cols.len());
                 for (idx, col_idx) in distinct_group_cols.iter().enumerate() {
-                    mask.set(idx, !set.contains(col_idx))
+                    mask.set_unchecked(idx, !set.contains(col_idx))
                 }
                 mask
             })

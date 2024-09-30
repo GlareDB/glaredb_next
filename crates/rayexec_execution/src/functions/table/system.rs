@@ -5,7 +5,9 @@ use crate::{
         catalog::CatalogTx, catalog_entry::CatalogEntryType, memory_catalog::MemoryCatalog,
         AttachInfo, DatabaseContext,
     },
-    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan, Projections},
+    storage::table_storage::{
+        DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections,
+    },
 };
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
@@ -235,7 +237,7 @@ struct SystemDataTable<F: SystemFunctionImpl> {
 impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
     fn scan(
         &self,
-        _projections: Projections,
+        projections: Projections,
         num_partitions: usize,
     ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let databases = self
@@ -244,10 +246,13 @@ impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
             .take()
             .ok_or_else(|| RayexecError::new("Scan called multiple times"))?;
 
-        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(SystemDataTableScan {
-            databases,
-            _function: self.function,
-        }) as _];
+        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(ProjectedScan::new(
+            SystemDataTableScan {
+                databases,
+                _function: self.function,
+            },
+            projections,
+        )) as _];
 
         scans.extend((1..num_partitions).map(|_| Box::new(EmptyTableScan) as _));
 

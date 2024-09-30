@@ -192,7 +192,7 @@ fn interleave_validities(
     let mut validity = Bitmap::default();
     for (arr_idx, row_idx) in indices {
         let v = validities[*arr_idx]
-            .map(|bm| bm.value(*row_idx))
+            .map(|bm| bm.value_unchecked(*row_idx))
             .unwrap_or(true);
 
         validity.push(v);

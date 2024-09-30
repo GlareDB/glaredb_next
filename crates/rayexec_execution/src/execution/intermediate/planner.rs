@@ -780,7 +780,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 partitioning_requirement: None,
             },
             ScanSource::ExpressionList { rows } => {
-                let batch = self.create_batch_for_row_values(rows)?;
+                let batch = self.create_batch_for_row_values(projections, rows)?;
                 IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
                     partitioning_requirement: None,
@@ -1673,7 +1673,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn create_batch_for_row_values(&self, rows: Vec<Vec<Expression>>) -> Result<Batch> {
+    fn create_batch_for_row_values(
+        &self,
+        projections: Projections,
+        rows: Vec<Vec<Expression>>,
+    ) -> Result<Batch> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -1717,6 +1721,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             cols.push(col);
         }
 
-        Batch::try_new(cols)
+        let batch = Batch::try_new(cols)?;
+
+        // TODO: Got lazy, we can just avoid evaluating the expressions above.
+        match &projections.column_indices {
+            Some(indices) => Ok(batch.project(indices)),
+            None => Ok(batch),
+        }
     }
 }

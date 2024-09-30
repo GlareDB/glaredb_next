@@ -195,7 +195,11 @@ where
             result_validity.push(false);
             values.push(T::default());
         } else {
-            result_validity.push(validity.map(|v| v.value(value_offset)).unwrap_or(true));
+            result_validity.push(
+                validity
+                    .map(|v| v.value_unchecked(value_offset))
+                    .unwrap_or(true),
+            );
             values.push(*array.value(value_offset).expect("value to exist"));
         }
     }
@@ -224,7 +228,11 @@ where
             result_validity.push(false);
             values.push_value(T::NULL);
         } else {
-            result_validity.push(validity.map(|v| v.value(value_offset)).unwrap_or(true));
+            result_validity.push(
+                validity
+                    .map(|v| v.value_unchecked(value_offset))
+                    .unwrap_or(true),
+            );
             values.push_value(array.value(value_offset).expect("value to exist"))
         }
     }
