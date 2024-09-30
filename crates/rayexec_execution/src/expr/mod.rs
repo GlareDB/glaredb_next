@@ -20,7 +20,7 @@ use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::logical::binder::bind_context::BindContext;
 use crate::{functions::scalar::ScalarFunction, logical::binder::bind_context::TableRef};
 use aggregate_expr::AggregateExpr;
-use arith_expr::ArithExpr;
+use arith_expr::{ArithExpr, ArithOperator};
 use between_expr::BetweenExpr;
 use case_expr::CaseExpr;
 use cast_expr::CastExpr;
@@ -31,7 +31,7 @@ use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
 use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::scalar::OwnedScalarValue;
+use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
 use std::collections::HashSet;
@@ -233,9 +233,11 @@ impl Expression {
         }
     }
 
+    // TODO: Probably remove.
     pub fn is_constant(&self) -> bool {
         match self {
             Self::Literal(_) => true,
+            Self::Column(_) => false,
             _ => {
                 let mut is_constant = true;
                 self.for_each_child(&mut |expr| {
@@ -245,8 +247,43 @@ impl Expression {
                     is_constant = is_constant && expr.is_constant();
                     Ok(())
                 })
-                .expect("constant check to to not fail");
+                .expect("constant check to not fail");
                 is_constant
+            }
+        }
+    }
+
+    pub fn is_const_foldable(&self) -> bool {
+        match self {
+            Self::Literal(v) => {
+                match &v.literal {
+                    ScalarValue::Null => {
+                        // TODO: Not allowing null to be const foldable is
+                        // currently a workaround for not have comprehensive
+                        // support for evaluating null arrays without type
+                        // information.
+                        //
+                        // Once we do, this case should be removed.
+                        false
+                    }
+                    _ => true,
+                }
+            }
+            Self::Column(_) => false,
+            Self::Aggregate(_) => false,
+            Self::Window(_) => false,
+            Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
+            _ => {
+                let mut is_foldable = true;
+                self.for_each_child(&mut |expr| {
+                    if !is_foldable {
+                        return Ok(());
+                    }
+                    is_foldable = is_foldable && expr.is_const_foldable();
+                    Ok(())
+                })
+                .expect("fold check to not fail");
+                is_foldable
             }
         }
     }
@@ -336,6 +373,14 @@ impl Expression {
     }
 }
 
+pub fn add(left: Expression, right: Expression) -> Expression {
+    Expression::Arith(ArithExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ArithOperator::Add,
+    })
+}
+
 pub fn and(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
     let mut exprs: Vec<_> = exprs.into_iter().collect();
     if exprs.is_empty() {
@@ -380,6 +425,13 @@ pub fn col_ref(table_ref: impl Into<TableRef>, column_idx: usize) -> Expression 
 pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
     Expression::Literal(LiteralExpr {
         literal: scalar.into(),
+    })
+}
+
+pub fn cast(expr: Expression, to: DataType) -> Expression {
+    Expression::Cast(CastExpr {
+        to,
+        expr: Box::new(expr),
     })
 }
 

@@ -1,3 +1,4 @@
+pub mod const_fold;
 pub mod distributive_or;
 pub mod join_filter_or;
 pub mod unnest_conjunction;
@@ -9,6 +10,7 @@ use crate::{
         operator::{LogicalNode, LogicalOperator},
     },
 };
+use const_fold::ConstFold;
 use distributive_or::DistributiveOrRewrite;
 use join_filter_or::JoinFilterOrRewrite;
 use rayexec_error::Result;
@@ -77,6 +79,7 @@ impl ExpressionRewriter {
 
     /// Apply all rewrite rules to an expression.
     pub fn apply_rewrites(bind_context: &BindContext, expr: Expression) -> Result<Expression> {
+        let expr = ConstFold::rewrite(bind_context, expr)?;
         let expr = UnnestConjunctionRewrite::rewrite(bind_context, expr)?;
         let expr = DistributiveOrRewrite::rewrite(bind_context, expr)?;
         // TODO: Undecided if we want to try to unnest again.
