@@ -27,7 +27,7 @@ use rayexec_execution::{
     runtime::{Runtime, TokioHandlerProvider},
     storage::{
         catalog_storage::CatalogStorage,
-        table_storage::{DataTable, DataTableScan, EmptyTableScan, TableStorage},
+        table_storage::{DataTable, DataTableScan, EmptyTableScan, Projections, TableStorage},
     },
 };
 use read_postgres::ReadPostgres;
@@ -164,7 +164,11 @@ pub struct PostgresDataTable {
 }
 
 impl DataTable for PostgresDataTable {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        _projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let schema = self.schema.clone();
         let table = self.table.clone();
 

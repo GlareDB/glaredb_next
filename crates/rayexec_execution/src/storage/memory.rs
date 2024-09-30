@@ -9,6 +9,7 @@ use crate::execution::operators::sink::PartitionSink;
 
 use super::table_storage::DataTable;
 use super::table_storage::DataTableScan;
+use super::table_storage::Projections;
 use super::table_storage::TableStorage;
 
 #[derive(Debug, Default)]
@@ -88,7 +89,11 @@ pub struct MemoryDataTable {
 }
 
 impl DataTable for MemoryDataTable {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        _projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let mut scans: Vec<_> = (0..num_partitions)
             .map(|_| MemoryDataTableScan { data: Vec::new() })
             .collect();

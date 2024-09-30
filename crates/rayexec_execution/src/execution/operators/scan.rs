@@ -1,4 +1,5 @@
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::storage::table_storage::Projections;
 use crate::{
     database::{catalog::CatalogTx, catalog_entry::CatalogEntry, DatabaseContext},
     proto::DatabaseProtoConv,
@@ -32,6 +33,7 @@ pub struct PhysicalScan {
     catalog: String,
     schema: String,
     table: Arc<CatalogEntry>,
+    projections: Projections,
 }
 
 impl PhysicalScan {
@@ -39,11 +41,13 @@ impl PhysicalScan {
         catalog: impl Into<String>,
         schema: impl Into<String>,
         table: Arc<CatalogEntry>,
+        projections: Projections,
     ) -> Self {
         PhysicalScan {
             catalog: catalog.into(),
             schema: schema.into(),
             table,
+            projections,
         }
     }
 }
@@ -66,7 +70,7 @@ impl ExecutableOperator for PhysicalScan {
             .data_table(&self.schema, &self.table)?;
 
         // TODO: Pushdown projections, filters
-        let scans = data_table.scan(partitions[0])?;
+        let scans = data_table.scan(self.projections.clone(), partitions[0])?;
 
         let states = scans
             .into_iter()
@@ -157,13 +161,15 @@ impl DatabaseProtoConv for PhysicalScan {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            catalog: proto.catalog,
-            schema: proto.schema,
-            table: Arc::new(DatabaseProtoConv::from_proto_ctx(
-                proto.table.required("table")?,
-                context,
-            )?),
-        })
+        unimplemented!()
+        // Ok(Self {
+
+        //     catalog: proto.catalog,
+        //     schema: proto.schema,
+        //     table: Arc::new(DatabaseProtoConv::from_proto_ctx(
+        //         proto.table.required("table")?,
+        //         context,
+        //     )?),
+        // })
     }
 }

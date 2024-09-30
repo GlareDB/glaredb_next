@@ -1,4 +1,5 @@
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::storage::table_storage::Projections;
 use crate::{
     database::DatabaseContext, functions::table::PlannedTableFunction, proto::DatabaseProtoConv,
     storage::table_storage::DataTableScan,
@@ -30,28 +31,15 @@ impl fmt::Debug for TableFunctionPartitionState {
 #[derive(Debug)]
 pub struct PhysicalTableFunction {
     function: Box<dyn PlannedTableFunction>,
+    projections: Projections,
 }
 
 impl PhysicalTableFunction {
-    pub fn new(function: Box<dyn PlannedTableFunction>) -> Self {
-        PhysicalTableFunction { function }
-    }
-
-    pub fn try_create_states(
-        &self,
-        num_partitions: usize,
-    ) -> Result<Vec<TableFunctionPartitionState>> {
-        let data_table = self.function.datatable()?;
-
-        // TODO: Pushdown projections, filters
-        let scans = data_table.scan(num_partitions)?;
-
-        let states = scans
-            .into_iter()
-            .map(|scan| TableFunctionPartitionState { scan, future: None })
-            .collect();
-
-        Ok(states)
+    pub fn new(function: Box<dyn PlannedTableFunction>, projections: Projections) -> Self {
+        PhysicalTableFunction {
+            function,
+            projections,
+        }
     }
 }
 
@@ -64,7 +52,7 @@ impl ExecutableOperator for PhysicalTableFunction {
         let data_table = self.function.datatable()?;
 
         // TODO: Pushdown projections, filters
-        let scans = data_table.scan(partitions[0])?;
+        let scans = data_table.scan(self.projections.clone(), partitions[0])?;
 
         let states = scans
             .into_iter()
@@ -155,11 +143,12 @@ impl DatabaseProtoConv for PhysicalTableFunction {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            function: DatabaseProtoConv::from_proto_ctx(
-                proto.function.required("function")?,
-                context,
-            )?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     function: DatabaseProtoConv::from_proto_ctx(
+        //         proto.function.required("function")?,
+        //         context,
+        //     )?,
+        // })
     }
 }

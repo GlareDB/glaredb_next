@@ -49,6 +49,7 @@ impl FromPlanner {
                         types,
                         names,
                         projection,
+                        did_prune_columns: false,
                         source: ScanSource::Table {
                             catalog: table.catalog,
                             schema: table.schema,
@@ -76,6 +77,7 @@ impl FromPlanner {
                         types,
                         names,
                         projection,
+                        did_prune_columns: false,
                         source: ScanSource::TableFunction {
                             function: func.function,
                         },

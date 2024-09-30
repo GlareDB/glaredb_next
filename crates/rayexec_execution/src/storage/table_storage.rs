@@ -5,6 +5,23 @@ use std::fmt::Debug;
 
 use crate::{database::catalog_entry::CatalogEntry, execution::operators::sink::PartitionSink};
 
+/// Scan projections.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Projections {
+    /// Column indices to project out of the scan.
+    ///
+    /// If None, project all columns.
+    pub column_indices: Option<Vec<usize>>,
+}
+
+impl Projections {
+    pub const fn all() -> Self {
+        Projections {
+            column_indices: None,
+        }
+    }
+}
+
 pub trait TableStorage: Debug + Sync + Send {
     fn data_table(&self, schema: &str, ent: &CatalogEntry) -> Result<Box<dyn DataTable>>;
 
@@ -24,7 +41,11 @@ pub trait DataTable: Debug + Sync + Send {
     /// partitions in the table output. However, the table may return a
     /// different number of partitions if it's unable to use the provided
     /// number.
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>>;
+    fn scan(
+        &self,
+        projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>>;
 
     fn insert(&self, _input_partitions: usize) -> Result<Vec<Box<dyn PartitionSink>>> {
         Err(RayexecError::new("Data table does not support inserts"))

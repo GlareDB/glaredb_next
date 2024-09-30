@@ -67,6 +67,7 @@ use crate::{
         logical_setop::{LogicalSetop, SetOpKind},
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
+    storage::table_storage::Projections,
 };
 use rayexec_bullet::{
     array::{Array, Utf8Array},
@@ -748,8 +749,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        // TODO: use this.
-        let _projections = scan.node.projection;
+        // TODO: Split up scan source.
+        let projections = if scan.node.did_prune_columns {
+            Projections {
+                column_indices: Some(scan.node.projection),
+            }
+        } else {
+            Projections::all()
+        };
 
         let operator = match scan.node.source {
             ScanSource::Table {
@@ -758,13 +765,17 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 source,
             } => IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
-                    catalog, schema, source,
+                    catalog,
+                    schema,
+                    source,
+                    projections,
                 ))),
                 partitioning_requirement: None,
             },
             ScanSource::TableFunction { function } => IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
                     function,
+                    projections,
                 ))),
                 partitioning_requirement: None,
             },

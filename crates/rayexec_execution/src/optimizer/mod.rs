@@ -1,5 +1,5 @@
-pub mod expr_rewrite;
 pub mod column_prune;
+pub mod expr_rewrite;
 pub mod filter_pushdown;
 pub mod join_reorder;
 pub mod limit_pushdown;
@@ -11,6 +11,7 @@ use crate::{
     logical::{binder::bind_context::BindContext, operator::LogicalOperator},
     runtime::time::{RuntimeInstant, Timer},
 };
+use column_prune::ColumnPrune;
 use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
 use join_reorder::JoinReorder;
@@ -85,6 +86,14 @@ impl Optimizer {
         self.profile_data
             .timings
             .push(("limit_pushdown", timer.stop()));
+
+        // Column pruning.
+        let timer = Timer::<I>::start();
+        let mut rule = ColumnPrune::default();
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("column_pruning", timer.stop()));
 
         // DO THE OTHER RULES
 

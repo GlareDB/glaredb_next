@@ -1,6 +1,6 @@
 use crate::{
     database::DatabaseContext,
-    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan},
+    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan, Projections},
 };
 use futures::future::BoxFuture;
 use rayexec_bullet::{
@@ -106,7 +106,11 @@ impl PlannedTableFunction for GenerateSeriesI64 {
 }
 
 impl DataTable for GenerateSeriesI64 {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        _projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(GenerateSeriesScan {
             batch_size: 1024,
             exhausted: false,

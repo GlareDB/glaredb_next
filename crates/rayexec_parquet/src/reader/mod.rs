@@ -17,6 +17,7 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::FileSource;
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
@@ -107,26 +108,22 @@ pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
 pub struct AsyncBatchReader<R: FileSource> {
     /// Reader we're reading from.
     reader: R,
-
     /// Row groups we'll be reading for.
     row_groups: VecDeque<usize>,
-
     /// Row group we're currently working.
     ///
     /// Initialized to None
     current_row_group: Option<usize>,
-
     /// Parquet metadata.
     metadata: Arc<Metadata>,
-
     /// Desired batch size.
     batch_size: usize,
-
     /// Builders for each column in the batch.
     builders: Vec<Box<dyn ArrayBuilder<SerializedPageReader<InMemoryColumnChunk>>>>,
-
     /// Columns chunks we've read.
     column_chunks: Vec<Option<InMemoryColumnChunk>>,
+    /// Root column projections.
+    projections: Projections,
 }
 
 impl<R: FileSource + 'static> AsyncBatchReader<R> {
@@ -136,6 +133,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         metadata: Arc<Metadata>,
         schema: &Schema,
         batch_size: usize,
+        projections: Projections,
     ) -> Result<Self> {
         let column_chunks = (0..schema.fields.len()).map(|_| None).collect();
         let mut builders = Vec::with_capacity(schema.fields.len());
@@ -163,6 +161,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             batch_size,
             column_chunks,
             builders,
+            projections,
         })
     }
 
@@ -199,15 +198,26 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     ///
     /// Returns Ok(None) when there's nothing left to read.
     fn maybe_read_batch(&mut self) -> Result<Option<Batch>> {
-        for builder in self.builders.iter_mut() {
-            builder.read_rows(self.batch_size)?;
-        }
-
-        let arrays = self
-            .builders
-            .iter_mut()
-            .map(|builder| builder.build())
-            .collect::<Result<Vec<_>>>()?;
+        let arrays = match &self.projections.column_indices {
+            Some(indices) => {
+                for &idx in indices {
+                    self.builders[idx].read_rows(self.batch_size)?;
+                }
+                indices
+                    .iter()
+                    .map(|&idx| self.builders[idx].build())
+                    .collect::<Result<Vec<_>>>()?
+            }
+            None => {
+                for builder in self.builders.iter_mut() {
+                    builder.read_rows(self.batch_size)?;
+                }
+                self.builders
+                    .iter_mut()
+                    .map(|builder| builder.build())
+                    .collect::<Result<Vec<_>>>()?
+            }
+        };
 
         let batch = Batch::try_new(arrays)?;
 
@@ -220,9 +230,20 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
 
     fn set_page_readers(&mut self) -> Result<()> {
         let mut builders = std::mem::take(&mut self.builders);
-        for (idx, builder) in builders.iter_mut().enumerate() {
-            let page_reader = self.take_serialized_page_reader(idx)?;
-            builder.set_page_reader(page_reader)?;
+        // TODO: Don't clone.
+        match self.projections.column_indices.clone() {
+            Some(indices) => {
+                for idx in indices {
+                    let page_reader = self.take_serialized_page_reader(idx)?;
+                    builders[idx].set_page_reader(page_reader)?;
+                }
+            }
+            None => {
+                for (idx, builder) in builders.iter_mut().enumerate() {
+                    let page_reader = self.take_serialized_page_reader(idx)?;
+                    builder.set_page_reader(page_reader)?;
+                }
+            }
         }
         self.builders = builders;
 
@@ -231,21 +252,43 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
 
     /// Fetches the column chunks for the current row group.
     async fn fetch_column_chunks(&mut self) -> Result<()> {
-        for (idx, chunk) in self.column_chunks.iter_mut().enumerate() {
-            let col = self
-                .metadata
-                .decoded_metadata
-                .row_group(self.current_row_group.expect("current row group to be set"))
-                .column(idx);
-            let (start, len) = col.byte_range();
+        match &self.projections.column_indices {
+            Some(indices) => {
+                for &idx in indices {
+                    let col = self
+                        .metadata
+                        .decoded_metadata
+                        .row_group(self.current_row_group.expect("current row group to be set"))
+                        .column(idx);
+                    let (start, len) = col.byte_range();
 
-            // TODO: Parallel reads.
-            let buf = self.reader.read_range(start as usize, len as usize).await?;
+                    // TODO: Parallel reads.
+                    let buf = self.reader.read_range(start as usize, len as usize).await?;
 
-            *chunk = Some(InMemoryColumnChunk {
-                offset: start as usize,
-                buf,
-            })
+                    self.column_chunks[idx] = Some(InMemoryColumnChunk {
+                        offset: start as usize,
+                        buf,
+                    })
+                }
+            }
+            None => {
+                for (idx, chunk) in self.column_chunks.iter_mut().enumerate() {
+                    let col = self
+                        .metadata
+                        .decoded_metadata
+                        .row_group(self.current_row_group.expect("current row group to be set"))
+                        .column(idx);
+                    let (start, len) = col.byte_range();
+
+                    // TODO: Parallel reads.
+                    let buf = self.reader.read_range(start as usize, len as usize).await?;
+
+                    *chunk = Some(InMemoryColumnChunk {
+                        offset: start as usize,
+                        buf,
+                    })
+                }
+            }
         }
 
         Ok(())

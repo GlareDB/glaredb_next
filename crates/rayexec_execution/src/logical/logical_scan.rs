@@ -14,6 +14,8 @@ use super::{
     statistics::{Statistics, StatisticsCount},
 };
 
+// TODO: Probably remove view from this.
+// Maybe just split it all up.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanSource {
     Table {
@@ -59,6 +61,10 @@ pub struct LogicalScan {
     pub names: Vec<String>,
     /// Positional column projections.
     pub projection: Vec<usize>,
+    /// If we've pruned columns.
+    ///
+    /// If we did, that info will be passed into the data table.
+    pub did_prune_columns: bool,
     /// Source of the scan.
     pub source: ScanSource,
 }

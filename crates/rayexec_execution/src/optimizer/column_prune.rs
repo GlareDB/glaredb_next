@@ -1,6 +1,6 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use tracing::warn;
 
 use crate::{
@@ -59,13 +59,13 @@ impl OptimizeRule for ColumnPrune {
         }
 
         // Replace references.
-        self.replace_references(&mut plan)?;
+        self.replace_references(bind_context, &mut plan)?;
         for &mat_ref in &refs {
             let mut orig = {
                 let materialization = bind_context.get_materialization_mut(mat_ref)?;
                 std::mem::replace(&mut materialization.plan, LogicalOperator::Invalid)
             };
-            self.replace_references(&mut orig)?;
+            self.replace_references(bind_context, &mut orig)?;
 
             let materialization = bind_context.get_materialization_mut(mat_ref)?;
             materialization.plan = orig;
@@ -99,17 +99,29 @@ impl ColumnPrune {
         Ok(())
     }
 
-    fn replace_references(&mut self, plan: &mut LogicalOperator) -> Result<()> {
-        // No need to special case anything. We only did when collecting columns
-        // to collect materializations. We already have them, don't need to do
-        // it again.
+    fn replace_references(
+        &mut self,
+        bind_context: &mut BindContext,
+        plan: &mut LogicalOperator,
+    ) -> Result<()> {
+        match plan {
+            LogicalOperator::MaterializationScan(scan) => {
+                // TODO: Lotsa caching with the table refs for these.
+                let materialization = bind_context.get_materialization_mut(scan.node.mat)?;
+                let table_refs = materialization.plan.get_output_table_refs();
+                materialization.table_refs = table_refs.clone();
+                scan.node.table_refs = table_refs;
+            }
+            _ => (),
+        }
+
         plan.for_each_expr_mut(&mut |expr| {
             replace_column_references(expr, &self.column_remap);
             Ok(())
         })?;
 
         for child in plan.children_mut() {
-            self.replace_references(child)?;
+            self.replace_references(bind_context, child)?;
         }
 
         Ok(())
@@ -150,8 +162,8 @@ impl ColumnPrune {
                     pruned_types.push(orig.column_types[col_idx].clone());
                 }
 
-                let new_ref =
-                    bind_context.new_ephemeral_table_with_columns(pruned_types, pruned_names)?;
+                let new_ref = bind_context
+                    .new_ephemeral_table_with_columns(pruned_types.clone(), pruned_names.clone())?;
 
                 for (new_col, old_col) in cols.iter().copied().enumerate() {
                     self.column_remap.insert(
@@ -167,6 +179,9 @@ impl ColumnPrune {
                 }
 
                 // Update operator.
+                scan.node.did_prune_columns = true;
+                scan.node.types = pruned_types;
+                scan.node.names = pruned_names;
                 scan.node.table_ref = new_ref;
                 scan.node.projection = cols.into_iter().collect();
 

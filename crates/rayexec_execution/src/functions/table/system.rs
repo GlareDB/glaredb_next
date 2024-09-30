@@ -5,7 +5,7 @@ use crate::{
         catalog::CatalogTx, catalog_entry::CatalogEntryType, memory_catalog::MemoryCatalog,
         AttachInfo, DatabaseContext,
     },
-    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan},
+    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan, Projections},
 };
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
@@ -233,7 +233,11 @@ struct SystemDataTable<F: SystemFunctionImpl> {
 }
 
 impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        _projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let databases = self
             .databases
             .lock()
