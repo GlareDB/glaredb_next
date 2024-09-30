@@ -35,7 +35,10 @@ where
             (PhysicalType::BYTE_ARRAY, DataType::Utf8) => {
                 // TODO: Ideally we change the decoding to write directly into a buffer
                 // we can use for constructing the array instead of needing to copy it.
-                let data_cap: usize = self.values_buffer.iter().map(|a| a.data().len()).sum();
+                //
+                // TODO: Byte array methods panic on no data except for
+                // `num_bytes` which I added. Make that clearer and/or fix it.
+                let data_cap: usize = self.values_buffer.iter().map(|a| a.num_bytes().unwrap_or(0)).sum();
                 let mut buffer = VarlenValuesBuffer::with_data_and_offset_caps(data_cap, self.values_buffer.len());
 
                 let validity = match def_levels {
@@ -68,7 +71,7 @@ where
 
             }
             (PhysicalType::BYTE_ARRAY, DataType::Binary) => {
-                let data_cap: usize = self.values_buffer.iter().map(|a| a.data().len()).sum();
+                let data_cap: usize = self.values_buffer.iter().map(|a| a.num_bytes().unwrap_or(0)).sum();
                 let mut buffer = VarlenValuesBuffer::with_data_and_offset_caps(data_cap, self.values_buffer.len());
 
                 let validity = match def_levels {
