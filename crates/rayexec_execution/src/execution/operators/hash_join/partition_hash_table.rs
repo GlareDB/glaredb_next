@@ -51,7 +51,7 @@ impl PartitionHashTable {
         let remaining = self.hash_table.capacity() - self.hash_table.len();
         if remaining < batch.num_rows() {
             let additional = batch.num_rows() - remaining;
-            self.hash_table.reserve(additional * 4, |(hash, _)| *hash);
+            self.hash_table.reserve(additional, |(hash, _)| *hash);
         }
 
         let batch_idx = self.batches.len();
@@ -64,47 +64,6 @@ impl PartitionHashTable {
             };
             self.hash_table
                 .insert(*hash, (*hash, row_key), |(hash, _)| *hash);
-        }
-
-        Ok(())
-    }
-
-    pub fn collected_batches(&self) -> &[Batch] {
-        &self.batches
-    }
-
-    /// Merge some other hash table into this one.
-    pub fn merge(&mut self, mut other: Self) -> Result<()> {
-        let batch_offset = self.batches.len();
-
-        // Append all batches from other. When we drain the hash table, we'll
-        // update the row keys to account for the new offset.
-        self.batches.append(&mut other.batches);
-
-        // Append all precompute left results.
-        //
-        // Similar to above, we just append precomputed results for each
-        // condition which keeps the offset in sync.
-        for (c1, c2) in self
-            .conditions
-            .conditions
-            .iter_mut()
-            .zip(other.conditions.conditions.iter_mut())
-        {
-            c1.left_precomputed.append(&mut c2.left_precomputed);
-        }
-
-        // Resize own hash table to reduce rehashing during the merge.
-        let remaining = self.hash_table.capacity() - self.hash_table.len();
-        if remaining < other.hash_table.len() {
-            let additional = other.hash_table.len() - remaining;
-            self.hash_table.reserve(additional, |(hash, _)| *hash);
-        }
-
-        for (hash, mut row_key) in other.hash_table.drain() {
-            row_key.batch_idx += batch_offset as u32;
-            self.hash_table
-                .insert(hash, (hash, row_key), |(hash, _)| *hash);
         }
 
         Ok(())
