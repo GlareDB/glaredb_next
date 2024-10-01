@@ -51,7 +51,7 @@ impl<T> PrimitiveStorage<T> {
     /// A potentially failable conversion to a mutable slice reference.
     ///
     /// This will only succeed for the Vec variant.
-    pub fn try_as_mut(&mut self) -> Result<&mut [T]> {
+    pub fn try_as_vec_mut(&mut self) -> Result<&mut Vec<T>> {
         match self {
             Self::Vec(v) => Ok(v),
             Self::Raw { .. } => Err(RayexecError::new(

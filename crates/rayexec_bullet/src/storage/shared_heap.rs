@@ -10,3 +10,15 @@ use bytes::Bytes;
 pub struct SharedHeapStorage {
     pub(crate) blobs: Vec<Bytes>,
 }
+
+impl SharedHeapStorage {
+    pub fn with_capacity(cap: usize) -> Self {
+        SharedHeapStorage {
+            blobs: Vec::with_capacity(cap),
+        }
+    }
+
+    pub fn push(&mut self, blob: impl Into<Bytes>) {
+        self.blobs.push(blob.into())
+    }
+}

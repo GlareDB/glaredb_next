@@ -1,20 +1,37 @@
+use rayexec_error::Result;
 use std::fmt::Debug;
 
 use super::PrimitiveStorage;
 
 pub trait OffsetIndex: Debug + Clone + Copy + PartialEq + Eq {
+    const ZERO: Self;
+
     fn get(start: Self, end: Self, slice: &[u8]) -> Option<&[u8]>;
+
+    fn from_usize(v: usize) -> Self;
 }
 
 impl OffsetIndex for i32 {
+    const ZERO: Self = 0;
+
     fn get(start: Self, end: Self, slice: &[u8]) -> Option<&[u8]> {
         slice.get((start as usize)..(end as usize))
+    }
+
+    fn from_usize(v: usize) -> Self {
+        v as i32
     }
 }
 
 impl OffsetIndex for i64 {
+    const ZERO: Self = 0;
+
     fn get(start: Self, end: Self, slice: &[u8]) -> Option<&[u8]> {
         slice.get((start as usize)..(end as usize))
+    }
+
+    fn from_usize(v: usize) -> Self {
+        v as i64
     }
 }
 
@@ -31,6 +48,26 @@ pub struct ContiguousVarlenStorage<O> {
 }
 
 impl<O: OffsetIndex> ContiguousVarlenStorage<O> {
+    pub fn with_offsets_and_data_capacity(offsets_cap: usize, data_cap: usize) -> Self {
+        let mut offsets = Vec::with_capacity(offsets_cap + 1);
+        offsets.push(O::ZERO);
+        let data: Vec<u8> = Vec::with_capacity(data_cap);
+
+        ContiguousVarlenStorage {
+            offsets: offsets.into(),
+            data: data.into(),
+        }
+    }
+
+    pub fn try_push(&mut self, value: &[u8]) -> Result<()> {
+        let data = self.data.try_as_vec_mut()?;
+        data.extend_from_slice(value);
+        let offset = data.len();
+        self.offsets.try_as_vec_mut()?.push(O::from_usize(offset));
+
+        Ok(())
+    }
+
     pub fn get(&self, idx: usize) -> Option<&[u8]> {
         let start = self.offsets.as_ref().get(idx)?;
         let end = self.offsets.as_ref().get(idx + 1)?;
