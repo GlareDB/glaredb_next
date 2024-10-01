@@ -209,73 +209,73 @@ fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {
 
 impl From<PrimitiveStorage<f32>> for ArrayData {
     fn from(value: PrimitiveStorage<f32>) -> Self {
-        ArrayData::Float32(value)
+        ArrayData::Float32(value.into())
     }
 }
 
 impl From<PrimitiveStorage<f64>> for ArrayData {
     fn from(value: PrimitiveStorage<f64>) -> Self {
-        ArrayData::Float64(value)
+        ArrayData::Float64(value.into())
     }
 }
 
 impl From<PrimitiveStorage<i8>> for ArrayData {
     fn from(value: PrimitiveStorage<i8>) -> Self {
-        ArrayData::Int8(value)
+        ArrayData::Int8(value.into())
     }
 }
 
 impl From<PrimitiveStorage<i16>> for ArrayData {
     fn from(value: PrimitiveStorage<i16>) -> Self {
-        ArrayData::Int16(value)
+        ArrayData::Int16(value.into())
     }
 }
 
 impl From<PrimitiveStorage<i32>> for ArrayData {
     fn from(value: PrimitiveStorage<i32>) -> Self {
-        ArrayData::Int32(value)
+        ArrayData::Int32(value.into())
     }
 }
 
 impl From<PrimitiveStorage<i64>> for ArrayData {
     fn from(value: PrimitiveStorage<i64>) -> Self {
-        ArrayData::Int64(value)
+        ArrayData::Int64(value.into())
     }
 }
 
 impl From<PrimitiveStorage<i128>> for ArrayData {
     fn from(value: PrimitiveStorage<i128>) -> Self {
-        ArrayData::Int128(value)
+        ArrayData::Int128(value.into())
     }
 }
 
 impl From<PrimitiveStorage<u8>> for ArrayData {
     fn from(value: PrimitiveStorage<u8>) -> Self {
-        ArrayData::UInt8(value)
+        ArrayData::UInt8(value.into())
     }
 }
 
 impl From<PrimitiveStorage<u16>> for ArrayData {
     fn from(value: PrimitiveStorage<u16>) -> Self {
-        ArrayData::UInt16(value)
+        ArrayData::UInt16(value.into())
     }
 }
 
 impl From<PrimitiveStorage<u32>> for ArrayData {
     fn from(value: PrimitiveStorage<u32>) -> Self {
-        ArrayData::UInt32(value)
+        ArrayData::UInt32(value.into())
     }
 }
 
 impl From<PrimitiveStorage<u64>> for ArrayData {
     fn from(value: PrimitiveStorage<u64>) -> Self {
-        ArrayData::UInt64(value)
+        ArrayData::UInt64(value.into())
     }
 }
 
 impl From<PrimitiveStorage<u128>> for ArrayData {
     fn from(value: PrimitiveStorage<u128>) -> Self {
-        ArrayData::UInt128(value)
+        ArrayData::UInt128(value.into())
     }
 }
 

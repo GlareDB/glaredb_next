@@ -104,6 +104,19 @@ impl<O: OffsetIndex> ContiguousVarlenStorage<O> {
     }
 }
 
+impl<'a> FromIterator<&'a str> for ContiguousVarlenStorage<i32> {
+    fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
+        let mut storage = ContiguousVarlenStorage::with_offsets_and_data_capacity(0, 0);
+        for s in iter {
+            storage
+                .try_push(s.as_bytes())
+                .expect("storage to be a vec (and pushable)");
+        }
+
+        storage
+    }
+}
+
 #[derive(Debug)]
 pub struct ContiguousVarlenIter<'a, O> {
     storage: &'a ContiguousVarlenStorage<O>,
