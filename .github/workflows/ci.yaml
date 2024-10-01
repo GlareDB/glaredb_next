@@ -11,6 +11,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint and Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Format
+        run:  cargo +nightly fmt --check
+      - name: Lint
+        run: cargo clippy --all --all-features -- --deny warnings
+
   build:
     name: Tests
     runs-on: ubuntu-latest
@@ -80,9 +89,6 @@ jobs:
           cargo test slt/tpch/q20
           cargo test slt/tpch/q21
           cargo test slt/tpch/q22
-
-      - name: Lint
-        run: cargo clippy --all --all-features -- --deny warnings
 
   wasm:
     name: Build wasm

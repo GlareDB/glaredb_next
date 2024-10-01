@@ -2,7 +2,8 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::Array, batch::Batch, bitmap::Bitmap, compute::cast::array::cast_array, datatype::DataType
+    array::Array, batch::Batch, bitmap::Bitmap, compute::cast::array::cast_array,
+    datatype::DataType,
 };
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
