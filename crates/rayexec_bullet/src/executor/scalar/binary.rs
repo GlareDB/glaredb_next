@@ -1,6 +1,6 @@
 use crate::{
     array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
-    bitmap::Bitmap,
+    bitmap::{zip::ZipBitmapsIter, Bitmap},
     compute::util::IntoExtactSizeIterator,
 };
 use rayexec_error::{RayexecError, Result};

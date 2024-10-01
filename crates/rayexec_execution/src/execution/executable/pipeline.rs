@@ -1,5 +1,5 @@
 use crate::{
-    execution::operators::{ComputedBatches, PollFinalize},
+    execution::{computed_batch::ComputedBatches, operators::PollFinalize},
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::time::{RuntimeInstant, Timer},
 };
