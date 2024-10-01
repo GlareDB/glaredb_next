@@ -26,7 +26,29 @@ impl SharedHeapStorage {
         self.blobs.push(blob.into())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
-        self.blobs.iter().map(|b| b.as_ref())
+    pub fn iter(&self) -> SharedHeapIter {
+        SharedHeapIter {
+            inner: self.blobs.iter(),
+        }
     }
 }
+
+#[derive(Debug)]
+pub struct SharedHeapIter<'a> {
+    inner: std::slice::Iter<'a, Bytes>,
+}
+
+impl<'a> Iterator for SharedHeapIter<'a> {
+    type Item = &'a [u8];
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|b| b.as_ref())
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'a> ExactSizeIterator for SharedHeapIter<'a> {}

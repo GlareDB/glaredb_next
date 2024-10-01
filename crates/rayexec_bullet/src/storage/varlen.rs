@@ -79,7 +79,7 @@ impl<O: OffsetIndex> ContiguousVarlenStorage<O> {
         self.offsets.as_ref().len() - 1
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+    pub fn iter(&self) -> ContiguousVarlenIter<'_, O> {
         ContiguousVarlenIter {
             storage: self,
             idx: 0,

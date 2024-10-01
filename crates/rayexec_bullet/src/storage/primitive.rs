@@ -106,7 +106,7 @@ impl<T> PrimitiveStorage<T> {
     }
 
     /// Iterate over the primitive values.
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
         self.as_ref().iter()
     }
 }

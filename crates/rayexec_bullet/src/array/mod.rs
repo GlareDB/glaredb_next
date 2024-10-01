@@ -65,6 +65,11 @@ pub enum ArrayData {
     UInt64(Arc<PrimitiveStorage<u64>>),
     UInt128(Arc<PrimitiveStorage<u128>>),
     Interval(Arc<PrimitiveStorage<Interval>>),
+    Binary(BinaryData),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryData {
     Binary(Arc<ContiguousVarlenStorage<i32>>),
     LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
     SharedHeap(SharedHeapStorage), // TODO: Arc?
@@ -157,13 +162,13 @@ impl Array {
             },
             DataType::Utf8 | DataType::LargeUtf8 => {
                 let v = match &self.data {
-                    ArrayData::Binary(arr) => arr
+                    ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::LargeBinary(arr) => arr
+                    ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::SharedHeap(arr) => arr
+                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
                         .get(idx)
                         .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
@@ -174,13 +179,13 @@ impl Array {
             }
             DataType::Binary | DataType::LargeBinary => {
                 let v = match &self.data {
-                    ArrayData::Binary(arr) => arr
+                    ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::LargeBinary(arr) => arr
+                    ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::SharedHeap(arr) => arr
+                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
                         .get(idx)
                         .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
