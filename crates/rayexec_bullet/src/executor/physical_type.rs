@@ -2,39 +2,45 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::{
     array::{ArrayData, BinaryData},
-    storage::{ContiguousVarlenIter, SharedHeapIter},
+    storage::{
+        AddressableStorage, ContiguousVarlenIter, ContiguousVarlenStorageSlice,
+        PrimitiveStorageSlice, SharedHeapIter, SharedHeapStorageSlice,
+    },
 };
 
 /// Helper trait for getting the underlying data for an array.
 pub trait PhysicalType<'a> {
-    type IterItem: 'a;
-    type StorageIter: Iterator<Item = Self::IterItem> + 'a;
+    type Storage: AddressableStorage<T: 'a>;
 
-    fn get_storage_iter(data: &'a ArrayData) -> Result<Self::StorageIter>;
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage>;
 }
 
 impl<'a> PhysicalType<'a> for i8 {
-    type IterItem = &'a i8;
-    type StorageIter = std::slice::Iter<'a, i8>;
+    type Storage = PrimitiveStorageSlice<'a, i8>;
 
-    fn get_storage_iter(data: &'a ArrayData) -> Result<Self::StorageIter> {
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
-            ArrayData::Int8(storage) => Ok(storage.iter()),
+            ArrayData::Int8(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => return Err(RayexecError::new("invalid storage")),
         }
     }
 }
 
 impl<'a> PhysicalType<'a> for [u8] {
-    type IterItem = &'a [u8];
-    type StorageIter = BinaryDataIter<'a>;
+    type Storage = BinaryDataStorage<'a>;
 
-    fn get_storage_iter(data: &'a ArrayData) -> Result<Self::StorageIter> {
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Binary(binary) => match binary {
-                BinaryData::Binary(b) => Ok(BinaryDataIter::Binary(b.iter())),
-                BinaryData::LargeBinary(b) => Ok(BinaryDataIter::LargeBinary(b.iter())),
-                BinaryData::SharedHeap(b) => Ok(BinaryDataIter::SharedHeap(b.iter())),
+                BinaryData::Binary(b) => {
+                    Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()))
+                }
+                BinaryData::LargeBinary(b) => Ok(BinaryDataStorage::LargeBinary(
+                    b.as_contiguous_storage_slice(),
+                )),
+                BinaryData::SharedHeap(b) => Ok(BinaryDataStorage::SharedHeap(
+                    b.as_shared_heap_storage_slice(),
+                )),
             },
             _ => return Err(RayexecError::new("invalid storage")),
         }
@@ -42,78 +48,90 @@ impl<'a> PhysicalType<'a> for [u8] {
 }
 
 impl<'a> PhysicalType<'a> for str {
-    type IterItem = &'a str;
-    type StorageIter = StrDataIter<'a>;
+    type Storage = StrDataStorage<'a>;
 
-    fn get_storage_iter(data: &'a ArrayData) -> Result<Self::StorageIter> {
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Binary(binary) => match binary {
-                BinaryData::Binary(b) => Ok(BinaryDataIter::Binary(b.iter()).into()),
-                BinaryData::LargeBinary(b) => Ok(BinaryDataIter::LargeBinary(b.iter()).into()),
-                BinaryData::SharedHeap(b) => Ok(BinaryDataIter::SharedHeap(b.iter()).into()),
+                BinaryData::Binary(b) => {
+                    Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()).into())
+                }
+                BinaryData::LargeBinary(b) => {
+                    Ok(BinaryDataStorage::LargeBinary(b.as_contiguous_storage_slice()).into())
+                }
+                BinaryData::SharedHeap(b) => {
+                    Ok(BinaryDataStorage::SharedHeap(b.as_shared_heap_storage_slice()).into())
+                }
             },
             _ => return Err(RayexecError::new("invalid storage")),
         }
     }
 }
 
-// TODO: Don't love this. But it might not matter.
 #[derive(Debug)]
-pub enum BinaryDataIter<'a> {
-    Binary(ContiguousVarlenIter<'a, i32>),
-    LargeBinary(ContiguousVarlenIter<'a, i64>),
-    SharedHeap(SharedHeapIter<'a>),
+pub enum BinaryDataStorage<'a> {
+    Binary(ContiguousVarlenStorageSlice<'a, i32>),
+    LargeBinary(ContiguousVarlenStorageSlice<'a, i64>),
+    SharedHeap(SharedHeapStorageSlice<'a>),
 }
 
-impl<'a> Iterator for BinaryDataIter<'a> {
-    type Item = &'a [u8];
+impl<'a> AddressableStorage for BinaryDataStorage<'a> {
+    type T = [u8];
 
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
+    fn len(&self) -> usize {
         match self {
-            Self::Binary(it) => it.next(),
-            Self::LargeBinary(it) => it.next(),
-            Self::SharedHeap(it) => it.next(),
+            Self::Binary(s) => s.len(),
+            Self::LargeBinary(s) => s.len(),
+            Self::SharedHeap(s) => s.len(),
         }
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
+    fn get(&self, idx: usize) -> Option<&Self::T> {
         match self {
-            Self::Binary(it) => it.size_hint(),
-            Self::LargeBinary(it) => it.size_hint(),
-            Self::SharedHeap(it) => it.size_hint(),
+            Self::Binary(s) => s.get(idx),
+            Self::LargeBinary(s) => s.get(idx),
+            Self::SharedHeap(s) => s.get(idx),
+        }
+    }
+
+    #[inline]
+    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+        match self {
+            Self::Binary(s) => s.get_unchecked(idx),
+            Self::LargeBinary(s) => s.get_unchecked(idx),
+            Self::SharedHeap(s) => s.get_unchecked(idx),
         }
     }
 }
 
-impl<'a> ExactSizeIterator for BinaryDataIter<'a> {}
-
 #[derive(Debug)]
-pub struct StrDataIter<'a> {
-    inner: BinaryDataIter<'a>,
+pub struct StrDataStorage<'a> {
+    inner: BinaryDataStorage<'a>,
 }
 
-impl<'a> Iterator for StrDataIter<'a> {
-    type Item = &'a str;
+impl<'a> AddressableStorage for StrDataStorage<'a> {
+    type T = str;
 
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let bs = self.inner.next()?;
-        // SAFETY: String data should be verified when constructing the backing
-        // storage, not when reading.
-        let s = unsafe { std::str::from_utf8_unchecked(bs) };
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        let b = self.inner.get(idx)?;
+        // SAFETY: Construction of the vector should have already validated the data.
+        let s = unsafe { std::str::from_utf8_unchecked(b) };
         Some(s)
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
+    #[inline]
+    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+        let b = self.inner.get_unchecked(idx);
+        unsafe { std::str::from_utf8_unchecked(b) } // See above
     }
 }
 
-impl<'a> ExactSizeIterator for StrDataIter<'a> {}
-
-impl<'a> From<BinaryDataIter<'a>> for StrDataIter<'a> {
-    fn from(value: BinaryDataIter<'a>) -> Self {
-        StrDataIter { inner: value }
+impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
+    fn from(value: BinaryDataStorage<'a>) -> Self {
+        StrDataStorage { inner: value }
     }
 }

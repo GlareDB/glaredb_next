@@ -5,6 +5,7 @@ use crate::{
         physical_type::PhysicalType,
     },
     selection,
+    storage::AddressableStorage,
 };
 use rayexec_error::Result;
 
@@ -15,11 +16,10 @@ impl UnaryExecutor {
     pub fn execute<'a, T, O, B>(
         array: &'a Array,
         mut builder: ArrayBuilder<B>,
-        op: &mut impl Fn(&mut B::State, T::IterItem) -> O,
+        op: &mut impl Fn(&mut B::State, &<T::Storage as AddressableStorage>::T) -> O,
     ) -> Result<Array>
     where
         T: PhysicalType<'a>,
-        O: PhysicalType<'a>,
         B: ArrayDataBuffer<'a, Type = O>,
     {
         let selection = array.selection_vector();
@@ -27,22 +27,29 @@ impl UnaryExecutor {
 
         match &array.validity {
             Some(validity) => {
-                let values = T::get_storage_iter(&array.data)?;
-                for (idx, (value, valid)) in values.zip(validity.iter()).enumerate() {
-                    if !valid {
+                let values = T::get_storage(&array.data)?;
+                let len = values.len();
+                for idx in 0..len {
+                    if !validity.value_unchecked(idx) {
                         continue;
                     }
-                    let value = op(&mut state, value);
-                    let idx = selection::get_unchecked(selection, idx);
-                    builder.buffer.put(idx, value);
+
+                    let sel = selection::get_unchecked(selection, idx);
+                    let val = unsafe { values.get_unchecked(sel) };
+                    let val = op(&mut state, val);
+
+                    builder.buffer.put(idx, val)
                 }
             }
             None => {
-                let values = T::get_storage_iter(&array.data)?;
-                for (idx, value) in values.enumerate() {
-                    let value = op(&mut state, value);
-                    let idx = selection::get_unchecked(selection, idx);
-                    builder.buffer.put(idx, value);
+                let values = T::get_storage(&array.data)?;
+                let len = values.len();
+                for idx in 0..len {
+                    let sel = selection::get_unchecked(selection, idx);
+                    let val = unsafe { values.get_unchecked(sel) };
+                    let val = op(&mut state, val);
+
+                    builder.buffer.put(idx, val)
                 }
             }
         }

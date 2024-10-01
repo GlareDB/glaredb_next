@@ -1,12 +1,14 @@
 use rayexec_error::Result;
 use std::fmt::Debug;
 
-use super::PrimitiveStorage;
+use super::{AddressableStorage, PrimitiveStorage};
 
 pub trait OffsetIndex: Debug + Clone + Copy + PartialEq + Eq {
     const ZERO: Self;
 
     fn get(start: Self, end: Self, slice: &[u8]) -> Option<&[u8]>;
+
+    unsafe fn get_unchecked(start: Self, end: Self, slice: &[u8]) -> &[u8];
 
     fn from_usize(v: usize) -> Self;
 }
@@ -16,6 +18,10 @@ impl OffsetIndex for i32 {
 
     fn get(start: Self, end: Self, slice: &[u8]) -> Option<&[u8]> {
         slice.get((start as usize)..(end as usize))
+    }
+
+    unsafe fn get_unchecked(start: Self, end: Self, slice: &[u8]) -> &[u8] {
+        slice.get_unchecked((start as usize)..(end as usize))
     }
 
     fn from_usize(v: usize) -> Self {
@@ -28,6 +34,10 @@ impl OffsetIndex for i64 {
 
     fn get(start: Self, end: Self, slice: &[u8]) -> Option<&[u8]> {
         slice.get((start as usize)..(end as usize))
+    }
+
+    unsafe fn get_unchecked(start: Self, end: Self, slice: &[u8]) -> &[u8] {
+        slice.get_unchecked((start as usize)..(end as usize))
     }
 
     fn from_usize(v: usize) -> Self {
@@ -85,6 +95,13 @@ impl<O: OffsetIndex> ContiguousVarlenStorage<O> {
             idx: 0,
         }
     }
+
+    pub fn as_contiguous_storage_slice(&self) -> ContiguousVarlenStorageSlice<O> {
+        ContiguousVarlenStorageSlice {
+            offsets: self.offsets.as_ref(),
+            data: self.data.as_ref(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -110,3 +127,32 @@ impl<'a, O: OffsetIndex> Iterator for ContiguousVarlenIter<'a, O> {
 }
 
 impl<'a, O: OffsetIndex> ExactSizeIterator for ContiguousVarlenIter<'a, O> {}
+
+#[derive(Debug)]
+pub struct ContiguousVarlenStorageSlice<'a, O> {
+    offsets: &'a [O],
+    data: &'a [u8],
+}
+
+impl<'a, O: OffsetIndex> AddressableStorage for ContiguousVarlenStorageSlice<'a, O> {
+    type T = [u8];
+
+    fn len(&self) -> usize {
+        self.offsets.len() - 1
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        let start = self.offsets.get(idx)?;
+        let end = self.offsets.get(idx + 1)?;
+
+        O::get(*start, *end, self.data.as_ref())
+    }
+
+    #[inline]
+    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+        let start = self.offsets.get_unchecked(idx);
+        let end = self.offsets.get_unchecked(idx + 1);
+
+        O::get_unchecked(*start, *end, self.data.as_ref())
+    }
+}

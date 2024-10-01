@@ -1,5 +1,7 @@
 use bytes::Bytes;
 
+use super::AddressableStorage;
+
 /// Back storage for shared byte buffers.
 ///
 /// This mostly exists to allow us to use the byte blobs produced from parquet
@@ -31,6 +33,10 @@ impl SharedHeapStorage {
             inner: self.blobs.iter(),
         }
     }
+
+    pub fn as_shared_heap_storage_slice(&self) -> SharedHeapStorageSlice {
+        SharedHeapStorageSlice { blobs: &self.blobs }
+    }
 }
 
 #[derive(Debug)]
@@ -52,3 +58,24 @@ impl<'a> Iterator for SharedHeapIter<'a> {
 }
 
 impl<'a> ExactSizeIterator for SharedHeapIter<'a> {}
+
+#[derive(Debug)]
+pub struct SharedHeapStorageSlice<'a> {
+    blobs: &'a [Bytes],
+}
+
+impl<'a> AddressableStorage for SharedHeapStorageSlice<'a> {
+    type T = [u8];
+
+    fn len(&self) -> usize {
+        self.blobs.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        self.blobs.get(idx).map(|b| b.as_ref())
+    }
+
+    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+        self.blobs.get_unchecked(idx).as_ref()
+    }
+}

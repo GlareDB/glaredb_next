@@ -3,6 +3,8 @@ use std::fmt;
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
 
+use super::AddressableStorage;
+
 /// Marker trait for a deallocation mechanism for the `PrimitiveStorage::Raw`
 /// variant.
 ///
@@ -109,6 +111,12 @@ impl<T> PrimitiveStorage<T> {
     pub fn iter(&self) -> std::slice::Iter<'_, T> {
         self.as_ref().iter()
     }
+
+    pub fn as_primitive_storage_slice(&self) -> PrimitiveStorageSlice<T> {
+        PrimitiveStorageSlice {
+            slice: self.as_ref(),
+        }
+    }
 }
 
 /// Implementation of equality that compares the actual values regardless of if
@@ -136,6 +144,28 @@ impl<T> AsRef<[T]> for PrimitiveStorage<T> {
             Self::Vec(v) => v.as_slice(),
             Self::Raw { ptr, len, .. } => unsafe { std::slice::from_raw_parts(*ptr, *len) },
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct PrimitiveStorageSlice<'a, T> {
+    slice: &'a [T],
+}
+
+impl<'a, T> AddressableStorage for PrimitiveStorageSlice<'a, T> {
+    type T = T;
+
+    fn len(&self) -> usize {
+        self.slice.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        self.slice.get(idx)
+    }
+
+    #[inline]
+    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+        self.slice.get_unchecked(idx)
     }
 }
 
