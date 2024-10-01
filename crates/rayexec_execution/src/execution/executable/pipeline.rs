@@ -1,5 +1,8 @@
 use crate::{
-    execution::{computed_batch::ComputedBatches, operators::PollFinalize},
+    execution::{
+        computed_batch::{ComputedBatch, ComputedBatches},
+        operators::PollFinalize,
+    },
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::time::{RuntimeInstant, Timer},
 };
@@ -272,7 +275,10 @@ pub enum PipelinePartitionState {
         operator_idx: usize,
     },
     /// Need to push to an operator.
-    PushTo { batch: Batch, operator_idx: usize },
+    PushTo {
+        batch: ComputedBatch,
+        operator_idx: usize,
+    },
     /// Need to finalize a push to an operator.
     FinalizePush { operator_idx: usize },
     /// Pipeline is completed.
@@ -375,7 +381,7 @@ impl ExecutablePartitionPipeline {
 
                             // We got results, increment operator index to push
                             // it into the next operator.
-                            operator.profile_data.rows_emitted += batch.num_rows();
+                            operator.profile_data.rows_emitted += batch.num_selected_rows(); // TODO: We should have something to indicate materialized vs not.
                             *state = PipelinePartitionState::PushTo {
                                 batch,
                                 operator_idx: *operator_idx + 1,
@@ -447,14 +453,14 @@ impl ExecutablePartitionPipeline {
                     operator_idx,
                 } => {
                     // To satisfy ownership. State will be updated anyways.
-                    let batch = std::mem::replace(batch, Batch::empty());
+                    let batch = std::mem::replace(batch, ComputedBatch::empty());
 
                     let operator = self
                         .operators
                         .get_mut(*operator_idx)
                         .expect("operator to exist");
 
-                    operator.profile_data.rows_read += batch.num_rows();
+                    operator.profile_data.rows_read += batch.num_selected_rows();
 
                     let timer = Timer::<I>::start();
                     let poll_push = operator.physical.poll_push(

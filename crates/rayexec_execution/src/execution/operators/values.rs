@@ -1,3 +1,4 @@
+use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
 use rayexec_bullet::{
@@ -63,7 +64,7 @@ impl ExecutableOperator for PhysicalValues {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: ComputedBatch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }

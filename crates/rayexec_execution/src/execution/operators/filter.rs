@@ -1,5 +1,6 @@
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::database::DatabaseContext;
+use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
@@ -20,10 +21,15 @@ impl FilterOperation {
 }
 
 impl StatelessOperation for FilterOperation {
-    fn execute(&self, batch: Batch) -> Result<Batch> {
+    fn execute(&self, batch: ComputedBatch) -> Result<ComputedBatch> {
+        // TODO: We should try to skip this. I don't know that the current
+        // `select` method is actually correct when multiple selections are
+        // performed.
+        let batch = batch.try_materialize()?;
+
         let selection = self.predicate.eval(&batch, None)?;
         let selection = match selection.as_ref() {
-            Array::Boolean(arr) => arr,
+            Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
             other => {
                 return Err(RayexecError::new(format!(
                     "Expected filter predicate to evaluate to a boolean, got {}",
@@ -32,46 +38,7 @@ impl StatelessOperation for FilterOperation {
             }
         };
 
-        // TODO: We should allow storing the bitmap on the batch to avoid
-        // actually needing to reallocate arrays here.
-        let filtered_arrays = if let Some(validity) = selection.validity() {
-            // Need to account for nulls (which are falsy in this context).
-            let mut bitmap = selection.values().clone();
-            bitmap.bit_and_mut(validity)?;
-
-            if bitmap.is_all_true() {
-                return Ok(batch);
-            }
-
-            batch
-                .columns()
-                .iter()
-                .map(|a| filter(a, &bitmap))
-                .collect::<Result<Vec<_>, _>>()?
-        } else {
-            // Can just use the values directly.
-            if selection.values().is_all_true() {
-                return Ok(batch);
-            }
-
-            batch
-                .columns()
-                .iter()
-                .map(|a| filter(a, selection.values()))
-                .collect::<Result<Vec<_>, _>>()?
-        };
-
-        let batch = if filtered_arrays.is_empty() {
-            // If we're working on an empty input batch, just produce an new
-            // empty batch with num rows equaling the number of trues in the
-            // selection.
-            Batch::empty_with_num_rows(selection.true_count())
-        } else {
-            // Otherwise use the actual filtered arrays.
-            Batch::try_new(filtered_arrays)?
-        };
-
-        Ok(batch)
+        ComputedBatch::try_with_selection(batch, selection)
     }
 }
 

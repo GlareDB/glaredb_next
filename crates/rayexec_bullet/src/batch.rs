@@ -14,7 +14,7 @@ pub struct Batch {
 }
 
 impl Batch {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Batch {
             cols: Vec::new(),
             num_rows: 0,

@@ -1,3 +1,4 @@
+use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
 use rayexec_bullet::batch::Batch;
@@ -88,7 +89,7 @@ impl ExecutableOperator for PhysicalLimit {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,
@@ -99,6 +100,8 @@ impl ExecutableOperator for PhysicalLimit {
             state.push_waker = Some(cx.waker().clone());
             return Ok(PollPush::Pending(batch));
         }
+
+        let batch = batch.try_materialize()?;
 
         let batch = if state.remaining_offset > 0 {
             // Offset greater than the number of rows in this batch. Discard the

@@ -89,7 +89,7 @@ use self::sort::merge_sorted::{
 };
 use self::values::ValuesPartitionState;
 
-use super::computed_batch::ComputedBatches;
+use super::computed_batch::{ComputedBatch, ComputedBatches};
 
 /// States local to a partition within a single operator.
 // Current size: 240 bytes
@@ -151,7 +151,7 @@ pub enum PollPush {
     ///
     /// A waker will be registered for a later wakeup. This same batch should be
     /// pushed at that time.
-    Pending(Batch),
+    Pending(ComputedBatch),
 
     /// This operator requires no more input.
     ///
@@ -270,7 +270,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush>;
 
     /// Finalize pushing to partition.
@@ -365,7 +365,7 @@ impl ExecutableOperator for PhysicalOperator {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush> {
         match self {
             Self::HashAggregate(op) => op.poll_push(cx, partition_state, operator_state, batch),

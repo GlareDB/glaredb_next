@@ -1,3 +1,4 @@
+use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::storage::table_storage::Projections;
 use crate::{
@@ -90,7 +91,7 @@ impl ExecutableOperator for PhysicalScan {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: ComputedBatch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }

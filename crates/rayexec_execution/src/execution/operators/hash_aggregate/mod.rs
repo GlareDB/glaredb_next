@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use crate::database::DatabaseContext;
+use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
     ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
@@ -222,12 +223,15 @@ impl ExecutableOperator for PhysicalHashAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
+
+        // TODO: Dont
+        let batch = batch.try_materialize()?;
 
         match state {
             HashAggregatePartitionState::Aggregating {

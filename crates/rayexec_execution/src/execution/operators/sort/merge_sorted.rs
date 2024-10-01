@@ -1,4 +1,5 @@
 use crate::database::DatabaseContext;
+use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -241,7 +242,7 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::MergeSortedPush(state) => state,
@@ -261,6 +262,8 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
             shared.push_wakers[state.partition_idx] = Some(cx.waker().clone());
             return Ok(PollPush::Pending(batch));
         }
+
+        let batch = batch.try_materialize()?;
 
         let keys = state.extractor.sort_keys(&batch)?;
         let sorted = PhysicallySortedBatch { batch, keys };

@@ -1,4 +1,5 @@
 use crate::database::DatabaseContext;
+use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
@@ -123,7 +124,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
@@ -133,15 +134,27 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         match state {
             UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
                 // All rows contribute to computing the aggregate.
-                let row_selection = Bitmap::new_with_val(true, batch.num_rows());
+                let row_selection = match batch.selection.clone() {
+                    Some(selection) => selection,
+                    None => {
+                        // All rows contribute to computing the aggregate.
+                        Bitmap::new_with_val(true, batch.batch.num_rows())
+                    }
+                };
                 // All rows map to the same group (group 0)
-                let mapping = vec![0; batch.num_rows()];
+                let mapping = vec![0; row_selection.len()];
 
                 for (agg_idx, agg) in self.aggregates.iter().enumerate() {
                     let cols: Vec<_> = agg
                         .columns
                         .iter()
-                        .map(|expr| batch.column(expr.idx).expect("column to exist").as_ref())
+                        .map(|expr| {
+                            batch
+                                .batch
+                                .column(expr.idx)
+                                .expect("column to exist")
+                                .as_ref()
+                        })
                         .collect();
 
                     agg_states[agg_idx].update_states(&row_selection, &cols, &mapping)?;

@@ -1,4 +1,5 @@
 use crate::database::DatabaseContext;
+use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -85,12 +86,14 @@ impl ExecutableOperator for PhysicalLocalSort {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::LocalSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
+
+        let batch = batch.try_materialize()?;
 
         match state {
             LocalSortPartitionState::Consuming {

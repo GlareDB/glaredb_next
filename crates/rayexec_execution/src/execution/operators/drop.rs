@@ -1,3 +1,4 @@
+use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::{catalog::CatalogTx, drop::DropInfo, DatabaseContext},
@@ -72,7 +73,7 @@ impl ExecutableOperator for PhysicalDrop {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: ComputedBatch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }

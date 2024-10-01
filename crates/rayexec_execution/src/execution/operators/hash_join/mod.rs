@@ -16,7 +16,10 @@ use std::{
 
 use crate::{
     database::DatabaseContext,
-    execution::operators::util::hash::{AhashHasher, ArrayHasher},
+    execution::{
+        computed_batch::ComputedBatch,
+        operators::util::hash::{AhashHasher, ArrayHasher},
+    },
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     logical::logical_join::JoinType,
 };
@@ -219,10 +222,12 @@ impl ExecutableOperator for PhysicalHashJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: ComputedBatch,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
+                let batch = batch.try_materialize()?;
+
                 // Compute left hashes on equality condition.
                 let result = self.equality.left.eval(&batch, None)?;
                 state.hash_buf.clear();
@@ -289,15 +294,22 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 // Compute right hashes on equality condition.
-                let result = self.equality.right.eval(&batch, None)?;
+                let result = self
+                    .equality
+                    .right
+                    .eval(&batch.batch, batch.selection.as_ref())?;
                 state.hash_buf.clear();
                 state.hash_buf.resize(result.len(), 0);
                 let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
 
-                let batches =
-                    hashtable.probe(&batch, hashes, state.partition_outer_join_tracker.as_mut())?;
+                let batches = hashtable.probe(
+                    &batch.batch,
+                    batch.selection.as_ref(),
+                    hashes,
+                    state.partition_outer_join_tracker.as_mut(),
+                )?;
 
                 if batches.is_empty() {
                     // No batches joined, keep pushing to this operator.

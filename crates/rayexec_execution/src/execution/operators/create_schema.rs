@@ -1,3 +1,4 @@
+use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::{catalog::CatalogTx, create::CreateSchemaInfo, DatabaseContext},
@@ -79,7 +80,7 @@ impl ExecutableOperator for PhysicalCreateSchema {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: ComputedBatch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }

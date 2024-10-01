@@ -13,6 +13,7 @@ use rayexec_bullet::batch::Batch;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
+use crate::execution::computed_batch::ComputedBatch;
 
 use super::{
     ComputedBatches, ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
@@ -70,11 +71,14 @@ impl TestWakerContext {
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: impl Into<ComputedBatch>,
     ) -> Result<PollPush> {
-        operator
-            .as_ref()
-            .poll_push(&mut self.context(), partition_state, operator_state, batch)
+        operator.as_ref().poll_push(
+            &mut self.context(),
+            partition_state,
+            operator_state,
+            batch.into(),
+        )
     }
 
     pub fn poll_pull<Operator: ExecutableOperator>(
@@ -98,7 +102,7 @@ impl Wake for TestWakerInner {
 /// Unwraps a batch from the PollPull::Batch variant.
 pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
     match poll {
-        PollPull::Computed(ComputedBatches::Single(batch)) => batch,
+        PollPull::Computed(ComputedBatches::Single(batch)) => batch.try_materialize().unwrap(),
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }

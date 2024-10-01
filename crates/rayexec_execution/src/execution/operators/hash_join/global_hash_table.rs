@@ -1,5 +1,5 @@
 use hashbrown::raw::RawTable;
-use rayexec_bullet::{batch::Batch, compute, datatype::DataType};
+use rayexec_bullet::{batch::Batch, bitmap::Bitmap, compute, datatype::DataType};
 use rayexec_error::Result;
 use std::{collections::HashMap, fmt};
 
@@ -115,6 +115,7 @@ impl GlobalHashTable {
     pub fn probe(
         &self,
         right: &Batch,
+        selection: Option<&Bitmap>,
         hashes: &[u64],
         mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
     ) -> Result<Vec<Batch>> {
@@ -159,7 +160,7 @@ impl GlobalHashTable {
         }
 
         let mut right_tracker = if self.right_join {
-            Some(RightOuterJoinTracker::new_for_batch(right))
+            Some(RightOuterJoinTracker::new_for_batch(right, selection))
         } else {
             None
         };
