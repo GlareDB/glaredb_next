@@ -4,7 +4,7 @@ use crate::{
         DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
     },
     datatype::{DataType, TimeUnit},
-    executor::scalar::UnaryExecutor,
+    executor::scalar::UnaryExecutor2,
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
 use num::{Float, NumCast, PrimInt, ToPrimitive};
@@ -480,7 +480,7 @@ where
             .parse(val)
             .ok_or_else(|| RayexecError::new(format!("Failed to parse '{val}'")))
     };
-    UnaryExecutor::try_execute(arr, operation, &mut new_values)?;
+    UnaryExecutor2::try_execute(arr, operation, &mut new_values)?;
 
     Ok(PrimitiveArray::new(new_values, arr.validity().cloned()))
 }
@@ -495,7 +495,7 @@ where
             .parse(val)
             .ok_or_else(|| RayexecError::new(format!("Failed to parse '{val}'")))
     };
-    UnaryExecutor::try_execute(arr, operation, &mut buf)?;
+    UnaryExecutor2::try_execute(arr, operation, &mut buf)?;
 
     Ok(BooleanArray::new(buf, arr.validity().cloned()))
 }

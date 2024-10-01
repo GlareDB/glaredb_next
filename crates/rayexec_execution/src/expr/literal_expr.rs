@@ -15,7 +15,7 @@ impl ContextDisplay for LiteralExpr {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self.literal {
-            ScalarValue::Utf8(_) | ScalarValue::LargeUtf8(_) => {
+            ScalarValue::Utf8(_) => {
                 // Quote strings.
                 //
                 // This shouldn't be put in the normal formatting for scalar

@@ -136,14 +136,14 @@ impl IntoArray for Vec<Int96> {
 macro_rules! into_array_prim {
     ($prim:ty, $variant:ident, $array:ty) => {
         impl IntoArray for Vec<$prim> {
-            fn into_array(self, def_levels: Option<Vec<i16>>) -> Array {
+            fn into_array(self, def_levels: Option<Vec<i16>>) -> Array2 {
                 match def_levels {
                     Some(levels) => {
                         let bitmap = def_levels_into_bitmap(levels);
                         let values = insert_null_values(self, &bitmap);
-                        Array::$variant(<$array>::new(values, Some(bitmap)))
+                        Array2::$variant(<$array>::new(values, Some(bitmap)))
                     }
-                    None => Array::$variant(<$array>::from(self)),
+                    None => Array2::$variant(<$array>::from(self)),
                 }
             }
         }

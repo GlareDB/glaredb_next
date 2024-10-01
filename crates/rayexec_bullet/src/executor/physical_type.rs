@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::{
     array::{ArrayData, BinaryData},
-    storage::{ContiguousVarlenIter, PrimitiveStorage, SharedHeapIter},
+    storage::{ContiguousVarlenIter, SharedHeapIter},
 };
 
 /// Helper trait for getting the underlying data for an array.
@@ -57,7 +57,7 @@ impl<'a> PhysicalType<'a> for str {
     }
 }
 
-// TODO: Don't love this.
+// TODO: Don't love this. But it might not matter.
 #[derive(Debug)]
 pub enum BinaryDataIter<'a> {
     Binary(ContiguousVarlenIter<'a, i32>),

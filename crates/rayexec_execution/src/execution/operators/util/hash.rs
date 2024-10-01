@@ -116,9 +116,7 @@ fn hash_row(row: &ScalarRow) -> Result<u64> {
             ScalarValue::Timestamp(v) => v.value.hash_one(),
             ScalarValue::Interval(v) => v.hash_one(),
             ScalarValue::Utf8(v) => v.hash_one(),
-            ScalarValue::LargeUtf8(v) => v.hash_one(),
             ScalarValue::Binary(v) => v.hash_one(),
-            ScalarValue::LargeBinary(v) => v.hash_one(),
             ScalarValue::Struct(_) => {
                 // Yet
                 return Err(RayexecError::new("hashing struct values not supported"));

@@ -61,7 +61,7 @@ impl PlannedScalarFunction for StructPackDynamic {
             .iter()
             .step_by(2)
             .map(|arr| match arr.scalar(0).expect("scalar to exist") {
-                ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => Ok(v.to_string()),
+                ScalarValue::Utf8(v) => Ok(v.to_string()),
                 other => Err(RayexecError::new(format!(
                     "Invalid value for struct key: {other}"
                 ))),

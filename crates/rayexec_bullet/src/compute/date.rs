@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, Result};
 use crate::{
     array::{Date32Array, Date64Array, Decimal64Array, PrimitiveArray, TimestampArray},
     datatype::TimeUnit,
-    executor::scalar::UnaryExecutor,
+    executor::scalar::UnaryExecutor2,
     scalar::decimal::{Decimal64Type, DecimalType},
 };
 
@@ -157,7 +157,7 @@ where
     F: Fn(DateTime<Utc>) -> i64,
 {
     let mut values = Vec::with_capacity(arr.len());
-    UnaryExecutor::execute(
+    UnaryExecutor2::execute(
         arr.get_primitive(),
         |val| {
             let date = builder(val);
@@ -180,7 +180,7 @@ where
     F: Fn(DateTime<Utc>) -> i64,
 {
     let mut values = Vec::with_capacity(arr.len());
-    UnaryExecutor::execute(
+    UnaryExecutor2::execute(
         arr,
         |val| {
             // TODO: Can this actually fail?
@@ -204,7 +204,7 @@ where
     F: Fn(DateTime<Utc>) -> i64,
 {
     let mut values = Vec::with_capacity(arr.len());
-    UnaryExecutor::execute(
+    UnaryExecutor2::execute(
         arr,
         |val| {
             // TODO: Can this actually fail?

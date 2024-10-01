@@ -181,10 +181,10 @@ mod macros {
     macro_rules! primitive_unary_execute {
         ($input:expr, $output_variant:ident, $operation:expr) => {{
             use rayexec_bullet::array::{Array2, PrimitiveArray};
-            use rayexec_bullet::executor::scalar::UnaryExecutor;
+            use rayexec_bullet::executor::scalar::UnaryExecutor2;
 
             let mut buffer = Vec::with_capacity($input.len());
-            UnaryExecutor::execute($input, $operation, &mut buffer)?;
+            UnaryExecutor2::execute($input, $operation, &mut buffer)?;
             Array2::$output_variant(PrimitiveArray::new(buffer, $input.validity().cloned()))
         }};
     }
@@ -193,10 +193,10 @@ mod macros {
     macro_rules! primitive_unary_execute_bool {
         ($input:expr, $operation:expr) => {{
             use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
-            use rayexec_bullet::executor::scalar::UnaryExecutor;
+            use rayexec_bullet::executor::scalar::UnaryExecutor2;
 
             let mut buffer = BooleanValuesBuffer::with_capacity($input.len());
-            UnaryExecutor::execute($input, $operation, &mut buffer)?;
+            UnaryExecutor2::execute($input, $operation, &mut buffer)?;
             Array2::Boolean(BooleanArray::new(buffer, $input.validity().cloned()))
         }};
     }
@@ -205,10 +205,10 @@ mod macros {
     macro_rules! primitive_binary_execute {
         ($first:expr, $second:expr, $output_variant:ident, $operation:expr) => {{
             use rayexec_bullet::array::{Array2, PrimitiveArray};
-            use rayexec_bullet::executor::scalar::BinaryExecutor;
+            use rayexec_bullet::executor::scalar::BinaryExecutor2;
 
             let mut buffer = Vec::with_capacity($first.len());
-            let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
+            let validity = BinaryExecutor2::execute($first, $second, $operation, &mut buffer)?;
             Array2::$output_variant(PrimitiveArray::new(buffer, validity))
         }};
     }
@@ -217,10 +217,10 @@ mod macros {
     macro_rules! primitive_binary_execute_no_wrap {
         ($first:expr, $second:expr, $operation:expr) => {{
             use rayexec_bullet::array::PrimitiveArray;
-            use rayexec_bullet::executor::scalar::BinaryExecutor;
+            use rayexec_bullet::executor::scalar::BinaryExecutor2;
 
             let mut buffer = Vec::with_capacity($first.len());
-            let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
+            let validity = BinaryExecutor2::execute($first, $second, $operation, &mut buffer)?;
             PrimitiveArray::new(buffer, validity)
         }};
     }
@@ -229,10 +229,10 @@ mod macros {
     macro_rules! primitive_binary_execute_bool {
         ($first:expr, $second:expr, $operation:expr) => {{
             use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
-            use rayexec_bullet::executor::scalar::BinaryExecutor;
+            use rayexec_bullet::executor::scalar::BinaryExecutor2;
 
             let mut buffer = BooleanValuesBuffer::with_capacity($first.len());
-            let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
+            let validity = BinaryExecutor2::execute($first, $second, $operation, &mut buffer)?;
             Array2::Boolean(BooleanArray::new(buffer, validity))
         }};
     }

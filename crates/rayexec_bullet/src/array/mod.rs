@@ -21,6 +21,7 @@ use crate::scalar::{
     decimal::{Decimal128Scalar, Decimal64Scalar},
     ScalarValue,
 };
+use crate::selection::SelectionVector;
 use crate::storage::{ContiguousVarlenStorage, PrimitiveStorage, SharedHeapStorage};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use std::fmt::Debug;
@@ -28,15 +29,15 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Selection {
-    Owned(Bitmap),
-    Shared(Arc<Bitmap>),
+    Owned(SelectionVector),
+    Shared(Arc<SelectionVector>),
 }
 
-impl AsRef<Bitmap> for Selection {
-    fn as_ref(&self) -> &Bitmap {
+impl AsRef<SelectionVector> for Selection {
+    fn as_ref(&self) -> &SelectionVector {
         match self {
-            Selection::Owned(bm) => &bm,
-            Self::Shared(bm) => bm.as_ref(),
+            Selection::Owned(v) => &v,
+            Self::Shared(v) => v.as_ref(),
         }
     }
 }
@@ -76,6 +77,10 @@ pub enum BinaryData {
 }
 
 impl Array {
+    pub fn selection_vector(&self) -> Option<&SelectionVector> {
+        self.selection.as_ref().map(|v| v.as_ref())
+    }
+
     /// Gets the scalar value at index.
     ///
     /// Ignores validity and selectivitity.
