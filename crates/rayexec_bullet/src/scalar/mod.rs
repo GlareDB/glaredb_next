@@ -3,7 +3,7 @@ pub mod interval;
 pub mod timestamp;
 
 use crate::array::{
-    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
+    Array2, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
     IntervalArray, LargeBinaryArray, LargeUtf8Array, ListArray, NullArray, TimestampArray,
     UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
@@ -173,57 +173,69 @@ impl<'a> ScalarValue<'a> {
     }
 
     /// Create an array of size `n` using the scalar value.
-    pub fn as_array(&self, n: usize) -> Array {
+    pub fn as_array(&self, n: usize) -> Array2 {
         match self {
-            Self::Null => Array::Null(NullArray::new(n)),
+            Self::Null => Array2::Null(NullArray::new(n)),
             Self::Boolean(v) => {
-                Array::Boolean(BooleanArray::from_iter(std::iter::repeat(*v).take(n)))
+                Array2::Boolean(BooleanArray::from_iter(std::iter::repeat(*v).take(n)))
             }
             Self::Float32(v) => {
-                Array::Float32(Float32Array::from_iter(std::iter::repeat(*v).take(n)))
+                Array2::Float32(Float32Array::from_iter(std::iter::repeat(*v).take(n)))
             }
             Self::Float64(v) => {
-                Array::Float64(Float64Array::from_iter(std::iter::repeat(*v).take(n)))
+                Array2::Float64(Float64Array::from_iter(std::iter::repeat(*v).take(n)))
             }
-            Self::Int8(v) => Array::Int8(Int8Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int16(v) => Array::Int16(Int16Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int32(v) => Array::Int32(Int32Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int64(v) => Array::Int64(Int64Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int128(v) => Array::Int128(Int128Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt8(v) => Array::UInt8(UInt8Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt16(v) => Array::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt32(v) => Array::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt64(v) => Array::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int8(v) => Array2::Int8(Int8Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int16(v) => Array2::Int16(Int16Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int32(v) => Array2::Int32(Int32Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int64(v) => Array2::Int64(Int64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Int128(v) => {
+                Array2::Int128(Int128Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
+            Self::UInt8(v) => Array2::UInt8(UInt8Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::UInt16(v) => {
+                Array2::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
+            Self::UInt32(v) => {
+                Array2::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
+            Self::UInt64(v) => {
+                Array2::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
             Self::UInt128(v) => {
-                Array::UInt128(UInt128Array::from_iter(std::iter::repeat(*v).take(n)))
+                Array2::UInt128(UInt128Array::from_iter(std::iter::repeat(*v).take(n)))
             }
             Self::Decimal64(v) => {
                 let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array::Decimal64(Decimal64Array::new(v.precision, v.scale, primitive))
+                Array2::Decimal64(Decimal64Array::new(v.precision, v.scale, primitive))
             }
             Self::Decimal128(v) => {
                 let primitive = Int128Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array::Decimal128(Decimal128Array::new(v.precision, v.scale, primitive))
+                Array2::Decimal128(Decimal128Array::new(v.precision, v.scale, primitive))
             }
-            Self::Date32(v) => Array::Date32(Date32Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Date64(v) => Array::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Date32(v) => {
+                Array2::Date32(Date32Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
+            Self::Date64(v) => {
+                Array2::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n)))
+            }
             Self::Timestamp(v) => {
                 let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array::Timestamp(TimestampArray::new(v.unit, primitive))
+                Array2::Timestamp(TimestampArray::new(v.unit, primitive))
             }
             Self::Interval(v) => {
-                Array::Interval(IntervalArray::from_iter(std::iter::repeat(*v).take(n)))
+                Array2::Interval(IntervalArray::from_iter(std::iter::repeat(*v).take(n)))
             }
             Self::Utf8(v) => {
-                Array::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
+                Array2::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
             }
-            Self::LargeUtf8(v) => Array::LargeUtf8(LargeUtf8Array::from_iter(
+            Self::LargeUtf8(v) => Array2::LargeUtf8(LargeUtf8Array::from_iter(
                 std::iter::repeat(v.as_ref()).take(n),
             )),
-            Self::Binary(v) => Array::Binary(BinaryArray::from_iter(
+            Self::Binary(v) => Array2::Binary(BinaryArray::from_iter(
                 std::iter::repeat(v.as_ref()).take(n),
             )),
-            Self::LargeBinary(v) => Array::LargeBinary(LargeBinaryArray::from_iter(
+            Self::LargeBinary(v) => Array2::LargeBinary(LargeBinaryArray::from_iter(
                 std::iter::repeat(v.as_ref()).take(n),
             )),
             Self::Struct(_) => unimplemented!("struct into array"),
@@ -235,7 +247,7 @@ impl<'a> ScalarValue<'a> {
                 } else {
                     ListArray::try_from_children(&refs).expect("list array to build")
                 };
-                Array::List(array)
+                Array2::List(array)
             }
         }
     }

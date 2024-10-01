@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute};
+use rayexec_bullet::{array::Array2, batch::Batch, bitmap::Bitmap, compute};
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
@@ -24,7 +24,7 @@ pub struct PhysicalCaseExpr {
 }
 
 impl PhysicalCaseExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let mut interleave_indices: Vec<_> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
 
         let mut case_outputs = Vec::new();

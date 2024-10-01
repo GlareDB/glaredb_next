@@ -1,6 +1,6 @@
 use crate::array::validity::concat_validities;
 use crate::array::{
-    Array, BooleanArray, BooleanValuesBuffer, DecimalArray, ListArray, NullArray, OffsetIndex,
+    Array2, BooleanArray, BooleanValuesBuffer, DecimalArray, ListArray, NullArray, OffsetIndex,
     PrimitiveArray, TimestampArray, VarlenArray, VarlenType, VarlenValuesBuffer,
 };
 use crate::batch::Batch;
@@ -36,7 +36,7 @@ pub fn concat_batches(batches: &[Batch]) -> Result<Batch> {
 /// Concat multiple arrays into a single array.
 ///
 /// All arrays must be of the same type.
-pub fn concat(arrays: &[&Array]) -> Result<Array> {
+pub fn concat(arrays: &[&Array2]) -> Result<Array2> {
     if arrays.is_empty() {
         return Err(RayexecError::new("Cannot concat zero arrays"));
     }
@@ -46,67 +46,67 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
     match datatype {
         DataType::Null => {
             let arrs = collect_arrays_of_type!(arrays, Null, datatype)?;
-            Ok(Array::Null(NullArray::new(
+            Ok(Array2::Null(NullArray::new(
                 arrs.iter().map(|arr| arr.len()).sum(),
             )))
         }
 
         DataType::Boolean => {
             let arrs = collect_arrays_of_type!(arrays, Boolean, datatype)?;
-            Ok(Array::Boolean(concat_boolean(arrs.as_slice())))
+            Ok(Array2::Boolean(concat_boolean(arrs.as_slice())))
         }
         DataType::Float32 => {
             let arrs = collect_arrays_of_type!(arrays, Float32, datatype)?;
-            Ok(Array::Float32(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Float32(concat_primitive(arrs.as_slice())))
         }
         DataType::Float64 => {
             let arrs = collect_arrays_of_type!(arrays, Float64, datatype)?;
-            Ok(Array::Float64(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Float64(concat_primitive(arrs.as_slice())))
         }
         DataType::Int8 => {
             let arrs = collect_arrays_of_type!(arrays, Int8, datatype)?;
-            Ok(Array::Int8(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Int8(concat_primitive(arrs.as_slice())))
         }
         DataType::Int16 => {
             let arrs = collect_arrays_of_type!(arrays, Int16, datatype)?;
-            Ok(Array::Int16(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Int16(concat_primitive(arrs.as_slice())))
         }
         DataType::Int32 => {
             let arrs = collect_arrays_of_type!(arrays, Int32, datatype)?;
-            Ok(Array::Int32(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Int32(concat_primitive(arrs.as_slice())))
         }
         DataType::Int64 => {
             let arrs = collect_arrays_of_type!(arrays, Int64, datatype)?;
-            Ok(Array::Int64(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Int64(concat_primitive(arrs.as_slice())))
         }
         DataType::Int128 => {
             let arrs = collect_arrays_of_type!(arrays, Int128, datatype)?;
-            Ok(Array::Int128(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Int128(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt8 => {
             let arrs = collect_arrays_of_type!(arrays, UInt8, datatype)?;
-            Ok(Array::UInt8(concat_primitive(arrs.as_slice())))
+            Ok(Array2::UInt8(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt16 => {
             let arrs = collect_arrays_of_type!(arrays, UInt16, datatype)?;
-            Ok(Array::UInt16(concat_primitive(arrs.as_slice())))
+            Ok(Array2::UInt16(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt32 => {
             let arrs = collect_arrays_of_type!(arrays, UInt32, datatype)?;
-            Ok(Array::UInt32(concat_primitive(arrs.as_slice())))
+            Ok(Array2::UInt32(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt64 => {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
-            Ok(Array::UInt64(concat_primitive(arrs.as_slice())))
+            Ok(Array2::UInt64(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt128 => {
             let arrs = collect_arrays_of_type!(arrays, UInt128, datatype)?;
-            Ok(Array::UInt128(concat_primitive(arrs.as_slice())))
+            Ok(Array2::UInt128(concat_primitive(arrs.as_slice())))
         }
         DataType::Decimal64(meta) => {
             let arrs = collect_arrays_of_type!(arrays, Decimal64, datatype)?;
             let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
-            Ok(Array::Decimal64(DecimalArray::new(
+            Ok(Array2::Decimal64(DecimalArray::new(
                 meta.precision,
                 meta.scale,
                 concat_primitive(arrs.as_slice()),
@@ -115,7 +115,7 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
         DataType::Decimal128(meta) => {
             let arrs = collect_arrays_of_type!(arrays, Decimal128, datatype)?;
             let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
-            Ok(Array::Decimal128(DecimalArray::new(
+            Ok(Array2::Decimal128(DecimalArray::new(
                 meta.precision,
                 meta.scale,
                 concat_primitive(arrs.as_slice()),
@@ -123,44 +123,44 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
         }
         DataType::Date32 => {
             let arrs = collect_arrays_of_type!(arrays, Date32, datatype)?;
-            Ok(Array::Date32(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Date32(concat_primitive(arrs.as_slice())))
         }
         DataType::Date64 => {
             let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
-            Ok(Array::Date64(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Date64(concat_primitive(arrs.as_slice())))
         }
         DataType::Timestamp(ref meta) => {
             let arrs = collect_arrays_of_type!(arrays, Timestamp, datatype)?;
             let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
-            Ok(Array::Timestamp(TimestampArray::new(
+            Ok(Array2::Timestamp(TimestampArray::new(
                 meta.unit,
                 concat_primitive(arrs.as_slice()),
             )))
         }
         DataType::Interval => {
             let arrs = collect_arrays_of_type!(arrays, Interval, datatype)?;
-            Ok(Array::Interval(concat_primitive(arrs.as_slice())))
+            Ok(Array2::Interval(concat_primitive(arrs.as_slice())))
         }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
-            Ok(Array::Utf8(concat_varlen(arrs.as_slice())))
+            Ok(Array2::Utf8(concat_varlen(arrs.as_slice())))
         }
         DataType::LargeUtf8 => {
             let arrs = collect_arrays_of_type!(arrays, LargeUtf8, datatype)?;
-            Ok(Array::LargeUtf8(concat_varlen(arrs.as_slice())))
+            Ok(Array2::LargeUtf8(concat_varlen(arrs.as_slice())))
         }
         DataType::Binary => {
             let arrs = collect_arrays_of_type!(arrays, Binary, datatype)?;
-            Ok(Array::Binary(concat_varlen(arrs.as_slice())))
+            Ok(Array2::Binary(concat_varlen(arrs.as_slice())))
         }
         DataType::LargeBinary => {
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
-            Ok(Array::LargeBinary(concat_varlen(arrs.as_slice())))
+            Ok(Array2::LargeBinary(concat_varlen(arrs.as_slice())))
         }
         DataType::Struct(_) => not_implemented!("struct concat"),
         DataType::List(_) => {
             let arrs = collect_arrays_of_type!(arrays, List, datatype)?;
-            Ok(Array::List(concat_list(arrs.as_slice())?))
+            Ok(Array2::List(concat_list(arrs.as_slice())?))
         }
     }
 }
@@ -222,13 +222,13 @@ mod tests {
     #[test]
     fn concat_primitive() {
         let arrs = [
-            &Array::Int64(Int64Array::from_iter([1])),
-            &Array::Int64(Int64Array::from_iter([2, 3])),
-            &Array::Int64(Int64Array::from_iter([4, 5, 6])),
+            &Array2::Int64(Int64Array::from_iter([1])),
+            &Array2::Int64(Int64Array::from_iter([2, 3])),
+            &Array2::Int64(Int64Array::from_iter([4, 5, 6])),
         ];
 
         let got = concat(&arrs).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
+        let expected = Array2::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
 
         assert_eq!(expected, got);
     }
@@ -236,13 +236,13 @@ mod tests {
     #[test]
     fn concat_varlen() {
         let arrs = [
-            &Array::Utf8(Utf8Array::from_iter(["a"])),
-            &Array::Utf8(Utf8Array::from_iter(["bb", "ccc"])),
-            &Array::Utf8(Utf8Array::from_iter(["dddd", "eeeee", "ffffff"])),
+            &Array2::Utf8(Utf8Array::from_iter(["a"])),
+            &Array2::Utf8(Utf8Array::from_iter(["bb", "ccc"])),
+            &Array2::Utf8(Utf8Array::from_iter(["dddd", "eeeee", "ffffff"])),
         ];
 
         let got = concat(&arrs).unwrap();
-        let expected = Array::Utf8(Utf8Array::from_iter([
+        let expected = Array2::Utf8(Utf8Array::from_iter([
             "a", "bb", "ccc", "dddd", "eeeee", "ffffff",
         ]));
 
@@ -252,18 +252,18 @@ mod tests {
     #[test]
     fn concat_list_arrays_equal_list_sizes() {
         let lists = vec![
-            Array::List(ListArray::new(
-                Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
+            Array2::List(ListArray::new(
+                Array2::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
                 vec![0, 3],
                 None,
             )),
-            Array::List(ListArray::new(
-                Array::Utf8(Utf8Array::from_iter(["d", "e", "f"])),
+            Array2::List(ListArray::new(
+                Array2::Utf8(Utf8Array::from_iter(["d", "e", "f"])),
                 vec![0, 3],
                 None,
             )),
-            Array::List(ListArray::new(
-                Array::Utf8(Utf8Array::from_iter(["g", "h", "i"])),
+            Array2::List(ListArray::new(
+                Array2::Utf8(Utf8Array::from_iter(["g", "h", "i"])),
                 vec![0, 3],
                 None,
             )),
@@ -271,8 +271,8 @@ mod tests {
         let refs: Vec<_> = lists.iter().collect();
 
         let got = concat(&refs).unwrap();
-        let expected = Array::List(ListArray::new(
-            Array::Utf8(Utf8Array::from_iter([
+        let expected = Array2::List(ListArray::new(
+            Array2::Utf8(Utf8Array::from_iter([
                 "a", "b", "c", "d", "e", "f", "g", "h", "i",
             ])),
             vec![0, 3, 6, 9],
@@ -285,18 +285,18 @@ mod tests {
     #[test]
     fn concat_list_arrays_different_list_sizes() {
         let lists = vec![
-            Array::List(ListArray::new(
-                Array::Utf8(Utf8Array::from_iter(["a", "c"])),
+            Array2::List(ListArray::new(
+                Array2::Utf8(Utf8Array::from_iter(["a", "c"])),
                 vec![0, 2],
                 None,
             )),
-            Array::List(ListArray::new(
-                Array::Utf8(Utf8Array::from_iter(["f"])),
+            Array2::List(ListArray::new(
+                Array2::Utf8(Utf8Array::from_iter(["f"])),
                 vec![0, 1],
                 None,
             )),
-            Array::List(ListArray::new(
-                Array::Utf8(Utf8Array::from_iter(["g", "h", "i"])),
+            Array2::List(ListArray::new(
+                Array2::Utf8(Utf8Array::from_iter(["g", "h", "i"])),
                 vec![0, 3],
                 None,
             )),
@@ -304,8 +304,8 @@ mod tests {
         let refs: Vec<_> = lists.iter().collect();
 
         let got = concat(&refs).unwrap();
-        let expected = Array::List(ListArray::new(
-            Array::Utf8(Utf8Array::from_iter(["a", "c", "f", "g", "h", "i"])),
+        let expected = Array2::List(ListArray::new(
+            Array2::Utf8(Utf8Array::from_iter(["a", "c", "f", "g", "h", "i"])),
             vec![0, 2, 3, 6],
             None,
         ));

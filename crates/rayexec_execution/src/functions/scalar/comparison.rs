@@ -1,6 +1,6 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::compute::cast::array::cast_decimal_to_new_precision_and_scale;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
@@ -193,43 +193,43 @@ impl ComparisonOperation for GtEqOperation {
     }
 }
 
-fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<BooleanArray> {
+fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<BooleanArray> {
     let mut buffer = BooleanValuesBuffer::with_capacity(left.len());
     let validity = match (left, right) {
-        (Array::Boolean(left), Array::Boolean(right)) => {
+        (Array2::Boolean(left), Array2::Boolean(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Int8(left), Array::Int8(right)) => {
+        (Array2::Int8(left), Array2::Int8(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Int16(left), Array::Int16(right)) => {
+        (Array2::Int16(left), Array2::Int16(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Int32(left), Array::Int32(right)) => {
+        (Array2::Int32(left), Array2::Int32(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Int64(left), Array::Int64(right)) => {
+        (Array2::Int64(left), Array2::Int64(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::UInt8(left), Array::UInt8(right)) => {
+        (Array2::UInt8(left), Array2::UInt8(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::UInt16(left), Array::UInt16(right)) => {
+        (Array2::UInt16(left), Array2::UInt16(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::UInt32(left), Array::UInt32(right)) => {
+        (Array2::UInt32(left), Array2::UInt32(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::UInt64(left), Array::UInt64(right)) => {
+        (Array2::UInt64(left), Array2::UInt64(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Float32(left), Array::Float32(right)) => {
+        (Array2::Float32(left), Array2::Float32(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Float64(left), Array::Float64(right)) => {
+        (Array2::Float64(left), Array2::Float64(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Decimal64(left), Array::Decimal64(right)) => {
+        (Array2::Decimal64(left), Array2::Decimal64(right)) => {
             match left.scale().cmp(&right.scale()) {
                 Ordering::Greater => {
                     let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
@@ -267,7 +267,7 @@ fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Boolea
                 )?,
             }
         }
-        (Array::Decimal128(left), Array::Decimal128(right)) => {
+        (Array2::Decimal128(left), Array2::Decimal128(right)) => {
             match left.scale().cmp(&right.scale()) {
                 Ordering::Greater => {
                     let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
@@ -307,7 +307,7 @@ fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Boolea
                 )?,
             }
         }
-        (Array::Timestamp(left), Array::Timestamp(right)) => {
+        (Array2::Timestamp(left), Array2::Timestamp(right)) => {
             // TODO: Unit check
             BinaryExecutor::execute(
                 left.get_primitive(),
@@ -316,22 +316,22 @@ fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Boolea
                 &mut buffer,
             )?
         }
-        (Array::Date32(left), Array::Date32(right)) => {
+        (Array2::Date32(left), Array2::Date32(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Date64(left), Array::Date64(right)) => {
+        (Array2::Date64(left), Array2::Date64(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Utf8(left), Array::Utf8(right)) => {
+        (Array2::Utf8(left), Array2::Utf8(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::LargeUtf8(left), Array::LargeUtf8(right)) => {
+        (Array2::LargeUtf8(left), Array2::LargeUtf8(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::Binary(left), Array::Binary(right)) => {
+        (Array2::Binary(left), Array2::Binary(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
-        (Array::LargeBinary(left), Array::LargeBinary(right)) => {
+        (Array2::LargeBinary(left), Array2::LargeBinary(right)) => {
             BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
         }
         (left, right) => not_implemented!(
@@ -406,10 +406,10 @@ impl PlannedScalarFunction for EqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
-        execute::<EqOperation>(left, right).map(Array::Boolean)
+        execute::<EqOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -479,10 +479,10 @@ impl PlannedScalarFunction for NeqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
-        execute::<NotEqOperation>(left, right).map(Array::Boolean)
+        execute::<NotEqOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -548,10 +548,10 @@ impl PlannedScalarFunction for LtImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
-        execute::<LtOperation>(left, right).map(Array::Boolean)
+        execute::<LtOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -617,10 +617,10 @@ impl PlannedScalarFunction for LtEqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
-        execute::<LtEqOperation>(left, right).map(Array::Boolean)
+        execute::<LtEqOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -686,10 +686,10 @@ impl PlannedScalarFunction for GtImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
-        execute::<GtOperation>(left, right).map(Array::Boolean)
+        execute::<GtOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -755,10 +755,10 @@ impl PlannedScalarFunction for GtEqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
-        execute::<GtEqOperation>(left, right).map(Array::Boolean)
+        execute::<GtEqOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -770,90 +770,90 @@ mod tests {
 
     #[test]
     fn eq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array2::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Eq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([false, true, false]));
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn neq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array2::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Neq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([true, false, true]));
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn lt_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array2::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Lt
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([true, false, true]));
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn lt_eq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array2::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = LtEq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, true, true]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([true, true, true]));
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn gt_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array2::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = Gt
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([false, false, false]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([false, false, false]));
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn gt_eq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let b = Arc::new(Array2::Int32(Int32Array::from_iter([2, 2, 6])));
 
         let specialized = GtEq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([false, true, false]));
 
         assert_eq!(expected, out);
     }

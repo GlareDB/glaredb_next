@@ -4,7 +4,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
 use rayexec_bullet::{
-    array::{Array, PrimitiveArray},
+    array::{Array2, PrimitiveArray},
     batch::Batch,
 };
 use rayexec_error::{RayexecError, Result};
@@ -370,7 +370,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                         let row_count = shared.global_row_count as u64;
 
                         let row_count_batch =
-                            Batch::try_new([Array::UInt64(PrimitiveArray::from_iter([
+                            Batch::try_new([Array2::UInt64(PrimitiveArray::from_iter([
                                 row_count,
                             ]))])?;
 

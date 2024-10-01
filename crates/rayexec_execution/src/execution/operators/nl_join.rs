@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute::concat::concat_batches;
 use rayexec_bullet::compute::filter::filter;
@@ -446,7 +446,7 @@ fn cross_join(
         if let Some(filter_expr) = &filter_expr {
             let arr = filter_expr.eval(&batch, None)?;
             let selection = match arr.as_ref() {
-                Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
+                Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
                 other => {
                     return Err(RayexecError::new(format!(
                         "Expected filter predicate in cross join to return a boolean, got {}",

@@ -1,5 +1,5 @@
 use rayexec_bullet::{
-    array::Array,
+    array::Array2,
     batch::Batch,
     row::encoding::{ComparableColumn, ComparableRowEncoder, ComparableRows},
 };
@@ -41,7 +41,7 @@ impl SortKeysExtractor {
     }
 
     /// Get the columns that make up the sort keys.
-    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array>> {
+    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array2>> {
         let sort_cols = self
             .order_by
             .iter()

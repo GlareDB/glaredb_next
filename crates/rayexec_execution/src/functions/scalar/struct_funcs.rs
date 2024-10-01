@@ -1,6 +1,6 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::array::StructArray;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::scalar::ScalarValue;
@@ -56,7 +56,7 @@ impl PlannedScalarFunction for StructPackDynamic {
         unimplemented!()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let keys = arrays
             .iter()
             .step_by(2)
@@ -75,7 +75,7 @@ impl PlannedScalarFunction for StructPackDynamic {
             .map(|&arr| arr.clone())
             .collect();
 
-        Ok(Array::Struct(StructArray::try_new(keys, values)?))
+        Ok(Array2::Struct(StructArray::try_new(keys, values)?))
     }
 }
 

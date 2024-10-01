@@ -1,7 +1,7 @@
 use crate::functions::aggregate::GroupedStates;
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::Array,
+    array::Array2,
     batch::Batch,
     bitmap::Bitmap,
     datatype::DataType,
@@ -99,9 +99,9 @@ impl PartitionAggregateHashTable {
 
     pub fn insert_groups(
         &mut self,
-        groups: &[&Array],
+        groups: &[&Array2],
         hashes: &[u64],
-        inputs: &[&Array],
+        inputs: &[&Array2],
         selection: &Bitmap,
         group_id: u64,
     ) -> Result<()> {
@@ -137,7 +137,7 @@ impl PartitionAggregateHashTable {
 
     fn find_or_create_group_indices(
         &mut self,
-        groups: &[&Array],
+        groups: &[&Array2],
         hashes: &[u64],
         selection: &Bitmap,
         group_id: u64,
@@ -345,7 +345,7 @@ impl AggregateHashTableDrain {
                 .iter_mut()
                 .map(|row| row.columns.remove(0)); // TODO: Could probably use something other than `remove(0)` here.
 
-            let arr = Array::try_from_scalars(group_dt.clone(), iter)?;
+            let arr = Array2::try_from_scalars(group_dt.clone(), iter)?;
             group_cols.push(Arc::new(arr));
         }
 

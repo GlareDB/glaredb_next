@@ -3,7 +3,7 @@ use parquet::column::page::PageReader;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::{
-    Array, BooleanArray, Decimal64Array, Float32Array, Float64Array, Int16Array, Int32Array,
+    Array2, BooleanArray, Decimal64Array, Float32Array, Float64Array, Int16Array, Int32Array,
     Int64Array, Int8Array, PrimitiveArray, TimestampArray, UInt16Array, UInt32Array, UInt64Array,
     UInt8Array,
 };
@@ -36,7 +36,7 @@ where
     }
 
     /// Take the currently read values and convert into an array.
-    pub fn take_array(&mut self) -> Result<Array> {
+    pub fn take_array(&mut self) -> Result<Array2> {
         let data = std::mem::replace(&mut self.values_buffer, Vec::with_capacity(self.batch_size));
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
@@ -48,7 +48,7 @@ where
             (PhysicalType::INT32, DataType::Date32) => {
                 let arr = data.into_array(def_levels);
                 match arr {
-                    Array::Int32(arr) => Array::Date32(arr),
+                    Array2::Int32(arr) => Array2::Date32(arr),
                     other => return Err(RayexecError::new(format!("Unexpected array type when converting to Date32: {}", other.datatype())))
                 }
             },
@@ -56,16 +56,16 @@ where
             (PhysicalType::INT64, DataType::Decimal64(meta)) => {
                 let arr = data.into_array(def_levels);
                 match arr {
-                    Array::Int64(arr) => Array::Decimal64(Decimal64Array::new(meta.precision, meta.scale, arr)),
+                    Array2::Int64(arr) => Array2::Decimal64(Decimal64Array::new(meta.precision, meta.scale, arr)),
                     other => return Err(RayexecError::new(format!("Unexpected array type when converting to Decimal64: {}", other.datatype())))
                 }
             }
             (PhysicalType::INT64, DataType::Timestamp(meta)) => {
                 let prim = match data.into_array(def_levels) {
-                    Array::Int64(prim) => prim,
+                    Array2::Int64(prim) => prim,
                     other => return Err(RayexecError::new(format!("Expected Int64 primitive array for timestamp, got {}", other.datatype()))),
                 };
-                Array::Timestamp(TimestampArray::new(meta.unit, prim))
+                Array2::Timestamp(TimestampArray::new(meta.unit, prim))
             }
             (PhysicalType::INT96, DataType::Timestamp(meta)) => match meta.unit {
                 TimeUnit::Nanosecond => data.into_array(def_levels),
@@ -86,7 +86,7 @@ where
     P: PageReader,
     Vec<T::T>: IntoArray,
 {
-    fn build(&mut self) -> Result<Array> {
+    fn build(&mut self) -> Result<Array2> {
         self.take_array()
     }
 
@@ -100,32 +100,32 @@ where
 }
 
 impl IntoArray for Vec<bool> {
-    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array {
+    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array2 {
         match def_levels {
             Some(levels) => {
                 let bitmap = def_levels_into_bitmap(levels);
                 let values = insert_null_values(self, &bitmap);
                 let values = Bitmap::from_iter(values);
-                Array::Boolean(BooleanArray::new(values, Some(bitmap)))
+                Array2::Boolean(BooleanArray::new(values, Some(bitmap)))
             }
-            None => Array::Boolean(BooleanArray::from_iter(self)),
+            None => Array2::Boolean(BooleanArray::from_iter(self)),
         }
     }
 }
 
 impl IntoArray for Vec<Int96> {
-    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array {
+    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array2 {
         let values = self.into_iter().map(|v| v.to_nanos()).collect();
         match def_levels {
             Some(levels) => {
                 let bitmap = def_levels_into_bitmap(levels);
                 let values = insert_null_values(values, &bitmap);
-                Array::Timestamp(TimestampArray::new(
+                Array2::Timestamp(TimestampArray::new(
                     TimeUnit::Nanosecond,
                     PrimitiveArray::new(values, Some(bitmap)),
                 ))
             }
-            None => Array::Timestamp(TimestampArray::new(
+            None => Array2::Timestamp(TimestampArray::new(
                 TimeUnit::Nanosecond,
                 PrimitiveArray::from_iter(values),
             )),

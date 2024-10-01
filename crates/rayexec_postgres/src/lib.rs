@@ -6,7 +6,7 @@ use decimal::PostgresDecimal;
 use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
     array::{
-        Array, BooleanArray, Decimal128Array, Int128Array, Int16Array, Int32Array, Int64Array,
+        Array2, BooleanArray, Decimal128Array, Int128Array, Int16Array, Int32Array, Int64Array,
         Int8Array, Utf8Array,
     },
     batch::Batch,
@@ -402,22 +402,28 @@ impl PostgresClient {
         for (idx, typ) in typs.iter().enumerate() {
             let arr = match typ {
                 DataType::Boolean => {
-                    Array::Boolean(BooleanArray::from_iter(row_iter::<bool>(&rows, idx)))
+                    Array2::Boolean(BooleanArray::from_iter(row_iter::<bool>(&rows, idx)))
                 }
-                DataType::Int8 => Array::Int8(Int8Array::from_iter(row_iter::<i8>(&rows, idx))),
-                DataType::Int16 => Array::Int16(Int16Array::from_iter(row_iter::<i16>(&rows, idx))),
-                DataType::Int32 => Array::Int32(Int32Array::from_iter(row_iter::<i32>(&rows, idx))),
-                DataType::Int64 => Array::Int64(Int64Array::from_iter(row_iter::<i64>(&rows, idx))),
+                DataType::Int8 => Array2::Int8(Int8Array::from_iter(row_iter::<i8>(&rows, idx))),
+                DataType::Int16 => {
+                    Array2::Int16(Int16Array::from_iter(row_iter::<i16>(&rows, idx)))
+                }
+                DataType::Int32 => {
+                    Array2::Int32(Int32Array::from_iter(row_iter::<i32>(&rows, idx)))
+                }
+                DataType::Int64 => {
+                    Array2::Int64(Int64Array::from_iter(row_iter::<i64>(&rows, idx)))
+                }
                 DataType::Decimal128(m) => {
                     let primitives = Int128Array::from_iter(rows.iter().map(|row| {
                         let decimal = row.try_get::<PostgresDecimal>(idx).ok();
                         // TODO: Rescale
                         decimal.map(|d| d.0.value)
                     }));
-                    Array::Decimal128(Decimal128Array::new(m.precision, m.scale, primitives))
+                    Array2::Decimal128(Decimal128Array::new(m.precision, m.scale, primitives))
                 }
 
-                DataType::Utf8 => Array::Utf8(Utf8Array::from_iter(
+                DataType::Utf8 => Array2::Utf8(Utf8Array::from_iter(
                     rows.iter()
                         .map(|row| -> Option<&str> { row.try_get(idx).ok() }),
                 )),

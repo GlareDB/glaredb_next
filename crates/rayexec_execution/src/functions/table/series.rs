@@ -6,7 +6,7 @@ use crate::{
 };
 use futures::future::BoxFuture;
 use rayexec_bullet::{
-    array::{Array, Int64Array},
+    array::{Array2, Int64Array},
     batch::Batch,
     datatype::DataType,
     field::{Field, Schema},
@@ -172,7 +172,7 @@ impl GenerateSeriesScan {
             self.curr = *last + self.step;
         }
 
-        let col = Array::Int64(Int64Array::from(series));
+        let col = Array2::Int64(Int64Array::from(series));
         let batch = Batch::try_new([col]).expect("batch to be valid");
 
         Some(batch)

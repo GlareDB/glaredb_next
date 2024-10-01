@@ -22,7 +22,7 @@ use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
 use rayexec_bullet::{
     array::{
-        Array, BooleanArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray,
+        Array2, BooleanArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray,
         VarlenValuesBuffer,
     },
     batch::Batch,
@@ -457,21 +457,21 @@ impl AsyncCsvStream {
         for (idx, field) in schema.fields.iter().enumerate() {
             let arr = match &field.datatype {
                 DataType::Boolean => {
-                    Array::Boolean(Self::build_boolean(&completed, idx, skip_records)?)
+                    Array2::Boolean(Self::build_boolean(&completed, idx, skip_records)?)
                 }
-                DataType::Int64 => Array::Int64(Self::build_primitive(
+                DataType::Int64 => Array2::Int64(Self::build_primitive(
                     &completed,
                     idx,
                     skip_records,
                     Int64Parser::new(),
                 )?),
-                DataType::Float64 => Array::Float64(Self::build_primitive(
+                DataType::Float64 => Array2::Float64(Self::build_primitive(
                     &completed,
                     idx,
                     skip_records,
                     Float64Parser::new(),
                 )?),
-                DataType::Utf8 => Array::Utf8(Self::build_utf8(&completed, idx, skip_records)?),
+                DataType::Utf8 => Array2::Utf8(Self::build_utf8(&completed, idx, skip_records)?),
                 other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
             };
 

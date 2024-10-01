@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, scalar::OwnedScalarValue};
+use rayexec_bullet::{array::Array2, batch::Batch, bitmap::Bitmap, scalar::OwnedScalarValue};
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
@@ -13,12 +13,10 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         match selection {
-            Some(selection) => {
-                Ok(Arc::new(self.literal.as_array(selection.count_trues())))
-            }
-            None => Ok(Arc::new(self.literal.as_array(batch.num_rows())))
+            Some(selection) => Ok(Arc::new(self.literal.as_array(selection.count_trues()))),
+            None => Ok(Arc::new(self.literal.as_array(batch.num_rows()))),
         }
     }
 }

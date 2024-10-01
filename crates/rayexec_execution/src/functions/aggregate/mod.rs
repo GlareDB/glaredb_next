@@ -7,7 +7,7 @@ pub mod sum;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{AggregateState, StateCombiner};
@@ -154,7 +154,7 @@ pub trait GroupedStates: Debug + Send {
     fn update_states(
         &mut self,
         row_selection: &Bitmap,
-        inputs: &[&Array],
+        inputs: &[&Array2],
         mapping: &[usize],
     ) -> Result<()>;
 
@@ -174,7 +174,7 @@ pub trait GroupedStates: Debug + Send {
     /// May produce an array with length less than n
     ///
     /// Returns None when all internal states have been drained and finalized.
-    fn drain_finalize_n(&mut self, n: usize) -> Result<Option<Array>>;
+    fn drain_finalize_n(&mut self, n: usize) -> Result<Option<Array2>>;
 }
 
 /// Provides a default implementation of `GroupedStates`.
@@ -203,8 +203,8 @@ pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, Finalize
 impl<S, T, O, UF, FF> DefaultGroupedStates<S, T, O, UF, FF>
 where
     S: AggregateState<T, O>,
-    UF: Fn(&Bitmap, &[&Array], &[usize], &mut [S]) -> Result<()>,
-    FF: Fn(vec::Drain<'_, S>) -> Result<Array>,
+    UF: Fn(&Bitmap, &[&Array2], &[usize], &mut [S]) -> Result<()>,
+    FF: Fn(vec::Drain<'_, S>) -> Result<Array2>,
 {
     fn new(update_fn: UF, finalize_fn: FF) -> Self {
         DefaultGroupedStates {
@@ -223,8 +223,8 @@ where
     State: AggregateState<InputType, OutputType> + Send + 'static,
     InputType: Send + 'static,
     OutputType: Send + 'static,
-    UpdateFn: Fn(&Bitmap, &[&Array], &[usize], &mut [State]) -> Result<()> + Send + 'static,
-    FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array> + Send + 'static,
+    UpdateFn: Fn(&Bitmap, &[&Array2], &[usize], &mut [State]) -> Result<()> + Send + 'static,
+    FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array2> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -243,7 +243,7 @@ where
     fn update_states(
         &mut self,
         row_selection: &Bitmap,
-        inputs: &[&Array],
+        inputs: &[&Array2],
         mapping: &[usize],
     ) -> Result<()> {
         (self.update_fn)(row_selection, inputs, mapping, &mut self.states)
@@ -267,7 +267,7 @@ where
         StateCombiner::combine(consume, mapping, &mut self.states)
     }
 
-    fn drain_finalize_n(&mut self, n: usize) -> Result<Option<Array>> {
+    fn drain_finalize_n(&mut self, n: usize) -> Result<Option<Array2>> {
         assert_ne!(0, n);
 
         let n = usize::min(n, self.states.len());
@@ -300,7 +300,7 @@ where
 pub fn multi_array_drain(
     states: &mut [Box<dyn GroupedStates>],
     n: usize,
-) -> Result<Option<Vec<Array>>> {
+) -> Result<Option<Vec<Array2>>> {
     let mut iter = states.iter_mut();
     let first = match iter.next() {
         Some(state) => state.drain_finalize_n(n)?,
@@ -347,7 +347,7 @@ mod helpers {
     use std::vec;
 
     use rayexec_bullet::{
-        array::{Array, PrimitiveArray, TimestampArray},
+        array::{Array2, PrimitiveArray, TimestampArray},
         bitmap::Bitmap,
         datatype::TimeUnit,
         executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
@@ -356,18 +356,18 @@ mod helpers {
     macro_rules! create_single_boolean_input_grouped_state {
         ($state:ty) => {{
             use crate::functions::aggregate::DefaultGroupedStates;
-            use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+            use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
             use rayexec_bullet::bitmap::Bitmap;
             use rayexec_bullet::executor::aggregate::{StateFinalizer, UnaryNonNullUpdater};
             use std::vec;
 
             Box::new(DefaultGroupedStates::new(
                 |row_selection: &Bitmap,
-                 arrays: &[&Array],
+                 arrays: &[&Array2],
                  mapping: &[usize],
                  states: &mut [$state]| {
                     match &arrays[0] {
-                        Array::Boolean(arr) => {
+                        Array2::Boolean(arr) => {
                             UnaryNonNullUpdater::update(row_selection, arr, mapping, states)
                         }
                         other => panic!("unexpected array type: {other:?}"),
@@ -377,7 +377,7 @@ mod helpers {
                     let mut values = BooleanValuesBuffer::with_capacity(states.len());
                     let mut bitmap = Bitmap::with_capacity(states.len());
                     StateFinalizer::finalize(states, &mut values, &mut bitmap)?;
-                    Ok(Array::Boolean(BooleanArray::new(values, Some(bitmap))))
+                    Ok(Array2::Boolean(BooleanArray::new(values, Some(bitmap))))
                 },
             ))
         }};
@@ -387,18 +387,18 @@ mod helpers {
     macro_rules! create_single_primitive_input_grouped_state {
         ($variant:ident, $state:ty) => {{
             use crate::functions::aggregate::DefaultGroupedStates;
-            use rayexec_bullet::array::{Array, PrimitiveArray};
+            use rayexec_bullet::array::{Array2, PrimitiveArray};
             use rayexec_bullet::bitmap::Bitmap;
             use rayexec_bullet::executor::aggregate::{StateFinalizer, UnaryNonNullUpdater};
             use std::vec;
 
             Box::new(DefaultGroupedStates::new(
                 |row_selection: &Bitmap,
-                 arrays: &[&Array],
+                 arrays: &[&Array2],
                  mapping: &[usize],
                  states: &mut [$state]| {
                     match &arrays[0] {
-                        Array::$variant(arr) => {
+                        Array2::$variant(arr) => {
                             UnaryNonNullUpdater::update(row_selection, arr, mapping, states)
                         }
                         other => panic!("unexpected array type: {other:?}"),
@@ -408,7 +408,7 @@ mod helpers {
                     let mut buffer = Vec::with_capacity(states.len());
                     let mut bitmap = Bitmap::with_capacity(states.len());
                     StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-                    Ok(Array::$variant(PrimitiveArray::new(buffer, Some(bitmap))))
+                    Ok(Array2::$variant(PrimitiveArray::new(buffer, Some(bitmap))))
                 },
             ))
         }};
@@ -418,7 +418,7 @@ mod helpers {
     macro_rules! create_single_decimal_input_grouped_state {
         ($variant:ident, $state:ty, $precision:expr, $scale:expr) => {{
             use crate::functions::aggregate::DefaultGroupedStates;
-            use rayexec_bullet::array::{Array, DecimalArray, PrimitiveArray};
+            use rayexec_bullet::array::{Array2, DecimalArray, PrimitiveArray};
             use rayexec_bullet::bitmap::Bitmap;
             use rayexec_bullet::executor::aggregate::{StateFinalizer, UnaryNonNullUpdater};
             use std::vec;
@@ -427,11 +427,11 @@ mod helpers {
             let scale = $scale.clone();
             Box::new(DefaultGroupedStates::new(
                 |row_selection: &Bitmap,
-                 arrays: &[&Array],
+                 arrays: &[&Array2],
                  mapping: &[usize],
                  states: &mut [$state]| {
                     match &arrays[0] {
-                        Array::$variant(arr) => UnaryNonNullUpdater::update(
+                        Array2::$variant(arr) => UnaryNonNullUpdater::update(
                             row_selection,
                             arr.get_primitive(),
                             mapping,
@@ -445,7 +445,7 @@ mod helpers {
                     let mut bitmap = Bitmap::with_capacity(states.len());
                     StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
                     let arr = PrimitiveArray::new(buffer, Some(bitmap));
-                    Ok(Array::$variant(DecimalArray::new(precision, scale, arr)))
+                    Ok(Array2::$variant(DecimalArray::new(precision, scale, arr)))
                 },
             ))
         }};
@@ -460,9 +460,9 @@ mod helpers {
         unit: TimeUnit,
     ) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(
-            |row_selection: &Bitmap, arrays: &[&Array], mapping: &[usize], states: &mut [S]| {
+            |row_selection: &Bitmap, arrays: &[&Array2], mapping: &[usize], states: &mut [S]| {
                 match &arrays[0] {
-                    Array::Timestamp(arr) => UnaryNonNullUpdater::update(
+                    Array2::Timestamp(arr) => UnaryNonNullUpdater::update(
                         row_selection,
                         arr.get_primitive(),
                         mapping,
@@ -476,7 +476,7 @@ mod helpers {
                 let mut bitmap = Bitmap::with_capacity(states.len());
                 StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
                 let arr = PrimitiveArray::new(buffer, Some(bitmap));
-                Ok(Array::Timestamp(TimestampArray::new(unit, arr)))
+                Ok(Array2::Timestamp(TimestampArray::new(unit, arr)))
             },
         ))
     }

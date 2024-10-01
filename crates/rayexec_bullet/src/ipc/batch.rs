@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 
 use crate::{
     array::{
-        Array, Decimal128Array, Decimal64Array, OffsetIndex, PrimitiveArray, VarlenArray,
+        Array2, Decimal128Array, Decimal64Array, OffsetIndex, PrimitiveArray, VarlenArray,
         VarlenType,
     },
     batch::Batch,
@@ -88,37 +88,37 @@ impl<'a> BufferReader<'a> {
     }
 }
 
-fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array> {
+fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array2> {
     match datatype {
-        DataType::Int8 => Ok(Array::Int8(ipc_buffers_to_primitive(
+        DataType::Int8 => Ok(Array2::Int8(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
-        DataType::Int16 => Ok(Array::Int16(ipc_buffers_to_primitive(
+        DataType::Int16 => Ok(Array2::Int16(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
-        DataType::Int32 => Ok(Array::Int32(ipc_buffers_to_primitive(
+        DataType::Int32 => Ok(Array2::Int32(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
-        DataType::Int64 => Ok(Array::Int64(ipc_buffers_to_primitive(
+        DataType::Int64 => Ok(Array2::Int64(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
-        DataType::UInt8 => Ok(Array::UInt8(ipc_buffers_to_primitive(
+        DataType::UInt8 => Ok(Array2::UInt8(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
-        DataType::UInt16 => Ok(Array::UInt16(ipc_buffers_to_primitive(
+        DataType::UInt16 => Ok(Array2::UInt16(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
-        DataType::UInt32 => Ok(Array::UInt32(ipc_buffers_to_primitive(
+        DataType::UInt32 => Ok(Array2::UInt32(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
-        DataType::UInt64 => Ok(Array::UInt64(ipc_buffers_to_primitive(
+        DataType::UInt64 => Ok(Array2::UInt64(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
             [buffers.try_next_buf()?, buffers.try_next_buf()?],
         )?)),
@@ -127,7 +127,7 @@ fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Resu
                 buffers.try_next_node()?,
                 [buffers.try_next_buf()?, buffers.try_next_buf()?],
             )?;
-            Ok(Array::Decimal64(Decimal64Array::new(
+            Ok(Array2::Decimal64(Decimal64Array::new(
                 m.precision,
                 m.scale,
                 primitive,
@@ -138,13 +138,13 @@ fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Resu
                 buffers.try_next_node()?,
                 [buffers.try_next_buf()?, buffers.try_next_buf()?],
             )?;
-            Ok(Array::Decimal128(Decimal128Array::new(
+            Ok(Array2::Decimal128(Decimal128Array::new(
                 m.precision,
                 m.scale,
                 primitive,
             )))
         }
-        DataType::Utf8 => Ok(Array::Utf8(ipc_buffers_to_varlen(
+        DataType::Utf8 => Ok(Array2::Utf8(ipc_buffers_to_varlen(
             buffers.try_next_node()?,
             [
                 buffers.try_next_buf()?,
@@ -152,7 +152,7 @@ fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Resu
                 buffers.try_next_buf()?,
             ],
         )?)),
-        DataType::LargeUtf8 => Ok(Array::Utf8(ipc_buffers_to_varlen(
+        DataType::LargeUtf8 => Ok(Array2::Utf8(ipc_buffers_to_varlen(
             buffers.try_next_node()?,
             [
                 buffers.try_next_buf()?,
@@ -160,7 +160,7 @@ fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Resu
                 buffers.try_next_buf()?,
             ],
         )?)),
-        DataType::Binary => Ok(Array::Utf8(ipc_buffers_to_varlen(
+        DataType::Binary => Ok(Array2::Utf8(ipc_buffers_to_varlen(
             buffers.try_next_node()?,
             [
                 buffers.try_next_buf()?,
@@ -168,7 +168,7 @@ fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Resu
                 buffers.try_next_buf()?,
             ],
         )?)),
-        DataType::LargeBinary => Ok(Array::Utf8(ipc_buffers_to_varlen(
+        DataType::LargeBinary => Ok(Array2::Utf8(ipc_buffers_to_varlen(
             buffers.try_next_node()?,
             [
                 buffers.try_next_buf()?,
@@ -266,7 +266,7 @@ pub fn batch_to_ipc<'a>(
 }
 
 fn encode_array(
-    array: &Array,
+    array: &Array2,
     data: &mut Vec<u8>,
     fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
@@ -276,42 +276,42 @@ fn encode_array(
     // ensure they're padded out to 8 bytes.
 
     match array {
-        Array::Int8(arr) => {
+        Array2::Int8(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::Int16(arr) => {
+        Array2::Int16(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::Int32(arr) => {
+        Array2::Int32(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::Int64(arr) => {
+        Array2::Int64(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::UInt8(arr) => {
+        Array2::UInt8(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::UInt16(arr) => {
+        Array2::UInt16(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::UInt32(arr) => {
+        Array2::UInt32(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::UInt64(arr) => {
+        Array2::UInt64(arr) => {
             encode_primitive(arr, data, fields, buffers);
         }
-        Array::Decimal64(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
-        Array::Decimal128(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
-        Array::Utf8(arr) => {
+        Array2::Decimal64(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
+        Array2::Decimal128(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
+        Array2::Utf8(arr) => {
             encode_varlen(arr, data, fields, buffers);
         }
-        Array::LargeUtf8(arr) => {
+        Array2::LargeUtf8(arr) => {
             encode_varlen(arr, data, fields, buffers);
         }
-        Array::Binary(arr) => {
+        Array2::Binary(arr) => {
             encode_varlen(arr, data, fields, buffers);
         }
-        Array::LargeBinary(arr) => {
+        Array2::LargeBinary(arr) => {
             encode_varlen(arr, data, fields, buffers);
         }
         other => not_implemented!("array type to field and buffers: {}", other.datatype()),
@@ -429,8 +429,8 @@ mod tests {
     #[test]
     fn simple_batch_roundtrip() {
         let batch = Batch::try_new([
-            Array::Int32(vec![3, 2, 1].into()),
-            Array::UInt64(vec![9, 8, 7].into()),
+            Array2::Int32(vec![3, 2, 1].into()),
+            Array2::UInt64(vec![9, 8, 7].into()),
         ])
         .unwrap();
 
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn utf8_roundtrip() {
-        let batch = Batch::try_new([Array::Utf8(Utf8Array::from_iter([
+        let batch = Batch::try_new([Array2::Utf8(Utf8Array::from_iter([
             "mario", "peach", "yoshi",
         ]))])
         .unwrap();
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn decimal128_roundtrip() {
-        let batch = Batch::try_new([Array::Decimal128(Decimal128Array::new(
+        let batch = Batch::try_new([Array2::Decimal128(Decimal128Array::new(
             4,
             2,
             PrimitiveArray::from_iter([1000, 1200, 1250]),

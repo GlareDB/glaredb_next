@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::{
-    array::Array, batch::Batch, bitmap::Bitmap, format::ugly::ugly_format_no_schema,
+    array::Array2, batch::Batch, bitmap::Bitmap, format::ugly::ugly_format_no_schema,
 };
 use rayexec_error::{OptionExt, RayexecError, Result};
 
@@ -20,7 +20,7 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let inputs = self
             .inputs
             .iter()

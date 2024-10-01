@@ -1,4 +1,4 @@
-use crate::{array::Array, row::ScalarRow};
+use crate::{array::Array2, row::ScalarRow};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -6,7 +6,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
     /// Columns that make up this batch.
-    cols: Vec<Arc<Array>>,
+    cols: Vec<Arc<Array2>>,
 
     /// Number of rows in this batch. Needed to allow for a batch that has no
     /// columns but a non-zero number of rows.
@@ -33,7 +33,7 @@ impl Batch {
     /// All arrays should be of the same length.
     pub fn try_new<A>(cols: impl IntoIterator<Item = A>) -> Result<Self>
     where
-        A: Into<Arc<Array>>,
+        A: Into<Arc<Array2>>,
     {
         let cols: Vec<_> = cols.into_iter().map(|arr| arr.into()).collect();
         let len = match cols.first() {
@@ -72,7 +72,7 @@ impl Batch {
     ///
     /// Errors if the column does not have the same number of rows as in the
     /// batch.
-    pub fn try_push_column(&mut self, col: impl Into<Arc<Array>>) -> Result<()> {
+    pub fn try_push_column(&mut self, col: impl Into<Arc<Array2>>) -> Result<()> {
         let col = col.into();
         if col.len() != self.num_rows {
             return Err(RayexecError::new(format!(
@@ -88,7 +88,7 @@ impl Batch {
     }
 
     /// Try to pop the right-most column off the batch.
-    pub fn try_pop_column(&mut self) -> Result<Arc<Array>> {
+    pub fn try_pop_column(&mut self) -> Result<Arc<Array2>> {
         self.cols.pop().ok_or_else(|| {
             RayexecError::new("Attempted to pop a column from a batch with no columns")
         })
@@ -111,11 +111,11 @@ impl Batch {
         Some(ScalarRow::from_iter(row))
     }
 
-    pub fn column(&self, idx: usize) -> Option<&Arc<Array>> {
+    pub fn column(&self, idx: usize) -> Option<&Arc<Array2>> {
         self.cols.get(idx)
     }
 
-    pub fn columns(&self) -> &[Arc<Array>] {
+    pub fn columns(&self) -> &[Arc<Array2>] {
         &self.cols
     }
 
@@ -140,8 +140,8 @@ mod tests {
     #[test]
     fn get_row_simple() {
         let batch = Batch::try_new([
-            Array::Int32(Int32Array::from_iter([1, 2, 3])),
-            Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
+            Array2::Int32(Int32Array::from_iter([1, 2, 3])),
+            Array2::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
         ])
         .unwrap();
 
@@ -161,8 +161,8 @@ mod tests {
     #[test]
     fn get_row_out_of_bounds() {
         let batch = Batch::try_new([
-            Array::Int32(Int32Array::from_iter([1, 2, 3])),
-            Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
+            Array2::Int32(Int32Array::from_iter([1, 2, 3])),
+            Array2::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
         ])
         .unwrap();
 

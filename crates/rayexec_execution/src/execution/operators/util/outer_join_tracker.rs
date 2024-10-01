@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array, BooleanArray},
+    array::{Array2, BooleanArray},
     batch::Batch,
     bitmap::Bitmap,
     compute::{self, filter::filter},
@@ -99,7 +99,7 @@ impl LeftOuterJoinDrainState {
             .columns()
             .iter()
             .cloned()
-            .chain([Arc::new(Array::Boolean(BooleanArray::new(
+            .chain([Arc::new(Array2::Boolean(BooleanArray::new(
                 bitmap.clone(),
                 None,
             )))]);
@@ -139,7 +139,7 @@ impl LeftOuterJoinDrainState {
                 .left_types
                 .iter()
                 .chain(self.right_types.iter())
-                .map(|t| Array::new_nulls(t, 0));
+                .map(|t| Array2::new_nulls(t, 0));
             let batch = Batch::try_new(cols)?;
 
             return Ok(Some(batch));
@@ -154,7 +154,7 @@ impl LeftOuterJoinDrainState {
         let right_cols = self
             .right_types
             .iter()
-            .map(|t| Array::new_nulls(t, num_rows));
+            .map(|t| Array2::new_nulls(t, num_rows));
 
         let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
 
@@ -207,7 +207,7 @@ impl RightOuterJoinTracker {
 
         let left_null_cols = left_types
             .iter()
-            .map(|t| Array::new_nulls(t, unvisited_count));
+            .map(|t| Array2::new_nulls(t, unvisited_count));
 
         Batch::try_new(left_null_cols.chain(right_unvisited))
     }

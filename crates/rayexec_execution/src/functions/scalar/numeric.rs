@@ -1,7 +1,7 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::scalar::macros::{primitive_unary_execute, primitive_unary_execute_bool};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -64,13 +64,13 @@ impl PlannedScalarFunction for IsNanImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let array = arrays[0];
         Ok(match array.as_ref() {
-            Array::Float32(input) => {
+            Array2::Float32(input) => {
                 primitive_unary_execute_bool!(input, |f| f.is_nan())
             }
-            Array::Float64(input) => {
+            Array2::Float64(input) => {
                 primitive_unary_execute_bool!(input, |f| f.is_nan())
             }
             other => panic!("unexpected array type: {other:?}"),
@@ -142,13 +142,13 @@ impl PlannedScalarFunction for CeilImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let array = arrays[0];
         Ok(match array.as_ref() {
-            Array::Float32(input) => {
+            Array2::Float32(input) => {
                 primitive_unary_execute!(input, Float32, |f| f.ceil())
             }
-            Array::Float64(input) => {
+            Array2::Float64(input) => {
                 primitive_unary_execute!(input, Float64, |f| f.ceil())
             }
             other => panic!("unexpected array type: {other:?}"),
@@ -216,13 +216,13 @@ impl PlannedScalarFunction for FloorImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let array = arrays[0];
         Ok(match array.as_ref() {
-            Array::Float32(input) => {
+            Array2::Float32(input) => {
                 primitive_unary_execute!(input, Float32, |f| f.floor())
             }
-            Array::Float64(input) => {
+            Array2::Float64(input) => {
                 primitive_unary_execute!(input, Float64, |f| f.floor())
             }
             other => panic!("unexpected array type: {other:?}"),

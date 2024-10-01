@@ -1,6 +1,6 @@
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
@@ -73,11 +73,11 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
         }
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let strings = arrays[0];
         let nums = arrays[1];
         Ok(match (strings.as_ref(), nums.as_ref()) {
-            (Array::Utf8(strings), Array::Int64(nums)) => {
+            (Array2::Utf8(strings), Array2::Int64(nums)) => {
                 let mut buffer = VarlenValuesBuffer::default();
                 let validity = BinaryExecutor::execute(
                     strings,
@@ -85,9 +85,9 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
                     |s, count| s.repeat(count as usize),
                     &mut buffer,
                 )?;
-                Array::Utf8(VarlenArray::new(buffer, validity))
+                Array2::Utf8(VarlenArray::new(buffer, validity))
             }
-            (Array::LargeUtf8(strings), Array::Int64(nums)) => {
+            (Array2::LargeUtf8(strings), Array2::Int64(nums)) => {
                 let mut buffer = VarlenValuesBuffer::default();
                 let validity = BinaryExecutor::execute(
                     strings,
@@ -95,7 +95,7 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
                     |s, count| s.repeat(count as usize),
                     &mut buffer,
                 )?;
-                Array::LargeUtf8(VarlenArray::new(buffer, validity))
+                Array2::LargeUtf8(VarlenArray::new(buffer, validity))
             }
             other => panic!("unexpected array type: {other:?}"),
         })

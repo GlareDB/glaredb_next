@@ -12,7 +12,7 @@ use crate::{
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_bullet::{
-    array::{Array, Utf8Array, ValuesBuffer, VarlenValuesBuffer},
+    array::{Array2, Utf8Array, ValuesBuffer, VarlenValuesBuffer},
     batch::Batch,
     datatype::DataType,
     field::{Field, Schema},
@@ -56,8 +56,8 @@ impl SystemFunctionImpl for ListDatabasesImpl {
         }
 
         Batch::try_new([
-            Array::Utf8(Utf8Array::new(database_names, None)),
-            Array::Utf8(Utf8Array::new(datasources, None)),
+            Array2::Utf8(Utf8Array::new(database_names, None)),
+            Array2::Utf8(Utf8Array::new(datasources, None)),
         ])
     }
 }
@@ -105,9 +105,9 @@ impl SystemFunctionImpl for ListTablesImpl {
         })?;
 
         Batch::try_new([
-            Array::Utf8(Utf8Array::new(database_names, None)),
-            Array::Utf8(Utf8Array::new(schema_names, None)),
-            Array::Utf8(Utf8Array::new(table_names, None)),
+            Array2::Utf8(Utf8Array::new(database_names, None)),
+            Array2::Utf8(Utf8Array::new(schema_names, None)),
+            Array2::Utf8(Utf8Array::new(table_names, None)),
         ])
     }
 }
@@ -144,8 +144,8 @@ impl SystemFunctionImpl for ListSchemasImpl {
         })?;
 
         Batch::try_new([
-            Array::Utf8(Utf8Array::new(database_names, None)),
-            Array::Utf8(Utf8Array::new(schema_names, None)),
+            Array2::Utf8(Utf8Array::new(database_names, None)),
+            Array2::Utf8(Utf8Array::new(schema_names, None)),
         ])
     }
 }

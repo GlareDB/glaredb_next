@@ -1,6 +1,6 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
+        Array2, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
         OffsetIndex, PrimitiveArray, TimestampArray, ValuesBuffer, VarlenArray, VarlenType,
         VarlenValuesBuffer,
     },
@@ -14,44 +14,44 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 ///
 /// A full zero-copy implementation will come in the future and may make use of
 /// "view" type arrays.
-pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
+pub fn slice(arr: &Array2, start: usize, count: usize) -> Result<Array2> {
     Ok(match arr {
-        Array::Null(_) => not_implemented!("slice null array"), // TODO
-        Array::Boolean(arr) => Array::Boolean(slice_boolean(arr, start, count)?),
-        Array::Float32(arr) => Array::Float32(slice_primitive(arr, start, count)?),
-        Array::Float64(arr) => Array::Float64(slice_primitive(arr, start, count)?),
-        Array::Int8(arr) => Array::Int8(slice_primitive(arr, start, count)?),
-        Array::Int16(arr) => Array::Int16(slice_primitive(arr, start, count)?),
-        Array::Int32(arr) => Array::Int32(slice_primitive(arr, start, count)?),
-        Array::Int64(arr) => Array::Int64(slice_primitive(arr, start, count)?),
-        Array::Int128(arr) => Array::Int128(slice_primitive(arr, start, count)?),
-        Array::UInt8(arr) => Array::UInt8(slice_primitive(arr, start, count)?),
-        Array::UInt16(arr) => Array::UInt16(slice_primitive(arr, start, count)?),
-        Array::UInt32(arr) => Array::UInt32(slice_primitive(arr, start, count)?),
-        Array::UInt64(arr) => Array::UInt64(slice_primitive(arr, start, count)?),
-        Array::UInt128(arr) => Array::UInt128(slice_primitive(arr, start, count)?),
-        Array::Decimal64(arr) => {
+        Array2::Null(_) => not_implemented!("slice null array"), // TODO
+        Array2::Boolean(arr) => Array2::Boolean(slice_boolean(arr, start, count)?),
+        Array2::Float32(arr) => Array2::Float32(slice_primitive(arr, start, count)?),
+        Array2::Float64(arr) => Array2::Float64(slice_primitive(arr, start, count)?),
+        Array2::Int8(arr) => Array2::Int8(slice_primitive(arr, start, count)?),
+        Array2::Int16(arr) => Array2::Int16(slice_primitive(arr, start, count)?),
+        Array2::Int32(arr) => Array2::Int32(slice_primitive(arr, start, count)?),
+        Array2::Int64(arr) => Array2::Int64(slice_primitive(arr, start, count)?),
+        Array2::Int128(arr) => Array2::Int128(slice_primitive(arr, start, count)?),
+        Array2::UInt8(arr) => Array2::UInt8(slice_primitive(arr, start, count)?),
+        Array2::UInt16(arr) => Array2::UInt16(slice_primitive(arr, start, count)?),
+        Array2::UInt32(arr) => Array2::UInt32(slice_primitive(arr, start, count)?),
+        Array2::UInt64(arr) => Array2::UInt64(slice_primitive(arr, start, count)?),
+        Array2::UInt128(arr) => Array2::UInt128(slice_primitive(arr, start, count)?),
+        Array2::Decimal64(arr) => {
             let primitive = slice_primitive(arr.get_primitive(), start, count)?;
-            Array::Decimal64(Decimal64Array::new(arr.precision(), arr.scale(), primitive))
+            Array2::Decimal64(Decimal64Array::new(arr.precision(), arr.scale(), primitive))
         }
-        Array::Decimal128(arr) => {
+        Array2::Decimal128(arr) => {
             let primitive = slice_primitive(arr.get_primitive(), start, count)?;
-            Array::Decimal128(Decimal128Array::new(
+            Array2::Decimal128(Decimal128Array::new(
                 arr.precision(),
                 arr.scale(),
                 primitive,
             ))
         }
-        Array::Date32(arr) => Array::Date32(slice_primitive(arr, start, count)?),
-        Array::Date64(arr) => Array::Date64(slice_primitive(arr, start, count)?),
-        Array::Timestamp(arr) => {
+        Array2::Date32(arr) => Array2::Date32(slice_primitive(arr, start, count)?),
+        Array2::Date64(arr) => Array2::Date64(slice_primitive(arr, start, count)?),
+        Array2::Timestamp(arr) => {
             let sliced = slice_primitive(arr.get_primitive(), start, count)?;
-            Array::Timestamp(TimestampArray::new(arr.unit(), sliced))
+            Array2::Timestamp(TimestampArray::new(arr.unit(), sliced))
         }
-        Array::Utf8(arr) => Array::Utf8(slice_varlen(arr, start, count)?),
-        Array::LargeUtf8(arr) => Array::LargeUtf8(slice_varlen(arr, start, count)?),
-        Array::Binary(arr) => Array::Binary(slice_varlen(arr, start, count)?),
-        Array::LargeBinary(arr) => Array::LargeBinary(slice_varlen(arr, start, count)?),
+        Array2::Utf8(arr) => Array2::Utf8(slice_varlen(arr, start, count)?),
+        Array2::LargeUtf8(arr) => Array2::LargeUtf8(slice_varlen(arr, start, count)?),
+        Array2::Binary(arr) => Array2::Binary(slice_varlen(arr, start, count)?),
+        Array2::LargeBinary(arr) => Array2::LargeBinary(slice_varlen(arr, start, count)?),
         other => not_implemented!("slice array {}", other.datatype()),
     })
 }

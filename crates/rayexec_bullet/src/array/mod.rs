@@ -21,11 +21,56 @@ use crate::scalar::{
     decimal::{Decimal128Scalar, Decimal64Scalar},
     ScalarValue,
 };
+use crate::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
+use std::sync::Arc;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Selection {
+    Owned(Bitmap),
+    Shared(Arc<Bitmap>),
+}
+
+impl AsRef<Bitmap> for Selection {
+    fn as_ref(&self) -> &Bitmap {
+        match self {
+            Selection::Owned(bm) => &bm,
+            Self::Shared(bm) => bm.as_ref(),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
-pub enum Array {
+pub struct Array {
+    datatype: DataType,
+    selection: Option<Selection>,
+    validity: Option<Bitmap>,
+    data: ArrayData,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArrayData {
+    Boolean(Arc<Bitmap>),
+    Float32(Arc<PrimitiveStorage<f32>>),
+    Float64(Arc<PrimitiveStorage<f64>>),
+    Int8(Arc<PrimitiveStorage<i8>>),
+    Int16(Arc<PrimitiveStorage<i16>>),
+    Int32(Arc<PrimitiveStorage<i32>>),
+    Int64(Arc<PrimitiveStorage<i64>>),
+    Int128(Arc<PrimitiveStorage<i128>>),
+    UInt8(Arc<PrimitiveStorage<u8>>),
+    UInt16(Arc<PrimitiveStorage<u16>>),
+    UInt32(Arc<PrimitiveStorage<u32>>),
+    UInt64(Arc<PrimitiveStorage<u64>>),
+    UInt128(Arc<PrimitiveStorage<u128>>),
+    Interval(Arc<PrimitiveStorage<Interval>>),
+}
+
+impl Array {}
+
+#[derive(Debug, PartialEq)]
+pub enum Array2 {
     Null(NullArray),
     Boolean(BooleanArray),
     Float32(Float32Array),
@@ -54,80 +99,80 @@ pub enum Array {
     List(ListArray),
 }
 
-impl Array {
+impl Array2 {
     pub fn new_nulls(datatype: &DataType, len: usize) -> Self {
         match datatype {
-            DataType::Null => Array::Null(NullArray::new(len)),
-            DataType::Boolean => Array::Boolean(BooleanArray::new_nulls(len)),
-            DataType::Int8 => Array::Int8(PrimitiveArray::new_nulls(len)),
-            DataType::Int16 => Array::Int16(PrimitiveArray::new_nulls(len)),
-            DataType::Int32 => Array::Int32(PrimitiveArray::new_nulls(len)),
-            DataType::Int64 => Array::Int64(PrimitiveArray::new_nulls(len)),
-            DataType::Int128 => Array::Int128(PrimitiveArray::new_nulls(len)),
-            DataType::UInt8 => Array::UInt8(PrimitiveArray::new_nulls(len)),
-            DataType::UInt16 => Array::UInt16(PrimitiveArray::new_nulls(len)),
-            DataType::UInt32 => Array::UInt32(PrimitiveArray::new_nulls(len)),
-            DataType::UInt64 => Array::UInt64(PrimitiveArray::new_nulls(len)),
-            DataType::UInt128 => Array::UInt128(PrimitiveArray::new_nulls(len)),
-            DataType::Float32 => Array::Float32(PrimitiveArray::new_nulls(len)),
-            DataType::Float64 => Array::Float64(PrimitiveArray::new_nulls(len)),
-            DataType::Decimal64(m) => Array::Decimal64(DecimalArray::new(
+            DataType::Null => Array2::Null(NullArray::new(len)),
+            DataType::Boolean => Array2::Boolean(BooleanArray::new_nulls(len)),
+            DataType::Int8 => Array2::Int8(PrimitiveArray::new_nulls(len)),
+            DataType::Int16 => Array2::Int16(PrimitiveArray::new_nulls(len)),
+            DataType::Int32 => Array2::Int32(PrimitiveArray::new_nulls(len)),
+            DataType::Int64 => Array2::Int64(PrimitiveArray::new_nulls(len)),
+            DataType::Int128 => Array2::Int128(PrimitiveArray::new_nulls(len)),
+            DataType::UInt8 => Array2::UInt8(PrimitiveArray::new_nulls(len)),
+            DataType::UInt16 => Array2::UInt16(PrimitiveArray::new_nulls(len)),
+            DataType::UInt32 => Array2::UInt32(PrimitiveArray::new_nulls(len)),
+            DataType::UInt64 => Array2::UInt64(PrimitiveArray::new_nulls(len)),
+            DataType::UInt128 => Array2::UInt128(PrimitiveArray::new_nulls(len)),
+            DataType::Float32 => Array2::Float32(PrimitiveArray::new_nulls(len)),
+            DataType::Float64 => Array2::Float64(PrimitiveArray::new_nulls(len)),
+            DataType::Decimal64(m) => Array2::Decimal64(DecimalArray::new(
                 m.precision,
                 m.scale,
                 PrimitiveArray::new_nulls(len),
             )),
-            DataType::Decimal128(m) => Array::Decimal128(DecimalArray::new(
+            DataType::Decimal128(m) => Array2::Decimal128(DecimalArray::new(
                 m.precision,
                 m.scale,
                 PrimitiveArray::new_nulls(len),
             )),
-            DataType::Date32 => Array::Date32(PrimitiveArray::new_nulls(len)),
-            DataType::Date64 => Array::Date64(PrimitiveArray::new_nulls(len)),
+            DataType::Date32 => Array2::Date32(PrimitiveArray::new_nulls(len)),
+            DataType::Date64 => Array2::Date64(PrimitiveArray::new_nulls(len)),
             DataType::Timestamp(m) => {
-                Array::Timestamp(TimestampArray::new(m.unit, PrimitiveArray::new_nulls(len)))
+                Array2::Timestamp(TimestampArray::new(m.unit, PrimitiveArray::new_nulls(len)))
             }
-            DataType::Interval => Array::Interval(PrimitiveArray::new_nulls(len)),
-            DataType::Utf8 => Array::Utf8(VarlenArray::new_nulls(len)),
-            DataType::LargeUtf8 => Array::LargeUtf8(VarlenArray::new_nulls(len)),
-            DataType::Binary => Array::Binary(VarlenArray::new_nulls(len)),
-            DataType::LargeBinary => Array::LargeBinary(VarlenArray::new_nulls(len)),
-            DataType::Struct(m) => Array::Struct(StructArray::new_nulls(&m.fields, len)),
+            DataType::Interval => Array2::Interval(PrimitiveArray::new_nulls(len)),
+            DataType::Utf8 => Array2::Utf8(VarlenArray::new_nulls(len)),
+            DataType::LargeUtf8 => Array2::LargeUtf8(VarlenArray::new_nulls(len)),
+            DataType::Binary => Array2::Binary(VarlenArray::new_nulls(len)),
+            DataType::LargeBinary => Array2::LargeBinary(VarlenArray::new_nulls(len)),
+            DataType::Struct(m) => Array2::Struct(StructArray::new_nulls(&m.fields, len)),
             // TODO: Revisit this to ensure the list actually doesn't need any
             // type info.
-            DataType::List(_m) => Array::List(ListArray::new_nulls(len)),
+            DataType::List(_m) => Array2::List(ListArray::new_nulls(len)),
         }
     }
 
     pub fn datatype(&self) -> DataType {
         match self {
-            Array::Null(_) => DataType::Null,
-            Array::Boolean(_) => DataType::Boolean,
-            Array::Float32(_) => DataType::Float32,
-            Array::Float64(_) => DataType::Float64,
-            Array::Int8(_) => DataType::Int8,
-            Array::Int16(_) => DataType::Int16,
-            Array::Int32(_) => DataType::Int32,
-            Array::Int64(_) => DataType::Int64,
-            Array::Int128(_) => DataType::Int128,
-            Array::UInt8(_) => DataType::UInt8,
-            Array::UInt16(_) => DataType::UInt16,
-            Array::UInt32(_) => DataType::UInt32,
-            Array::UInt64(_) => DataType::UInt64,
-            Array::UInt128(_) => DataType::UInt128,
+            Array2::Null(_) => DataType::Null,
+            Array2::Boolean(_) => DataType::Boolean,
+            Array2::Float32(_) => DataType::Float32,
+            Array2::Float64(_) => DataType::Float64,
+            Array2::Int8(_) => DataType::Int8,
+            Array2::Int16(_) => DataType::Int16,
+            Array2::Int32(_) => DataType::Int32,
+            Array2::Int64(_) => DataType::Int64,
+            Array2::Int128(_) => DataType::Int128,
+            Array2::UInt8(_) => DataType::UInt8,
+            Array2::UInt16(_) => DataType::UInt16,
+            Array2::UInt32(_) => DataType::UInt32,
+            Array2::UInt64(_) => DataType::UInt64,
+            Array2::UInt128(_) => DataType::UInt128,
             Self::Decimal64(arr) => {
                 DataType::Decimal64(DecimalTypeMeta::new(arr.precision(), arr.scale()))
             }
             Self::Decimal128(arr) => {
                 DataType::Decimal128(DecimalTypeMeta::new(arr.precision(), arr.scale()))
             }
-            Array::Date32(_) => DataType::Date32,
-            Array::Date64(_) => DataType::Date64,
-            Array::Timestamp(arr) => DataType::Timestamp(TimestampTypeMeta::new(arr.unit())),
-            Array::Interval(_) => DataType::Interval,
-            Array::Utf8(_) => DataType::Utf8,
-            Array::LargeUtf8(_) => DataType::LargeUtf8,
-            Array::Binary(_) => DataType::Binary,
-            Array::LargeBinary(_) => DataType::LargeBinary,
+            Array2::Date32(_) => DataType::Date32,
+            Array2::Date64(_) => DataType::Date64,
+            Array2::Timestamp(arr) => DataType::Timestamp(TimestampTypeMeta::new(arr.unit())),
+            Array2::Interval(_) => DataType::Interval,
+            Array2::Utf8(_) => DataType::Utf8,
+            Array2::LargeUtf8(_) => DataType::LargeUtf8,
+            Array2::Binary(_) => DataType::Binary,
+            Array2::LargeBinary(_) => DataType::LargeBinary,
             Self::Struct(arr) => arr.datatype(),
             Self::List(arr) => arr.data_type(),
         }
@@ -284,7 +329,7 @@ impl Array {
     pub fn try_from_scalars<'a>(
         datatype: DataType,
         scalars: impl Iterator<Item = ScalarValue<'a>>,
-    ) -> Result<Array> {
+    ) -> Result<Array2> {
         /// Helper for iterating over scalars and producing a single type of
         /// array.
         ///
@@ -316,7 +361,7 @@ impl Array {
                     }
                 }
                 let arr = $array::new(buffer, Some(bitmap));
-                Ok(Array::$variant(arr))
+                Ok(Array2::$variant(arr))
             }};
         }
 
@@ -335,7 +380,7 @@ impl Array {
                         }
                     }
                 }
-                Ok(Array::Null(NullArray::new(len)))
+                Ok(Array2::Null(NullArray::new(len)))
             }
             DataType::Boolean => iter_scalars_for_type!(
                 BooleanValuesBuffer::with_capacity(cap),
@@ -402,7 +447,7 @@ impl Array {
                     }
                 }
                 let prim = PrimitiveArray::new(buffer, Some(bitmap));
-                Ok(Array::Decimal64(Decimal64Array::new(
+                Ok(Array2::Decimal64(Decimal64Array::new(
                     meta.precision,
                     meta.scale,
                     prim,
@@ -432,7 +477,7 @@ impl Array {
                     }
                 }
                 let prim = PrimitiveArray::new(buffer, Some(bitmap));
-                Ok(Array::Decimal128(Decimal128Array::new(
+                Ok(Array2::Decimal128(Decimal128Array::new(
                     meta.precision,
                     meta.scale,
                     prim,
@@ -487,33 +532,33 @@ impl Array {
     }
 }
 
-impl From<Decimal64Array> for Array {
+impl From<Decimal64Array> for Array2 {
     fn from(value: Decimal64Array) -> Self {
-        Array::Decimal64(value)
+        Array2::Decimal64(value)
     }
 }
 
-impl From<Decimal128Array> for Array {
+impl From<Decimal128Array> for Array2 {
     fn from(value: Decimal128Array) -> Self {
-        Array::Decimal128(value)
+        Array2::Decimal128(value)
     }
 }
 
-impl From<Utf8Array> for Array {
+impl From<Utf8Array> for Array2 {
     fn from(value: Utf8Array) -> Self {
-        Array::Utf8(value)
+        Array2::Utf8(value)
     }
 }
 
-impl From<LargeUtf8Array> for Array {
+impl From<LargeUtf8Array> for Array2 {
     fn from(value: LargeUtf8Array) -> Self {
-        Array::LargeUtf8(value)
+        Array2::LargeUtf8(value)
     }
 }
 
-impl From<ListArray> for Array {
+impl From<ListArray> for Array2 {
     fn from(value: ListArray) -> Self {
-        Array::List(value)
+        Array2::List(value)
     }
 }
 
@@ -566,11 +611,11 @@ impl<T: Default> ValuesBuffer<T> for Vec<T> {
 /// doesn't care about its input, other than if it's null which the validity
 /// bitmap provides us.
 pub struct UnitArrayAccessor<'a> {
-    inner: &'a Array,
+    inner: &'a Array2,
 }
 
 impl<'a> UnitArrayAccessor<'a> {
-    pub fn new(arr: &'a Array) -> Self {
+    pub fn new(arr: &'a Array2) -> Self {
         UnitArrayAccessor { inner: arr }
     }
 }
@@ -666,7 +711,7 @@ mod tests {
     #[test]
     fn new_nulls_empty() {
         for datatype in datatypes() {
-            let arr = Array::new_nulls(&datatype, 0);
+            let arr = Array2::new_nulls(&datatype, 0);
             assert_eq!(0, arr.len(), "datatype: {datatype}");
         }
     }
@@ -674,7 +719,7 @@ mod tests {
     #[test]
     fn new_nulls_not_empty() {
         for datatype in datatypes() {
-            let arr = Array::new_nulls(&datatype, 3);
+            let arr = Array2::new_nulls(&datatype, 3);
             assert_eq!(3, arr.len(), "datatype: {datatype}");
         }
     }

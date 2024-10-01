@@ -1,7 +1,7 @@
 pub mod pretty;
 pub mod ugly;
 
-use crate::{array::Array, scalar::ScalarValue};
+use crate::{array::Array2, scalar::ScalarValue};
 use std::fmt;
 
 /// Formatting options for arrays and scalars.
@@ -53,7 +53,7 @@ impl<'a> Formatter<'a> {
     /// Returns `None` if the idx is out of bounds.
     pub fn format_array_value<'b>(
         &self,
-        array: &'b Array,
+        array: &'b Array2,
         idx: usize,
     ) -> Option<FormattedScalarValue<'_, 'b>> {
         let scalar = array.scalar(idx)?;

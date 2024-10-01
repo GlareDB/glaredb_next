@@ -1,6 +1,6 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
+        Array2, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
         DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
     },
     datatype::{DataType, TimeUnit},
@@ -30,51 +30,53 @@ use super::{
 };
 
 /// Cast an array to some other data type.
-pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
+pub fn cast_array(arr: &Array2, to: &DataType) -> Result<Array2> {
     Ok(match (arr, to) {
         // Null to whatever.
-        (Array::Null(arr), datatype) => cast_from_null(arr.len(), datatype)?,
+        (Array2::Null(arr), datatype) => cast_from_null(arr.len(), datatype)?,
 
         // Primitive numeric casts
         // From UInt8
-        (Array::UInt8(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt8(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::UInt8(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::UInt8(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::UInt8(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
-            meta.precision,
-            meta.scale,
-            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-        )),
+        (Array2::UInt8(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
+                meta.precision,
+                meta.scale,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+            ))
+        }
         // From UInt16
-        (Array::UInt16(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt16(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::UInt16(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::UInt16(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::UInt16(arr), DataType::Decimal128(meta)) => {
-            Array::Decimal128(Decimal128Array::new(
+        (Array2::UInt16(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
                 meta.precision,
                 meta.scale,
                 cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
@@ -82,23 +84,23 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         }
 
         // From UInt32
-        (Array::UInt32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt32(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::UInt32(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::UInt32(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::UInt32(arr), DataType::Decimal128(meta)) => {
-            Array::Decimal128(Decimal128Array::new(
+        (Array2::UInt32(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
                 meta.precision,
                 meta.scale,
                 cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
@@ -106,23 +108,23 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         }
 
         // From UInt64
-        (Array::UInt64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::UInt64(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::UInt64(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::UInt64(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::UInt64(arr), DataType::Decimal128(meta)) => {
-            Array::Decimal128(Decimal128Array::new(
+        (Array2::UInt64(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
                 meta.precision,
                 meta.scale,
                 cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
@@ -130,153 +132,161 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         }
 
         // From Int8
-        (Array::Int8(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int8(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::Int8(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::Int8(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::Int8(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
-            meta.precision,
-            meta.scale,
-            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-        )),
+        (Array2::Int8(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
+                meta.precision,
+                meta.scale,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+            ))
+        }
 
         // From Int16
-        (Array::Int16(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int16(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::Int16(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::Int16(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::Int16(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
-            meta.precision,
-            meta.scale,
-            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-        )),
+        (Array2::Int16(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
+                meta.precision,
+                meta.scale,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+            ))
+        }
 
         // From Int32
-        (Array::Int32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int32(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::Int32(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::Int32(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::Int32(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
-            meta.precision,
-            meta.scale,
-            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-        )),
+        (Array2::Int32(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
+                meta.precision,
+                meta.scale,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+            ))
+        }
 
         // From Int64
-        (Array::Int64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Int64(arr), DataType::Decimal64(meta)) => Array::Decimal64(Decimal64Array::new(
+        (Array2::Int64(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::Int64(arr), DataType::Decimal64(meta)) => Array2::Decimal64(Decimal64Array::new(
             meta.precision,
             meta.scale,
             cast_int_to_decimal::<_, Decimal64Type>(arr, meta.precision, meta.scale)?,
         )),
-        (Array::Int64(arr), DataType::Decimal128(meta)) => Array::Decimal128(Decimal128Array::new(
-            meta.precision,
-            meta.scale,
-            cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
-        )),
+        (Array2::Int64(arr), DataType::Decimal128(meta)) => {
+            Array2::Decimal128(Decimal128Array::new(
+                meta.precision,
+                meta.scale,
+                cast_int_to_decimal::<_, Decimal128Type>(arr, meta.precision, meta.scale)?,
+            ))
+        }
 
         // From Float32
-        (Array::Float32(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Float32(arr), DataType::Decimal64(m)) => {
+        (Array2::Float32(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::Float32(arr), DataType::Decimal64(m)) => {
             let prim = cast_float_to_decimal::<_, Decimal64Type>(arr, m.precision, m.scale)?;
-            Array::Decimal64(Decimal64Array::new(m.precision, m.scale, prim))
+            Array2::Decimal64(Decimal64Array::new(m.precision, m.scale, prim))
         }
-        (Array::Float32(arr), DataType::Decimal128(m)) => {
+        (Array2::Float32(arr), DataType::Decimal128(m)) => {
             let prim = cast_float_to_decimal::<_, Decimal128Type>(arr, m.precision, m.scale)?;
-            Array::Decimal128(Decimal128Array::new(m.precision, m.scale, prim))
+            Array2::Decimal128(Decimal128Array::new(m.precision, m.scale, prim))
         }
         // From FLoat64
-        (Array::Float64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::Int32) => Array::Int32(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::Int64) => Array::Int64(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::UInt8) => Array::UInt8(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::UInt16) => Array::UInt16(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::UInt32) => Array::UInt32(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
-        (Array::Float64(arr), DataType::Decimal64(m)) => {
+        (Array2::Float64(arr), DataType::Int8) => Array2::Int8(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::Int16) => Array2::Int16(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::Int32) => Array2::Int32(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::Int64) => Array2::Int64(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::UInt8) => Array2::UInt8(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::UInt16) => Array2::UInt16(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::UInt32) => Array2::UInt32(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::UInt64) => Array2::UInt64(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::Float32) => Array2::Float32(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::Float64) => Array2::Float64(cast_primitive_numeric(arr)?),
+        (Array2::Float64(arr), DataType::Decimal64(m)) => {
             let prim = cast_float_to_decimal::<_, Decimal64Type>(arr, m.precision, m.scale)?;
-            Array::Decimal64(Decimal64Array::new(m.precision, m.scale, prim))
+            Array2::Decimal64(Decimal64Array::new(m.precision, m.scale, prim))
         }
-        (Array::Float64(arr), DataType::Decimal128(m)) => {
+        (Array2::Float64(arr), DataType::Decimal128(m)) => {
             let prim = cast_float_to_decimal::<_, Decimal128Type>(arr, m.precision, m.scale)?;
-            Array::Decimal128(Decimal128Array::new(m.precision, m.scale, prim))
+            Array2::Decimal128(Decimal128Array::new(m.precision, m.scale, prim))
         }
 
         // From Decimal
-        (Array::Decimal64(arr), DataType::Float32) => {
-            Array::Float32(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+        (Array2::Decimal64(arr), DataType::Float32) => {
+            Array2::Float32(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
         }
-        (Array::Decimal64(arr), DataType::Float64) => {
-            Array::Float64(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+        (Array2::Decimal64(arr), DataType::Float64) => {
+            Array2::Float64(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
         }
-        (Array::Decimal128(arr), DataType::Float32) => {
-            Array::Float32(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+        (Array2::Decimal128(arr), DataType::Float32) => {
+            Array2::Float32(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
         }
-        (Array::Decimal128(arr), DataType::Float64) => {
-            Array::Float64(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+        (Array2::Decimal128(arr), DataType::Float64) => {
+            Array2::Float64(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
         }
 
         // From Utf8
-        (Array::Utf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
-        (Array::LargeUtf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
+        (Array2::Utf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
+        (Array2::LargeUtf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
 
         // To Utf8
-        (arr, DataType::Utf8) => Array::Utf8(cast_to_utf8_array(arr)?),
-        (arr, DataType::LargeUtf8) => Array::Utf8(cast_to_utf8_array(arr)?),
+        (arr, DataType::Utf8) => Array2::Utf8(cast_to_utf8_array(arr)?),
+        (arr, DataType::LargeUtf8) => Array2::Utf8(cast_to_utf8_array(arr)?),
 
         (arr, to) => {
             return Err(RayexecError::new(format!(
@@ -287,35 +297,35 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
     })
 }
 
-pub fn cast_from_null(len: usize, datatype: &DataType) -> Result<Array> {
+pub fn cast_from_null(len: usize, datatype: &DataType) -> Result<Array2> {
     // TODO: Since the null array already contains a bitmap, we should maybe
     // change these array constructors to accept the bitmap, and not the length.
     Ok(match datatype {
-        DataType::Boolean => Array::Boolean(BooleanArray::new_nulls(len)),
-        DataType::Int8 => Array::Int8(PrimitiveArray::new_nulls(len)),
-        DataType::Int16 => Array::Int16(PrimitiveArray::new_nulls(len)),
-        DataType::Int32 => Array::Int32(PrimitiveArray::new_nulls(len)),
-        DataType::Int64 => Array::Int64(PrimitiveArray::new_nulls(len)),
-        DataType::UInt8 => Array::UInt8(PrimitiveArray::new_nulls(len)),
-        DataType::UInt16 => Array::UInt16(PrimitiveArray::new_nulls(len)),
-        DataType::UInt32 => Array::UInt32(PrimitiveArray::new_nulls(len)),
-        DataType::UInt64 => Array::UInt64(PrimitiveArray::new_nulls(len)),
-        DataType::Float32 => Array::Float32(PrimitiveArray::new_nulls(len)),
-        DataType::Float64 => Array::Float64(PrimitiveArray::new_nulls(len)),
+        DataType::Boolean => Array2::Boolean(BooleanArray::new_nulls(len)),
+        DataType::Int8 => Array2::Int8(PrimitiveArray::new_nulls(len)),
+        DataType::Int16 => Array2::Int16(PrimitiveArray::new_nulls(len)),
+        DataType::Int32 => Array2::Int32(PrimitiveArray::new_nulls(len)),
+        DataType::Int64 => Array2::Int64(PrimitiveArray::new_nulls(len)),
+        DataType::UInt8 => Array2::UInt8(PrimitiveArray::new_nulls(len)),
+        DataType::UInt16 => Array2::UInt16(PrimitiveArray::new_nulls(len)),
+        DataType::UInt32 => Array2::UInt32(PrimitiveArray::new_nulls(len)),
+        DataType::UInt64 => Array2::UInt64(PrimitiveArray::new_nulls(len)),
+        DataType::Float32 => Array2::Float32(PrimitiveArray::new_nulls(len)),
+        DataType::Float64 => Array2::Float64(PrimitiveArray::new_nulls(len)),
         DataType::Decimal64(meta) => {
             let primitive = PrimitiveArray::new_nulls(len);
-            Array::Decimal64(DecimalArray::new(meta.precision, meta.scale, primitive))
+            Array2::Decimal64(DecimalArray::new(meta.precision, meta.scale, primitive))
         }
         DataType::Decimal128(meta) => {
             let primitive = PrimitiveArray::new_nulls(len);
-            Array::Decimal128(DecimalArray::new(meta.precision, meta.scale, primitive))
+            Array2::Decimal128(DecimalArray::new(meta.precision, meta.scale, primitive))
         }
-        DataType::Date32 => Array::Date32(PrimitiveArray::new_nulls(len)),
-        DataType::Interval => Array::Interval(PrimitiveArray::new_nulls(len)),
-        DataType::Utf8 => Array::Utf8(VarlenArray::new_nulls(len)),
-        DataType::LargeUtf8 => Array::LargeUtf8(VarlenArray::new_nulls(len)),
-        DataType::Binary => Array::Binary(VarlenArray::new_nulls(len)),
-        DataType::LargeBinary => Array::LargeBinary(VarlenArray::new_nulls(len)),
+        DataType::Date32 => Array2::Date32(PrimitiveArray::new_nulls(len)),
+        DataType::Interval => Array2::Interval(PrimitiveArray::new_nulls(len)),
+        DataType::Utf8 => Array2::Utf8(VarlenArray::new_nulls(len)),
+        DataType::LargeUtf8 => Array2::LargeUtf8(VarlenArray::new_nulls(len)),
+        DataType::Binary => Array2::Binary(VarlenArray::new_nulls(len)),
+        DataType::LargeBinary => Array2::LargeBinary(VarlenArray::new_nulls(len)),
         other => {
             return Err(RayexecError::new(format!(
                 "Unable to cast null array to {other}"
@@ -324,35 +334,35 @@ pub fn cast_from_null(len: usize, datatype: &DataType) -> Result<Array> {
     })
 }
 
-pub fn cast_from_utf8_array<O>(arr: &VarlenArray<str, O>, datatype: &DataType) -> Result<Array>
+pub fn cast_from_utf8_array<O>(arr: &VarlenArray<str, O>, datatype: &DataType) -> Result<Array2>
 where
     O: OffsetIndex,
 {
     Ok(match datatype {
-        DataType::Boolean => Array::Boolean(cast_parse_boolean(arr)?),
-        DataType::Int8 => Array::Int8(cast_parse_primitive(arr, Int8Parser::default())?),
-        DataType::Int16 => Array::Int16(cast_parse_primitive(arr, Int16Parser::default())?),
-        DataType::Int32 => Array::Int32(cast_parse_primitive(arr, Int32Parser::default())?),
-        DataType::Int64 => Array::Int64(cast_parse_primitive(arr, Int64Parser::default())?),
-        DataType::UInt8 => Array::UInt8(cast_parse_primitive(arr, UInt8Parser::default())?),
-        DataType::UInt16 => Array::UInt16(cast_parse_primitive(arr, UInt16Parser::default())?),
-        DataType::UInt32 => Array::UInt32(cast_parse_primitive(arr, UInt32Parser::default())?),
-        DataType::UInt64 => Array::UInt64(cast_parse_primitive(arr, UInt64Parser::default())?),
-        DataType::Float32 => Array::Float32(cast_parse_primitive(arr, Float32Parser::default())?),
-        DataType::Float64 => Array::Float64(cast_parse_primitive(arr, Float64Parser::default())?),
+        DataType::Boolean => Array2::Boolean(cast_parse_boolean(arr)?),
+        DataType::Int8 => Array2::Int8(cast_parse_primitive(arr, Int8Parser::default())?),
+        DataType::Int16 => Array2::Int16(cast_parse_primitive(arr, Int16Parser::default())?),
+        DataType::Int32 => Array2::Int32(cast_parse_primitive(arr, Int32Parser::default())?),
+        DataType::Int64 => Array2::Int64(cast_parse_primitive(arr, Int64Parser::default())?),
+        DataType::UInt8 => Array2::UInt8(cast_parse_primitive(arr, UInt8Parser::default())?),
+        DataType::UInt16 => Array2::UInt16(cast_parse_primitive(arr, UInt16Parser::default())?),
+        DataType::UInt32 => Array2::UInt32(cast_parse_primitive(arr, UInt32Parser::default())?),
+        DataType::UInt64 => Array2::UInt64(cast_parse_primitive(arr, UInt64Parser::default())?),
+        DataType::Float32 => Array2::Float32(cast_parse_primitive(arr, Float32Parser::default())?),
+        DataType::Float64 => Array2::Float64(cast_parse_primitive(arr, Float64Parser::default())?),
         DataType::Decimal64(meta) => {
             let primitive =
                 cast_parse_primitive(arr, Decimal64Parser::new(meta.precision, meta.scale))?;
-            Array::Decimal64(DecimalArray::new(meta.precision, meta.scale, primitive))
+            Array2::Decimal64(DecimalArray::new(meta.precision, meta.scale, primitive))
         }
         DataType::Decimal128(meta) => {
             let primitive =
                 cast_parse_primitive(arr, Decimal128Parser::new(meta.precision, meta.scale))?;
-            Array::Decimal128(DecimalArray::new(meta.precision, meta.scale, primitive))
+            Array2::Decimal128(DecimalArray::new(meta.precision, meta.scale, primitive))
         }
-        DataType::Date32 => Array::Date32(cast_parse_primitive(arr, Date32Parser)?),
+        DataType::Date32 => Array2::Date32(cast_parse_primitive(arr, Date32Parser)?),
         DataType::Interval => {
-            Array::Interval(cast_parse_primitive(arr, IntervalParser::default())?)
+            Array2::Interval(cast_parse_primitive(arr, IntervalParser::default())?)
         }
         other => {
             return Err(RayexecError::new(format!(
@@ -362,31 +372,31 @@ where
     })
 }
 
-pub fn cast_to_utf8_array<O>(arr: &Array) -> Result<VarlenArray<str, O>>
+pub fn cast_to_utf8_array<O>(arr: &Array2) -> Result<VarlenArray<str, O>>
 where
     O: OffsetIndex,
 {
     Ok(match arr {
-        Array::Boolean(arr) => format_values_into_varlen(arr, BoolFormatter::default())?,
-        Array::Int8(arr) => format_values_into_varlen(arr, Int8Formatter::default())?,
-        Array::Int16(arr) => format_values_into_varlen(arr, Int16Formatter::default())?,
-        Array::Int32(arr) => format_values_into_varlen(arr, Int32Formatter::default())?,
-        Array::Int64(arr) => format_values_into_varlen(arr, Int64Formatter::default())?,
-        Array::UInt8(arr) => format_values_into_varlen(arr, UInt8Formatter::default())?,
-        Array::UInt16(arr) => format_values_into_varlen(arr, UInt16Formatter::default())?,
-        Array::UInt32(arr) => format_values_into_varlen(arr, UInt32Formatter::default())?,
-        Array::UInt64(arr) => format_values_into_varlen(arr, UInt64Formatter::default())?,
-        Array::Float32(arr) => format_values_into_varlen(arr, Float32Formatter::default())?,
-        Array::Float64(arr) => format_values_into_varlen(arr, Float64Formatter::default())?,
-        Array::Decimal64(arr) => format_values_into_varlen(
+        Array2::Boolean(arr) => format_values_into_varlen(arr, BoolFormatter::default())?,
+        Array2::Int8(arr) => format_values_into_varlen(arr, Int8Formatter::default())?,
+        Array2::Int16(arr) => format_values_into_varlen(arr, Int16Formatter::default())?,
+        Array2::Int32(arr) => format_values_into_varlen(arr, Int32Formatter::default())?,
+        Array2::Int64(arr) => format_values_into_varlen(arr, Int64Formatter::default())?,
+        Array2::UInt8(arr) => format_values_into_varlen(arr, UInt8Formatter::default())?,
+        Array2::UInt16(arr) => format_values_into_varlen(arr, UInt16Formatter::default())?,
+        Array2::UInt32(arr) => format_values_into_varlen(arr, UInt32Formatter::default())?,
+        Array2::UInt64(arr) => format_values_into_varlen(arr, UInt64Formatter::default())?,
+        Array2::Float32(arr) => format_values_into_varlen(arr, Float32Formatter::default())?,
+        Array2::Float64(arr) => format_values_into_varlen(arr, Float64Formatter::default())?,
+        Array2::Decimal64(arr) => format_values_into_varlen(
             arr.get_primitive(),
             Decimal64Formatter::new(arr.precision(), arr.scale()),
         )?,
-        Array::Decimal128(arr) => format_values_into_varlen(
+        Array2::Decimal128(arr) => format_values_into_varlen(
             arr.get_primitive(),
             Decimal128Formatter::new(arr.precision(), arr.scale()),
         )?,
-        Array::Timestamp(arr) => match arr.unit() {
+        Array2::Timestamp(arr) => match arr.unit() {
             TimeUnit::Second => format_values_into_varlen(
                 arr.get_primitive(),
                 TimestampSecondsFormatter::default(),

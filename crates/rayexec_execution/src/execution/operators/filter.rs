@@ -4,7 +4,7 @@ use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
-use rayexec_bullet::{array::Array, batch::Batch, compute::filter::filter};
+use rayexec_bullet::{array::Array2, batch::Batch, compute::filter::filter};
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 pub type PhysicalFilter = SimpleOperator<FilterOperation>;
@@ -29,7 +29,7 @@ impl StatelessOperation for FilterOperation {
 
         let selection = self.predicate.eval(&batch, None)?;
         let selection = match selection.as_ref() {
-            Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
+            Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
             other => {
                 return Err(RayexecError::new(format!(
                     "Expected filter predicate to evaluate to a boolean, got {}",

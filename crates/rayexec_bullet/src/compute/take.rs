@@ -1,6 +1,6 @@
 use crate::{
     array::{
-        Array, BooleanArray, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, TimestampArray,
+        Array2, BooleanArray, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, TimestampArray,
         VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
@@ -10,46 +10,46 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 /// Take values from an array at the provided indices, and return a new array.
 ///
 /// An index may appear multiple times.
-pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
+pub fn take(arr: &Array2, indices: &[usize]) -> Result<Array2> {
     Ok(match arr {
-        Array::Null(_) => Array::Null(NullArray::new(indices.len())),
-        Array::Boolean(arr) => Array::Boolean(take_boolean(arr, indices)?),
-        Array::Float32(arr) => Array::Float32(take_primitive(arr, indices)?),
-        Array::Float64(arr) => Array::Float64(take_primitive(arr, indices)?),
-        Array::Int8(arr) => Array::Int8(take_primitive(arr, indices)?),
-        Array::Int16(arr) => Array::Int16(take_primitive(arr, indices)?),
-        Array::Int32(arr) => Array::Int32(take_primitive(arr, indices)?),
-        Array::Int64(arr) => Array::Int64(take_primitive(arr, indices)?),
-        Array::UInt8(arr) => Array::UInt8(take_primitive(arr, indices)?),
-        Array::UInt16(arr) => Array::UInt16(take_primitive(arr, indices)?),
-        Array::UInt32(arr) => Array::UInt32(take_primitive(arr, indices)?),
-        Array::UInt64(arr) => Array::UInt64(take_primitive(arr, indices)?),
-        Array::Decimal64(arr) => {
+        Array2::Null(_) => Array2::Null(NullArray::new(indices.len())),
+        Array2::Boolean(arr) => Array2::Boolean(take_boolean(arr, indices)?),
+        Array2::Float32(arr) => Array2::Float32(take_primitive(arr, indices)?),
+        Array2::Float64(arr) => Array2::Float64(take_primitive(arr, indices)?),
+        Array2::Int8(arr) => Array2::Int8(take_primitive(arr, indices)?),
+        Array2::Int16(arr) => Array2::Int16(take_primitive(arr, indices)?),
+        Array2::Int32(arr) => Array2::Int32(take_primitive(arr, indices)?),
+        Array2::Int64(arr) => Array2::Int64(take_primitive(arr, indices)?),
+        Array2::UInt8(arr) => Array2::UInt8(take_primitive(arr, indices)?),
+        Array2::UInt16(arr) => Array2::UInt16(take_primitive(arr, indices)?),
+        Array2::UInt32(arr) => Array2::UInt32(take_primitive(arr, indices)?),
+        Array2::UInt64(arr) => Array2::UInt64(take_primitive(arr, indices)?),
+        Array2::Decimal64(arr) => {
             let new_primitive = take_primitive(arr.get_primitive(), indices)?;
-            Array::Decimal64(DecimalArray::new(
+            Array2::Decimal64(DecimalArray::new(
                 arr.precision(),
                 arr.scale(),
                 new_primitive,
             ))
         }
-        Array::Decimal128(arr) => {
+        Array2::Decimal128(arr) => {
             let new_primitive = take_primitive(arr.get_primitive(), indices)?;
-            Array::Decimal128(DecimalArray::new(
+            Array2::Decimal128(DecimalArray::new(
                 arr.precision(),
                 arr.scale(),
                 new_primitive,
             ))
         }
-        Array::Date32(arr) => Array::Date32(take_primitive(arr, indices)?),
-        Array::Date64(arr) => Array::Date64(take_primitive(arr, indices)?),
-        Array::Timestamp(arr) => {
+        Array2::Date32(arr) => Array2::Date32(take_primitive(arr, indices)?),
+        Array2::Date64(arr) => Array2::Date64(take_primitive(arr, indices)?),
+        Array2::Timestamp(arr) => {
             let primitive = take_primitive(arr.get_primitive(), indices)?;
-            Array::Timestamp(TimestampArray::new(arr.unit(), primitive))
+            Array2::Timestamp(TimestampArray::new(arr.unit(), primitive))
         }
-        Array::Utf8(arr) => Array::Utf8(take_varlen(arr, indices)?),
-        Array::LargeUtf8(arr) => Array::LargeUtf8(take_varlen(arr, indices)?),
-        Array::Binary(arr) => Array::Binary(take_varlen(arr, indices)?),
-        Array::LargeBinary(arr) => Array::LargeBinary(take_varlen(arr, indices)?),
+        Array2::Utf8(arr) => Array2::Utf8(take_varlen(arr, indices)?),
+        Array2::LargeUtf8(arr) => Array2::LargeUtf8(take_varlen(arr, indices)?),
+        Array2::Binary(arr) => Array2::Binary(take_varlen(arr, indices)?),
+        Array2::LargeBinary(arr) => Array2::LargeBinary(take_varlen(arr, indices)?),
         other => not_implemented!("other: {}", other.datatype()),
     })
 }

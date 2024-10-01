@@ -2,7 +2,7 @@ use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggre
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use num_traits::CheckedAdd;
 use rayexec_bullet::{
-    array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
+    array::{Array2, Decimal128Array, Decimal64Array, PrimitiveArray},
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
@@ -156,21 +156,21 @@ pub struct SumInt64Impl;
 impl SumInt64Impl {
     fn update(
         row_selection: &Bitmap,
-        arrays: &[&Array],
+        arrays: &[&Array2],
         mapping: &[usize],
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
         match &arrays[0] {
-            Array::Int64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
+            Array2::Int64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
             other => panic!("unexpected array type: {other:?}"),
         }
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array2> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+        Ok(Array2::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
@@ -184,21 +184,23 @@ pub struct SumFloat64Impl;
 impl SumFloat64Impl {
     fn update(
         row_selection: &Bitmap,
-        arrays: &[&Array],
+        arrays: &[&Array2],
         mapping: &[usize],
         states: &mut [SumStateAdd<f64>],
     ) -> Result<()> {
         match &arrays[0] {
-            Array::Float64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
+            Array2::Float64(arr) => {
+                UnaryNonNullUpdater::update(row_selection, arr, mapping, states)
+            }
             other => panic!("unexpected array type: {other:?}"),
         }
     }
 
-    fn finalize(states: vec::Drain<SumStateAdd<f64>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateAdd<f64>>) -> Result<Array2> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
+        Ok(Array2::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
@@ -215,30 +217,32 @@ pub struct SumDecimal64Impl {
 impl SumDecimal64Impl {
     fn update(
         row_selection: &Bitmap,
-        arrays: &[&Array],
+        arrays: &[&Array2],
         mapping: &[usize],
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
         match &arrays[0] {
-            Array::Decimal64(arr) => {
+            Array2::Decimal64(arr) => {
                 UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
             }
             other => panic!("unexpected array type: {other:?}"),
         }
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array2> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+        Ok(Array2::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
         let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-            Array::Int64(arr) => Ok(Array::Decimal64(Decimal64Array::new(precision, scale, arr))),
+            Array2::Int64(arr) => Ok(Array2::Decimal64(Decimal64Array::new(
+                precision, scale, arr,
+            ))),
             other => panic!("unexpected array type: {}", other.datatype()),
         };
         Box::new(DefaultGroupedStates::new(Self::update, finalize))
@@ -254,30 +258,30 @@ pub struct SumDecimal128Impl {
 impl SumDecimal128Impl {
     fn update(
         row_selection: &Bitmap,
-        arrays: &[&Array],
+        arrays: &[&Array2],
         mapping: &[usize],
         states: &mut [SumStateCheckedAdd<i128>],
     ) -> Result<()> {
         match &arrays[0] {
-            Array::Decimal128(arr) => {
+            Array2::Decimal128(arr) => {
                 UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
             }
             other => panic!("unexpected array type: {other:?}"),
         }
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i128>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<SumStateCheckedAdd<i128>>) -> Result<Array2> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int128(PrimitiveArray::new(buffer, Some(bitmap))))
+        Ok(Array2::Int128(PrimitiveArray::new(buffer, Some(bitmap))))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
         let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-            Array::Int128(arr) => Ok(Array::Decimal128(Decimal128Array::new(
+            Array2::Int128(arr) => Ok(Array2::Decimal128(Decimal128Array::new(
                 precision, scale, arr,
             ))),
             other => panic!("unexpected array type: {}", other.datatype()),
@@ -344,7 +348,7 @@ impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::{Array, Int64Array};
+    use rayexec_bullet::array::{Array2, Int64Array};
 
     use super::*;
 
@@ -352,8 +356,8 @@ mod tests {
     fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
-        let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
+        let partition_1_vals = &Array2::Int64(Int64Array::from_iter([1, 2, 3]));
+        let partition_2_vals = &Array2::Int64(Int64Array::from_iter([4, 5, 6]));
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
@@ -394,7 +398,7 @@ mod tests {
 
         // Get final output.
         let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([Some(21)]));
+        let expected = Array2::Int64(Int64Array::from_iter([Some(21)]));
         assert_eq!(expected, out.unwrap());
     }
 
@@ -414,8 +418,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
-        let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
+        let partition_1_vals = &Array2::Int64(Int64Array::from_iter([1, 2, 3]));
+        let partition_2_vals = &Array2::Int64(Int64Array::from_iter([4, 5, 6]));
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
@@ -463,7 +467,7 @@ mod tests {
 
         // Get final output.
         let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([Some(9), Some(12)]));
+        let expected = Array2::Int64(Int64Array::from_iter([Some(9), Some(12)]));
         assert_eq!(expected, out.unwrap());
     }
 
@@ -491,8 +495,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4]));
-        let partition_2_vals = &Array::Int64(Int64Array::from_iter([5, 6, 7, 8]));
+        let partition_1_vals = &Array2::Int64(Int64Array::from_iter([1, 2, 3, 4]));
+        let partition_2_vals = &Array2::Int64(Int64Array::from_iter([5, 6, 7, 8]));
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
@@ -538,7 +542,7 @@ mod tests {
 
         // Get final output.
         let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([Some(8), Some(3), Some(25)]));
+        let expected = Array2::Int64(Int64Array::from_iter([Some(8), Some(3), Some(25)]));
         assert_eq!(expected, out.unwrap());
     }
 
@@ -546,7 +550,7 @@ mod tests {
     fn sum_i64_drain_multiple() {
         // Three groups, single partition, test that drain can be called
         // multiple times until states are exhausted.
-        let vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
+        let vals = &Array2::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
         let mut states = specialized.new_grouped_state();
@@ -560,11 +564,11 @@ mod tests {
             .update_states(&Bitmap::new_with_all_true(6), &[vals], &mapping)
             .unwrap();
 
-        let expected_1 = Array::Int64(Int64Array::from_iter([Some(3), Some(7)]));
+        let expected_1 = Array2::Int64(Int64Array::from_iter([Some(3), Some(7)]));
         let out_1 = states.drain_finalize_n(2).unwrap();
         assert_eq!(Some(expected_1), out_1);
 
-        let expected_2 = Array::Int64(Int64Array::from_iter([Some(11)]));
+        let expected_2 = Array2::Int64(Int64Array::from_iter([Some(11)]));
         let out_2 = states.drain_finalize_n(2).unwrap();
         assert_eq!(Some(expected_2), out_2);
 

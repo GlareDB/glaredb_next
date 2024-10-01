@@ -2,13 +2,13 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::{bitmap::Bitmap, datatype::DataType, field::Field, scalar::ScalarValue};
 
-use super::Array;
+use super::Array2;
 use std::sync::Arc;
 
 #[derive(Debug, PartialEq)]
 pub struct StructArray {
     validity: Option<Bitmap>,
-    arrays: Vec<(String, Arc<Array>)>,
+    arrays: Vec<(String, Arc<Array2>)>,
 }
 
 impl StructArray {
@@ -16,7 +16,12 @@ impl StructArray {
         let validity = Bitmap::new_with_all_false(len);
         let arrays = fields
             .iter()
-            .map(|f| (f.name.clone(), Arc::new(Array::new_nulls(&f.datatype, len))))
+            .map(|f| {
+                (
+                    f.name.clone(),
+                    Arc::new(Array2::new_nulls(&f.datatype, len)),
+                )
+            })
             .collect();
 
         StructArray {
@@ -25,7 +30,7 @@ impl StructArray {
         }
     }
 
-    pub fn try_new(keys: Vec<String>, values: Vec<Arc<Array>>) -> Result<Self> {
+    pub fn try_new(keys: Vec<String>, values: Vec<Arc<Array2>>) -> Result<Self> {
         if keys.len() != values.len() {
             return Err(RayexecError::new(format!(
                 "Received {} keys for struct, but only {} values",
@@ -62,7 +67,7 @@ impl StructArray {
         unimplemented!()
     }
 
-    pub fn array_for_key(&self, key: &str) -> Option<&Arc<Array>> {
+    pub fn array_for_key(&self, key: &str) -> Option<&Arc<Array2>> {
         self.arrays
             .iter()
             .find(|(k, _arr)| k == key)

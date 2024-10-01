@@ -2005,6 +2005,7 @@ dependencies = [
 name = "rayexec_bullet"
 version = "0.0.58"
 dependencies = [
+ "bytes",
  "chrono",
  "csv-core",
  "flatbuffers",

@@ -13,7 +13,7 @@ use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, datatype::DataType};
+use rayexec_bullet::{array::Array2, batch::Batch, bitmap::Bitmap, datatype::DataType};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
@@ -34,7 +34,7 @@ pub enum PhysicalScalarExpression {
 
 impl PhysicalScalarExpression {
     /// Evaluates an expression on a batch using an optional row selection.
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         match self {
             Self::Case(expr) => expr.eval(batch, selection),
             Self::Cast(expr) => expr.eval(batch, selection),
@@ -47,7 +47,7 @@ impl PhysicalScalarExpression {
     pub fn select(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
         let arr = self.eval(batch, selection)?;
         let bitmap = match arr.as_ref() {
-            Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
+            Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
             other => {
                 return Err(RayexecError::new(format!(
                     "Expected expression to return bools for select, got {}",

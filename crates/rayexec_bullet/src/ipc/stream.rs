@@ -234,7 +234,7 @@ mod tests {
     };
 
     use crate::{
-        array::Array,
+        array::Array2,
         batch::Batch,
         datatype::DataType,
         field::{Field, Schema},
@@ -307,8 +307,8 @@ mod tests {
         let mut s_writer = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
 
         let batch = Batch::try_new([
-            Array::UInt32(vec![1, 2, 3].into()),
-            Array::Int64(vec![7, 8, 9].into()),
+            Array2::UInt32(vec![1, 2, 3].into()),
+            Array2::Int64(vec![7, 8, 9].into()),
         ])
         .unwrap();
         s_writer.write_batch(&batch).unwrap();
@@ -328,12 +328,12 @@ mod tests {
         let mut s_writer = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
         let mut s_reader = StreamReader::try_new(reader, IpcConfig::default()).unwrap();
 
-        let batch1 = Batch::try_new([Array::UInt32(vec![1, 2, 3].into())]).unwrap();
+        let batch1 = Batch::try_new([Array2::UInt32(vec![1, 2, 3].into())]).unwrap();
         s_writer.write_batch(&batch1).unwrap();
 
         let got1 = s_reader.try_next_batch().unwrap().unwrap();
 
-        let batch2 = Batch::try_new([Array::UInt32(vec![4, 5].into())]).unwrap();
+        let batch2 = Batch::try_new([Array2::UInt32(vec![4, 5].into())]).unwrap();
         s_writer.write_batch(&batch2).unwrap();
 
         let got2 = s_reader.try_next_batch().unwrap().unwrap();

@@ -1,7 +1,7 @@
 use parquet::column::page::PageReader;
 use parquet::data_type::{AsBytes, ByteArray, ByteArrayType, DataType as ParquetDataType};
 use parquet::{basic::Type as PhysicalType, schema::types::ColumnDescPtr};
-use rayexec_bullet::array::{Array, ValuesBuffer};
+use rayexec_bullet::array::{Array2, ValuesBuffer};
 use rayexec_bullet::array::{BinaryArray, VarlenArray, VarlenValuesBuffer};
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
@@ -27,7 +27,7 @@ where
         }
     }
 
-    pub fn take_array(&mut self) -> Result<Array> {
+    pub fn take_array(&mut self) -> Result<Array2> {
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
 
@@ -67,7 +67,7 @@ where
                     }
                 };
 
-                Array::Utf8(VarlenArray::new(buffer, validity))
+                Array2::Utf8(VarlenArray::new(buffer, validity))
 
             }
             (PhysicalType::BYTE_ARRAY, DataType::Binary) => {
@@ -98,7 +98,7 @@ where
                     }
                 };
 
-                Array::Binary(BinaryArray::new(buffer, validity))
+                Array2::Binary(BinaryArray::new(buffer, validity))
             }
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in varlen reader; parqet: {p_other}, bullet: {d_other}")))
         };
@@ -113,7 +113,7 @@ impl<P> ArrayBuilder<P> for VarlenArrayReader<P>
 where
     P: PageReader,
 {
-    fn build(&mut self) -> Result<Array> {
+    fn build(&mut self) -> Result<Array2> {
         self.take_array()
     }
 

@@ -25,7 +25,7 @@ mod macros {
             $arrays
                 .iter()
                 .map(|arr| match arr {
-                    Array::$variant(arr) => Ok(arr),
+                    Array2::$variant(arr) => Ok(arr),
                     other => {
                         return Err(rayexec_error::RayexecError::new(format!(
                             "Array is not of the expected type. Expected {}, got {}",
@@ -43,7 +43,7 @@ mod macros {
     #[cfg(test)]
     mod tests {
         use crate::{
-            array::{Array, Int32Array, UInt32Array},
+            array::{Array2, Int32Array, UInt32Array},
             datatype::DataType,
         };
 
@@ -51,8 +51,8 @@ mod macros {
 
         #[test]
         fn collect_arrays_of_type_simple() {
-            let arr1 = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-            let arr2 = Array::Int32(Int32Array::from_iter([3, 4, 5]));
+            let arr1 = Array2::Int32(Int32Array::from_iter([1, 2, 3]));
+            let arr2 = Array2::Int32(Int32Array::from_iter([3, 4, 5]));
 
             let arrs = [&arr1, &arr2];
 
@@ -69,8 +69,8 @@ mod macros {
 
         #[test]
         fn collect_arrays_of_type_error() {
-            let arr1 = Array::Int32(Int32Array::from_iter([1, 2, 3]));
-            let arr2 = Array::UInt32(UInt32Array::from_iter([3, 4, 5]));
+            let arr1 = Array2::Int32(Int32Array::from_iter([1, 2, 3]));
+            let arr2 = Array2::UInt32(UInt32Array::from_iter([3, 4, 5]));
 
             let arrs = [&arr1, &arr2];
 

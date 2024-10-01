@@ -2,7 +2,7 @@ pub mod encoding;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::{array::Array, scalar::ScalarValue};
+use crate::{array::Array2, scalar::ScalarValue};
 
 /// Scalar representation of a single row.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +22,7 @@ impl<'a> ScalarRow<'a> {
     }
 
     /// Create a new row representation backed by data from arrays.
-    pub fn try_new_from_arrays(arrays: &[&'a Array], row: usize) -> Result<ScalarRow<'a>> {
+    pub fn try_new_from_arrays(arrays: &[&'a Array2], row: usize) -> Result<ScalarRow<'a>> {
         let scalars = arrays
             .iter()
             .map(|arr| arr.scalar(row))

@@ -70,7 +70,7 @@ use crate::{
     storage::table_storage::Projections,
 };
 use rayexec_bullet::{
-    array::{Array, Utf8Array},
+    array::{Array2, Utf8Array},
     batch::Batch,
     compute::concat::concat,
 };
@@ -939,10 +939,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let names = Array::Utf8(Utf8Array::from_iter(
+        let names = Array2::Utf8(Utf8Array::from_iter(
             describe.node.schema.iter().map(|f| f.name.as_str()),
         ));
-        let datatypes = Array::Utf8(Utf8Array::from_iter(
+        let datatypes = Array2::Utf8(Utf8Array::from_iter(
             describe.node.schema.iter().map(|f| f.datatype.to_string()),
         ));
         let batch = Batch::try_new(vec![names, datatypes])?;
@@ -1028,8 +1028,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
             Batch::try_new(vec![
-                Array::Utf8(Utf8Array::from(type_strings)),
-                Array::Utf8(Utf8Array::from(plan_strings)),
+                Array2::Utf8(Utf8Array::from(type_strings)),
+                Array2::Utf8(Utf8Array::from(plan_strings)),
             ])?,
         ])));
 
@@ -1062,7 +1062,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-                Batch::try_new(vec![Array::Utf8(Utf8Array::from_iter([show
+                Batch::try_new(vec![Array2::Utf8(Utf8Array::from_iter([show
                     .var
                     .value
                     .to_string()
@@ -1684,7 +1684,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // TODO: This could probably be simplified.
 
-        let mut row_arrs: Vec<Vec<Arc<Array>>> = Vec::new(); // Row oriented.
+        let mut row_arrs: Vec<Vec<Arc<Array2>>> = Vec::new(); // Row oriented.
         let dummy_batch = Batch::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
@@ -1716,7 +1716,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // Concat column values into a single array.
         let mut cols = Vec::with_capacity(col_arrs.len());
         for arrs in col_arrs {
-            let refs: Vec<&Array> = arrs.iter().map(|a| a.as_ref()).collect();
+            let refs: Vec<&Array2> = arrs.iter().map(|a| a.as_ref()).collect();
             let col = concat(&refs)?;
             cols.push(col);
         }

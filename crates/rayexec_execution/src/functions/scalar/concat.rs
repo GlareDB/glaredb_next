@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array, Utf8Array, VarlenValuesBuffer},
+    array::{Array2, Utf8Array, VarlenValuesBuffer},
     datatype::{DataType, DataTypeId},
     executor::scalar::UniformExecutor,
 };
@@ -64,15 +64,15 @@ impl PlannedScalarFunction for StringConcatImpl {
         DataType::Utf8
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         if inputs.is_empty() {
-            return Ok(Array::Utf8(Utf8Array::from(vec![String::new()])));
+            return Ok(Array2::Utf8(Utf8Array::from(vec![String::new()])));
         }
 
         let string_arrs = inputs
             .iter()
             .map(|arr| match arr.as_ref() {
-                Array::Utf8(arr) => Ok(arr),
+                Array2::Utf8(arr) => Ok(arr),
                 other => Err(RayexecError::new(format!(
                     "Expected Utf8 arrays, got {}",
                     other.datatype(),
@@ -85,6 +85,6 @@ impl PlannedScalarFunction for StringConcatImpl {
         // TODO: Reusable buffer?
         let validity = UniformExecutor::execute(&string_arrs, |strs| strs.join(""), &mut values)?;
 
-        Ok(Array::Utf8(Utf8Array::new(values, validity)))
+        Ok(Array2::Utf8(Utf8Array::new(values, validity)))
     }
 }

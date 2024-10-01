@@ -1,6 +1,6 @@
 use crate::{
     array::{
-        Array, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array, NullArray,
+        Array2, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array, NullArray,
         OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
@@ -17,7 +17,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 /// Errors if no arrays are provided, or if not all arrays are of the same type.
 // TODO: Possibly make this an iterator (that needs to run twice, once for the
 // values and once for the validities).
-pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array> {
+pub fn interleave(arrays: &[&Array2], indices: &[(usize, usize)]) -> Result<Array2> {
     let datatype = match arrays.first() {
         Some(arr) => arr.datatype(),
         None => return Err(RayexecError::new("Cannot interleave zero arrays")),
@@ -26,65 +26,65 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
     match datatype {
         DataType::Null => {
             let _arrs = collect_arrays_of_type!(arrays, Null, datatype)?; // Done just for error checking.
-            Ok(Array::Null(NullArray::new(indices.len())))
+            Ok(Array2::Null(NullArray::new(indices.len())))
         }
         DataType::Boolean => {
             let arrs = collect_arrays_of_type!(arrays, Boolean, datatype)?;
-            Ok(Array::Boolean(interleave_boolean(&arrs, indices)?))
+            Ok(Array2::Boolean(interleave_boolean(&arrs, indices)?))
         }
         DataType::Int8 => {
             let arrs = collect_arrays_of_type!(arrays, Int8, datatype)?;
-            Ok(Array::Int8(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Int8(interleave_primitive(&arrs, indices)?))
         }
         DataType::Int16 => {
             let arrs = collect_arrays_of_type!(arrays, Int16, datatype)?;
-            Ok(Array::Int16(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Int16(interleave_primitive(&arrs, indices)?))
         }
         DataType::Int32 => {
             let arrs = collect_arrays_of_type!(arrays, Int32, datatype)?;
-            Ok(Array::Int32(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Int32(interleave_primitive(&arrs, indices)?))
         }
         DataType::Int64 => {
             let arrs = collect_arrays_of_type!(arrays, Int64, datatype)?;
-            Ok(Array::Int64(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Int64(interleave_primitive(&arrs, indices)?))
         }
         DataType::Int128 => {
             let arrs = collect_arrays_of_type!(arrays, Int128, datatype)?;
-            Ok(Array::Int128(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Int128(interleave_primitive(&arrs, indices)?))
         }
         DataType::UInt8 => {
             let arrs = collect_arrays_of_type!(arrays, UInt8, datatype)?;
-            Ok(Array::UInt8(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::UInt8(interleave_primitive(&arrs, indices)?))
         }
         DataType::UInt16 => {
             let arrs = collect_arrays_of_type!(arrays, UInt16, datatype)?;
-            Ok(Array::UInt16(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::UInt16(interleave_primitive(&arrs, indices)?))
         }
         DataType::UInt32 => {
             let arrs = collect_arrays_of_type!(arrays, UInt32, datatype)?;
-            Ok(Array::UInt32(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::UInt32(interleave_primitive(&arrs, indices)?))
         }
         DataType::UInt64 => {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
-            Ok(Array::UInt64(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::UInt64(interleave_primitive(&arrs, indices)?))
         }
         DataType::UInt128 => {
             let arrs = collect_arrays_of_type!(arrays, UInt128, datatype)?;
-            Ok(Array::UInt128(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::UInt128(interleave_primitive(&arrs, indices)?))
         }
         DataType::Float32 => {
             let arrs = collect_arrays_of_type!(arrays, Float32, datatype)?;
-            Ok(Array::Float32(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Float32(interleave_primitive(&arrs, indices)?))
         }
         DataType::Float64 => {
             let arrs = collect_arrays_of_type!(arrays, Float64, datatype)?;
-            Ok(Array::Float64(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Float64(interleave_primitive(&arrs, indices)?))
         }
         DataType::Decimal64(meta) => {
             let arrs = collect_arrays_of_type!(arrays, Decimal64, datatype)?;
             let primitives: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
             let interleaved = interleave_primitive(&primitives, indices)?;
-            Ok(Array::Decimal64(Decimal64Array::new(
+            Ok(Array2::Decimal64(Decimal64Array::new(
                 meta.precision,
                 meta.scale,
                 interleaved,
@@ -94,7 +94,7 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             let arrs = collect_arrays_of_type!(arrays, Decimal128, datatype)?;
             let primitives: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
             let interleaved = interleave_primitive(&primitives, indices)?;
-            Ok(Array::Decimal128(Decimal128Array::new(
+            Ok(Array2::Decimal128(Decimal128Array::new(
                 meta.precision,
                 meta.scale,
                 interleaved,
@@ -102,27 +102,27 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
         }
         DataType::Date32 => {
             let arrs = collect_arrays_of_type!(arrays, Date32, datatype)?;
-            Ok(Array::Date32(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Date32(interleave_primitive(&arrs, indices)?))
         }
         DataType::Date64 => {
             let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
-            Ok(Array::Date64(interleave_primitive(&arrs, indices)?))
+            Ok(Array2::Date64(interleave_primitive(&arrs, indices)?))
         }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
-            Ok(Array::Utf8(interleave_varlen(&arrs, indices)?))
+            Ok(Array2::Utf8(interleave_varlen(&arrs, indices)?))
         }
         DataType::LargeUtf8 => {
             let arrs = collect_arrays_of_type!(arrays, LargeUtf8, datatype)?;
-            Ok(Array::LargeUtf8(interleave_varlen(&arrs, indices)?))
+            Ok(Array2::LargeUtf8(interleave_varlen(&arrs, indices)?))
         }
         DataType::Binary => {
             let arrs = collect_arrays_of_type!(arrays, Binary, datatype)?;
-            Ok(Array::Binary(interleave_varlen(&arrs, indices)?))
+            Ok(Array2::Binary(interleave_varlen(&arrs, indices)?))
         }
         DataType::LargeBinary => {
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
-            Ok(Array::LargeBinary(interleave_varlen(&arrs, indices)?))
+            Ok(Array2::LargeBinary(interleave_varlen(&arrs, indices)?))
         }
         other => not_implemented!("interleave {other}"),
     }

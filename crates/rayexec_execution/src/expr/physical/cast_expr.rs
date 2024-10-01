@@ -2,7 +2,8 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::Array, batch::Batch, bitmap::Bitmap, compute::cast::array::cast_array, datatype::DataType
+    array::Array2, batch::Batch, bitmap::Bitmap, compute::cast::array::cast_array,
+    datatype::DataType,
 };
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
@@ -18,7 +19,7 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let input = self.expr.eval(batch, selection)?;
         let out = cast_array(&input, &self.to)?;
         Ok(Arc::new(out))

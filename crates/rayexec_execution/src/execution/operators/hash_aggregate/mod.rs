@@ -1,7 +1,7 @@
 pub mod aggregate_hash_table;
 
 use parking_lot::Mutex;
-use rayexec_bullet::array::{Array, NullArray};
+use rayexec_bullet::array::{Array2, NullArray};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
@@ -269,9 +269,9 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 hash_buf.resize(num_rows, 0);
                 partitions_idx_buf.resize(num_rows, 0);
 
-                let null_col = Array::Null(NullArray::new(num_rows));
+                let null_col = Array2::Null(NullArray::new(num_rows));
 
-                let mut masked_grouping_columns: Vec<&Array> =
+                let mut masked_grouping_columns: Vec<&Array2> =
                     Vec::with_capacity(grouping_columns.len());
 
                 // For null mask, create a new set of grouping values, hash

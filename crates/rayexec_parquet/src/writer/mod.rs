@@ -14,7 +14,7 @@ use parquet::{
     format::FileMetaData,
     schema::types::SchemaDescriptor,
 };
-use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType, field::Schema};
+use rayexec_bullet::{array::Array2, batch::Batch, datatype::DataType, field::Schema};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_io::FileSink;
 use std::{fmt, sync::Arc};
@@ -227,7 +227,7 @@ impl PageWriter for BufferedPageWriter {
     }
 }
 
-fn array_type_err(arr: &Array) -> RayexecError {
+fn array_type_err(arr: &Array2) -> RayexecError {
     RayexecError::new(format!("Unexpected array type: {}", arr.datatype()))
 }
 
@@ -235,12 +235,12 @@ fn array_type_err(arr: &Array) -> RayexecError {
 // TODO: Validity.
 fn write_array<P: PageWriter>(
     writer: &mut ColumnWriter<P>,
-    array: impl AsRef<Array>,
+    array: impl AsRef<Array2>,
 ) -> Result<()> {
     let array = array.as_ref();
     match writer {
         ColumnWriter::BoolColumnWriter(writer) => match array {
-            Array::Boolean(arr) => {
+            Array2::Boolean(arr) => {
                 // TODO: This could be `AsRef`ed
                 let bools: Vec<_> = arr.values().iter().collect();
                 writer
@@ -251,7 +251,7 @@ fn write_array<P: PageWriter>(
             other => Err(array_type_err(other)),
         },
         ColumnWriter::Int32ColumnWriter(writer) => match array {
-            Array::Int32(arr) => {
+            Array2::Int32(arr) => {
                 writer
                     .write_batch(arr.values().as_ref(), None, None)
                     .context("failed to write int32s")?;
@@ -260,13 +260,13 @@ fn write_array<P: PageWriter>(
             other => Err(array_type_err(other)),
         },
         ColumnWriter::Int64ColumnWriter(writer) => match array {
-            Array::Int64(arr) => {
+            Array2::Int64(arr) => {
                 writer
                     .write_batch(arr.values().as_ref(), None, None)
                     .context("failed to write int64s")?;
                 Ok(())
             }
-            Array::UInt64(arr) => {
+            Array2::UInt64(arr) => {
                 // Allow overflow.
                 // TODO: AsRef instead of needing to collect.
                 let vals: Vec<_> = arr.values().as_ref().iter().map(|v| *v as i64).collect();
@@ -275,13 +275,13 @@ fn write_array<P: PageWriter>(
                     .context("failed to write uint64s")?;
                 Ok(())
             }
-            Array::Decimal64(arr) => {
+            Array2::Decimal64(arr) => {
                 writer
                     .write_batch(arr.get_primitive().values().as_ref(), None, None)
                     .context("failed to write decimal64s")?;
                 Ok(())
             }
-            Array::Timestamp(arr) => {
+            Array2::Timestamp(arr) => {
                 writer
                     .write_batch(arr.get_primitive().values().as_ref(), None, None)
                     .context("failed to write timestamps")?;
@@ -290,7 +290,7 @@ fn write_array<P: PageWriter>(
             other => Err(array_type_err(other)),
         },
         ColumnWriter::FloatColumnWriter(writer) => match array {
-            Array::Float32(arr) => {
+            Array2::Float32(arr) => {
                 writer
                     .write_batch(arr.values().as_ref(), None, None)
                     .context("failed to float32s")?;
@@ -299,7 +299,7 @@ fn write_array<P: PageWriter>(
             other => Err(array_type_err(other)),
         },
         ColumnWriter::DoubleColumnWriter(writer) => match array {
-            Array::Float64(arr) => {
+            Array2::Float64(arr) => {
                 writer
                     .write_batch(arr.values().as_ref(), None, None)
                     .context("failed to write float64s")?;
@@ -308,7 +308,7 @@ fn write_array<P: PageWriter>(
             other => Err(array_type_err(other)),
         },
         ColumnWriter::ByteArrayColumnWriter(writer) => match array {
-            Array::Utf8(arr) => {
+            Array2::Utf8(arr) => {
                 // TODO: Try not to copy here. There's a hard requirement on the
                 // physical type being `Bytes`, and so a conversion needs to
                 // happen somewhere.

@@ -1,6 +1,6 @@
 use crate::functions::scalar::macros::primitive_unary_execute;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -101,25 +101,25 @@ impl PlannedScalarFunction for NegateImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let first = arrays[0];
         Ok(match first.as_ref() {
-            Array::Int8(input) => {
+            Array2::Int8(input) => {
                 primitive_unary_execute!(input, Int8, |a| -a)
             }
-            Array::Int16(input) => {
+            Array2::Int16(input) => {
                 primitive_unary_execute!(input, Int16, |a| -a)
             }
-            Array::Int32(input) => {
+            Array2::Int32(input) => {
                 primitive_unary_execute!(input, Int32, |a| -a)
             }
-            Array::Int64(input) => {
+            Array2::Int64(input) => {
                 primitive_unary_execute!(input, Int64, |a| -a)
             }
-            Array::Float32(input) => {
+            Array2::Float32(input) => {
                 primitive_unary_execute!(input, Float32, |a| -a)
             }
-            Array::Float64(input) => {
+            Array2::Float64(input) => {
                 primitive_unary_execute!(input, Float64, |a| -a)
             }
             other => panic!("unexpected array type: {other:?}"),
@@ -174,9 +174,9 @@ impl PlannedScalarFunction for NotImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         Ok(match inputs[0].as_ref() {
-            Array::Boolean(arr) => primitive_unary_execute_bool!(arr, |b| !b),
+            Array2::Boolean(arr) => primitive_unary_execute_bool!(arr, |b| !b),
             other => panic!("unexpected array type: {other:?}"),
         })
     }

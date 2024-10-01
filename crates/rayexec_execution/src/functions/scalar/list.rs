@@ -2,7 +2,7 @@ use std::{ops::Deref, sync::Arc};
 
 use rayexec_bullet::{
     array::{
-        Array, ListArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType,
+        Array2, ListArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType,
         VarlenValuesBuffer,
     },
     bitmap::Bitmap,
@@ -113,9 +113,9 @@ impl PlannedScalarFunction for ListExtractImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let list = match &inputs[0].as_ref() {
-            Array::List(list) => list,
+            Array2::List(list) => list,
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected array type: {}",
@@ -128,47 +128,47 @@ impl PlannedScalarFunction for ListExtractImpl {
         let validity = list.validity();
 
         Ok(match list.child_array().as_ref() {
-            Array::Int8(arr) => {
-                Array::Int8(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::Int8(arr) => {
+                Array2::Int8(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::Int16(arr) => {
-                Array::Int16(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::Int16(arr) => {
+                Array2::Int16(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::Int32(arr) => {
-                Array::Int32(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::Int32(arr) => {
+                Array2::Int32(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::Int64(arr) => {
-                Array::Int64(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::Int64(arr) => {
+                Array2::Int64(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::Int128(arr) => {
-                Array::Int128(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::Int128(arr) => {
+                Array2::Int128(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::UInt8(arr) => {
-                Array::UInt8(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::UInt8(arr) => {
+                Array2::UInt8(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::UInt16(arr) => {
-                Array::UInt16(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::UInt16(arr) => {
+                Array2::UInt16(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::UInt32(arr) => {
-                Array::UInt32(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::UInt32(arr) => {
+                Array2::UInt32(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::UInt64(arr) => {
-                Array::UInt64(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::UInt64(arr) => {
+                Array2::UInt64(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::UInt128(arr) => {
-                Array::UInt128(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::UInt128(arr) => {
+                Array2::UInt128(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::Float32(arr) => {
-                Array::Float32(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::Float32(arr) => {
+                Array2::Float32(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::Float64(arr) => {
-                Array::Float64(list_extract_primitive(arr, offsets, validity, self.index)?)
+            Array2::Float64(arr) => {
+                Array2::Float64(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            Array::Utf8(arr) => {
-                Array::Utf8(list_extract_varlen(arr, offsets, validity, self.index)?)
+            Array2::Utf8(arr) => {
+                Array2::Utf8(list_extract_varlen(arr, offsets, validity, self.index)?)
             }
-            Array::LargeUtf8(arr) => {
-                Array::LargeUtf8(list_extract_varlen(arr, offsets, validity, self.index)?)
+            Array2::LargeUtf8(arr) => {
+                Array2::LargeUtf8(list_extract_varlen(arr, offsets, validity, self.index)?)
             }
             other => not_implemented!("list extract {}", other.datatype()),
         })
@@ -308,7 +308,7 @@ impl PlannedScalarFunction for ListValuesImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect();
         let array = if refs.is_empty() {
             ListArray::new_empty_with_n_rows(1)
@@ -316,6 +316,6 @@ impl PlannedScalarFunction for ListValuesImpl {
             ListArray::try_from_children(&refs)?
         };
 
-        Ok(Array::List(array))
+        Ok(Array2::List(array))
     }
 }

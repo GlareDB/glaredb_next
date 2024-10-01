@@ -1,5 +1,5 @@
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::{Array, PrimitiveArray};
+use rayexec_bullet::array::{Array2, PrimitiveArray};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
@@ -51,8 +51,8 @@ impl PlannedScalarFunction for RandomImpl {
         DataType::Float64
     }
 
-    fn execute(&self, _arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, _arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let val = rand::random::<f64>();
-        Ok(Array::Float64(PrimitiveArray::new(vec![val], None)))
+        Ok(Array2::Float64(PrimitiveArray::new(vec![val], None)))
     }
 }

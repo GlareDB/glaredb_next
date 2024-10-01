@@ -1,4 +1,4 @@
-use crate::array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
+use crate::array::{Array2, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Binary-encoded rows suitable for comparisons.
@@ -135,7 +135,7 @@ pub struct ComparableRowEncoder {
 }
 
 impl ComparableRowEncoder {
-    pub fn encode(&self, columns: &[&Array]) -> Result<ComparableRows> {
+    pub fn encode(&self, columns: &[&Array2]) -> Result<ComparableRows> {
         if columns.len() != self.columns.len() {
             return Err(RayexecError::new("Column mismatch"));
         }
@@ -162,114 +162,114 @@ impl ComparableRowEncoder {
             let mut row_offset = *offsets.last().unwrap();
             for (arr, cmp_col) in columns.iter().zip(self.columns.iter()) {
                 row_offset = match arr {
-                    Array::Int8(arr) => Self::encode_primitive(
+                    Array2::Int8(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Int16(arr) => Self::encode_primitive(
+                    Array2::Int16(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Int32(arr) => Self::encode_primitive(
+                    Array2::Int32(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Int64(arr) => Self::encode_primitive(
+                    Array2::Int64(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::UInt8(arr) => Self::encode_primitive(
+                    Array2::UInt8(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::UInt16(arr) => Self::encode_primitive(
+                    Array2::UInt16(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::UInt32(arr) => Self::encode_primitive(
+                    Array2::UInt32(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::UInt64(arr) => Self::encode_primitive(
+                    Array2::UInt64(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Float32(arr) => Self::encode_primitive(
+                    Array2::Float32(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Float64(arr) => Self::encode_primitive(
+                    Array2::Float64(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Decimal64(arr) => Self::encode_primitive(
+                    Array2::Decimal64(arr) => Self::encode_primitive(
                         cmp_col,
                         arr.get_primitive(),
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Decimal128(arr) => Self::encode_primitive(
+                    Array2::Decimal128(arr) => Self::encode_primitive(
                         cmp_col,
                         arr.get_primitive(),
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Date32(arr) => Self::encode_primitive(
+                    Array2::Date32(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Date64(arr) => Self::encode_primitive(
+                    Array2::Date64(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
                         row_idx,
                         data.as_mut_slice(),
                         row_offset,
                     ),
-                    Array::Utf8(arr) => {
+                    Array2::Utf8(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
-                    Array::LargeUtf8(arr) => {
+                    Array2::LargeUtf8(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
-                    Array::Binary(arr) => {
+                    Array2::Binary(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
-                    Array::LargeBinary(arr) => {
+                    Array2::LargeBinary(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
                     other => not_implemented!("row enc: {}", other.datatype()),
@@ -284,32 +284,32 @@ impl ComparableRowEncoder {
 
     /// Compute the size of the data buffer we'll need for storing all encoded
     /// rows.
-    fn compute_data_size(&self, columns: &[&Array]) -> Result<usize> {
+    fn compute_data_size(&self, columns: &[&Array2]) -> Result<usize> {
         let mut size = 0;
         for arr in columns {
             let mut arr_size = match arr {
-                Array::Null(_) => 0, // Nulls will be encoded in the "validity" portion of the row.
-                Array::Boolean(arr) => arr.len() * std::mem::size_of::<bool>(), // Note this will expand the 1 bit bools to bytes.
-                Array::Int8(arr) => arr.len() * std::mem::size_of::<i8>(),
-                Array::Int16(arr) => arr.len() * std::mem::size_of::<i16>(),
-                Array::Int32(arr) => arr.len() * std::mem::size_of::<i32>(),
-                Array::Int64(arr) => arr.len() * std::mem::size_of::<i64>(),
-                Array::Int128(arr) => arr.len() * std::mem::size_of::<i64>(),
-                Array::UInt8(arr) => arr.len() * std::mem::size_of::<u8>(),
-                Array::UInt16(arr) => arr.len() * std::mem::size_of::<u16>(),
-                Array::UInt32(arr) => arr.len() * std::mem::size_of::<u32>(),
-                Array::UInt64(arr) => arr.len() * std::mem::size_of::<u64>(),
-                Array::UInt128(arr) => arr.len() * std::mem::size_of::<u64>(),
-                Array::Float32(arr) => arr.len() * std::mem::size_of::<f32>(),
-                Array::Float64(arr) => arr.len() * std::mem::size_of::<f64>(),
-                Array::Decimal64(arr) => arr.get_primitive().len() * std::mem::size_of::<i64>(),
-                Array::Decimal128(arr) => arr.get_primitive().len() * std::mem::size_of::<i128>(),
-                Array::Date32(arr) => arr.len() * std::mem::size_of::<i32>(),
-                Array::Date64(arr) => arr.len() * std::mem::size_of::<i64>(),
-                Array::Utf8(arr) => arr.data().as_ref().len(),
-                Array::LargeUtf8(arr) => arr.data().as_ref().len(),
-                Array::Binary(arr) => arr.data().as_ref().len(),
-                Array::LargeBinary(arr) => arr.data().as_ref().len(),
+                Array2::Null(_) => 0, // Nulls will be encoded in the "validity" portion of the row.
+                Array2::Boolean(arr) => arr.len() * std::mem::size_of::<bool>(), // Note this will expand the 1 bit bools to bytes.
+                Array2::Int8(arr) => arr.len() * std::mem::size_of::<i8>(),
+                Array2::Int16(arr) => arr.len() * std::mem::size_of::<i16>(),
+                Array2::Int32(arr) => arr.len() * std::mem::size_of::<i32>(),
+                Array2::Int64(arr) => arr.len() * std::mem::size_of::<i64>(),
+                Array2::Int128(arr) => arr.len() * std::mem::size_of::<i64>(),
+                Array2::UInt8(arr) => arr.len() * std::mem::size_of::<u8>(),
+                Array2::UInt16(arr) => arr.len() * std::mem::size_of::<u16>(),
+                Array2::UInt32(arr) => arr.len() * std::mem::size_of::<u32>(),
+                Array2::UInt64(arr) => arr.len() * std::mem::size_of::<u64>(),
+                Array2::UInt128(arr) => arr.len() * std::mem::size_of::<u64>(),
+                Array2::Float32(arr) => arr.len() * std::mem::size_of::<f32>(),
+                Array2::Float64(arr) => arr.len() * std::mem::size_of::<f64>(),
+                Array2::Decimal64(arr) => arr.get_primitive().len() * std::mem::size_of::<i64>(),
+                Array2::Decimal128(arr) => arr.get_primitive().len() * std::mem::size_of::<i128>(),
+                Array2::Date32(arr) => arr.len() * std::mem::size_of::<i32>(),
+                Array2::Date64(arr) => arr.len() * std::mem::size_of::<i64>(),
+                Array2::Utf8(arr) => arr.data().as_ref().len(),
+                Array2::LargeUtf8(arr) => arr.data().as_ref().len(),
+                Array2::Binary(arr) => arr.data().as_ref().len(),
+                Array2::LargeBinary(arr) => arr.data().as_ref().len(),
                 other => not_implemented!("compute data size: {}", other.datatype()),
             };
 
@@ -468,8 +468,8 @@ mod tests {
 
     #[test]
     fn simple_primitive_cmp_between_cols_asc() {
-        let col1 = Array::Int32(Int32Array::from_iter([-1, 0, 1]));
-        let col2 = Array::Int32(Int32Array::from_iter([1, 0, -1]));
+        let col1 = Array2::Int32(Int32Array::from_iter([-1, 0, 1]));
+        let col2 = Array2::Int32(Int32Array::from_iter([1, 0, -1]));
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -494,8 +494,8 @@ mod tests {
 
     #[test]
     fn simple_primitive_cmp_between_cols_desc() {
-        let col1 = Array::Int32(Int32Array::from_iter([-1, 0, 1]));
-        let col2 = Array::Int32(Int32Array::from_iter([1, 0, -1]));
+        let col1 = Array2::Int32(Int32Array::from_iter([-1, 0, 1]));
+        let col2 = Array2::Int32(Int32Array::from_iter([1, 0, -1]));
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -521,8 +521,8 @@ mod tests {
 
     #[test]
     fn simple_varlen_cmp_between_cols_asc() {
-        let col1 = Array::Utf8(Utf8Array::from_iter(["a", "aa", "bb"]));
-        let col2 = Array::Utf8(Utf8Array::from_iter(["aa", "a", "bb"]));
+        let col1 = Array2::Utf8(Utf8Array::from_iter(["a", "aa", "bb"]));
+        let col2 = Array2::Utf8(Utf8Array::from_iter(["aa", "a", "bb"]));
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -547,8 +547,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_last_asc() {
-        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
-        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+        let col1 = Array2::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array2::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -571,8 +571,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_last_desc() {
-        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
-        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+        let col1 = Array2::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array2::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -595,8 +595,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_first_asc() {
-        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
-        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+        let col1 = Array2::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array2::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -619,8 +619,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_first_desc() {
-        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
-        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+        let col1 = Array2::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array2::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {

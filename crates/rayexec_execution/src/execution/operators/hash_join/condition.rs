@@ -1,4 +1,4 @@
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute::take::take};
+use rayexec_bullet::{array::Array2, batch::Batch, bitmap::Bitmap, compute::take::take};
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::sync::Arc;
@@ -42,7 +42,7 @@ impl fmt::Display for HashJoinCondition {
 #[derive(Debug)]
 pub struct LeftPrecomputedJoinCondition {
     /// Precomputed results for left batches.
-    pub left_precomputed: Vec<Arc<Array>>,
+    pub left_precomputed: Vec<Arc<Array2>>,
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
     pub function: Box<dyn PlannedScalarFunction>,
@@ -121,7 +121,7 @@ impl LeftPrecomputedJoinConditions {
 
         let refs: Vec<_> = results.iter().collect();
         let out = match AndImpl.execute(&refs)? {
-            Array::Boolean(arr) => arr.into_selection_bitmap(),
+            Array2::Boolean(arr) => arr.into_selection_bitmap(),
             other => {
                 return Err(RayexecError::new(format!(
                     "Expect boolean array as result for condition, got {}",

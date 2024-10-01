@@ -8,7 +8,7 @@ use crate::{
 use rayexec_error::Result;
 use std::sync::Arc;
 
-use super::{Array, NullArray, OffsetIndex};
+use super::{Array2, NullArray, OffsetIndex};
 
 // TODO: This array does not yet have an implementation of ArrayAccessor. I
 // don't know what that would actually look like for this yet. I'm implementing
@@ -29,7 +29,7 @@ pub struct VariableListArray<O: OffsetIndex> {
     offsets: PrimitiveStorage<O>,
 
     /// Child array containing the actual data.
-    child: Arc<Array>,
+    child: Arc<Array2>,
 }
 
 pub type ListArray = VariableListArray<i32>;
@@ -38,7 +38,7 @@ impl<O> VariableListArray<O>
 where
     O: OffsetIndex,
 {
-    pub fn new(child: impl Into<Arc<Array>>, offsets: Vec<O>, validity: Option<Bitmap>) -> Self {
+    pub fn new(child: impl Into<Arc<Array2>>, offsets: Vec<O>, validity: Option<Bitmap>) -> Self {
         debug_assert_eq!(
             offsets.len() - 1,
             validity
@@ -66,19 +66,19 @@ where
     pub fn new_empty_with_n_rows(n: usize) -> Self {
         let mut offsets = vec![O::from_usize(0); n];
         offsets.push(O::from_usize(0));
-        Self::new(Array::Null(NullArray::new(0)), offsets, None)
+        Self::new(Array2::Null(NullArray::new(0)), offsets, None)
     }
 
     /// Create a list array from some number of equal length child arrays.
     ///
     /// The index of each child array corresponds to a value at the same
     /// position in the scalar list value.
-    pub fn try_from_children(children: &[&Array]) -> Result<Self> {
+    pub fn try_from_children(children: &[&Array2]) -> Result<Self> {
         let len = match children.first() {
             Some(arr) => arr.len(),
             None => {
                 let offsets = vec![O::from_usize(0)];
-                return Ok(Self::new(Array::Null(NullArray::new(0)), offsets, None));
+                return Ok(Self::new(Array2::Null(NullArray::new(0)), offsets, None));
             }
         };
 
@@ -129,7 +129,7 @@ where
         Some(ScalarValue::List(vals))
     }
 
-    pub fn child_array(&self) -> &Arc<Array> {
+    pub fn child_array(&self) -> &Arc<Array2> {
         &self.child
     }
 

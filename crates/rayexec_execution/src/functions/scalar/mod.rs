@@ -13,7 +13,7 @@ pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::{array::Array, datatype::DataType};
+use rayexec_bullet::{array::Array2, datatype::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -146,7 +146,7 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// For functions that accept no input (e.g. random), an array of length one
     /// should be returned. During evaluation, this one element array will be
     /// extended to be of the appropriate size.
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2>;
 }
 
 impl PartialEq<dyn PlannedScalarFunction> for Box<dyn PlannedScalarFunction + '_> {
@@ -180,36 +180,36 @@ impl Hash for dyn PlannedScalarFunction {
 mod macros {
     macro_rules! primitive_unary_execute {
         ($input:expr, $output_variant:ident, $operation:expr) => {{
-            use rayexec_bullet::array::{Array, PrimitiveArray};
+            use rayexec_bullet::array::{Array2, PrimitiveArray};
             use rayexec_bullet::executor::scalar::UnaryExecutor;
 
             let mut buffer = Vec::with_capacity($input.len());
             UnaryExecutor::execute($input, $operation, &mut buffer)?;
-            Array::$output_variant(PrimitiveArray::new(buffer, $input.validity().cloned()))
+            Array2::$output_variant(PrimitiveArray::new(buffer, $input.validity().cloned()))
         }};
     }
     pub(crate) use primitive_unary_execute;
 
     macro_rules! primitive_unary_execute_bool {
         ($input:expr, $operation:expr) => {{
-            use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+            use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
             use rayexec_bullet::executor::scalar::UnaryExecutor;
 
             let mut buffer = BooleanValuesBuffer::with_capacity($input.len());
             UnaryExecutor::execute($input, $operation, &mut buffer)?;
-            Array::Boolean(BooleanArray::new(buffer, $input.validity().cloned()))
+            Array2::Boolean(BooleanArray::new(buffer, $input.validity().cloned()))
         }};
     }
     pub(crate) use primitive_unary_execute_bool;
 
     macro_rules! primitive_binary_execute {
         ($first:expr, $second:expr, $output_variant:ident, $operation:expr) => {{
-            use rayexec_bullet::array::{Array, PrimitiveArray};
+            use rayexec_bullet::array::{Array2, PrimitiveArray};
             use rayexec_bullet::executor::scalar::BinaryExecutor;
 
             let mut buffer = Vec::with_capacity($first.len());
             let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
-            Array::$output_variant(PrimitiveArray::new(buffer, validity))
+            Array2::$output_variant(PrimitiveArray::new(buffer, validity))
         }};
     }
     pub(crate) use primitive_binary_execute;
@@ -228,12 +228,12 @@ mod macros {
 
     macro_rules! primitive_binary_execute_bool {
         ($first:expr, $second:expr, $operation:expr) => {{
-            use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+            use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
             use rayexec_bullet::executor::scalar::BinaryExecutor;
 
             let mut buffer = BooleanValuesBuffer::with_capacity($first.len());
             let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
-            Array::Boolean(BooleanArray::new(buffer, validity))
+            Array2::Boolean(BooleanArray::new(buffer, validity))
         }};
     }
     pub(crate) use primitive_binary_execute_bool;

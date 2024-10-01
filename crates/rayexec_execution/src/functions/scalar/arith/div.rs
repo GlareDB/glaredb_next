@@ -2,7 +2,7 @@ use crate::functions::scalar::macros::primitive_binary_execute;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::compute::cast::array::cast_decimal_to_float;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
@@ -152,46 +152,46 @@ impl PlannedScalarFunction for DivImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let first = arrays[0];
         let second = arrays[1];
         Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Int8(first), Array::Int8(second)) => {
+            (Array2::Int8(first), Array2::Int8(second)) => {
                 primitive_binary_execute!(first, second, Int8, |a, b| a / b)
             }
-            (Array::Int16(first), Array::Int16(second)) => {
+            (Array2::Int16(first), Array2::Int16(second)) => {
                 primitive_binary_execute!(first, second, Int16, |a, b| a / b)
             }
-            (Array::Int32(first), Array::Int32(second)) => {
+            (Array2::Int32(first), Array2::Int32(second)) => {
                 primitive_binary_execute!(first, second, Int32, |a, b| a / b)
             }
-            (Array::Int64(first), Array::Int64(second)) => {
+            (Array2::Int64(first), Array2::Int64(second)) => {
                 primitive_binary_execute!(first, second, Int64, |a, b| a / b)
             }
-            (Array::UInt8(first), Array::UInt8(second)) => {
+            (Array2::UInt8(first), Array2::UInt8(second)) => {
                 primitive_binary_execute!(first, second, UInt8, |a, b| a / b)
             }
-            (Array::UInt16(first), Array::UInt16(second)) => {
+            (Array2::UInt16(first), Array2::UInt16(second)) => {
                 primitive_binary_execute!(first, second, UInt16, |a, b| a / b)
             }
-            (Array::UInt32(first), Array::UInt32(second)) => {
+            (Array2::UInt32(first), Array2::UInt32(second)) => {
                 primitive_binary_execute!(first, second, UInt32, |a, b| a / b)
             }
-            (Array::UInt64(first), Array::UInt64(second)) => {
+            (Array2::UInt64(first), Array2::UInt64(second)) => {
                 primitive_binary_execute!(first, second, UInt64, |a, b| a / b)
             }
-            (Array::Float32(first), Array::Float32(second)) => {
+            (Array2::Float32(first), Array2::Float32(second)) => {
                 primitive_binary_execute!(first, second, Float32, |a, b| a / b)
             }
-            (Array::Float64(first), Array::Float64(second)) => {
+            (Array2::Float64(first), Array2::Float64(second)) => {
                 primitive_binary_execute!(first, second, Float64, |a, b| a / b)
             }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
+            (Array2::Decimal64(first), Array2::Decimal64(second)) => {
                 let first = cast_decimal_to_float::<f64, Decimal64Type>(first)?;
                 let second = cast_decimal_to_float::<f64, Decimal64Type>(second)?;
                 primitive_binary_execute!(&first, &second, Float64, |a, b| a / b)
             }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
+            (Array2::Decimal128(first), Array2::Decimal128(second)) => {
                 let first = cast_decimal_to_float::<f64, Decimal128Type>(first)?;
                 let second = cast_decimal_to_float::<f64, Decimal128Type>(second)?;
                 primitive_binary_execute!(&first, &second, Float64, |a, b| a / b)
@@ -207,7 +207,7 @@ mod tests {
     use std::sync::Arc;
 
     use rayexec_bullet::{
-        array::{Array, Int32Array},
+        array::{Array2, Int32Array},
         datatype::DataType,
     };
 
@@ -217,15 +217,15 @@ mod tests {
 
     #[test]
     fn div_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let a = Arc::new(Array2::Int32(Int32Array::from_iter([4, 5, 6])));
+        let b = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
 
         let specialized = Div
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Int32(Int32Array::from_iter([4, 2, 2]));
+        let expected = Array2::Int32(Int32Array::from_iter([4, 2, 2]));
 
         assert_eq!(expected, out);
     }

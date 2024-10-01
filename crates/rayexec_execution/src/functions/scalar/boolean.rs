@@ -1,6 +1,6 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::Array2;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::UniformExecutor;
@@ -58,16 +58,16 @@ impl PlannedScalarFunction for AndImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let first = match inputs.first() {
             Some(first) => first,
-            None => return Ok(Array::Boolean(BooleanArray::new_nulls(1))),
+            None => return Ok(Array2::Boolean(BooleanArray::new_nulls(1))),
         };
 
         let bool_arrs = inputs
             .iter()
             .map(|arr| match arr.as_ref() {
-                Array::Boolean(arr) => Ok(arr),
+                Array2::Boolean(arr) => Ok(arr),
                 other => Err(RayexecError::new(format!(
                     "Expected Boolean arrays, got {}",
                     other.datatype(),
@@ -79,7 +79,7 @@ impl PlannedScalarFunction for AndImpl {
         let validity =
             UniformExecutor::execute(&bool_arrs, |bools| bools.iter().all(|b| *b), &mut buffer)?;
 
-        Ok(Array::Boolean(BooleanArray::new(buffer, validity)))
+        Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
     }
 }
 
@@ -132,16 +132,16 @@ impl PlannedScalarFunction for OrImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let first = match inputs.first() {
             Some(first) => first,
-            None => return Ok(Array::Boolean(BooleanArray::new_nulls(1))),
+            None => return Ok(Array2::Boolean(BooleanArray::new_nulls(1))),
         };
 
         let bool_arrs = inputs
             .iter()
             .map(|arr| match arr.as_ref() {
-                Array::Boolean(arr) => Ok(arr),
+                Array2::Boolean(arr) => Ok(arr),
                 other => Err(RayexecError::new(format!(
                     "Expected Boolean arrays, got {}",
                     other.datatype(),
@@ -153,7 +153,7 @@ impl PlannedScalarFunction for OrImpl {
         let validity =
             UniformExecutor::execute(&bool_arrs, |bools| bools.iter().any(|b| *b), &mut buffer)?;
 
-        Ok(Array::Boolean(BooleanArray::new(buffer, validity)))
+        Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
     }
 }
 
@@ -165,34 +165,38 @@ mod tests {
 
     #[test]
     fn and_bool() {
-        let a = Arc::new(Array::Boolean(BooleanArray::from_iter([
+        let a = Arc::new(Array2::Boolean(BooleanArray::from_iter([
             true, false, false,
         ])));
-        let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
+        let b = Arc::new(Array2::Boolean(BooleanArray::from_iter([
+            true, true, false,
+        ])));
 
         let specialized = And
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, false, false]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([true, false, false]));
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn or_bool() {
-        let a = Arc::new(Array::Boolean(BooleanArray::from_iter([
+        let a = Arc::new(Array2::Boolean(BooleanArray::from_iter([
             true, false, false,
         ])));
-        let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
+        let b = Arc::new(Array2::Boolean(BooleanArray::from_iter([
+            true, true, false,
+        ])));
 
         let specialized = Or
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, true, false]));
+        let expected = Array2::Boolean(BooleanArray::from_iter([true, true, false]));
 
         assert_eq!(expected, out);
     }

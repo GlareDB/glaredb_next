@@ -10,7 +10,7 @@ use std::{borrow::Borrow, fmt::Display};
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_bullet::{
-    array::Array,
+    array::Array2,
     datatype::{DataType, DataTypeId},
 };
 use rayexec_error::{RayexecError, Result};
@@ -324,7 +324,7 @@ pub fn plan_check_num_args_one_of<T, const N: usize>(
 
 pub fn exec_invalid_array_type_err(
     scalar: &impl PlannedScalarFunction,
-    arr: &Array,
+    arr: &Array2,
 ) -> RayexecError {
     RayexecError::new(format!(
         "Invalid array type: {}, function: {}",

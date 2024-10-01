@@ -1,6 +1,6 @@
 use crate::{
     array::{
-        Array, BooleanArray, Decimal128Array, Decimal64Array, NullArray, OffsetIndex,
+        Array2, BooleanArray, Decimal128Array, Decimal64Array, NullArray, OffsetIndex,
         PrimitiveArray, TimestampArray, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
@@ -33,50 +33,50 @@ impl FilterSelection for &Bitmap {
 }
 
 // TODO: Probably make this just accept an iterator.
-pub fn filter(arr: &Array, selection: impl FilterSelection) -> Result<Array> {
+pub fn filter(arr: &Array2, selection: impl FilterSelection) -> Result<Array2> {
     Ok(match arr {
-        Array::Null(_) => {
+        Array2::Null(_) => {
             let len = selection.into_iter().filter(|&b| b).count();
-            Array::Null(NullArray::new(len))
+            Array2::Null(NullArray::new(len))
         }
-        Array::Boolean(arr) => Array::Boolean(filter_boolean(arr, selection)?),
-        Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
-        Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),
-        Array::Int8(arr) => Array::Int8(filter_primitive(arr, selection)?),
-        Array::Int16(arr) => Array::Int16(filter_primitive(arr, selection)?),
-        Array::Int32(arr) => Array::Int32(filter_primitive(arr, selection)?),
-        Array::Int64(arr) => Array::Int64(filter_primitive(arr, selection)?),
-        Array::Int128(arr) => Array::Int128(filter_primitive(arr, selection)?),
-        Array::UInt8(arr) => Array::UInt8(filter_primitive(arr, selection)?),
-        Array::UInt16(arr) => Array::UInt16(filter_primitive(arr, selection)?),
-        Array::UInt32(arr) => Array::UInt32(filter_primitive(arr, selection)?),
-        Array::UInt64(arr) => Array::UInt64(filter_primitive(arr, selection)?),
-        Array::UInt128(arr) => Array::UInt128(filter_primitive(arr, selection)?),
-        Array::Decimal64(arr) => {
+        Array2::Boolean(arr) => Array2::Boolean(filter_boolean(arr, selection)?),
+        Array2::Float32(arr) => Array2::Float32(filter_primitive(arr, selection)?),
+        Array2::Float64(arr) => Array2::Float64(filter_primitive(arr, selection)?),
+        Array2::Int8(arr) => Array2::Int8(filter_primitive(arr, selection)?),
+        Array2::Int16(arr) => Array2::Int16(filter_primitive(arr, selection)?),
+        Array2::Int32(arr) => Array2::Int32(filter_primitive(arr, selection)?),
+        Array2::Int64(arr) => Array2::Int64(filter_primitive(arr, selection)?),
+        Array2::Int128(arr) => Array2::Int128(filter_primitive(arr, selection)?),
+        Array2::UInt8(arr) => Array2::UInt8(filter_primitive(arr, selection)?),
+        Array2::UInt16(arr) => Array2::UInt16(filter_primitive(arr, selection)?),
+        Array2::UInt32(arr) => Array2::UInt32(filter_primitive(arr, selection)?),
+        Array2::UInt64(arr) => Array2::UInt64(filter_primitive(arr, selection)?),
+        Array2::UInt128(arr) => Array2::UInt128(filter_primitive(arr, selection)?),
+        Array2::Decimal64(arr) => {
             let primitive = filter_primitive(arr.get_primitive(), selection)?;
-            Array::Decimal64(Decimal64Array::new(arr.precision(), arr.scale(), primitive))
+            Array2::Decimal64(Decimal64Array::new(arr.precision(), arr.scale(), primitive))
         }
-        Array::Decimal128(arr) => {
+        Array2::Decimal128(arr) => {
             let primitive = filter_primitive(arr.get_primitive(), selection)?;
-            Array::Decimal128(Decimal128Array::new(
+            Array2::Decimal128(Decimal128Array::new(
                 arr.precision(),
                 arr.scale(),
                 primitive,
             ))
         }
-        Array::Date32(arr) => Array::Date32(filter_primitive(arr, selection)?),
-        Array::Date64(arr) => Array::Date64(filter_primitive(arr, selection)?),
-        Array::Timestamp(arr) => {
+        Array2::Date32(arr) => Array2::Date32(filter_primitive(arr, selection)?),
+        Array2::Date64(arr) => Array2::Date64(filter_primitive(arr, selection)?),
+        Array2::Timestamp(arr) => {
             let primitive = filter_primitive(arr.get_primitive(), selection)?;
-            Array::Timestamp(TimestampArray::new(arr.unit(), primitive))
+            Array2::Timestamp(TimestampArray::new(arr.unit(), primitive))
         }
-        Array::Interval(arr) => Array::Interval(filter_primitive(arr, selection)?),
-        Array::Utf8(arr) => Array::Utf8(filter_varlen(arr, selection)?),
-        Array::LargeUtf8(arr) => Array::LargeUtf8(filter_varlen(arr, selection)?),
-        Array::Binary(arr) => Array::Binary(filter_varlen(arr, selection)?),
-        Array::LargeBinary(arr) => Array::LargeBinary(filter_varlen(arr, selection)?),
-        Array::List(_) => not_implemented!("list filter"),
-        Array::Struct(_) => not_implemented!("struct filter"),
+        Array2::Interval(arr) => Array2::Interval(filter_primitive(arr, selection)?),
+        Array2::Utf8(arr) => Array2::Utf8(filter_varlen(arr, selection)?),
+        Array2::LargeUtf8(arr) => Array2::LargeUtf8(filter_varlen(arr, selection)?),
+        Array2::Binary(arr) => Array2::Binary(filter_varlen(arr, selection)?),
+        Array2::LargeBinary(arr) => Array2::LargeBinary(filter_varlen(arr, selection)?),
+        Array2::List(_) => not_implemented!("list filter"),
+        Array2::Struct(_) => not_implemented!("struct filter"),
     })
 }
 

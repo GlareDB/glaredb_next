@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::Array,
+    array::Array2,
     datatype::{DataType, DataTypeId},
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
@@ -204,7 +204,7 @@ impl PlannedScalarFunction for LikeImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self {
             Self::StartsWith(f) => f.execute(inputs),
             Self::EndsWith(f) => f.execute(inputs),
@@ -276,22 +276,22 @@ impl PlannedScalarFunction for StartsWithImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self.constant.as_ref() {
             Some(constant) => Ok(match inputs[0].as_ref() {
-                Array::Utf8(arr) => {
+                Array2::Utf8(arr) => {
                     primitive_unary_execute_bool!(arr, |s| s.starts_with(constant))
                 }
-                Array::LargeUtf8(arr) => {
+                Array2::LargeUtf8(arr) => {
                     primitive_unary_execute_bool!(arr, |s| s.starts_with(constant))
                 }
                 other => panic!("unexpected array type: {}", other.datatype()),
             }),
             None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-                (Array::Utf8(a), Array::Utf8(b)) => {
+                (Array2::Utf8(a), Array2::Utf8(b)) => {
                     primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
                 }
-                (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                (Array2::LargeUtf8(a), Array2::LargeUtf8(b)) => {
                     primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
                 }
                 _ => return Err(RayexecError::new("invalid types")),
@@ -362,22 +362,22 @@ impl PlannedScalarFunction for EndsWithImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self.constant.as_ref() {
             Some(constant) => Ok(match inputs[0].as_ref() {
-                Array::Utf8(arr) => {
+                Array2::Utf8(arr) => {
                     primitive_unary_execute_bool!(arr, |s| s.ends_with(constant))
                 }
-                Array::LargeUtf8(arr) => {
+                Array2::LargeUtf8(arr) => {
                     primitive_unary_execute_bool!(arr, |s| s.ends_with(constant))
                 }
                 other => panic!("unexpected array type: {}", other.datatype()),
             }),
             None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-                (Array::Utf8(a), Array::Utf8(b)) => {
+                (Array2::Utf8(a), Array2::Utf8(b)) => {
                     primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
                 }
-                (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                (Array2::LargeUtf8(a), Array2::LargeUtf8(b)) => {
                     primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
                 }
                 _ => return Err(RayexecError::new("invalid types")),
@@ -448,22 +448,22 @@ impl PlannedScalarFunction for ContainsImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self.constant.as_ref() {
             Some(constant) => Ok(match inputs[0].as_ref() {
-                Array::Utf8(arr) => {
+                Array2::Utf8(arr) => {
                     primitive_unary_execute_bool!(arr, |s| s.contains(constant))
                 }
-                Array::LargeUtf8(arr) => {
+                Array2::LargeUtf8(arr) => {
                     primitive_unary_execute_bool!(arr, |s| s.contains(constant))
                 }
                 other => panic!("unexpected array type: {}", other.datatype()),
             }),
             None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-                (Array::Utf8(a), Array::Utf8(b)) => {
+                (Array2::Utf8(a), Array2::Utf8(b)) => {
                     primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
                 }
-                (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                (Array2::LargeUtf8(a), Array2::LargeUtf8(b)) => {
                     primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
                 }
                 _ => return Err(RayexecError::new("invalid types")),

@@ -1,5 +1,5 @@
 use rayexec_bullet::{
-    array::{Array, PrimitiveArray, UnitArrayAccessor},
+    array::{Array2, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
@@ -51,7 +51,7 @@ pub struct CountNonNullImpl;
 impl CountNonNullImpl {
     fn update(
         row_selection: &Bitmap,
-        arrays: &[&Array],
+        arrays: &[&Array2],
         mapping: &[usize],
         states: &mut [CountNonNullState],
     ) -> Result<()> {
@@ -59,11 +59,11 @@ impl CountNonNullImpl {
         UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
     }
 
-    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array> {
+    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array2> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+        Ok(Array2::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
 }
 
