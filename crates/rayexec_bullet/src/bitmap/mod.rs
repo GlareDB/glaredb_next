@@ -1,3 +1,5 @@
+pub mod zip;
+
 use rayexec_error::{RayexecError, Result};
 use std::borrow::BorrowMut;
 use std::fmt;
@@ -287,6 +289,7 @@ impl<'a> BitmapIter<'a> {
 impl<'a> Iterator for BitmapIter<'a> {
     type Item = bool;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // If we've iterated over all bits, return None
         if self.idx >= self.bitmap.len() {

@@ -50,6 +50,7 @@ impl FromPlanner {
                         names,
                         projection,
                         did_prune_columns: false,
+                        scan_filters: Vec::new(),
                         source: ScanSource::Table {
                             catalog: table.catalog,
                             schema: table.schema,
@@ -78,6 +79,7 @@ impl FromPlanner {
                         names,
                         projection,
                         did_prune_columns: false,
+                        scan_filters: Vec::new(),
                         source: ScanSource::TableFunction {
                             function: func.function,
                         },

@@ -11,6 +11,7 @@ use crate::{
 use super::{
     binder::bind_context::TableRef,
     operator::{LogicalNode, Node},
+    scan_filter::ScanFilter,
     statistics::{Statistics, StatisticsCount},
 };
 
@@ -65,6 +66,16 @@ pub struct LogicalScan {
     ///
     /// If we did, that info will be passed into the data table.
     pub did_prune_columns: bool,
+    /// Scan filters that have been pushed down.
+    ///
+    /// This represents some number of filters logically ANDed together.
+    ///
+    /// Currently scan filters are optional to be applied in the scan. At some
+    /// point we should allow sources to determine what filters they can/can't
+    /// use and push down accordingly. For now, a Filter operator remains in
+    /// place directly above the scan with expressions representing the same
+    /// filters applied here.
+    pub scan_filters: Vec<ScanFilter>,
     /// Source of the scan.
     pub source: ScanSource,
 }

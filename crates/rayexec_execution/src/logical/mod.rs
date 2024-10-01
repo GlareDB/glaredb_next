@@ -38,6 +38,7 @@
 
 pub mod consteval;
 pub mod operator;
+pub mod scan_filter;
 pub mod statistics;
 
 pub mod binder;

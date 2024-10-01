@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use crate::{
     array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
-    bitmap::Bitmap,
+    bitmap::{zip::ZipBitmapsIter, Bitmap},
 };
 
 /// State for a single group's aggregate.
@@ -54,12 +54,12 @@ impl UnaryNonNullUpdater {
 
         match inputs.validity() {
             Some(validity) => {
+                // Skip rows that are not selected or are not valid.
+                let should_compute = ZipBitmapsIter::try_new([row_selection, validity])?;
+
                 let mut mapping_idx = 0;
-                for (selected, (input, valid)) in row_selection
-                    .iter()
-                    .zip(inputs.values_iter().zip(validity.iter()))
-                {
-                    if !selected || !valid {
+                for (input, should_compute) in inputs.values_iter().zip(should_compute) {
+                    if !should_compute {
                         continue;
                     }
                     let target = &mut target_states[mapping[mapping_idx]];
