@@ -21,8 +21,8 @@ use crate::scalar::{
     decimal::{Decimal128Scalar, Decimal64Scalar},
     ScalarValue,
 };
-use crate::storage::PrimitiveStorage;
-use rayexec_error::{RayexecError, Result};
+use crate::storage::{ContiguousVarlenStorage, PrimitiveStorage, SharedHeapStorage};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -43,10 +43,10 @@ impl AsRef<Bitmap> for Selection {
 
 #[derive(Debug, PartialEq)]
 pub struct Array {
-    datatype: DataType,
-    selection: Option<Selection>,
-    validity: Option<Bitmap>,
-    data: ArrayData,
+    pub(crate) datatype: DataType,
+    pub(crate) selection: Option<Selection>,
+    pub(crate) validity: Option<Bitmap>,
+    pub(crate) data: ArrayData,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -65,9 +65,137 @@ pub enum ArrayData {
     UInt64(Arc<PrimitiveStorage<u64>>),
     UInt128(Arc<PrimitiveStorage<u128>>),
     Interval(Arc<PrimitiveStorage<Interval>>),
+    Binary(Arc<ContiguousVarlenStorage<i32>>),
+    LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
+    SharedHeap(SharedHeapStorage), // TODO: Arc?
 }
 
-impl Array {}
+impl Array {
+    /// Gets the scalar value at index.
+    ///
+    /// Ignores validity and selectivitity.
+    pub fn value(&self, idx: usize) -> Result<ScalarValue> {
+        Ok(match &self.datatype {
+            DataType::Boolean => match &self.data {
+                ArrayData::Boolean(arr) => arr.value_unchecked(idx).into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Float32 => match &self.data {
+                ArrayData::Float32(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Float64 => match &self.data {
+                ArrayData::Float64(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Int8 => match &self.data {
+                ArrayData::Int8(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Int16 => match &self.data {
+                ArrayData::Int16(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Int32 => match &self.data {
+                ArrayData::Int32(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Int64 => match &self.data {
+                ArrayData::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Int128 => match &self.data {
+                ArrayData::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::UInt8 => match &self.data {
+                ArrayData::UInt8(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::UInt16 => match &self.data {
+                ArrayData::UInt16(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::UInt32 => match &self.data {
+                ArrayData::UInt32(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::UInt64 => match &self.data {
+                ArrayData::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::UInt128 => match &self.data {
+                ArrayData::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Decimal64(m) => match &self.data {
+                ArrayData::Int64(arr) => ScalarValue::Decimal64(Decimal64Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: arr.as_ref().as_ref()[idx],
+                }),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Decimal128(m) => match &self.data {
+                ArrayData::Int128(arr) => ScalarValue::Decimal128(Decimal128Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: arr.as_ref().as_ref()[idx],
+                }),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Timestamp(m) => match &self.data {
+                ArrayData::Int64(arr) => ScalarValue::Timestamp(TimestampScalar {
+                    unit: m.unit.clone(),
+                    value: arr.as_ref().as_ref()[idx],
+                }),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Interval => match &self.data {
+                ArrayData::Interval(arr) => arr.as_ref().as_ref()[idx].into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Utf8 | DataType::LargeUtf8 => {
+                let v = match &self.data {
+                    ArrayData::Binary(arr) => arr
+                        .get(idx)
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
+                    ArrayData::LargeBinary(arr) => arr
+                        .get(idx)
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
+                    ArrayData::SharedHeap(arr) => arr
+                        .get(idx)
+                        .map(|b| b.as_ref())
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
+                    _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+                };
+                let s = std::str::from_utf8(v).context("binary data not valid utf8")?;
+                s.into()
+            }
+            DataType::Binary | DataType::LargeBinary => {
+                let v = match &self.data {
+                    ArrayData::Binary(arr) => arr
+                        .get(idx)
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
+                    ArrayData::LargeBinary(arr) => arr
+                        .get(idx)
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
+                    ArrayData::SharedHeap(arr) => arr
+                        .get(idx)
+                        .map(|b| b.as_ref())
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
+                    _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+                };
+                v.into()
+            }
+            other => not_implemented!("get value: {other}"),
+        })
+    }
+}
+
+fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {
+    RayexecError::new(format!("Array data not valid for data type: {datatype}"))
+}
 
 #[derive(Debug, PartialEq)]
 pub enum Array2 {
@@ -219,7 +347,7 @@ impl Array2 {
             Self::Utf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::LargeUtf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::Binary(arr) => ScalarValue::Binary(arr.value(idx)?.into()),
-            Self::LargeBinary(arr) => ScalarValue::LargeBinary(arr.value(idx)?.into()),
+            Self::LargeBinary(arr) => unimplemented!(),
             Self::Struct(arr) => arr.scalar(idx)?,
             Self::List(arr) => arr.scalar(idx)?,
         })
@@ -504,7 +632,7 @@ impl Array2 {
                 iter_scalars_for_type!(VarlenValuesBuffer::default(), Utf8, VarlenArray, "")
             }
             DataType::LargeUtf8 => {
-                iter_scalars_for_type!(VarlenValuesBuffer::default(), LargeUtf8, VarlenArray, "")
+                unimplemented!()
             }
             DataType::Binary => {
                 iter_scalars_for_type!(
@@ -515,12 +643,7 @@ impl Array2 {
                 )
             }
             DataType::LargeBinary => {
-                iter_scalars_for_type!(
-                    VarlenValuesBuffer::default(),
-                    LargeBinary,
-                    VarlenArray,
-                    &[] as &[u8]
-                )
+                unimplemented!()
             }
             DataType::Struct(_) => Err(RayexecError::new(
                 "Cannot build a struct array from struct scalars",

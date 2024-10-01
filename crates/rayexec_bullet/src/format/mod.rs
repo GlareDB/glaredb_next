@@ -78,13 +78,6 @@ impl fmt::Display for FormattedScalarValue<'_, '_> {
                     write!(f, "{v}")
                 }
             }
-            ScalarValue::LargeUtf8(v) => {
-                if v.is_empty() {
-                    write!(f, "{}", self.options.empty_string)
-                } else {
-                    write!(f, "{v}")
-                }
-            }
             other => write!(f, "{other}"), // Use the scalar value's default display impl.
         }
     }
@@ -142,11 +135,6 @@ mod tests {
 
         let out = formatter
             .format_scalar_value(ScalarValue::Utf8("".into()))
-            .to_string();
-        assert_eq!("(empty)", out);
-
-        let out = formatter
-            .format_scalar_value(ScalarValue::LargeUtf8("".into()))
             .to_string();
         assert_eq!("(empty)", out);
     }

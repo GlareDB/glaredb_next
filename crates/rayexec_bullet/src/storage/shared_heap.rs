@@ -18,7 +18,15 @@ impl SharedHeapStorage {
         }
     }
 
+    pub fn get(&self, idx: usize) -> Option<&Bytes> {
+        self.blobs.get(idx)
+    }
+
     pub fn push(&mut self, blob: impl Into<Bytes>) {
         self.blobs.push(blob.into())
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.blobs.iter().map(|b| b.as_ref())
     }
 }

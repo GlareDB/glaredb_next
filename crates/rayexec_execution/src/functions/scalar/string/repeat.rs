@@ -3,7 +3,7 @@ use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionI
 use rayexec_bullet::array::Array2;
 use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::BinaryExecutor;
+use rayexec_bullet::executor::scalar::BinaryExecutor2;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
@@ -79,7 +79,7 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
         Ok(match (strings.as_ref(), nums.as_ref()) {
             (Array2::Utf8(strings), Array2::Int64(nums)) => {
                 let mut buffer = VarlenValuesBuffer::default();
-                let validity = BinaryExecutor::execute(
+                let validity = BinaryExecutor2::execute(
                     strings,
                     nums,
                     |s, count| s.repeat(count as usize),
@@ -89,7 +89,7 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
             }
             (Array2::LargeUtf8(strings), Array2::Int64(nums)) => {
                 let mut buffer = VarlenValuesBuffer::default();
-                let validity = BinaryExecutor::execute(
+                let validity = BinaryExecutor2::execute(
                     strings,
                     nums,
                     |s, count| s.repeat(count as usize),

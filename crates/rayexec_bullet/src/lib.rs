@@ -8,6 +8,7 @@ pub mod executor;
 pub mod field;
 pub mod format;
 pub mod ipc;
+pub mod physical_type;
 pub mod row;
 pub mod scalar;
 pub mod storage;

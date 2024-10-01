@@ -17,11 +17,20 @@ pub trait OutputSelection {
     fn set(&mut self, idx: usize, selected: bool);
 }
 
-/// Execute an operation on two arrays.
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryExecutor;
 
 impl BinaryExecutor {
+    pub fn execute() -> Result<()> {
+        unimplemented!()
+    }
+}
+
+/// Execute an operation on two arrays.
+#[derive(Debug, Clone, Copy)]
+pub struct BinaryExecutor2;
+
+impl BinaryExecutor2 {
     /// Executes a binary operator on two arrays.
     pub fn execute<Array1, Type1, Iter1, Array2, Type2, Iter2, Output>(
         left: Array1,
@@ -190,7 +199,7 @@ mod tests {
 
         let op = |a, b| (a as i64) + b;
 
-        let validity = BinaryExecutor::execute(&left, &right, op, &mut buffer).unwrap();
+        let validity = BinaryExecutor2::execute(&left, &right, op, &mut buffer).unwrap();
 
         let got = PrimitiveArray::new(buffer, validity);
         let expected = Int64Array::from_iter([5, 7, 9]);
@@ -207,7 +216,7 @@ mod tests {
 
         let op = |a: i32, b: &str| b.repeat(a as usize);
 
-        let validity = BinaryExecutor::execute(&left, &right, op, &mut buffer).unwrap();
+        let validity = BinaryExecutor2::execute(&left, &right, op, &mut buffer).unwrap();
 
         let got = VarlenArray::new(buffer, validity);
         let expected = Utf8Array::from_iter(["hello", "worldworld", "goodbye!goodbye!goodbye!"]);

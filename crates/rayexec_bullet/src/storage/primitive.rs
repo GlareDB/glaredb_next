@@ -104,6 +104,11 @@ impl<T> PrimitiveStorage<T> {
 
         unsafe { std::slice::from_raw_parts(ptr.cast(), num_bytes) }
     }
+
+    /// Iterate over the primitive values.
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.as_ref().iter()
+    }
 }
 
 /// Implementation of equality that compares the actual values regardless of if
@@ -125,6 +130,7 @@ impl<T> From<Vec<T>> for PrimitiveStorage<T> {
 }
 
 impl<T> AsRef<[T]> for PrimitiveStorage<T> {
+    #[inline]
     fn as_ref(&self) -> &[T] {
         match self {
             Self::Vec(v) => v.as_slice(),

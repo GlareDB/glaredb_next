@@ -3,7 +3,7 @@ use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionI
 use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::compute::cast::array::cast_decimal_to_new_precision_and_scale;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::BinaryExecutor;
+use rayexec_bullet::executor::scalar::BinaryExecutor2;
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_error::{not_implemented, Result};
 use serde::{Deserialize, Serialize};
@@ -197,37 +197,37 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
     let mut buffer = BooleanValuesBuffer::with_capacity(left.len());
     let validity = match (left, right) {
         (Array2::Boolean(left), Array2::Boolean(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Int8(left), Array2::Int8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Int16(left), Array2::Int16(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Int32(left), Array2::Int32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Int64(left), Array2::Int64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::UInt8(left), Array2::UInt8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::UInt16(left), Array2::UInt16(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::UInt32(left), Array2::UInt32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::UInt64(left), Array2::UInt64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Float32(left), Array2::Float32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Float64(left), Array2::Float64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Decimal64(left), Array2::Decimal64(right)) => {
             match left.scale().cmp(&right.scale()) {
@@ -238,7 +238,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
                         left.scale(),
                     )?;
 
-                    BinaryExecutor::execute(
+                    BinaryExecutor2::execute(
                         left.get_primitive(),
                         scaled_right.get_primitive(),
                         O::compare,
@@ -252,14 +252,14 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
                         right.scale(),
                     )?;
 
-                    BinaryExecutor::execute(
+                    BinaryExecutor2::execute(
                         scaled_left.get_primitive(),
                         right.get_primitive(),
                         O::compare,
                         &mut buffer,
                     )?
                 }
-                Ordering::Equal => BinaryExecutor::execute(
+                Ordering::Equal => BinaryExecutor2::execute(
                     left.get_primitive(),
                     right.get_primitive(),
                     O::compare,
@@ -276,7 +276,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
                         left.scale(),
                     )?;
 
-                    BinaryExecutor::execute(
+                    BinaryExecutor2::execute(
                         left.get_primitive(),
                         scaled_right.get_primitive(),
                         O::compare,
@@ -291,7 +291,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
                         right.scale(),
                     )?;
 
-                    BinaryExecutor::execute(
+                    BinaryExecutor2::execute(
                         scaled_left.get_primitive(),
                         right.get_primitive(),
                         O::compare,
@@ -299,7 +299,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
                     )?
                 }
 
-                Ordering::Equal => BinaryExecutor::execute(
+                Ordering::Equal => BinaryExecutor2::execute(
                     left.get_primitive(),
                     right.get_primitive(),
                     O::compare,
@@ -309,7 +309,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
         }
         (Array2::Timestamp(left), Array2::Timestamp(right)) => {
             // TODO: Unit check
-            BinaryExecutor::execute(
+            BinaryExecutor2::execute(
                 left.get_primitive(),
                 right.get_primitive(),
                 O::compare,
@@ -317,22 +317,22 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
             )?
         }
         (Array2::Date32(left), Array2::Date32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Date64(left), Array2::Date64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Utf8(left), Array2::Utf8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::LargeUtf8(left), Array2::LargeUtf8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::Binary(left), Array2::Binary(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (Array2::LargeBinary(left), Array2::LargeBinary(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
         }
         (left, right) => not_implemented!(
             "comparison between {} and {}",

@@ -74,4 +74,39 @@ impl<O: OffsetIndex> ContiguousVarlenStorage<O> {
 
         O::get(*start, *end, self.data.as_ref())
     }
+
+    pub fn len(&self) -> usize {
+        self.offsets.as_ref().len() - 1
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        ContiguousVarlenIter {
+            storage: self,
+            idx: 0,
+        }
+    }
 }
+
+#[derive(Debug)]
+pub struct ContiguousVarlenIter<'a, O> {
+    storage: &'a ContiguousVarlenStorage<O>,
+    idx: usize,
+}
+
+impl<'a, O: OffsetIndex> Iterator for ContiguousVarlenIter<'a, O> {
+    type Item = &'a [u8];
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let v = self.storage.get(self.idx)?;
+        self.idx += 1;
+        Some(v)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.storage.len() - self.idx;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a, O: OffsetIndex> ExactSizeIterator for ContiguousVarlenIter<'a, O> {}
