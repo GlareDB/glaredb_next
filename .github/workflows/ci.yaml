@@ -15,8 +15,12 @@ jobs:
     name: Lint and Format
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Format
         run:  cargo +nightly fmt --check
+
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings
 
