@@ -5,7 +5,10 @@ use crate::{
     array::{ArrayData, BinaryData},
     bitmap::Bitmap,
     datatype::DataType,
-    storage::{GermanVarlenStorage, PrimitiveStorage, INLINE_THRESHOLD},
+    storage::{
+        GermanSmallMetadata, GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata,
+        INLINE_THRESHOLD,
+    },
 };
 
 use super::physical_type::{PhysicalType, VarlenType};
@@ -68,8 +71,7 @@ where
 
 #[derive(Debug)]
 pub struct GermanVarlenBuffer<T> {
-    pub(crate) lens: Vec<i32>,
-    pub(crate) inline_or_metadata: Vec<[u8; 12]>,
+    pub(crate) metadata: Vec<UnionedGermanMetadata>,
     pub(crate) data: Vec<u8>,
     pub(crate) _type: PhantomData<T>,
 }
@@ -79,10 +81,13 @@ where
     T: VarlenType,
 {
     pub fn with_len(len: usize) -> Self {
+        Self::with_len_and_data_capacity(len, 0)
+    }
+
+    pub fn with_len_and_data_capacity(len: usize, data_cap: usize) -> Self {
         GermanVarlenBuffer {
-            lens: vec![0; len],
-            inline_or_metadata: vec![[0; 12]; len],
-            data: Vec::new(),
+            metadata: vec![UnionedGermanMetadata::zero(); len],
+            data: Vec::with_capacity(data_cap),
             _type: PhantomData,
         }
     }
@@ -103,38 +108,33 @@ where
         let val = val.as_bytes();
 
         if val.len() as i32 <= INLINE_THRESHOLD {
-            self.lens[idx] = val.len() as i32;
-
-            let mut inline = [0; 12];
-            inline[0..val.len()].copy_from_slice(val);
-            self.inline_or_metadata[idx] = inline;
+            // Store completely inline.
+            let meta = self.metadata[idx].as_small_mut();
+            meta.len = val.len() as i32;
+            meta.inline[0..val.len()].copy_from_slice(val);
         } else {
             // Store prefix, buf index, and offset in line. Store complete copy
             // in buffer.
+            let meta = self.metadata[idx].as_large_mut();
+            meta.len = val.len() as i32;
 
-            self.lens[idx] = val.len() as i32;
-
-            let mut metadata = [0; 12];
-
-            // Prefix, 4 bytes
-            let prefix_len = std::cmp::min(val.len(), 4);
-            metadata[0..prefix_len].copy_from_slice(&val[0..prefix_len]);
+            // Prefix
+            meta.prefix.copy_from_slice(&val[0..4]);
 
             // Buffer index, currently always zero.
+            meta.buffer_idx = 0;
 
             // Offset, 4 bytes
             let offset = self.data.len();
-            self.data.extend_from_slice(val);
-            metadata[9..].copy_from_slice(&(offset as i32).to_le_bytes());
+            meta.offset = offset as i32;
 
-            self.inline_or_metadata.push(metadata);
+            self.data.extend_from_slice(val);
         }
     }
 
     fn into_data(self) -> ArrayData {
         let storage = GermanVarlenStorage {
-            lens: self.lens.into(),
-            inline_or_metadata: self.inline_or_metadata.into(),
+            metadata: self.metadata.into(),
             data: self.data.into(),
         };
 

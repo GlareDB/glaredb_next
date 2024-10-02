@@ -1,80 +1,165 @@
 use rayexec_error::Result;
+use std::fmt;
 
 use super::{AddressableStorage, PrimitiveStorage};
 
 pub(crate) const INLINE_THRESHOLD: i32 = 12;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct GermanSmallMetadata {
+    pub len: i32,
+    pub inline: [u8; 12],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct GermanLargeMetadata {
+    pub len: i32,
+    pub prefix: [u8; 4],
+    pub buffer_idx: i32,
+    pub offset: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GermanMetadata<'a> {
+    Small(&'a GermanSmallMetadata),
+    Large(&'a GermanLargeMetadata),
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub union UnionedGermanMetadata {
+    small: GermanSmallMetadata,
+    large: GermanLargeMetadata,
+}
+
+impl UnionedGermanMetadata {
+    pub fn as_metadata(&self) -> GermanMetadata {
+        unsafe {
+            // i32 len is first field in both, safe to access from either
+            // variant.
+            if self.small.len <= INLINE_THRESHOLD {
+                GermanMetadata::Small(&self.small)
+            } else {
+                GermanMetadata::Large(&self.large)
+            }
+        }
+    }
+
+    pub(crate) fn as_small_mut(&mut self) -> &mut GermanSmallMetadata {
+        unsafe { &mut self.small }
+    }
+
+    pub(crate) fn as_large_mut(&mut self) -> &mut GermanLargeMetadata {
+        unsafe { &mut self.large }
+    }
+
+    pub(crate) const fn zero() -> Self {
+        Self {
+            small: GermanSmallMetadata {
+                len: 0,
+                inline: [0; 12],
+            },
+        }
+    }
+}
+
+impl fmt::Debug for UnionedGermanMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_metadata().fmt(f)
+    }
+}
+
+impl PartialEq for UnionedGermanMetadata {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_metadata().eq(&other.as_metadata())
+    }
+}
+
+impl Eq for UnionedGermanMetadata {}
+
+impl From<GermanSmallMetadata> for UnionedGermanMetadata {
+    fn from(value: GermanSmallMetadata) -> Self {
+        UnionedGermanMetadata { small: value }
+    }
+}
+
+impl From<GermanLargeMetadata> for UnionedGermanMetadata {
+    fn from(value: GermanLargeMetadata) -> Self {
+        UnionedGermanMetadata { large: value }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GermanVarlenStorage {
-    pub(crate) lens: PrimitiveStorage<i32>,
-    pub(crate) inline_or_metadata: PrimitiveStorage<[u8; 12]>,
+    pub(crate) metadata: PrimitiveStorage<UnionedGermanMetadata>,
     pub(crate) data: PrimitiveStorage<u8>,
 }
 
 impl GermanVarlenStorage {
-    pub fn with_lens_and_inline_capacity(len_cap: usize, inline_cap: usize) -> Self {
+    pub fn with_metadata_capacity(meta_cap: usize) -> Self {
         GermanVarlenStorage {
-            lens: Vec::with_capacity(len_cap).into(),
-            inline_or_metadata: Vec::with_capacity(inline_cap).into(),
+            metadata: Vec::with_capacity(meta_cap).into(),
             data: Vec::new().into(),
         }
     }
 
     pub fn len(&self) -> usize {
-        self.lens.as_ref().len()
+        self.metadata.as_ref().len()
     }
 
     pub fn try_push(&mut self, value: &[u8]) -> Result<()> {
-        let lens = self.lens.try_as_vec_mut()?;
-        let inline_or_metadata = self.inline_or_metadata.try_as_vec_mut()?;
+        let metadata = self.metadata.try_as_vec_mut()?;
         let data = self.data.try_as_vec_mut()?;
 
         if value.len() as i32 <= INLINE_THRESHOLD {
             // Store completely inline.
-            lens.push(value.len() as i32);
             let mut inline = [0; 12];
             inline[0..value.len()].copy_from_slice(value);
 
-            inline_or_metadata.push(inline);
+            metadata.push(
+                GermanSmallMetadata {
+                    len: value.len() as i32,
+                    inline,
+                }
+                .into(),
+            );
         } else {
             // Store prefix, buf index, and offset in line. Store complete copy
             // in buffer.
-            lens.push(value.len() as i32);
-            let mut metadata = [0; 12];
 
-            // Prefix, 4 bytes
-            let prefix_len = std::cmp::min(value.len(), 4);
-            metadata[0..prefix_len].copy_from_slice(&value[0..prefix_len]);
-
-            // Buffer index, currently always zero.
-
-            // Offset, 4 bytes
             let offset = data.len();
-            data.extend_from_slice(value);
-            metadata[9..].copy_from_slice(&(offset as i32).to_le_bytes());
+            let mut prefix = [0; 4];
+            let prefix_len = std::cmp::min(value.len(), 4);
+            prefix[0..prefix_len].copy_from_slice(&value[0..prefix_len]);
 
-            inline_or_metadata.push(metadata);
+            data.extend_from_slice(value);
+
+            metadata.push(
+                GermanLargeMetadata {
+                    len: value.len() as i32,
+                    prefix,
+                    buffer_idx: 0,
+                    offset: offset as i32,
+                }
+                .into(),
+            )
         }
 
         Ok(())
     }
 
     pub fn get(&self, idx: usize) -> Option<&[u8]> {
-        let len = *self.lens.as_ref().get(idx)?;
+        let metadata = self.metadata.as_ref().get(idx)?;
 
-        if len <= INLINE_THRESHOLD {
-            // Read from inline
-            let inline = self.inline_or_metadata.as_ref().get(idx)?;
-            Some(&inline[..(len as usize)])
-        } else {
-            // Read from buffer
-            let offset = i32::from_le_bytes(
-                self.inline_or_metadata.as_ref().get(idx)?[9..]
-                    .try_into()
-                    .unwrap(),
-            );
-
-            Some(&self.data.as_ref()[(offset as usize)..((offset + len) as usize)])
+        match metadata.as_metadata() {
+            GermanMetadata::Small(GermanSmallMetadata { len, inline }) => {
+                Some(&inline[..(*len as usize)])
+            }
+            GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => {
+                Some(&self.data.as_ref()[(*offset as usize)..((offset + len) as usize)])
+            }
         }
     }
 
@@ -87,8 +172,7 @@ impl GermanVarlenStorage {
 
     pub fn as_german_storage_slice(&self) -> GermanVarlenStorageSlice {
         GermanVarlenStorageSlice {
-            lens: self.lens.as_ref(),
-            inline_or_metadata: self.inline_or_metadata.as_ref(),
+            metadata: self.metadata.as_ref(),
             data: self.data.as_ref(),
         }
     }
@@ -120,8 +204,7 @@ impl<'a> ExactSizeIterator for GermanVarlenIter<'a> {}
 
 #[derive(Debug)]
 pub struct GermanVarlenStorageSlice<'a> {
-    lens: &'a [i32],
-    inline_or_metadata: &'a [[u8; 12]],
+    metadata: &'a [UnionedGermanMetadata],
     data: &'a [u8],
 }
 
@@ -129,22 +212,19 @@ impl<'a> AddressableStorage for GermanVarlenStorageSlice<'a> {
     type T = [u8];
 
     fn len(&self) -> usize {
-        self.lens.len()
+        self.metadata.len()
     }
 
     fn get(&self, idx: usize) -> Option<&Self::T> {
-        let len = *self.lens.get(idx)?;
+        let metadata = self.metadata.get(idx)?;
 
-        if len <= INLINE_THRESHOLD {
-            // Read from inline
-            let inline = self.inline_or_metadata.get(idx)?;
-            Some(&inline[..(len as usize)])
-        } else {
-            // Read from buffer
-            let offset =
-                i32::from_le_bytes(self.inline_or_metadata.get(idx)?[9..].try_into().unwrap());
-
-            Some(&self.data.as_ref()[(offset as usize)..((offset + len) as usize)])
+        match metadata.as_metadata() {
+            GermanMetadata::Small(GermanSmallMetadata { len, inline }) => {
+                Some(&inline[..(*len as usize)])
+            }
+            GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => {
+                Some(&self.data.as_ref()[(*offset as usize)..((offset + len) as usize)])
+            }
         }
     }
 
