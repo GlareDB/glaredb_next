@@ -3,8 +3,8 @@ use rayexec_error::{RayexecError, Result};
 use crate::{
     array::{ArrayData, BinaryData},
     storage::{
-        AddressableStorage, ContiguousVarlenIter, ContiguousVarlenStorageSlice,
-        PrimitiveStorageSlice, SharedHeapIter, SharedHeapStorageSlice,
+        AddressableStorage, ContiguousVarlenStorageSlice, GermanVarlenStorageSlice,
+        PrimitiveStorageSlice, SharedHeapStorageSlice,
     },
 };
 
@@ -41,6 +41,7 @@ impl<'a> PhysicalType<'a> for [u8] {
                 BinaryData::SharedHeap(b) => Ok(BinaryDataStorage::SharedHeap(
                     b.as_shared_heap_storage_slice(),
                 )),
+                BinaryData::German(b) => Ok(BinaryDataStorage::German(b.as_german_storage_slice())),
             },
             _ => return Err(RayexecError::new("invalid storage")),
         }
@@ -62,6 +63,9 @@ impl<'a> PhysicalType<'a> for str {
                 BinaryData::SharedHeap(b) => {
                     Ok(BinaryDataStorage::SharedHeap(b.as_shared_heap_storage_slice()).into())
                 }
+                BinaryData::German(b) => {
+                    Ok(BinaryDataStorage::German(b.as_german_storage_slice()).into())
+                }
             },
             _ => return Err(RayexecError::new("invalid storage")),
         }
@@ -73,6 +77,7 @@ pub enum BinaryDataStorage<'a> {
     Binary(ContiguousVarlenStorageSlice<'a, i32>),
     LargeBinary(ContiguousVarlenStorageSlice<'a, i64>),
     SharedHeap(SharedHeapStorageSlice<'a>),
+    German(GermanVarlenStorageSlice<'a>),
 }
 
 impl<'a> AddressableStorage for BinaryDataStorage<'a> {
@@ -83,6 +88,7 @@ impl<'a> AddressableStorage for BinaryDataStorage<'a> {
             Self::Binary(s) => s.len(),
             Self::LargeBinary(s) => s.len(),
             Self::SharedHeap(s) => s.len(),
+            Self::German(s) => s.len(),
         }
     }
 
@@ -91,6 +97,7 @@ impl<'a> AddressableStorage for BinaryDataStorage<'a> {
             Self::Binary(s) => s.get(idx),
             Self::LargeBinary(s) => s.get(idx),
             Self::SharedHeap(s) => s.get(idx),
+            Self::German(s) => s.get(idx),
         }
     }
 
@@ -100,6 +107,7 @@ impl<'a> AddressableStorage for BinaryDataStorage<'a> {
             Self::Binary(s) => s.get_unchecked(idx),
             Self::LargeBinary(s) => s.get_unchecked(idx),
             Self::SharedHeap(s) => s.get_unchecked(idx),
+            Self::German(s) => s.get_unchecked(idx),
         }
     }
 }

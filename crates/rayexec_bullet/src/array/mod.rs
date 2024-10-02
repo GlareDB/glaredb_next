@@ -22,7 +22,9 @@ use crate::scalar::{
     ScalarValue,
 };
 use crate::selection::SelectionVector;
-use crate::storage::{ContiguousVarlenStorage, PrimitiveStorage, SharedHeapStorage};
+use crate::storage::{
+    ContiguousVarlenStorage, GermanVarlenStorage, PrimitiveStorage, SharedHeapStorage,
+};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -74,6 +76,7 @@ pub enum BinaryData {
     Binary(Arc<ContiguousVarlenStorage<i32>>),
     LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
     SharedHeap(SharedHeapStorage), // TODO: Arc?
+    German(Arc<GermanVarlenStorage>),
 }
 
 impl Array {
@@ -177,6 +180,10 @@ impl Array {
                         .get(idx)
                         .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
+                    ArrayData::Binary(BinaryData::German(arr)) => arr
+                        .get(idx)
+                        .map(|b| b.as_ref())
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
                     _other => return Err(array_not_valid_for_type_err(&self.datatype)),
                 };
                 let s = std::str::from_utf8(v).context("binary data not valid utf8")?;
@@ -191,6 +198,10 @@ impl Array {
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
+                        .get(idx)
+                        .map(|b| b.as_ref())
+                        .ok_or_else(|| RayexecError::new("missing data"))?,
+                    ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
                         .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,

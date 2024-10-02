@@ -9,6 +9,9 @@ pub use varlen::*;
 mod shared_heap;
 pub use shared_heap::*;
 
+mod german;
+pub use german::*;
+
 pub trait AddressableStorage {
     type T: ?Sized;
 
