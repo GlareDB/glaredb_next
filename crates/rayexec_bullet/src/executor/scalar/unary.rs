@@ -8,14 +8,13 @@ use crate::{
     selection,
     storage::AddressableStorage,
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
 
 impl UnaryExecutor {
-    pub fn execute<'a, S, B, Op, Output>(
-        _s: S,
+    pub fn execute<'a, S, B, Op>(
         array: &'a Array,
         builder: ArrayBuilder<B>,
         mut op: Op,
@@ -23,9 +22,16 @@ impl UnaryExecutor {
     where
         Op: FnMut(&<S::Storage as AddressableStorage>::T, &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
-        B: ArrayDataBuffer<'a, Type = Output> + 'a,
-        Output: ?Sized,
+        B: ArrayDataBuffer<'a> + 'a,
     {
+        if builder.buffer.len() != array.logical_len() {
+            return Err(RayexecError::new(format!(
+                "Invalid lengths, buffer len: {}, array len: {}",
+                builder.buffer.len(),
+                array.logical_len(),
+            )));
+        }
+
         let selection = array.selection_vector();
         let mut out_validity = None;
 
@@ -156,11 +162,32 @@ mod tests {
 
     use crate::{
         datatype::DataType,
-        executor::{builder::GermanVarlenBuffer, physical_type::PhysicalStorageStr},
+        executor::{
+            builder::{GermanVarlenBuffer, PrimitiveBuffer},
+            physical_type::{PhysicalStorageI32, PhysicalStorageStr},
+        },
         scalar::ScalarValue,
     };
 
     use super::*;
+
+    #[test]
+    fn int32_inc_by_2() {
+        let array = Array::from_iter([1, 2, 3]);
+        let builder = ArrayBuilder {
+            datatype: DataType::Int32,
+            buffer: PrimitiveBuffer::<i32>::with_len(3),
+        };
+
+        let got = UnaryExecutor::execute::<PhysicalStorageI32, _, _>(&array, builder, |&v, buf| {
+            buf.put(&(v + 2))
+        })
+        .unwrap();
+
+        assert_eq!(ScalarValue::from(3), got.value(0).unwrap());
+        assert_eq!(ScalarValue::from(4), got.value(1).unwrap());
+        assert_eq!(ScalarValue::from(5), got.value(2).unwrap());
+    }
 
     #[test]
     fn string_double_named_func() {
@@ -182,7 +209,8 @@ mod tests {
         }
 
         let got =
-            UnaryExecutor::execute(PhysicalStorageStr, &array, builder, my_string_double).unwrap();
+            UnaryExecutor::execute::<PhysicalStorageStr, _, _>(&array, builder, my_string_double)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.value(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.value(1).unwrap());
@@ -212,7 +240,8 @@ mod tests {
         };
 
         let got =
-            UnaryExecutor::execute(PhysicalStorageStr, &array, builder, my_string_double).unwrap();
+            UnaryExecutor::execute::<PhysicalStorageStr, _, _>(&array, builder, my_string_double)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.value(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.value(1).unwrap());
@@ -235,8 +264,9 @@ mod tests {
             buf.put(s.get(0..len).unwrap_or(""))
         };
 
-        let got = UnaryExecutor::execute(PhysicalStorageStr, &array, builder, my_string_truncate)
-            .unwrap();
+        let got =
+            UnaryExecutor::execute::<PhysicalStorageStr, _, _>(&array, builder, my_string_truncate)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("a"), got.value(0).unwrap());
         assert_eq!(ScalarValue::from("bb"), got.value(1).unwrap());
@@ -266,8 +296,12 @@ mod tests {
             buf.put(s.as_str())
         };
 
-        let got = UnaryExecutor::execute(PhysicalStorageStr, &array, builder, my_string_uppercase)
-            .unwrap();
+        let got = UnaryExecutor::execute::<PhysicalStorageStr, _, _>(
+            &array,
+            builder,
+            my_string_uppercase,
+        )
+        .unwrap();
 
         assert_eq!(ScalarValue::from("DDDD"), got.value(0).unwrap());
         assert_eq!(ScalarValue::from("DDDD"), got.value(1).unwrap());

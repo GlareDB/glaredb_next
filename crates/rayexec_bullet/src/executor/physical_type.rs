@@ -26,7 +26,7 @@ impl VarlenType for [u8] {
 
 /// Helper trait for getting the underlying data for an array.
 pub trait PhysicalStorage<'a> {
-    type Storage: AddressableStorage<T: 'a>;
+    type Storage: AddressableStorage;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage>;
 }
@@ -39,6 +39,19 @@ impl<'a> PhysicalStorage<'a> for PhysicalStorageI8 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Int8(storage) => Ok(storage.as_primitive_storage_slice()),
+            _ => return Err(RayexecError::new("invalid storage")),
+        }
+    }
+}
+
+pub struct PhysicalStorageI32;
+
+impl<'a> PhysicalStorage<'a> for PhysicalStorageI32 {
+    type Storage = PrimitiveStorageSlice<'a, i32>;
+
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
+        match data {
+            ArrayData::Int32(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => return Err(RayexecError::new("invalid storage")),
         }
     }

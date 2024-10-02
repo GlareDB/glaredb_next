@@ -234,6 +234,18 @@ impl<'a> FromIterator<&'a str> for Array {
     }
 }
 
+impl FromIterator<i32> for Array {
+    fn from_iter<T: IntoIterator<Item = i32>>(iter: T) -> Self {
+        let vals: Vec<_> = iter.into_iter().collect();
+        Array {
+            datatype: DataType::Int32,
+            selection: None,
+            validity: None,
+            data: ArrayData::Int32(Arc::new(vals.into())),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArrayData {
     Boolean(Arc<Bitmap>),

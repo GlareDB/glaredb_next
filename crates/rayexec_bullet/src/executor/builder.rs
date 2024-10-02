@@ -4,10 +4,7 @@ use std::sync::Arc;
 use crate::{
     array::{ArrayData, BinaryData},
     datatype::DataType,
-    storage::{
-        GermanSmallMetadata, GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata,
-        INLINE_THRESHOLD,
-    },
+    storage::{GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata, INLINE_THRESHOLD},
 };
 
 use super::physical_type::VarlenType;
@@ -18,6 +15,8 @@ pub struct ArrayBuilder<B> {
     pub(crate) buffer: B,
 }
 
+/// Small wrapper containing the array buffer we're building up and an index for
+/// where to write a value to.
 #[derive(Debug)]
 pub struct OutputBuffer<B> {
     pub(crate) idx: usize,
@@ -37,8 +36,12 @@ where
 pub trait ArrayDataBuffer<'a> {
     type Type: ?Sized;
 
+    fn len(&self) -> usize;
+
+    /// Put a value at `idx`.
     fn put(&mut self, idx: usize, val: &Self::Type);
 
+    /// Convert the buffer into array data.
     fn into_data(self) -> ArrayData;
 }
 
@@ -66,6 +69,10 @@ where
     ArrayData: From<PrimitiveStorage<T>>,
 {
     type Type = T;
+
+    fn len(&self) -> usize {
+        self.values.len()
+    }
 
     fn put(&mut self, idx: usize, val: &Self::Type) {
         self.values[idx] = *val
@@ -105,6 +112,10 @@ where
     T: VarlenType + ?Sized,
 {
     type Type = T;
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
 
     fn put(&mut self, idx: usize, val: &Self::Type) {
         let val = val.as_bytes();
