@@ -81,6 +81,10 @@ impl Array {
         }
     }
 
+    pub fn validity(&self) -> Option<&Bitmap> {
+        self.validity.as_ref()
+    }
+
     /// Gets the scalar value at index.
     ///
     /// Ignores validity and selectivitity.

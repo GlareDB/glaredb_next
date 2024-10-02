@@ -8,7 +8,9 @@ use crate::{
     selection,
     storage::AddressableStorage,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
+
+use super::validate_logical_len;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
@@ -22,15 +24,9 @@ impl UnaryExecutor {
     where
         Op: FnMut(&<S::Storage as AddressableStorage>::T, &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
-        B: ArrayDataBuffer<'a> + 'a,
+        B: ArrayDataBuffer<'a>,
     {
-        if builder.buffer.len() != array.logical_len() {
-            return Err(RayexecError::new(format!(
-                "Invalid lengths, buffer len: {}, array len: {}",
-                builder.buffer.len(),
-                array.logical_len(),
-            )));
-        }
+        let len = validate_logical_len(&builder.buffer, array)?;
 
         let selection = array.selection_vector();
         let mut out_validity = None;
@@ -43,8 +39,6 @@ impl UnaryExecutor {
         match &array.validity {
             Some(validity) => {
                 let values = S::get_storage(&array.data)?;
-                let len = values.len();
-
                 let mut out_validity_builder = Bitmap::new_with_all_true(len);
 
                 for idx in 0..len {
@@ -64,7 +58,6 @@ impl UnaryExecutor {
             }
             None => {
                 let values = S::get_storage(&array.data)?;
-                let len = values.len();
                 for idx in 0..len {
                     let sel = selection::get_unchecked(selection, idx);
                     let val = unsafe { values.get_unchecked(sel) };
@@ -276,14 +269,16 @@ mod tests {
 
     #[test]
     fn string_select_uppercase() {
-        // Example with select vector.
+        // Example with selection vector whose logical length is greater than
+        // the underlying physical data len.
 
         let mut array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
-        let mut selection = SelectionVector::with_range(0..4);
+        let mut selection = SelectionVector::with_range(0..5);
         selection.set_unchecked(0, 3);
         selection.set_unchecked(1, 3);
         selection.set_unchecked(2, 3);
         selection.set_unchecked(3, 1);
+        selection.set_unchecked(4, 2);
         array.put_selection(selection);
 
         let builder = ArrayBuilder {
@@ -307,5 +302,6 @@ mod tests {
         assert_eq!(ScalarValue::from("DDDD"), got.value(1).unwrap());
         assert_eq!(ScalarValue::from("DDDD"), got.value(2).unwrap());
         assert_eq!(ScalarValue::from("BB"), got.value(3).unwrap());
+        assert_eq!(ScalarValue::from("CCC"), got.value(4).unwrap());
     }
 }

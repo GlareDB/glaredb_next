@@ -1,28 +1,100 @@
 use crate::{
-    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
-    bitmap::{zip::ZipBitmapsIter, Bitmap},
-    compute::util::IntoExtactSizeIterator,
+    array::{validity::union_validities, Array, ArrayAccessor, ValuesBuffer},
+    bitmap::Bitmap,
+    executor::{
+        builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
+        physical_type::PhysicalStorage,
+        scalar::validate_logical_len,
+    },
+    selection,
+    storage::AddressableStorage,
 };
 use rayexec_error::{RayexecError, Result};
-
-pub trait OutputSelection {
-    /// Exact size of the selection.
-    fn len(&self) -> usize;
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Sets the provided index as selected or not selected.
-    fn set(&mut self, idx: usize, selected: bool);
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryExecutor;
 
 impl BinaryExecutor {
-    pub fn execute() -> Result<()> {
-        unimplemented!()
+    pub fn execute<'a, S1, S2, B, Op>(
+        array1: &'a Array,
+        array2: &'a Array,
+        builder: ArrayBuilder<B>,
+        mut op: Op,
+    ) -> Result<Array>
+    where
+        Op: FnMut(
+            &<S1::Storage as AddressableStorage>::T,
+            &<S2::Storage as AddressableStorage>::T,
+            &mut OutputBuffer<B>,
+        ),
+        S1: PhysicalStorage<'a>,
+        S2: PhysicalStorage<'a>,
+        B: ArrayDataBuffer<'a>,
+    {
+        let len = validate_logical_len(&builder.buffer, array1)?;
+        let _ = validate_logical_len(&builder.buffer, array2)?;
+
+        let validity = union_validities([array1.validity(), array2.validity()])?;
+
+        let selection1 = array1.selection_vector();
+        let selection2 = array2.selection_vector();
+        let mut out_validity = None;
+
+        let mut output_buffer = OutputBuffer {
+            idx: 0,
+            buffer: builder.buffer,
+        };
+
+        match validity {
+            Some(validity) => {
+                let values1 = S1::get_storage(&array1.data)?;
+                let values2 = S2::get_storage(&array2.data)?;
+
+                let mut out_validity_builder = Bitmap::new_with_all_true(len);
+
+                for idx in 0..len {
+                    if !validity.value_unchecked(idx) {
+                        out_validity_builder.set_unchecked(idx, false);
+                        continue;
+                    }
+
+                    let sel1 = selection::get_unchecked(selection1, idx);
+                    let sel2 = selection::get_unchecked(selection2, idx);
+
+                    let val1 = unsafe { values1.get_unchecked(sel1) };
+                    let val2 = unsafe { values2.get_unchecked(sel2) };
+
+                    output_buffer.idx = idx;
+                    op(val1, val2, &mut output_buffer);
+                }
+
+                out_validity = Some(out_validity_builder)
+            }
+            None => {
+                let values1 = S1::get_storage(&array1.data)?;
+                let values2 = S2::get_storage(&array2.data)?;
+
+                for idx in 0..len {
+                    let sel1 = selection::get_unchecked(selection1, idx);
+                    let sel2 = selection::get_unchecked(selection2, idx);
+
+                    let val1 = unsafe { values1.get_unchecked(sel1) };
+                    let val2 = unsafe { values2.get_unchecked(sel2) };
+
+                    output_buffer.idx = idx;
+                    op(val1, val2, &mut output_buffer);
+                }
+            }
+        }
+
+        let data = output_buffer.buffer.into_data();
+
+        Ok(Array {
+            datatype: builder.datatype,
+            selection: None,
+            validity: out_validity,
+            data,
+        })
     }
 }
 
@@ -79,148 +151,74 @@ impl BinaryExecutor2 {
 
         Ok(validity)
     }
-
-    /// Executes a boolean operation on two array, writing the output to
-    /// `output`.
-    ///
-    /// The provided `selection` is used to skip executing on certain rows.
-    ///
-    /// Invalid values are considered not selected, and so `set` will be called
-    /// with false for that index.
-    ///
-    /// This provides a way of repeatedly pruning down rows of interest during
-    /// conditional execution. The the CASE physical expression for what this is
-    /// for.
-    pub fn select<Array1, Type1, Iter1, Array2, Type2, Iter2>(
-        left: Array1,
-        right: Array2,
-        selection: impl IntoExtactSizeIterator<Item = bool>,
-        output: &mut impl OutputSelection,
-        mut operation: impl FnMut(Type1, Type2) -> bool,
-    ) -> Result<()>
-    where
-        Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
-        Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
-        Iter1: Iterator<Item = Type1>,
-        Iter2: Iterator<Item = Type2>,
-    {
-        if left.len() != right.len() {
-            return Err(RayexecError::new(format!(
-                "Differing lengths of arrays, got {} and {}",
-                left.len(),
-                right.len()
-            )));
-        }
-
-        let selection = selection.into_iter();
-
-        if selection.len() != right.len() {
-            return Err(RayexecError::new(format!(
-                "Selection has incorrecnt length, got {}, want{}",
-                selection.len(),
-                right.len()
-            )));
-        }
-
-        if output.len() != right.len() {
-            return Err(RayexecError::new(format!(
-                "Output has incorrecnt length, got {}, want{}",
-                output.len(),
-                right.len()
-            )));
-        }
-
-        // TODO: Don't need to allocate this.
-        let validity = union_validities([left.validity(), right.validity()])?;
-
-        match &validity {
-            Some(validity) => {
-                for (row_idx, (((left_val, right_val), valid), selected)) in left
-                    .values_iter()
-                    .zip(right.values_iter())
-                    .zip(validity.iter())
-                    .zip(selection)
-                    .enumerate()
-                {
-                    if !selected {
-                        // Skip
-                        continue;
-                    }
-
-                    if valid {
-                        // Compute, write to output.
-                        let out = operation(left_val, right_val);
-                        output.set(row_idx, out);
-                    } else {
-                        // Not valid, write false
-                        output.set(row_idx, false);
-                    }
-                }
-            }
-            None => {
-                for (row_idx, ((left_val, right_val), selected)) in left
-                    .values_iter()
-                    .zip(right.values_iter())
-                    .zip(selection)
-                    .enumerate()
-                {
-                    if !selected {
-                        // Skip
-                        continue;
-                    }
-
-                    // Compute, write to output.
-                    let out = operation(left_val, right_val);
-                    output.set(row_idx, out);
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::array::{
-        Int32Array, Int64Array, PrimitiveArray, Utf8Array, VarlenArray, VarlenValuesBuffer,
+    use crate::{
+        datatype::DataType,
+        executor::{
+            builder::{GermanVarlenBuffer, PrimitiveBuffer},
+            physical_type::{PhysicalStorageI32, PhysicalStorageStr},
+        },
+        scalar::ScalarValue,
     };
 
     use super::*;
 
     #[test]
     fn binary_simple_add() {
-        // Simple binary operation with differing input types.
+        let left = Array::from_iter([1, 2, 3]);
+        let right = Array::from_iter([4, 5, 6]);
 
-        let left = Int32Array::from_iter([1, 2, 3]);
-        let right = Int64Array::from_iter([4, 5, 6]);
+        let builder = ArrayBuilder {
+            datatype: DataType::Int32,
+            buffer: PrimitiveBuffer::<i32>::with_len(3),
+        };
 
-        let mut buffer = Vec::with_capacity(3);
+        let got = BinaryExecutor::execute::<PhysicalStorageI32, PhysicalStorageI32, _, _>(
+            &left,
+            &right,
+            builder,
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
+        .unwrap();
 
-        let op = |a, b| (a as i64) + b;
-
-        let validity = BinaryExecutor2::execute(&left, &right, op, &mut buffer).unwrap();
-
-        let got = PrimitiveArray::new(buffer, validity);
-        let expected = Int64Array::from_iter([5, 7, 9]);
-
-        assert_eq!(expected, got);
+        assert_eq!(ScalarValue::from(5), got.value(0).unwrap());
+        assert_eq!(ScalarValue::from(7), got.value(1).unwrap());
+        assert_eq!(ScalarValue::from(9), got.value(2).unwrap());
     }
 
     #[test]
     fn binary_string_repeat() {
-        let left = Int32Array::from_iter([1, 2, 3]);
-        let right = Utf8Array::from_iter(["hello", "world", "goodbye!"]);
+        let left = Array::from_iter([1, 2, 3]);
+        let right = Array::from_iter(["hello", "world", "goodbye!"]);
 
-        let mut buffer = VarlenValuesBuffer::default();
+        let builder = ArrayBuilder {
+            datatype: DataType::Utf8,
+            buffer: GermanVarlenBuffer::<str>::with_len(3),
+        };
 
-        let op = |a: i32, b: &str| b.repeat(a as usize);
+        let mut string_buf = String::new();
+        let got = BinaryExecutor::execute::<PhysicalStorageI32, PhysicalStorageStr, _, _>(
+            &left,
+            &right,
+            builder,
+            |&repeat, s, buf| {
+                string_buf.clear();
+                for _ in 0..repeat {
+                    string_buf.push_str(s);
+                }
+                buf.put(string_buf.as_str())
+            },
+        )
+        .unwrap();
 
-        let validity = BinaryExecutor2::execute(&left, &right, op, &mut buffer).unwrap();
-
-        let got = VarlenArray::new(buffer, validity);
-        let expected = Utf8Array::from_iter(["hello", "worldworld", "goodbye!goodbye!goodbye!"]);
-
-        assert_eq!(expected, got);
+        assert_eq!(ScalarValue::from("hello"), got.value(0).unwrap());
+        assert_eq!(ScalarValue::from("worldworld"), got.value(1).unwrap());
+        assert_eq!(
+            ScalarValue::from("goodbye!goodbye!goodbye!"),
+            got.value(2).unwrap()
+        );
     }
 }
