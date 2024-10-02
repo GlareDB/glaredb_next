@@ -1,7 +1,7 @@
 use crate::{
     array::{
         Array2, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
-        OffsetIndex, PrimitiveArray, TimestampArray, ValuesBuffer, VarlenArray, VarlenType,
+        OffsetIndex, PrimitiveArray, TimestampArray, ValuesBuffer, VarlenArray, VarlenType2,
         VarlenValuesBuffer,
     },
     bitmap::Bitmap,
@@ -103,7 +103,7 @@ pub fn slice_primitive<T: Copy + Default>(
     Ok(PrimitiveArray::new(buffer, validity))
 }
 
-pub fn slice_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+pub fn slice_varlen<T: VarlenType2 + ?Sized, O: OffsetIndex>(
     arr: &VarlenArray<T, O>,
     start: usize,
     count: usize,

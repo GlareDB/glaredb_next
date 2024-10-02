@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use crate::{
     array::{
         Array2, Decimal128Array, Decimal64Array, OffsetIndex, PrimitiveArray, VarlenArray,
-        VarlenType,
+        VarlenType2,
     },
     batch::Batch,
     bitmap::Bitmap,
@@ -202,7 +202,7 @@ fn ipc_buffers_to_varlen<T, O>(
     buffers: [&[u8]; 3],
 ) -> Result<VarlenArray<T, O>>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     let validity = if node.null_count() > 0 {
@@ -326,7 +326,7 @@ fn encode_varlen<T, O>(
     fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
 ) where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     let valid_count = array

@@ -9,7 +9,7 @@ use super::{is_valid, ArrayAccessor, ValuesBuffer};
 
 /// Trait for determining how to interpret binary data stored in a variable
 /// length array.
-pub trait VarlenType: PartialEq + PartialOrd + 'static {
+pub trait VarlenType2: PartialEq + PartialOrd + 'static {
     /// Value to use in when inserting a "null" into an array.
     ///
     /// This value has no semantic meaning, and is just used in order to keep
@@ -23,7 +23,7 @@ pub trait VarlenType: PartialEq + PartialOrd + 'static {
     fn as_binary(&self) -> &[u8];
 }
 
-impl VarlenType for [u8] {
+impl VarlenType2 for [u8] {
     const NULL: &'static Self = &[];
 
     fn interpret(input: &[u8]) -> &Self {
@@ -35,7 +35,7 @@ impl VarlenType for [u8] {
     }
 }
 
-impl VarlenType for str {
+impl VarlenType2 for str {
     const NULL: &'static Self = "";
 
     fn interpret(input: &[u8]) -> &Self {
@@ -55,7 +55,7 @@ impl VarlenType for str {
 /// Helper trait to convert types into references we can use when building a
 /// varlen array.
 pub trait AsVarlenType {
-    type AsType: VarlenType + ?Sized;
+    type AsType: VarlenType2 + ?Sized;
     fn as_varlen_type(&self) -> &Self::AsType;
 }
 
@@ -94,7 +94,7 @@ impl<'a> AsVarlenType for Cow<'a, [u8]> {
     }
 }
 
-impl<'a, T: VarlenType + ?Sized> AsVarlenType for &'a T {
+impl<'a, T: VarlenType2 + ?Sized> AsVarlenType for &'a T {
     type AsType = T;
     fn as_varlen_type(&self) -> &Self::AsType {
         self
@@ -187,7 +187,7 @@ impl<A: AsVarlenType, O: OffsetIndex> FromIterator<A> for VarlenValuesBuffer<O> 
 }
 
 #[derive(Debug)]
-pub struct VarlenArray<T: VarlenType + ?Sized, O: OffsetIndex> {
+pub struct VarlenArray<T: VarlenType2 + ?Sized, O: OffsetIndex> {
     /// Value validities.
     validity: Option<Bitmap>,
 
@@ -211,7 +211,7 @@ pub type LargeBinaryArray = VarlenArray<[u8], i64>;
 
 impl<T, O> VarlenArray<T, O>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     pub fn new_nulls(len: usize) -> Self {
@@ -332,14 +332,16 @@ impl<O: OffsetIndex> From<Vec<Option<String>>> for VarlenArray<str, O> {
     }
 }
 
-impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenArray<A, O> {
+impl<'a, A: VarlenType2 + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenArray<A, O> {
     fn from_iter<T: IntoIterator<Item = &'a A>>(iter: T) -> Self {
         let buffer = VarlenValuesBuffer::from_iter(iter);
         VarlenArray::new(buffer, None)
     }
 }
 
-impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<Option<&'a A>> for VarlenArray<A, O> {
+impl<'a, A: VarlenType2 + ?Sized, O: OffsetIndex> FromIterator<Option<&'a A>>
+    for VarlenArray<A, O>
+{
     fn from_iter<T: IntoIterator<Item = Option<&'a A>>>(iter: T) -> Self {
         let mut validity = Bitmap::default();
         let mut values = VarlenValuesBuffer::default();
@@ -391,14 +393,14 @@ impl<O: OffsetIndex> FromIterator<Option<String>> for VarlenArray<str, O> {
 }
 
 #[derive(Debug)]
-pub struct VarlenArrayIter<'a, T: VarlenType + ?Sized, O: OffsetIndex> {
+pub struct VarlenArrayIter<'a, T: VarlenType2 + ?Sized, O: OffsetIndex> {
     idx: usize,
     arr: &'a VarlenArray<T, O>,
 }
 
 impl<'a, T, O> Iterator for VarlenArrayIter<'a, T, O>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     type Item = &'a T;
@@ -412,7 +414,7 @@ where
 
 impl<T, O> PartialEq for VarlenArray<T, O>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     fn eq(&self, other: &Self) -> bool {
@@ -433,7 +435,7 @@ where
 
 impl<'a, T, O> ArrayAccessor<&'a T> for &'a VarlenArray<T, O>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     type ValueIter = VarlenArrayIter<'a, T, O>;

@@ -1,7 +1,7 @@
 use crate::{
     array::{
         Array2, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array, NullArray,
-        OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
+        OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType2, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
     compute::macros::collect_arrays_of_type,
@@ -165,7 +165,7 @@ pub fn interleave_varlen<T, O>(
     indices: &[(usize, usize)],
 ) -> Result<VarlenArray<T, O>>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     let mut buffer = VarlenValuesBuffer::default();

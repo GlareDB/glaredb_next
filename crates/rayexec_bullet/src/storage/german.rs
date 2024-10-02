@@ -2,7 +2,7 @@ use rayexec_error::Result;
 
 use super::{AddressableStorage, PrimitiveStorage};
 
-const INLINE_THRESHOLD: i32 = 12;
+pub(crate) const INLINE_THRESHOLD: i32 = 12;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GermanVarlenStorage {

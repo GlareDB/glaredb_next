@@ -8,6 +8,22 @@ use crate::{
     },
 };
 
+pub trait VarlenType {
+    fn as_bytes(&self) -> &[u8];
+}
+
+impl VarlenType for str {
+    fn as_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl VarlenType for [u8] {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
 /// Helper trait for getting the underlying data for an array.
 pub trait PhysicalType<'a> {
     type Storage: AddressableStorage<T: 'a>;

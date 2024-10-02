@@ -1,7 +1,7 @@
 use crate::{
     array::{
         Array2, BooleanArray, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, TimestampArray,
-        VarlenArray, VarlenType, VarlenValuesBuffer,
+        VarlenArray, VarlenType2, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -92,7 +92,7 @@ pub fn take_primitive<T: Copy>(
     Ok(taken)
 }
 
-pub fn take_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+pub fn take_varlen<T: VarlenType2 + ?Sized, O: OffsetIndex>(
     arr: &VarlenArray<T, O>,
     indices: &[usize],
 ) -> Result<VarlenArray<T, O>> {

@@ -2,7 +2,7 @@ use std::{ops::Deref, sync::Arc};
 
 use rayexec_bullet::{
     array::{
-        Array2, ListArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType,
+        Array2, ListArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType2,
         VarlenValuesBuffer,
     },
     bitmap::Bitmap,
@@ -214,7 +214,7 @@ fn list_extract_varlen<T, O1, O2>(
     idx: usize,
 ) -> Result<VarlenArray<T, O1>>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O1: OffsetIndex,
     O2: OffsetIndex,
 {

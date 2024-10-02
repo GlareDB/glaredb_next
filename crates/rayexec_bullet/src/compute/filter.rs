@@ -1,7 +1,7 @@
 use crate::{
     array::{
         Array2, BooleanArray, Decimal128Array, Decimal64Array, NullArray, OffsetIndex,
-        PrimitiveArray, TimestampArray, VarlenArray, VarlenType, VarlenValuesBuffer,
+        PrimitiveArray, TimestampArray, VarlenArray, VarlenType2, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -127,7 +127,7 @@ pub fn filter_primitive<T: Copy>(
     Ok(arr)
 }
 
-pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+pub fn filter_varlen<T: VarlenType2 + ?Sized, O: OffsetIndex>(
     arr: &VarlenArray<T, O>,
     selection: impl FilterSelection,
 ) -> Result<VarlenArray<T, O>> {

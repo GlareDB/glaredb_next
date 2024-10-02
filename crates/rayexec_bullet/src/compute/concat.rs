@@ -1,7 +1,7 @@
 use crate::array::validity::concat_validities;
 use crate::array::{
     Array2, BooleanArray, BooleanValuesBuffer, DecimalArray, ListArray, NullArray, OffsetIndex,
-    PrimitiveArray, TimestampArray, VarlenArray, VarlenType, VarlenValuesBuffer,
+    PrimitiveArray, TimestampArray, VarlenArray, VarlenType2, VarlenValuesBuffer,
 };
 use crate::batch::Batch;
 use crate::datatype::DataType;
@@ -181,7 +181,7 @@ pub fn concat_primitive<T: Copy>(arrays: &[&PrimitiveArray<T>]) -> PrimitiveArra
 
 pub fn concat_varlen<T, O>(arrays: &[&VarlenArray<T, O>]) -> VarlenArray<T, O>
 where
-    T: VarlenType + ?Sized,
+    T: VarlenType2 + ?Sized,
     O: OffsetIndex,
 {
     let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));

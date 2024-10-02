@@ -1,6 +1,6 @@
 use ahash::RandomState;
 use rayexec_bullet::{
-    array::{Array2, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
+    array::{Array2, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType2},
     row::ScalarRow,
     scalar::{interval::Interval, ScalarValue},
 };
@@ -293,7 +293,7 @@ fn hash_primitive<T: HashValue>(array: &PrimitiveArray<T>, hashes: &mut [u64], c
 /// Hash a varlen array.
 fn hash_varlen<T, O>(array: &VarlenArray<T, O>, hashes: &mut [u64], combine: bool)
 where
-    T: VarlenType + HashValue + ?Sized,
+    T: VarlenType2 + HashValue + ?Sized,
     O: OffsetIndex,
 {
     assert_eq!(

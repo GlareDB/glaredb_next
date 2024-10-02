@@ -1,4 +1,4 @@
-use crate::array::{Array2, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
+use crate::array::{Array2, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType2};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Binary-encoded rows suitable for comparisons.
@@ -329,7 +329,7 @@ impl ComparableRowEncoder {
     /// Encodes a variable length array into `buf` starting at `start`.
     ///
     /// This should return the new offset to write to for the next value.
-    fn encode_varlen<T: ComparableEncode + VarlenType + ?Sized, O: OffsetIndex>(
+    fn encode_varlen<T: ComparableEncode + VarlenType2 + ?Sized, O: OffsetIndex>(
         col: &ComparableColumn,
         arr: &VarlenArray<T, O>,
         row: usize,
