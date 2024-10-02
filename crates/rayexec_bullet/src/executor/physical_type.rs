@@ -25,13 +25,15 @@ impl VarlenType for [u8] {
 }
 
 /// Helper trait for getting the underlying data for an array.
-pub trait PhysicalType<'a> {
+pub trait PhysicalStorage<'a> {
     type Storage: AddressableStorage<T: 'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage>;
 }
 
-impl<'a> PhysicalType<'a> for i8 {
+pub struct PhysicalStorageI8;
+
+impl<'a> PhysicalStorage<'a> for PhysicalStorageI8 {
     type Storage = PrimitiveStorageSlice<'a, i8>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -42,7 +44,9 @@ impl<'a> PhysicalType<'a> for i8 {
     }
 }
 
-impl<'a> PhysicalType<'a> for [u8] {
+pub struct PhysicalStorageBinary;
+
+impl<'a> PhysicalStorage<'a> for PhysicalStorageBinary {
     type Storage = BinaryDataStorage<'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -64,7 +68,9 @@ impl<'a> PhysicalType<'a> for [u8] {
     }
 }
 
-impl<'a> PhysicalType<'a> for str {
+pub struct PhysicalStorageStr;
+
+impl<'a> PhysicalStorage<'a> for PhysicalStorageStr {
     type Storage = StrDataStorage<'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {

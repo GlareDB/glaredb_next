@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::{
     array::{ArrayData, BinaryData},
-    bitmap::Bitmap,
     datatype::DataType,
     storage::{
         GermanSmallMetadata, GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata,
@@ -11,7 +10,7 @@ use crate::{
     },
 };
 
-use super::physical_type::{PhysicalType, VarlenType};
+use super::physical_type::VarlenType;
 
 #[derive(Debug)]
 pub struct ArrayBuilder<B> {
@@ -19,14 +18,26 @@ pub struct ArrayBuilder<B> {
     pub(crate) buffer: B,
 }
 
+#[derive(Debug)]
+pub struct OutputBuffer<B> {
+    pub(crate) idx: usize,
+    pub(crate) buffer: B,
+}
+
+impl<'a, B> OutputBuffer<B>
+where
+    B: ArrayDataBuffer<'a>,
+{
+    pub fn put(&mut self, val: &B::Type) {
+        self.buffer.put(self.idx, val)
+    }
+}
+
 /// Trait for handling building up array data.
 pub trait ArrayDataBuffer<'a> {
-    type State;
-    type Type;
+    type Type: ?Sized;
 
-    fn state(&self) -> Self::State;
-
-    fn put(&mut self, idx: usize, val: Self::Type);
+    fn put(&mut self, idx: usize, val: &Self::Type);
 
     fn into_data(self) -> ArrayData;
 }
@@ -50,18 +61,14 @@ where
 
 impl<'a, T> ArrayDataBuffer<'a> for PrimitiveBuffer<T>
 where
+    T: Copy,
     Vec<T>: Into<PrimitiveStorage<T>>,
     ArrayData: From<PrimitiveStorage<T>>,
 {
-    type State = ();
     type Type = T;
 
-    fn state(&self) -> Self::State {
-        ()
-    }
-
-    fn put(&mut self, idx: usize, val: Self::Type) {
-        self.values[idx] = val
+    fn put(&mut self, idx: usize, val: &Self::Type) {
+        self.values[idx] = *val
     }
 
     fn into_data(self) -> ArrayData {
@@ -70,7 +77,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct GermanVarlenBuffer<T> {
+pub struct GermanVarlenBuffer<T: ?Sized> {
     pub(crate) metadata: Vec<UnionedGermanMetadata>,
     pub(crate) data: Vec<u8>,
     pub(crate) _type: PhantomData<T>,
@@ -78,7 +85,7 @@ pub struct GermanVarlenBuffer<T> {
 
 impl<T> GermanVarlenBuffer<T>
 where
-    T: VarlenType,
+    T: VarlenType + ?Sized,
 {
     pub fn with_len(len: usize) -> Self {
         Self::with_len_and_data_capacity(len, 0)
@@ -95,16 +102,11 @@ where
 
 impl<'a, T> ArrayDataBuffer<'a> for GermanVarlenBuffer<T>
 where
-    T: VarlenType + 'a,
+    T: VarlenType + ?Sized,
 {
-    type State = ();
-    type Type = &'a T;
+    type Type = T;
 
-    fn state(&self) -> Self::State {
-        ()
-    }
-
-    fn put(&mut self, idx: usize, val: Self::Type) {
+    fn put(&mut self, idx: usize, val: &Self::Type) {
         let val = val.as_bytes();
 
         if val.len() as i32 <= INLINE_THRESHOLD {

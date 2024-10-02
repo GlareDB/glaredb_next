@@ -28,6 +28,10 @@ impl SharedHeapStorage {
         self.blobs.push(blob.into())
     }
 
+    pub fn len(&self) -> usize {
+        self.blobs.len()
+    }
+
     pub fn iter(&self) -> SharedHeapIter {
         SharedHeapIter {
             inner: self.blobs.iter(),

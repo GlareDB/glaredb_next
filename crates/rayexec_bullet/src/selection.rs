@@ -23,8 +23,8 @@ impl SelectionVector {
         self.indices[idx]
     }
 
-    pub fn set_unchecked(&mut self, idx: usize, to: usize) {
-        self.indices[idx] = to
+    pub fn set_unchecked(&mut self, idx: usize, location: usize) {
+        self.indices[idx] = location
     }
 
     pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {

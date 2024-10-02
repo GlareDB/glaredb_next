@@ -107,6 +107,10 @@ impl<T> PrimitiveStorage<T> {
         unsafe { std::slice::from_raw_parts(ptr.cast(), num_bytes) }
     }
 
+    pub fn len(&self) -> usize {
+        self.as_ref().len()
+    }
+
     /// Iterate over the primitive values.
     pub fn iter(&self) -> std::slice::Iter<'_, T> {
         self.as_ref().iter()
@@ -152,7 +156,7 @@ pub struct PrimitiveStorageSlice<'a, T> {
     slice: &'a [T],
 }
 
-impl<'a, T> AddressableStorage for PrimitiveStorageSlice<'a, T> {
+impl<'a, T: Copy> AddressableStorage for PrimitiveStorageSlice<'a, T> {
     type T = T;
 
     fn len(&self) -> usize {

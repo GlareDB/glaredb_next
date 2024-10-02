@@ -44,6 +44,18 @@ impl AsRef<SelectionVector> for Selection {
     }
 }
 
+impl From<SelectionVector> for Selection {
+    fn from(value: SelectionVector) -> Self {
+        Selection::Owned(value)
+    }
+}
+
+impl From<Arc<SelectionVector>> for Selection {
+    fn from(value: Arc<SelectionVector>) -> Self {
+        Selection::Shared(value)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Array {
     pub(crate) datatype: DataType,
@@ -52,36 +64,21 @@ pub struct Array {
     pub(crate) data: ArrayData,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ArrayData {
-    Boolean(Arc<Bitmap>),
-    Float32(Arc<PrimitiveStorage<f32>>),
-    Float64(Arc<PrimitiveStorage<f64>>),
-    Int8(Arc<PrimitiveStorage<i8>>),
-    Int16(Arc<PrimitiveStorage<i16>>),
-    Int32(Arc<PrimitiveStorage<i32>>),
-    Int64(Arc<PrimitiveStorage<i64>>),
-    Int128(Arc<PrimitiveStorage<i128>>),
-    UInt8(Arc<PrimitiveStorage<u8>>),
-    UInt16(Arc<PrimitiveStorage<u16>>),
-    UInt32(Arc<PrimitiveStorage<u32>>),
-    UInt64(Arc<PrimitiveStorage<u64>>),
-    UInt128(Arc<PrimitiveStorage<u128>>),
-    Interval(Arc<PrimitiveStorage<Interval>>),
-    Binary(BinaryData),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum BinaryData {
-    Binary(Arc<ContiguousVarlenStorage<i32>>),
-    LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
-    SharedHeap(SharedHeapStorage), // TODO: Arc?
-    German(Arc<GermanVarlenStorage>),
-}
-
 impl Array {
     pub fn selection_vector(&self) -> Option<&SelectionVector> {
         self.selection.as_ref().map(|v| v.as_ref())
+    }
+
+    // TODO: Validating variant too.
+    pub fn put_selection(&mut self, selection: impl Into<Selection>) {
+        self.selection = Some(selection.into())
+    }
+
+    pub fn logical_len(&self) -> usize {
+        match self.selection_vector() {
+            Some(v) => v.num_rows(),
+            None => self.data.len(),
+        }
     }
 
     /// Gets the scalar value at index.
@@ -216,6 +213,79 @@ impl Array {
 
 fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {
     RayexecError::new(format!("Array data not valid for data type: {datatype}"))
+}
+
+impl<'a> FromIterator<&'a str> for Array {
+    fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut german = GermanVarlenStorage::with_metadata_capacity(lower);
+
+        for s in iter {
+            german.try_push(s.as_bytes()).unwrap();
+        }
+
+        Array {
+            datatype: DataType::Utf8,
+            selection: None,
+            validity: None,
+            data: ArrayData::Binary(BinaryData::German(Arc::new(german))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArrayData {
+    Boolean(Arc<Bitmap>),
+    Float32(Arc<PrimitiveStorage<f32>>),
+    Float64(Arc<PrimitiveStorage<f64>>),
+    Int8(Arc<PrimitiveStorage<i8>>),
+    Int16(Arc<PrimitiveStorage<i16>>),
+    Int32(Arc<PrimitiveStorage<i32>>),
+    Int64(Arc<PrimitiveStorage<i64>>),
+    Int128(Arc<PrimitiveStorage<i128>>),
+    UInt8(Arc<PrimitiveStorage<u8>>),
+    UInt16(Arc<PrimitiveStorage<u16>>),
+    UInt32(Arc<PrimitiveStorage<u32>>),
+    UInt64(Arc<PrimitiveStorage<u64>>),
+    UInt128(Arc<PrimitiveStorage<u128>>),
+    Interval(Arc<PrimitiveStorage<Interval>>),
+    Binary(BinaryData),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryData {
+    Binary(Arc<ContiguousVarlenStorage<i32>>),
+    LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
+    SharedHeap(SharedHeapStorage), // TODO: Arc?
+    German(Arc<GermanVarlenStorage>),
+}
+
+impl ArrayData {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Boolean(s) => s.len(),
+            Self::Float32(s) => s.len(),
+            Self::Float64(s) => s.len(),
+            Self::Int8(s) => s.len(),
+            Self::Int16(s) => s.len(),
+            Self::Int32(s) => s.len(),
+            Self::Int64(s) => s.len(),
+            Self::Int128(s) => s.len(),
+            Self::UInt8(s) => s.len(),
+            Self::UInt16(s) => s.len(),
+            Self::UInt32(s) => s.len(),
+            Self::UInt64(s) => s.len(),
+            Self::UInt128(s) => s.len(),
+            Self::Interval(s) => s.len(),
+            Self::Binary(bin) => match bin {
+                BinaryData::Binary(s) => s.len(),
+                BinaryData::LargeBinary(s) => s.len(),
+                BinaryData::SharedHeap(s) => s.len(),
+                BinaryData::German(s) => s.len(),
+            },
+        }
+    }
 }
 
 impl From<PrimitiveStorage<f32>> for ArrayData {
