@@ -29,6 +29,7 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use std::fmt::Debug;
 use std::sync::Arc;
 
+/// Wrapper around a selection vector allowing for owned or shared vectors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Selection {
     Owned(SelectionVector),
@@ -58,9 +59,20 @@ impl From<Arc<SelectionVector>> for Selection {
 
 #[derive(Debug, PartialEq)]
 pub struct Array {
+    /// Data type of the array.
     pub(crate) datatype: DataType,
+    /// Selection of rows for the array.
+    ///
+    /// If set, this provides logical row mapping on top of the underlying data.
+    /// If not set, then there's a one-to-one mapping between the logical row
+    /// and and row in the underlying data.
     pub(crate) selection: Option<Selection>,
+    /// Option validity mask.
+    ///
+    /// This indicates the validity of the underlying data. This does not take
+    /// into account the selection vector, and always maps directly to the data.
     pub(crate) validity: Option<Bitmap>,
+    /// The physical data.
     pub(crate) data: ArrayData,
 }
 

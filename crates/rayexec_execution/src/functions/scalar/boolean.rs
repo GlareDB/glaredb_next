@@ -3,7 +3,7 @@ use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use rayexec_bullet::array::Array2;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::UniformExecutor;
+use rayexec_bullet::executor::scalar::UniformExecutor2;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -77,7 +77,7 @@ impl PlannedScalarFunction for AndImpl {
 
         let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
         let validity =
-            UniformExecutor::execute(&bool_arrs, |bools| bools.iter().all(|b| *b), &mut buffer)?;
+            UniformExecutor2::execute(&bool_arrs, |bools| bools.iter().all(|b| *b), &mut buffer)?;
 
         Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
     }
@@ -151,7 +151,7 @@ impl PlannedScalarFunction for OrImpl {
 
         let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
         let validity =
-            UniformExecutor::execute(&bool_arrs, |bools| bools.iter().any(|b| *b), &mut buffer)?;
+            UniformExecutor2::execute(&bool_arrs, |bools| bools.iter().any(|b| *b), &mut buffer)?;
 
         Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
     }

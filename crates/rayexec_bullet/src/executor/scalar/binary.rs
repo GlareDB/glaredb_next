@@ -3,7 +3,7 @@ use crate::{
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
-        physical_type::PhysicalStorage,
+        physical_type::PhysicalType,
         scalar::validate_logical_len,
     },
     selection,
@@ -27,8 +27,8 @@ impl BinaryExecutor {
             &<S2::Storage as AddressableStorage>::T,
             &mut OutputBuffer<B>,
         ),
-        S1: PhysicalStorage<'a>,
-        S2: PhysicalStorage<'a>,
+        S1: PhysicalType<'a>,
+        S2: PhysicalType<'a>,
         B: ArrayDataBuffer<'a>,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
@@ -159,7 +159,7 @@ mod tests {
         datatype::DataType,
         executor::{
             builder::{GermanVarlenBuffer, PrimitiveBuffer},
-            physical_type::{PhysicalStorageI32, PhysicalStorageStr},
+            physical_type::{PhysicalI32, PhysicalStr},
         },
         scalar::ScalarValue,
     };
@@ -176,7 +176,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = BinaryExecutor::execute::<PhysicalStorageI32, PhysicalStorageI32, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
             &left,
             &right,
             builder,
@@ -200,7 +200,7 @@ mod tests {
         };
 
         let mut string_buf = String::new();
-        let got = BinaryExecutor::execute::<PhysicalStorageI32, PhysicalStorageStr, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalStr, _, _>(
             &left,
             &right,
             builder,

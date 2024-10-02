@@ -12,8 +12,10 @@ pub use shared_heap::*;
 mod german;
 pub use german::*;
 
-pub trait AddressableStorage {
-    type T: ?Sized;
+use std::fmt::Debug;
+
+pub trait AddressableStorage: Debug {
+    type T: Debug + ?Sized;
 
     fn len(&self) -> usize;
 

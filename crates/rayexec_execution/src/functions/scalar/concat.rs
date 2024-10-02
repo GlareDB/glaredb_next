@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayexec_bullet::{
     array::{Array2, Utf8Array, VarlenValuesBuffer},
     datatype::{DataType, DataTypeId},
-    executor::scalar::UniformExecutor,
+    executor::scalar::UniformExecutor2,
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,7 @@ impl PlannedScalarFunction for StringConcatImpl {
         let mut values = VarlenValuesBuffer::default();
 
         // TODO: Reusable buffer?
-        let validity = UniformExecutor::execute(&string_arrs, |strs| strs.join(""), &mut values)?;
+        let validity = UniformExecutor2::execute(&string_arrs, |strs| strs.join(""), &mut values)?;
 
         Ok(Array2::Utf8(Utf8Array::new(values, validity)))
     }

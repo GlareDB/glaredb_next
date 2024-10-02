@@ -1,14 +1,213 @@
 use crate::{
-    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
+    array::{validity::union_validities, Array, ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
+    executor::{
+        builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
+        physical_type::PhysicalType,
+        scalar::validate_logical_len,
+    },
+    selection,
+    storage::AddressableStorage,
 };
 use rayexec_error::{RayexecError, Result};
 
-/// Execute an operation on a uniform variadic number of arrays.
+#[derive(Debug, Clone, Copy)]
+pub struct UniformKnownSizeExecutor<const N: usize>;
+
+impl<const N: usize> UniformKnownSizeExecutor<N> {
+    pub fn execute<'a, S, B, Op>(
+        arrays: [&'a Array; N],
+        builder: ArrayBuilder<B>,
+        mut op: Op,
+    ) -> Result<Array>
+    where
+        Op: FnMut([&<S::Storage as AddressableStorage>::T; N], &mut OutputBuffer<B>),
+        S: PhysicalType<'a>,
+        B: ArrayDataBuffer<'a>,
+    {
+        let len = match arrays.first() {
+            Some(first) => validate_logical_len(&builder.buffer, first)?,
+            None => return Err(RayexecError::new("Cannot execute on no arrays")),
+        };
+
+        for arr in arrays {
+            let _ = validate_logical_len(&builder.buffer, arr)?;
+        }
+
+        let validity = union_validities(arrays.iter().map(|arr| arr.validity()))?;
+
+        let selections = arrays.map(|a| a.selection_vector());
+
+        let mut out_validity = None;
+        let mut output_buffer = OutputBuffer {
+            idx: 0,
+            buffer: builder.buffer,
+        };
+
+        let mut op_inputs = Vec::with_capacity(N);
+
+        match validity {
+            Some(validity) => {
+                let storage_values: [S::Storage; N] = arrays
+                    .iter()
+                    .map(|a| S::get_storage(&a.data))
+                    .collect::<Result<Vec<_>>>()?
+                    .try_into()
+                    .unwrap();
+
+                let mut out_validity_builder = Bitmap::new_with_all_true(len);
+
+                for idx in 0..len {
+                    if !validity.value_unchecked(idx) {
+                        out_validity_builder.set_unchecked(idx, false);
+                        continue;
+                    }
+
+                    op_inputs.clear();
+                    for arr_idx in 0..N {
+                        let sel = selection::get_unchecked(selections[arr_idx], idx);
+                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
+                        op_inputs.push(val);
+                    }
+
+                    output_buffer.idx = idx;
+                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+                }
+
+                out_validity = Some(out_validity_builder);
+            }
+            None => {
+                let storage_values: [S::Storage; N] = arrays
+                    .iter()
+                    .map(|a| S::get_storage(&a.data))
+                    .collect::<Result<Vec<_>>>()?
+                    .try_into()
+                    .unwrap();
+
+                for idx in 0..len {
+                    op_inputs.clear();
+                    for arr_idx in 0..N {
+                        let sel = selection::get_unchecked(selections[arr_idx], idx);
+                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
+                        op_inputs.push(val);
+                    }
+
+                    output_buffer.idx = idx;
+                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+                }
+            }
+        }
+
+        let data = output_buffer.buffer.into_data();
+
+        Ok(Array {
+            datatype: builder.datatype,
+            selection: None,
+            validity: out_validity,
+            data,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct UniformExecutor;
 
 impl UniformExecutor {
+    pub fn execute<'a, S, B, Op>(
+        arrays: &[&'a Array],
+        builder: ArrayBuilder<B>,
+        mut op: Op,
+    ) -> Result<Array>
+    where
+        Op: FnMut(&[&<S::Storage as AddressableStorage>::T], &mut OutputBuffer<B>),
+        S: PhysicalType<'a>,
+        B: ArrayDataBuffer<'a>,
+    {
+        let len = match arrays.first() {
+            Some(first) => validate_logical_len(&builder.buffer, first)?,
+            None => return Err(RayexecError::new("Cannot execute on no arrays")),
+        };
+
+        for arr in arrays {
+            let _ = validate_logical_len(&builder.buffer, arr)?;
+        }
+
+        let validity = union_validities(arrays.iter().map(|arr| arr.validity()))?;
+
+        let selections: Vec<_> = arrays.iter().map(|a| a.selection_vector()).collect();
+
+        let mut out_validity = None;
+        let mut output_buffer = OutputBuffer {
+            idx: 0,
+            buffer: builder.buffer,
+        };
+
+        let mut op_inputs = Vec::with_capacity(arrays.len());
+
+        match validity {
+            Some(validity) => {
+                let storage_values: Vec<_> = arrays
+                    .iter()
+                    .map(|a| S::get_storage(&a.data))
+                    .collect::<Result<Vec<_>>>()?;
+
+                let mut out_validity_builder = Bitmap::new_with_all_true(len);
+
+                for idx in 0..len {
+                    if !validity.value_unchecked(idx) {
+                        out_validity_builder.set_unchecked(idx, false);
+                        continue;
+                    }
+
+                    op_inputs.clear();
+                    for arr_idx in 0..arrays.len() {
+                        let sel = selection::get_unchecked(selections[arr_idx], idx);
+                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
+                        op_inputs.push(val);
+                    }
+
+                    output_buffer.idx = idx;
+                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+                }
+
+                out_validity = Some(out_validity_builder);
+            }
+            None => {
+                let storage_values: Vec<_> = arrays
+                    .iter()
+                    .map(|a| S::get_storage(&a.data))
+                    .collect::<Result<Vec<_>>>()?;
+
+                for idx in 0..len {
+                    op_inputs.clear();
+                    for arr_idx in 0..arrays.len() {
+                        let sel = selection::get_unchecked(selections[arr_idx], idx);
+                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
+                        op_inputs.push(val);
+                    }
+
+                    output_buffer.idx = idx;
+                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+                }
+            }
+        }
+
+        let data = output_buffer.buffer.into_data();
+
+        Ok(Array {
+            datatype: builder.datatype,
+            selection: None,
+            validity: out_validity,
+            data,
+        })
+    }
+}
+
+/// Execute an operation on a uniform variadic number of arrays.
+#[derive(Debug, Clone, Copy)]
+pub struct UniformExecutor2;
+
+impl UniformExecutor2 {
     pub fn execute<Array, Type, Iter, Output>(
         arrays: &[Array],
         mut operation: impl FnMut(&[Type]) -> Output,
@@ -84,53 +283,71 @@ impl UniformExecutor {
 mod tests {
     use super::*;
 
-    use crate::array::{Int32Array, Utf8Array, VarlenArray, VarlenValuesBuffer};
+    use crate::{
+        datatype::DataType,
+        executor::{builder::GermanVarlenBuffer, physical_type::PhysicalStr},
+        scalar::ScalarValue,
+    };
 
     #[test]
-    fn uniform_string_concat_row_wise() {
-        let first = Utf8Array::from_iter(["a", "b", "c"]);
-        let second = Utf8Array::from_iter(["1", "2", "3"]);
-        let third = Utf8Array::from_iter(["dog", "cat", "horse"]);
+    fn uniform_known_size_string_concat_row_wise() {
+        let first = Array::from_iter(["a", "b", "c"]);
+        let second = Array::from_iter(["1", "2", "3"]);
+        let third = Array::from_iter(["dog", "cat", "horse"]);
 
-        let mut buffer = VarlenValuesBuffer::default();
+        let builder = ArrayBuilder {
+            datatype: DataType::Utf8,
+            buffer: GermanVarlenBuffer::<str>::with_len(3),
+        };
 
-        let op = |strings: &[&str]| strings.join("");
+        let mut string_buffer = String::new();
 
-        let validity =
-            UniformExecutor::execute(&[&first, &second, &third], op, &mut buffer).unwrap();
-
-        let got = VarlenArray::new(buffer, validity);
-        let expected = Utf8Array::from_iter(["a1dog", "b2cat", "c3horse"]);
-
-        assert_eq!(expected, got);
-    }
-
-    #[test]
-    fn uniform_with_invalid_data() {
-        let a_vals = vec![1, 2, 3];
-        let a_validity = Bitmap::from_iter([true, false, true]);
-        let a = Int32Array::new(a_vals, Some(a_validity));
-
-        let b_vals = vec![50, 60, 70];
-        let b_validity = Bitmap::from_iter([true, true, true]);
-        let b = Int32Array::new(b_vals, Some(b_validity));
-
-        let mut buffer = Vec::new();
-
-        let validity = UniformExecutor::execute(
-            &[&a, &b],
-            |nums| nums.iter().copied().sum::<i32>(),
-            &mut buffer,
+        let got = UniformKnownSizeExecutor::execute::<PhysicalStr, _, _>(
+            [&first, &second, &third],
+            builder,
+            |[a, b, c], buf| {
+                string_buffer.clear();
+                string_buffer.push_str(a);
+                string_buffer.push_str(b);
+                string_buffer.push_str(c);
+                buf.put(string_buffer.as_str())
+            },
         )
         .unwrap();
 
-        let got = Int32Array::new(buffer, validity);
+        assert_eq!(ScalarValue::from("a1dog"), got.value(0).unwrap());
+        assert_eq!(ScalarValue::from("b2cat"), got.value(1).unwrap());
+        assert_eq!(ScalarValue::from("c3horse"), got.value(2).unwrap());
+    }
 
-        // This ensures we've properly moved the value iters forward even when
-        // iterating over invalid data. The last value would be incorrect if we
-        // didn't.
-        let expected = Int32Array::from_iter([Some(51), None, Some(73)]);
+    #[test]
+    fn uniform_string_concat_row_wise() {
+        let first = Array::from_iter(["a", "b", "c"]);
+        let second = Array::from_iter(["1", "2", "3"]);
+        let third = Array::from_iter(["dog", "cat", "horse"]);
 
-        assert_eq!(expected, got);
+        let builder = ArrayBuilder {
+            datatype: DataType::Utf8,
+            buffer: GermanVarlenBuffer::<str>::with_len(3),
+        };
+
+        let mut string_buffer = String::new();
+
+        let got = UniformExecutor::execute::<PhysicalStr, _, _>(
+            &[&first, &second, &third],
+            builder,
+            |inputs, buf| {
+                string_buffer.clear();
+                for input in inputs {
+                    string_buffer.push_str(input);
+                }
+                buf.put(string_buffer.as_str())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(ScalarValue::from("a1dog"), got.value(0).unwrap());
+        assert_eq!(ScalarValue::from("b2cat"), got.value(1).unwrap());
+        assert_eq!(ScalarValue::from("c3horse"), got.value(2).unwrap());
     }
 }

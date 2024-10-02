@@ -1,5 +1,5 @@
 use rayexec_error::{RayexecError, Result};
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
 
@@ -156,7 +156,7 @@ pub struct PrimitiveStorageSlice<'a, T> {
     slice: &'a [T],
 }
 
-impl<'a, T: Copy> AddressableStorage for PrimitiveStorageSlice<'a, T> {
+impl<'a, T: Copy + Debug> AddressableStorage for PrimitiveStorageSlice<'a, T> {
     type T = T;
 
     fn len(&self) -> usize {
