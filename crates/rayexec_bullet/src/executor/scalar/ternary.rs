@@ -1,16 +1,121 @@
 use std::fmt::Debug;
 
 use crate::{
-    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
+    array::{validity::union_validities, Array, ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
+    executor::{
+        builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
+        physical_type::PhysicalType,
+        scalar::validate_logical_len,
+    },
+    selection,
+    storage::AddressableStorage,
 };
 use rayexec_error::{RayexecError, Result};
 
-/// Execute an operation on three arrays.
 #[derive(Debug, Clone, Copy)]
 pub struct TernaryExecutor;
 
 impl TernaryExecutor {
+    pub fn execute<'a, S1, S2, S3, B, Op>(
+        array1: &'a Array,
+        array2: &'a Array,
+        array3: &'a Array,
+        builder: ArrayBuilder<B>,
+        mut op: Op,
+    ) -> Result<Array>
+    where
+        Op: FnMut(
+            &<S1::Storage as AddressableStorage>::T,
+            &<S2::Storage as AddressableStorage>::T,
+            &<S3::Storage as AddressableStorage>::T,
+            &mut OutputBuffer<B>,
+        ),
+        S1: PhysicalType<'a>,
+        S2: PhysicalType<'a>,
+        S3: PhysicalType<'a>,
+        B: ArrayDataBuffer<'a>,
+    {
+        let len = validate_logical_len(&builder.buffer, array1)?;
+        let _ = validate_logical_len(&builder.buffer, array2)?;
+        let _ = validate_logical_len(&builder.buffer, array3)?;
+
+        let validity = union_validities([array1.validity(), array2.validity(), array2.validity()])?;
+
+        let selection1 = array1.selection_vector();
+        let selection2 = array2.selection_vector();
+        let selection3 = array3.selection_vector();
+        let mut out_validity = None;
+
+        let mut output_buffer = OutputBuffer {
+            idx: 0,
+            buffer: builder.buffer,
+        };
+
+        match validity {
+            Some(validity) => {
+                let values1 = S1::get_storage(&array1.data)?;
+                let values2 = S2::get_storage(&array2.data)?;
+                let values3 = S3::get_storage(&array3.data)?;
+
+                let mut out_validity_builder = Bitmap::new_with_all_true(len);
+
+                for idx in 0..len {
+                    if !validity.value_unchecked(idx) {
+                        out_validity_builder.set_unchecked(idx, false);
+                        continue;
+                    }
+
+                    let sel1 = selection::get_unchecked(selection1, idx);
+                    let sel2 = selection::get_unchecked(selection2, idx);
+                    let sel3 = selection::get_unchecked(selection3, idx);
+
+                    let val1 = unsafe { values1.get_unchecked(sel1) };
+                    let val2 = unsafe { values2.get_unchecked(sel2) };
+                    let val3 = unsafe { values3.get_unchecked(sel3) };
+
+                    output_buffer.idx = idx;
+                    op(val1, val2, val3, &mut output_buffer);
+                }
+
+                out_validity = Some(out_validity_builder)
+            }
+            None => {
+                let values1 = S1::get_storage(&array1.data)?;
+                let values2 = S2::get_storage(&array2.data)?;
+                let values3 = S3::get_storage(&array3.data)?;
+
+                for idx in 0..len {
+                    let sel1 = selection::get_unchecked(selection1, idx);
+                    let sel2 = selection::get_unchecked(selection2, idx);
+                    let sel3 = selection::get_unchecked(selection3, idx);
+
+                    let val1 = unsafe { values1.get_unchecked(sel1) };
+                    let val2 = unsafe { values2.get_unchecked(sel2) };
+                    let val3 = unsafe { values3.get_unchecked(sel3) };
+
+                    output_buffer.idx = idx;
+                    op(val1, val2, val3, &mut output_buffer);
+                }
+            }
+        }
+
+        let data = output_buffer.buffer.into_data();
+
+        Ok(Array {
+            datatype: builder.datatype,
+            selection: None,
+            validity: out_validity,
+            data,
+        })
+    }
+}
+
+/// Execute an operation on three arrays.
+#[derive(Debug, Clone, Copy)]
+pub struct TernaryExecutor2;
+
+impl TernaryExecutor2 {
     pub fn execute<Array1, Type1, Iter1, Array2, Type2, Iter2, Array3, Type3, Iter3, Output>(
         first: Array1,
         second: Array2,
@@ -72,28 +177,44 @@ impl TernaryExecutor {
 mod tests {
     use super::*;
 
-    use crate::array::{Int32Array, Utf8Array, VarlenArray, VarlenValuesBuffer};
+    use crate::{
+        datatype::DataType,
+        executor::{
+            builder::GermanVarlenBuffer,
+            physical_type::{PhysicalI32, PhysicalStr},
+        },
+        scalar::ScalarValue,
+    };
 
     #[test]
     fn ternary_substr() {
-        let first = Utf8Array::from_iter(["alphabet"]);
-        let second = Int32Array::from_iter([3]);
-        let third = Int32Array::from_iter([2]);
+        let first = Array::from_iter(["alphabet", "horse", "cat"]);
+        let second = Array::from_iter([3, 1, 2]);
+        let third = Array::from_iter([2, 3, 1]);
 
-        let mut buffer = VarlenValuesBuffer::default();
-
-        let op = |s: &str, from: i32, count: i32| {
-            s.chars()
-                .skip((from - 1) as usize) // To match postgres' 1-indexing
-                .take(count as usize)
-                .collect::<String>()
+        let builder = ArrayBuilder {
+            datatype: DataType::Utf8,
+            buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
-        let validity = TernaryExecutor::execute(&first, &second, &third, op, &mut buffer).unwrap();
+        let got = TernaryExecutor::execute::<PhysicalStr, PhysicalI32, PhysicalI32, _, _>(
+            &first,
+            &second,
+            &third,
+            builder,
+            |s: &str, from: &i32, count: &i32, buf: &mut OutputBuffer<_>| {
+                let s = s
+                    .chars()
+                    .skip((from - 1) as usize) // To match postgres' 1-indexing
+                    .take(*count as usize)
+                    .collect::<String>();
+                buf.put(s.as_str())
+            },
+        )
+        .unwrap();
 
-        let got = VarlenArray::new(buffer, validity);
-        let expected = Utf8Array::from_iter(["ph"]);
-
-        assert_eq!(expected, got);
+        assert_eq!(ScalarValue::from("ph"), got.value(0).unwrap());
+        assert_eq!(ScalarValue::from("hor"), got.value(1).unwrap());
+        assert_eq!(ScalarValue::from("a"), got.value(2).unwrap());
     }
 }

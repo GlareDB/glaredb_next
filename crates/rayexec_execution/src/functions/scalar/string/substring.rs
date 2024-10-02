@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayexec_bullet::{
     array::{Array2, VarlenArray, VarlenValuesBuffer},
     datatype::{DataType, DataTypeId},
-    executor::scalar::{BinaryExecutor2, TernaryExecutor},
+    executor::scalar::{BinaryExecutor2, TernaryExecutor2},
 };
 use rayexec_error::Result;
 
@@ -115,7 +115,7 @@ impl PlannedScalarFunction for SubstringImpl {
 
             let mut values = VarlenValuesBuffer::<i32>::default();
             let validity =
-                TernaryExecutor::execute(strings, from, count, substring_from_count, &mut values)?;
+                TernaryExecutor2::execute(strings, from, count, substring_from_count, &mut values)?;
 
             Ok(Array2::Utf8(VarlenArray::new(values, validity)))
         }
