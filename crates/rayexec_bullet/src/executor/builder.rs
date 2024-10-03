@@ -62,7 +62,7 @@ impl BooleanBuffer {
     }
 }
 
-impl<'a> ArrayDataBuffer for BooleanBuffer {
+impl<'a> ArrayDataBuffer<'a> for BooleanBuffer {
     type Type = bool;
 
     fn len(&self) -> usize {

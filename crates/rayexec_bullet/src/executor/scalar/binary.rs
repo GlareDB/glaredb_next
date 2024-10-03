@@ -184,9 +184,9 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::from(5), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from(7), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from(9), got.value(2).unwrap());
+        assert_eq!(ScalarValue::from(5), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from(7), got.physical_scalar(1).unwrap());
+        assert_eq!(ScalarValue::from(9), got.physical_scalar(2).unwrap());
     }
 
     #[test]
@@ -214,11 +214,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::from("hello"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("worldworld"), got.value(1).unwrap());
+        assert_eq!(ScalarValue::from("hello"), got.physical_scalar(0).unwrap());
+        assert_eq!(
+            ScalarValue::from("worldworld"),
+            got.physical_scalar(1).unwrap()
+        );
         assert_eq!(
             ScalarValue::from("goodbye!goodbye!goodbye!"),
-            got.value(2).unwrap()
+            got.physical_scalar(2).unwrap()
         );
     }
 }

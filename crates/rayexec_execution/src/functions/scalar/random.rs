@@ -1,6 +1,7 @@
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::{Array2, PrimitiveArray};
+use rayexec_bullet::array::{Array, Array2, PrimitiveArray};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -54,5 +55,13 @@ impl PlannedScalarFunction for RandomImpl {
     fn execute2(&self, _arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let val = rand::random::<f64>();
         Ok(Array2::Float64(PrimitiveArray::new(vec![val], None)))
+    }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let val = rand::random::<f64>();
+        Ok(Array::new_with_array_data(
+            DataType::Float64,
+            PrimitiveStorage::from(vec![val]),
+        ))
     }
 }

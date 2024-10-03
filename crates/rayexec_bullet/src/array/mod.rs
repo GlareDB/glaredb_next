@@ -22,7 +22,7 @@ use crate::scalar::{
     decimal::{Decimal128Scalar, Decimal64Scalar},
     ScalarValue,
 };
-use crate::selection::SelectionVector;
+use crate::selection::{self, SelectionVector};
 use crate::storage::{
     BooleanStorage, ContiguousVarlenStorage, GermanVarlenStorage, PrimitiveStorage,
     SharedHeapStorage,
@@ -79,6 +79,15 @@ pub struct Array {
 }
 
 impl Array {
+    pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData>) -> Self {
+        Array {
+            datatype,
+            selection: None,
+            validity: None,
+            data: data.into(),
+        }
+    }
+
     pub fn datatype(&self) -> &DataType {
         &self.datatype
     }
@@ -117,10 +126,21 @@ impl Array {
         }
     }
 
-    /// Gets the scalar value at index.
+    pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
+        let idx = match self.selection_vector() {
+            Some(v) => v
+                .get(idx)
+                .ok_or_else(|| RayexecError::new(format!("Logical index {idx} out of bounds")))?,
+            None => idx,
+        };
+
+        self.physical_scalar(idx)
+    }
+
+    /// Gets the scalar value at the physical index.
     ///
     /// Ignores validity and selectivitity.
-    pub fn value(&self, idx: usize) -> Result<ScalarValue> {
+    pub fn physical_scalar(&self, idx: usize) -> Result<ScalarValue> {
         Ok(match &self.datatype {
             DataType::Boolean => match &self.data {
                 ArrayData::Boolean(arr) => arr.as_ref().as_ref().value_unchecked(idx).into(),
@@ -425,6 +445,12 @@ impl From<PrimitiveStorage<u64>> for ArrayData {
 impl From<PrimitiveStorage<u128>> for ArrayData {
     fn from(value: PrimitiveStorage<u128>) -> Self {
         ArrayData::UInt128(value.into())
+    }
+}
+
+impl From<PrimitiveStorage<Interval>> for ArrayData {
+    fn from(value: PrimitiveStorage<Interval>) -> Self {
+        ArrayData::Interval(value.into())
     }
 }
 

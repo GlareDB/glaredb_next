@@ -213,8 +213,8 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::from("ph"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("hor"), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from("a"), got.value(2).unwrap());
+        assert_eq!(ScalarValue::from("ph"), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from("hor"), got.physical_scalar(1).unwrap());
+        assert_eq!(ScalarValue::from("a"), got.physical_scalar(2).unwrap());
     }
 }

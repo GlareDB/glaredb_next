@@ -1,7 +1,16 @@
 use crate::functions::scalar::macros::primitive_unary_execute;
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::Array2;
+use crate::functions::{
+    invalid_input_types_error, plan_check_num_args, unhandled_physical_types_err, FunctionInfo,
+    Signature,
+};
+use rayexec_bullet::array::{Array, Array2};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::physical_type::{
+    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8,
+    PhysicalStorage, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
+};
+use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
@@ -124,6 +133,72 @@ impl PlannedScalarFunction for NegateImpl {
             }
             other => panic!("unexpected array type: {other:?}"),
         })
+    }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let a = inputs[0];
+
+        let datatype = self.datatype.clone();
+
+        match a.physical_type() {
+            PhysicalType::Int8 => UnaryExecutor::execute::<PhysicalI8, _, _>(
+                a,
+                ArrayBuilder {
+                    datatype,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                },
+                |a, buf| buf.put(&(-a)),
+            ),
+            PhysicalType::Int16 => UnaryExecutor::execute::<PhysicalI16, _, _>(
+                a,
+                ArrayBuilder {
+                    datatype,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                },
+                |a, buf| buf.put(&(-a)),
+            ),
+            PhysicalType::Int32 => UnaryExecutor::execute::<PhysicalI32, _, _>(
+                a,
+                ArrayBuilder {
+                    datatype,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                },
+                |a, buf| buf.put(&(-a)),
+            ),
+            PhysicalType::Int64 => UnaryExecutor::execute::<PhysicalI64, _, _>(
+                a,
+                ArrayBuilder {
+                    datatype,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                },
+                |a, buf| buf.put(&(-a)),
+            ),
+            PhysicalType::Int128 => UnaryExecutor::execute::<PhysicalI128, _, _>(
+                a,
+                ArrayBuilder {
+                    datatype,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                },
+                |a, buf| buf.put(&(-a)),
+            ),
+            PhysicalType::Float32 => UnaryExecutor::execute::<PhysicalF32, _, _>(
+                a,
+                ArrayBuilder {
+                    datatype,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                },
+                |a, buf| buf.put(&(-a)),
+            ),
+            PhysicalType::Float64 => UnaryExecutor::execute::<PhysicalF64, _, _>(
+                a,
+                ArrayBuilder {
+                    datatype,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                },
+                |a, buf| buf.put(&(-a)),
+            ),
+            other => Err(unhandled_physical_types_err(self, [other])),
+        }
     }
 }
 

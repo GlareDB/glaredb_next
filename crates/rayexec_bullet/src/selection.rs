@@ -21,6 +21,10 @@ impl SelectionVector {
         }
     }
 
+    pub fn get(&self, idx: usize) -> Option<usize> {
+        self.indices.get(idx).copied()
+    }
+
     /// Get the location of a logical index.
     ///
     /// Panics if `idx` is out of bounds.

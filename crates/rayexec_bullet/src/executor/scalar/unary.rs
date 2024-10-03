@@ -177,9 +177,9 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(ScalarValue::from(3), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from(4), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from(5), got.value(2).unwrap());
+        assert_eq!(ScalarValue::from(3), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from(4), got.physical_scalar(1).unwrap());
+        assert_eq!(ScalarValue::from(5), got.physical_scalar(2).unwrap());
     }
 
     #[test]
@@ -204,10 +204,13 @@ mod tests {
         let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
             .unwrap();
 
-        assert_eq!(ScalarValue::from("aa"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("bbbb"), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from("cccccc"), got.value(2).unwrap());
-        assert_eq!(ScalarValue::from("dddddddd"), got.value(3).unwrap());
+        assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from("bbbb"), got.physical_scalar(1).unwrap());
+        assert_eq!(ScalarValue::from("cccccc"), got.physical_scalar(2).unwrap());
+        assert_eq!(
+            ScalarValue::from("dddddddd"),
+            got.physical_scalar(3).unwrap()
+        );
     }
 
     #[test]
@@ -234,10 +237,13 @@ mod tests {
         let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
             .unwrap();
 
-        assert_eq!(ScalarValue::from("aa"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("bbbb"), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from("cccccc"), got.value(2).unwrap());
-        assert_eq!(ScalarValue::from("dddddddd"), got.value(3).unwrap());
+        assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from("bbbb"), got.physical_scalar(1).unwrap());
+        assert_eq!(ScalarValue::from("cccccc"), got.physical_scalar(2).unwrap());
+        assert_eq!(
+            ScalarValue::from("dddddddd"),
+            got.physical_scalar(3).unwrap()
+        );
     }
 
     #[test]
@@ -258,10 +264,10 @@ mod tests {
         let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_truncate)
             .unwrap();
 
-        assert_eq!(ScalarValue::from("a"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("bb"), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from("cc"), got.value(2).unwrap());
-        assert_eq!(ScalarValue::from("dd"), got.value(3).unwrap());
+        assert_eq!(ScalarValue::from("a"), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from("bb"), got.physical_scalar(1).unwrap());
+        assert_eq!(ScalarValue::from("cc"), got.physical_scalar(2).unwrap());
+        assert_eq!(ScalarValue::from("dd"), got.physical_scalar(3).unwrap());
     }
 
     #[test]
@@ -292,10 +298,10 @@ mod tests {
             UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_uppercase)
                 .unwrap();
 
-        assert_eq!(ScalarValue::from("DDDD"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("DDDD"), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from("DDDD"), got.value(2).unwrap());
-        assert_eq!(ScalarValue::from("BB"), got.value(3).unwrap());
-        assert_eq!(ScalarValue::from("CCC"), got.value(4).unwrap());
+        assert_eq!(ScalarValue::from("DDDD"), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from("DDDD"), got.physical_scalar(1).unwrap());
+        assert_eq!(ScalarValue::from("DDDD"), got.physical_scalar(2).unwrap());
+        assert_eq!(ScalarValue::from("BB"), got.physical_scalar(3).unwrap());
+        assert_eq!(ScalarValue::from("CCC"), got.physical_scalar(4).unwrap());
     }
 }

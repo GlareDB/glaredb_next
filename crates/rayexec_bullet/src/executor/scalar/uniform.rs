@@ -217,8 +217,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::from("a1dog"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("b2cat"), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from("c3horse"), got.value(2).unwrap());
+        assert_eq!(ScalarValue::from("a1dog"), got.physical_scalar(0).unwrap());
+        assert_eq!(ScalarValue::from("b2cat"), got.physical_scalar(1).unwrap());
+        assert_eq!(
+            ScalarValue::from("c3horse"),
+            got.physical_scalar(2).unwrap()
+        );
     }
 }

@@ -1,11 +1,20 @@
 use crate::functions::scalar::macros::{
     primitive_binary_execute, primitive_binary_execute_no_wrap,
 };
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{
+    invalid_input_types_error, plan_check_num_args, unhandled_physical_types_err, FunctionInfo,
+    Signature,
+};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::{Array2, Decimal128Array, Decimal64Array};
+use rayexec_bullet::array::{Array, Array2, Decimal128Array, Decimal64Array};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::physical_type::{
+    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8,
+    PhysicalStorage, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
+};
+use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
