@@ -406,7 +406,7 @@ impl PlannedScalarFunction for EqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
         execute::<EqOperation>(left, right).map(Array2::Boolean)
@@ -479,7 +479,7 @@ impl PlannedScalarFunction for NeqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
         execute::<NotEqOperation>(left, right).map(Array2::Boolean)
@@ -548,7 +548,7 @@ impl PlannedScalarFunction for LtImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
         execute::<LtOperation>(left, right).map(Array2::Boolean)
@@ -617,7 +617,7 @@ impl PlannedScalarFunction for LtEqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
         execute::<LtEqOperation>(left, right).map(Array2::Boolean)
@@ -686,7 +686,7 @@ impl PlannedScalarFunction for GtImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
         execute::<GtOperation>(left, right).map(Array2::Boolean)
@@ -755,7 +755,7 @@ impl PlannedScalarFunction for GtEqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let left = arrays[0].as_ref();
         let right = arrays[1].as_ref();
         execute::<GtEqOperation>(left, right).map(Array2::Boolean)
@@ -777,7 +777,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([false, true, false]));
 
         assert_eq!(expected, out);
@@ -792,7 +792,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([true, false, true]));
 
         assert_eq!(expected, out);
@@ -807,7 +807,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([true, false, true]));
 
         assert_eq!(expected, out);
@@ -822,7 +822,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([true, true, true]));
 
         assert_eq!(expected, out);
@@ -837,7 +837,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([false, false, false]));
 
         assert_eq!(expected, out);
@@ -852,7 +852,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([false, true, false]));
 
         assert_eq!(expected, out);

@@ -3,7 +3,7 @@ use crate::{
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
-        physical_type::PhysicalType,
+        physical_type::PhysicalStorage,
     },
     selection,
     storage::AddressableStorage,
@@ -23,7 +23,7 @@ impl UnaryExecutor {
     ) -> Result<Array>
     where
         Op: FnMut(&<S::Storage as AddressableStorage>::T, &mut OutputBuffer<B>),
-        S: PhysicalType<'a>,
+        S: PhysicalStorage<'a>,
         B: ArrayDataBuffer<'a>,
     {
         let len = validate_logical_len(&builder.buffer, array)?;

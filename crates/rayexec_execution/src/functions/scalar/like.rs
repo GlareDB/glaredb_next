@@ -204,11 +204,11 @@ impl PlannedScalarFunction for LikeImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self {
-            Self::StartsWith(f) => f.execute(inputs),
-            Self::EndsWith(f) => f.execute(inputs),
-            Self::Contains(f) => f.execute(inputs),
+            Self::StartsWith(f) => f.execute2(inputs),
+            Self::EndsWith(f) => f.execute2(inputs),
+            Self::Contains(f) => f.execute2(inputs),
             Self::Regex() => not_implemented!("like regex exec"),
         }
     }
@@ -276,7 +276,7 @@ impl PlannedScalarFunction for StartsWithImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self.constant.as_ref() {
             Some(constant) => Ok(match inputs[0].as_ref() {
                 Array2::Utf8(arr) => {
@@ -362,7 +362,7 @@ impl PlannedScalarFunction for EndsWithImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self.constant.as_ref() {
             Some(constant) => Ok(match inputs[0].as_ref() {
                 Array2::Utf8(arr) => {
@@ -448,7 +448,7 @@ impl PlannedScalarFunction for ContainsImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         match self.constant.as_ref() {
             Some(constant) => Ok(match inputs[0].as_ref() {
                 Array2::Utf8(arr) => {

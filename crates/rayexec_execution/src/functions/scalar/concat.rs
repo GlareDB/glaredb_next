@@ -64,7 +64,7 @@ impl PlannedScalarFunction for StringConcatImpl {
         DataType::Utf8
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         if inputs.is_empty() {
             return Ok(Array2::Utf8(Utf8Array::from(vec![String::new()])));
         }

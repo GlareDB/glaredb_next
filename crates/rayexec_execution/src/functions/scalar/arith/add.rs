@@ -4,8 +4,11 @@ use crate::functions::scalar::macros::{
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::{Array2, Decimal128Array, Decimal64Array};
+use rayexec_bullet::array::{Array, Array2, Decimal128Array, Decimal64Array};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::physical_type::{PhysicalI8, PhysicalStorage, PhysicalType};
+use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
@@ -143,7 +146,7 @@ impl PlannedScalarFunction for AddImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let first = arrays[0];
         let second = arrays[1];
         Ok(match (first.as_ref(), second.as_ref()) {
@@ -210,6 +213,68 @@ impl PlannedScalarFunction for AddImpl {
             other => panic!("unexpected array type: {other:?}"),
         })
     }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let a = inputs[0];
+        let b = inputs[1];
+
+        let datatype = self.datatype.clone();
+
+        match (a.physical_type(), b.physical_type()) {
+            (PhysicalType::Int8, PhysicalType::Int8) => {
+                add_primitive::<PhysicalI8, PhysicalI8>(datatype, a, b)
+            }
+            (a, b) => unimplemented!(),
+        }
+    }
+}
+
+pub trait ScalarFunctionTesting {
+    fn plan(&self, datatypes: &[&DataType]) -> Box<dyn ExecutableFunction> {
+        match (&datatypes[0], &datatypes[1]) {
+            (DataType::Int8, DataType::Int8) => Box::new(BinaryNumericOperation {
+                datatype: DataType::Int8,
+                function: add_primitive::<PhysicalI8, PhysicalI8>,
+            }),
+            _ => unimplemented!(),
+        }
+    }
+}
+
+pub trait ExecutableFunction {
+    fn execute(&self, arrays: &[&Array]) -> Result<Array>;
+}
+
+pub struct BinaryNumericOperation<F: Fn(DataType, &Array, &Array) -> Result<Array>> {
+    pub datatype: DataType,
+    pub function: F,
+}
+
+impl<F> ExecutableFunction for BinaryNumericOperation<F>
+where
+    F: Fn(DataType, &Array, &Array) -> Result<Array>,
+{
+    fn execute(&self, arrays: &[&Array]) -> Result<Array> {
+        let a = arrays[0];
+        let b = arrays[1];
+        (self.function)(self.datatype.clone(), a, b)
+    }
+}
+
+fn add_primitive<'a, P1, P2>(datatype: DataType, a: &Array, b: &Array) -> Result<Array>
+where
+    P1: PhysicalStorage<'a>,
+    P2: PhysicalStorage<'a>,
+{
+    BinaryExecutor::execute::<P1, P2, _, _>(
+        a,
+        b,
+        ArrayBuilder {
+            datatype,
+            buffer: PrimitiveBuffer::with_len(a.logical_len()),
+        },
+        |a, b, buf| buf.put(&(a + b)),
+    )
 }
 
 #[cfg(test)]
@@ -234,7 +299,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Int32(Int32Array::from_iter([5, 7, 9]));
 
         assert_eq!(expected, out);

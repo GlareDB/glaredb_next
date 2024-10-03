@@ -15,6 +15,7 @@ pub mod validity;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::{DataType, DecimalTypeMeta, TimestampTypeMeta};
+use crate::executor::physical_type::PhysicalType;
 use crate::scalar::interval::Interval;
 use crate::scalar::timestamp::TimestampScalar;
 use crate::scalar::{
@@ -95,6 +96,20 @@ impl Array {
 
     pub fn validity(&self) -> Option<&Bitmap> {
         self.validity.as_ref()
+    }
+
+    pub fn array_data(&self) -> &ArrayData {
+        &self.data
+    }
+
+    pub fn physical_type(&self) -> PhysicalType {
+        match self.data.physical_type() {
+            PhysicalType::Binary => match self.datatype {
+                DataType::Utf8 | DataType::LargeUtf8 => PhysicalType::Str,
+                _ => PhysicalType::Binary,
+            },
+            other => other,
+        }
     }
 
     /// Gets the scalar value at index.
@@ -290,6 +305,26 @@ pub enum BinaryData {
 }
 
 impl ArrayData {
+    pub fn physical_type(&self) -> PhysicalType {
+        match self {
+            Self::Boolean(_) => unimplemented!(),
+            Self::Float32(_) => unimplemented!(),
+            Self::Float64(_) => unimplemented!(),
+            Self::Int8(_) => PhysicalType::Int8,
+            Self::Int16(_) => unimplemented!(),
+            Self::Int32(_) => unimplemented!(),
+            Self::Int64(_) => unimplemented!(),
+            Self::Int128(_) => unimplemented!(),
+            Self::UInt8(_) => unimplemented!(),
+            Self::UInt16(_) => unimplemented!(),
+            Self::UInt32(_) => unimplemented!(),
+            Self::UInt64(_) => unimplemented!(),
+            Self::UInt128(_) => unimplemented!(),
+            Self::Interval(_) => unimplemented!(),
+            Self::Binary(_) => PhysicalType::Binary,
+        }
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Self::Boolean(s) => s.len(),

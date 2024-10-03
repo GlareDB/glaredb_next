@@ -13,6 +13,7 @@ pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
+use rayexec_bullet::array::Array;
 use rayexec_bullet::{array::Array2, datatype::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -146,7 +147,11 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// For functions that accept no input (e.g. random), an array of length one
     /// should be returned. During evaluation, this one element array will be
     /// extended to be of the appropriate size.
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2>;
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2>;
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        unimplemented!()
+    }
 }
 
 impl PartialEq<dyn PlannedScalarFunction> for Box<dyn PlannedScalarFunction + '_> {

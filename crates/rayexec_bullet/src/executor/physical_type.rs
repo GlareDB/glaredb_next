@@ -8,6 +8,13 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhysicalType {
+    Int8,
+    Binary,
+    Str,
+}
+
 pub trait VarlenType {
     fn as_bytes(&self) -> &[u8];
 }
@@ -25,7 +32,7 @@ impl VarlenType for [u8] {
 }
 
 /// Helper trait for getting the underlying data for an array.
-pub trait PhysicalType<'a> {
+pub trait PhysicalStorage<'a> {
     type Storage: AddressableStorage;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage>;
@@ -33,7 +40,7 @@ pub trait PhysicalType<'a> {
 
 pub struct PhysicalI8;
 
-impl<'a> PhysicalType<'a> for PhysicalI8 {
+impl<'a> PhysicalStorage<'a> for PhysicalI8 {
     type Storage = PrimitiveStorageSlice<'a, i8>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -46,7 +53,7 @@ impl<'a> PhysicalType<'a> for PhysicalI8 {
 
 pub struct PhysicalI32;
 
-impl<'a> PhysicalType<'a> for PhysicalI32 {
+impl<'a> PhysicalStorage<'a> for PhysicalI32 {
     type Storage = PrimitiveStorageSlice<'a, i32>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -59,7 +66,7 @@ impl<'a> PhysicalType<'a> for PhysicalI32 {
 
 pub struct PhysicalBinary;
 
-impl<'a> PhysicalType<'a> for PhysicalBinary {
+impl<'a> PhysicalStorage<'a> for PhysicalBinary {
     type Storage = BinaryDataStorage<'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -83,7 +90,7 @@ impl<'a> PhysicalType<'a> for PhysicalBinary {
 
 pub struct PhysicalStr;
 
-impl<'a> PhysicalType<'a> for PhysicalStr {
+impl<'a> PhysicalStorage<'a> for PhysicalStr {
     type Storage = StrDataStorage<'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {

@@ -113,7 +113,7 @@ impl PlannedScalarFunction for ListExtractImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let list = match &inputs[0].as_ref() {
             Array2::List(list) => list,
             other => {
@@ -308,7 +308,7 @@ impl PlannedScalarFunction for ListValuesImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect();
         let array = if refs.is_empty() {
             ListArray::new_empty_with_n_rows(1)

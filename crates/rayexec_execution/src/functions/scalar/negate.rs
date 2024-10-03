@@ -101,7 +101,7 @@ impl PlannedScalarFunction for NegateImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let first = arrays[0];
         Ok(match first.as_ref() {
             Array2::Int8(input) => {
@@ -174,7 +174,7 @@ impl PlannedScalarFunction for NotImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         Ok(match inputs[0].as_ref() {
             Array2::Boolean(arr) => primitive_unary_execute_bool!(arr, |b| !b),
             other => panic!("unexpected array type: {other:?}"),

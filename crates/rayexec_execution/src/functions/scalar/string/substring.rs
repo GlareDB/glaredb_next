@@ -81,7 +81,7 @@ impl PlannedScalarFunction for SubstringImpl {
         DataType::Utf8
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         if inputs.len() == 2 {
             let strings = match inputs[0].as_ref() {
                 Array2::Utf8(arr) => arr,

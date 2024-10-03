@@ -3,7 +3,7 @@ use crate::{
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
-        physical_type::PhysicalType,
+        physical_type::PhysicalStorage,
         scalar::validate_logical_len,
     },
     selection,
@@ -22,7 +22,7 @@ impl<const N: usize> UniformKnownSizeExecutor<N> {
     ) -> Result<Array>
     where
         Op: FnMut([&<S::Storage as AddressableStorage>::T; N], &mut OutputBuffer<B>),
-        S: PhysicalType<'a>,
+        S: PhysicalStorage<'a>,
         B: ArrayDataBuffer<'a>,
     {
         let len = match arrays.first() {
@@ -120,7 +120,7 @@ impl UniformExecutor {
     ) -> Result<Array>
     where
         Op: FnMut(&[&<S::Storage as AddressableStorage>::T], &mut OutputBuffer<B>),
-        S: PhysicalType<'a>,
+        S: PhysicalStorage<'a>,
         B: ArrayDataBuffer<'a>,
     {
         let len = match arrays.first() {

@@ -11,8 +11,8 @@ use super::physical_type::VarlenType;
 
 #[derive(Debug)]
 pub struct ArrayBuilder<B> {
-    pub(crate) datatype: DataType,
-    pub(crate) buffer: B,
+    pub datatype: DataType,
+    pub buffer: B,
 }
 
 /// Small wrapper containing the array buffer we're building up and an index for

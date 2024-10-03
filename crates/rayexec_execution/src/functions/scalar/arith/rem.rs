@@ -140,7 +140,7 @@ impl PlannedScalarFunction for RemImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let first = arrays[0];
         let second = arrays[1];
         Ok(match (first.as_ref(), second.as_ref()) {
@@ -201,7 +201,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Int32(Int32Array::from_iter([0, 1, 0]));
 
         assert_eq!(expected, out);

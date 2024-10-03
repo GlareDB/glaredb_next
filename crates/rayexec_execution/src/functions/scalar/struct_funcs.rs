@@ -56,7 +56,7 @@ impl PlannedScalarFunction for StructPackDynamic {
         unimplemented!()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let keys = arrays
             .iter()
             .step_by(2)

@@ -73,7 +73,7 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
         }
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let strings = arrays[0];
         let nums = arrays[1];
         Ok(match (strings.as_ref(), nums.as_ref()) {

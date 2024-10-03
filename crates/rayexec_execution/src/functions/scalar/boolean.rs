@@ -58,7 +58,7 @@ impl PlannedScalarFunction for AndImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let first = match inputs.first() {
             Some(first) => first,
             None => return Ok(Array2::Boolean(BooleanArray::new_nulls(1))),
@@ -132,7 +132,7 @@ impl PlannedScalarFunction for OrImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         let first = match inputs.first() {
             Some(first) => first,
             None => return Ok(Array2::Boolean(BooleanArray::new_nulls(1))),
@@ -176,7 +176,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([true, false, false]));
 
         assert_eq!(expected, out);
@@ -195,7 +195,7 @@ mod tests {
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let out = specialized.execute2(&[&a, &b]).unwrap();
         let expected = Array2::Boolean(BooleanArray::from_iter([true, true, false]));
 
         assert_eq!(expected, out);

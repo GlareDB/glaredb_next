@@ -114,13 +114,13 @@ impl LeftPrecomputedJoinConditions {
             let left_input = Arc::new(take(left_precomputed.as_ref(), left_rows)?);
             let right_input = condition.right.eval(right, None)?;
 
-            let result = condition.function.execute(&[&left_input, &right_input])?;
+            let result = condition.function.execute2(&[&left_input, &right_input])?;
 
             results.push(Arc::new(result));
         }
 
         let refs: Vec<_> = results.iter().collect();
-        let out = match AndImpl.execute(&refs)? {
+        let out = match AndImpl.execute2(&refs)? {
             Array2::Boolean(arr) => arr.into_selection_bitmap(),
             other => {
                 return Err(RayexecError::new(format!(

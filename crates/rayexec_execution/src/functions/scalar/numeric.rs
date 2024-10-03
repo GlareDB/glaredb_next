@@ -64,7 +64,7 @@ impl PlannedScalarFunction for IsNanImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let array = arrays[0];
         Ok(match array.as_ref() {
             Array2::Float32(input) => {
@@ -142,7 +142,7 @@ impl PlannedScalarFunction for CeilImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let array = arrays[0];
         Ok(match array.as_ref() {
             Array2::Float32(input) => {
@@ -216,7 +216,7 @@ impl PlannedScalarFunction for FloorImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
         let array = arrays[0];
         Ok(match array.as_ref() {
             Array2::Float32(input) => {

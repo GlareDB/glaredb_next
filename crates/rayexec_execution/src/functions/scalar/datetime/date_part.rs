@@ -109,7 +109,7 @@ impl PlannedScalarFunction for DatePartImpl {
         ))
     }
 
-    fn execute(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
         // First input ignored (the constant "part" to extract)
 
         let dec_arr = match inputs[1].as_ref() {

@@ -5,7 +5,7 @@ use crate::{
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
-        physical_type::PhysicalType,
+        physical_type::PhysicalStorage,
         scalar::validate_logical_len,
     },
     selection,
@@ -31,9 +31,9 @@ impl TernaryExecutor {
             &<S3::Storage as AddressableStorage>::T,
             &mut OutputBuffer<B>,
         ),
-        S1: PhysicalType<'a>,
-        S2: PhysicalType<'a>,
-        S3: PhysicalType<'a>,
+        S1: PhysicalStorage<'a>,
+        S2: PhysicalStorage<'a>,
+        S3: PhysicalStorage<'a>,
         B: ArrayDataBuffer<'a>,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
