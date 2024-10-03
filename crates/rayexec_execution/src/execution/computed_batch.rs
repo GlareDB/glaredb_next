@@ -48,7 +48,7 @@ impl ComputedBatch {
             Some(selection) => {
                 let arrays = self
                     .batch
-                    .columns()
+                    .columns2()
                     .iter()
                     .map(|a| filter(a, &selection))
                     .collect::<Result<Vec<_>, _>>()?;
@@ -60,7 +60,7 @@ impl ComputedBatch {
                     Batch::empty_with_num_rows(selection.count_trues())
                 } else {
                     // Otherwise use the actual filtered arrays.
-                    Batch::try_new(arrays)?
+                    Batch::try_new2(arrays)?
                 };
 
                 Ok(batch)

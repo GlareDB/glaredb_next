@@ -96,7 +96,7 @@ impl LeftOuterJoinDrainState {
         self.batch_idx += 1;
 
         let cols = batch
-            .columns()
+            .columns2()
             .iter()
             .cloned()
             .chain([Arc::new(Array2::Boolean(BooleanArray::new(
@@ -104,7 +104,7 @@ impl LeftOuterJoinDrainState {
                 None,
             )))]);
 
-        let batch = Batch::try_new(cols)?;
+        let batch = Batch::try_new2(cols)?;
 
         Ok(Some(batch))
     }
@@ -140,13 +140,13 @@ impl LeftOuterJoinDrainState {
                 .iter()
                 .chain(self.right_types.iter())
                 .map(|t| Array2::new_nulls(t, 0));
-            let batch = Batch::try_new(cols)?;
+            let batch = Batch::try_new2(cols)?;
 
             return Ok(Some(batch));
         }
 
         let left_cols = batch
-            .columns()
+            .columns2()
             .iter()
             .map(|c| filter(c, &bitmap))
             .collect::<Result<Vec<_>>>()?;
@@ -156,7 +156,7 @@ impl LeftOuterJoinDrainState {
             .iter()
             .map(|t| Array2::new_nulls(t, num_rows));
 
-        let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+        let batch = Batch::try_new2(left_cols.into_iter().chain(right_cols))?;
 
         Ok(Some(batch))
     }
@@ -200,7 +200,7 @@ impl RightOuterJoinTracker {
         let unvisited_count = self.unvisited.count_trues();
 
         let right_unvisited = right
-            .columns()
+            .columns2()
             .iter()
             .map(|a| compute::filter::filter(a, &self.unvisited))
             .collect::<Result<Vec<_>>>()?;
@@ -209,6 +209,6 @@ impl RightOuterJoinTracker {
             .iter()
             .map(|t| Array2::new_nulls(t, unvisited_count));
 
-        Batch::try_new(left_null_cols.chain(right_unvisited))
+        Batch::try_new2(left_null_cols.chain(right_unvisited))
     }
 }

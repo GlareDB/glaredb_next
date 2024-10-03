@@ -334,7 +334,7 @@ impl ProtoConv for IpcBatch {
         // compatability with arrow ipc, but we only care about the data types.
         let schema = Schema::new(
             self.0
-                .columns()
+                .columns2()
                 .iter()
                 .map(|c| Field::new("", c.datatype(), true)),
         );

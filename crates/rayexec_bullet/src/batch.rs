@@ -1,4 +1,7 @@
-use crate::{array::Array2, row::ScalarRow};
+use crate::{
+    array::{Array, Array2},
+    row::ScalarRow,
+};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -6,7 +9,9 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
     /// Columns that make up this batch.
-    cols: Vec<Arc<Array2>>,
+    cols2: Vec<Arc<Array2>>,
+
+    cols: Vec<Array>,
 
     /// Number of rows in this batch. Needed to allow for a batch that has no
     /// columns but a non-zero number of rows.
@@ -16,6 +21,7 @@ pub struct Batch {
 impl Batch {
     pub const fn empty() -> Self {
         Batch {
+            cols2: Vec::new(),
             cols: Vec::new(),
             num_rows: 0,
         }
@@ -23,15 +29,39 @@ impl Batch {
 
     pub fn empty_with_num_rows(num_rows: usize) -> Self {
         Batch {
+            cols2: Vec::new(),
             cols: Vec::new(),
             num_rows,
         }
     }
 
+    pub fn try_new(cols: impl IntoIterator<Item = Array>) -> Result<Self> {
+        let cols: Vec<_> = cols.into_iter().collect();
+        let len = match cols.first() {
+            Some(arr) => arr.logical_len(),
+            None => return Ok(Self::empty()),
+        };
+
+        for (idx, col) in cols.iter().enumerate() {
+            if col.logical_len() != len {
+                return Err(RayexecError::new(format!(
+                    "Expected column length to be {len}, got {}. Column idx: {idx}",
+                    col.logical_len()
+                )));
+            }
+        }
+
+        Ok(Batch {
+            cols2: Vec::new(),
+            cols,
+            num_rows: len,
+        })
+    }
+
     /// Create a new batch from some number of arrays.
     ///
     /// All arrays should be of the same length.
-    pub fn try_new<A>(cols: impl IntoIterator<Item = A>) -> Result<Self>
+    pub fn try_new2<A>(cols: impl IntoIterator<Item = A>) -> Result<Self>
     where
         A: Into<Arc<Array2>>,
     {
@@ -51,7 +81,8 @@ impl Batch {
         }
 
         Ok(Batch {
-            cols,
+            cols2: cols,
+            cols: Vec::new(),
             num_rows: len,
         })
     }
@@ -59,68 +90,51 @@ impl Batch {
     /// Project a batch using the provided indices.
     ///
     /// Panics if any index is out of bounds.
-    pub fn project(&self, indices: &[usize]) -> Self {
-        let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();
+    pub fn project2(&self, indices: &[usize]) -> Self {
+        let cols = indices.iter().map(|idx| self.cols2[*idx].clone()).collect();
 
         Batch {
-            cols,
+            cols2: cols,
+            cols: Vec::new(),
             num_rows: self.num_rows,
         }
     }
 
-    /// Try to push a column to the end of the column list.
-    ///
-    /// Errors if the column does not have the same number of rows as in the
-    /// batch.
-    pub fn try_push_column(&mut self, col: impl Into<Arc<Array2>>) -> Result<()> {
-        let col = col.into();
-        if col.len() != self.num_rows {
-            return Err(RayexecError::new(format!(
-                "Attempt to push a column with invalid number of rows, expected: {}, got: {}",
-                self.num_rows,
-                col.len()
-            )));
-        }
-
-        self.cols.push(col);
-
-        Ok(())
-    }
-
-    /// Try to pop the right-most column off the batch.
-    pub fn try_pop_column(&mut self) -> Result<Arc<Array2>> {
-        self.cols.pop().ok_or_else(|| {
-            RayexecError::new("Attempted to pop a column from a batch with no columns")
-        })
-    }
-
     /// Get the row at some index.
-    pub fn row(&self, idx: usize) -> Option<ScalarRow> {
+    pub fn row2(&self, idx: usize) -> Option<ScalarRow> {
         if idx >= self.num_rows {
             return None;
         }
 
         // Non-zero number of rows, but no actual columns. Just return an empty
         // row.
-        if self.cols.is_empty() {
+        if self.cols2.is_empty() {
             return Some(ScalarRow::empty());
         }
 
-        let row = self.cols.iter().map(|col| col.scalar(idx).unwrap());
+        let row = self.cols2.iter().map(|col| col.scalar(idx).unwrap());
 
         Some(ScalarRow::from_iter(row))
     }
 
-    pub fn column(&self, idx: usize) -> Option<&Arc<Array2>> {
-        self.cols.get(idx)
+    pub fn column2(&self, idx: usize) -> Option<&Arc<Array2>> {
+        self.cols2.get(idx)
     }
 
-    pub fn columns(&self) -> &[Arc<Array2>] {
+    pub fn columns2(&self) -> &[Arc<Array2>] {
+        &self.cols2
+    }
+
+    pub fn columns(&self) -> &[Array] {
         &self.cols
     }
 
     pub fn num_columns(&self) -> usize {
         self.cols.len()
+    }
+
+    pub fn num_columns2(&self) -> usize {
+        self.cols2.len()
     }
 
     pub fn num_rows(&self) -> usize {
@@ -139,7 +153,7 @@ mod tests {
 
     #[test]
     fn get_row_simple() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_new2([
             Array2::Int32(Int32Array::from_iter([1, 2, 3])),
             Array2::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
         ])
@@ -153,20 +167,20 @@ mod tests {
         ];
 
         for idx in 0..3 {
-            let got = batch.row(idx).unwrap();
+            let got = batch.row2(idx).unwrap();
             assert_eq!(expected[idx], got);
         }
     }
 
     #[test]
     fn get_row_out_of_bounds() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_new2([
             Array2::Int32(Int32Array::from_iter([1, 2, 3])),
             Array2::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
         ])
         .unwrap();
 
-        let got = batch.row(3);
+        let got = batch.row2(3);
         assert_eq!(None, got);
     }
 
@@ -175,7 +189,7 @@ mod tests {
         let batch = Batch::empty_with_num_rows(3);
 
         for idx in 0..3 {
-            let got = batch.row(idx).unwrap();
+            let got = batch.row2(idx).unwrap();
             assert_eq!(ScalarRow::empty(), got);
         }
     }

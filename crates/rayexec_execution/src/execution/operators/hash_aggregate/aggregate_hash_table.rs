@@ -349,7 +349,7 @@ impl AggregateHashTableDrain {
             group_cols.push(Arc::new(arr));
         }
 
-        let batch = Batch::try_new(result_cols.into_iter().chain(group_cols.into_iter()))?;
+        let batch = Batch::try_new2(result_cols.into_iter().chain(group_cols.into_iter()))?;
 
         Ok(Some(batch))
     }

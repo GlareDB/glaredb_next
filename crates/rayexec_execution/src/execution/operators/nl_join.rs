@@ -1,7 +1,6 @@
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array2;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::compute::concat::concat_batches;
 use rayexec_bullet::compute::filter::filter;
 use rayexec_bullet::compute::take::take;
 use rayexec_error::{RayexecError, Result};
@@ -430,7 +429,7 @@ fn cross_join(
         let left_indices = vec![left_idx; right.num_rows()];
 
         let mut cols = Vec::new();
-        for col in left.columns() {
+        for col in left.columns2() {
             // TODO: It'd be nice to have a logical repeated array type instead
             // of having to physically copy the same element `n` times into a
             // new array.
@@ -439,8 +438,8 @@ fn cross_join(
         }
 
         // Join all of right.
-        cols.extend_from_slice(right.columns());
-        let mut batch = Batch::try_new(cols)?;
+        cols.extend_from_slice(right.columns2());
+        let mut batch = Batch::try_new2(cols)?;
 
         // If we have a filter, apply it to the intermediate batch.
         if let Some(filter_expr) = &filter_expr {
@@ -456,7 +455,7 @@ fn cross_join(
             };
 
             let filtered = batch
-                .columns()
+                .columns2()
                 .iter()
                 .map(|col| filter(col, &selection))
                 .collect::<Result<Vec<_>, _>>()?;
@@ -468,7 +467,7 @@ fn cross_join(
                 left_outer_tracker.mark_rows_visited_for_batch(left_batch_idx, &indices);
             }
 
-            batch = Batch::try_new(filtered)?;
+            batch = Batch::try_new2(filtered)?;
         }
 
         batches.push(batch);

@@ -47,7 +47,7 @@ impl SortKeysExtractor {
             .iter()
             .map(|idx| {
                 batch
-                    .column(*idx)
+                    .column2(*idx)
                     .map(|col| col.as_ref())
                     .ok_or_else(|| RayexecError::new("Missing column"))
             })

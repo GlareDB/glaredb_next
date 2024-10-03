@@ -19,7 +19,7 @@ pub struct PhysicalLiteralExpr {
 
 impl PhysicalLiteralExpr {
     pub fn eval(&self, batch: &Batch) -> Result<Array> {
-        unimplemented!()
+        self.literal.as_array(batch.num_rows())
     }
 
     pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {

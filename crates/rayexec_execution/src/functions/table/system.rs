@@ -55,7 +55,7 @@ impl SystemFunctionImpl for ListDatabasesImpl {
             datasources.push_value(info.map(|i| i.datasource).unwrap_or("default".to_string()));
         }
 
-        Batch::try_new([
+        Batch::try_new2([
             Array2::Utf8(Utf8Array::new(database_names, None)),
             Array2::Utf8(Utf8Array::new(datasources, None)),
         ])
@@ -104,7 +104,7 @@ impl SystemFunctionImpl for ListTablesImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch::try_new2([
             Array2::Utf8(Utf8Array::new(database_names, None)),
             Array2::Utf8(Utf8Array::new(schema_names, None)),
             Array2::Utf8(Utf8Array::new(table_names, None)),
@@ -143,7 +143,7 @@ impl SystemFunctionImpl for ListSchemasImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch::try_new2([
             Array2::Utf8(Utf8Array::new(database_names, None)),
             Array2::Utf8(Utf8Array::new(schema_names, None)),
         ])

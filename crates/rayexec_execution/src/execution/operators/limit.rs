@@ -118,12 +118,12 @@ impl ExecutableOperator for PhysicalLimit {
             );
 
             let cols = batch
-                .columns()
+                .columns2()
                 .iter()
                 .map(|arr| compute::slice::slice(arr.as_ref(), state.remaining_offset, count))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(cols)?;
+            let batch = Batch::try_new2(cols)?;
             state.remaining_offset = 0;
             state.remaining_count -= batch.num_rows();
             batch
@@ -131,11 +131,11 @@ impl ExecutableOperator for PhysicalLimit {
             // Remaining offset is 0, and input batch is has more rows than we
             // need, just slice to the right size.
             let cols = batch
-                .columns()
+                .columns2()
                 .iter()
                 .map(|arr| compute::slice::slice(arr.as_ref(), 0, state.remaining_count))
                 .collect::<Result<Vec<_>>>()?;
-            let batch = Batch::try_new(cols)?;
+            let batch = Batch::try_new2(cols)?;
             state.remaining_count = 0;
             batch
         } else {

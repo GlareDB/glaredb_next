@@ -173,7 +173,7 @@ mod tests {
     /// Create a batch with a single int64 value.
     fn test_batch(n: i64) -> Batch {
         let col = Array2::Int64(Int64Array::from_iter([n]));
-        Batch::try_new([col]).unwrap()
+        Batch::try_new2([col]).unwrap()
     }
 
     #[test]

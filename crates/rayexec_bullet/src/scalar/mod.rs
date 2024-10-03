@@ -190,6 +190,7 @@ impl<'a> ScalarValue<'a> {
             Self::Timestamp(v) => PrimitiveStorage::from(vec![v.value]).into(),
             Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
+            Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
             other => not_implemented!("{other} to array"), // Struct, List
         };
 

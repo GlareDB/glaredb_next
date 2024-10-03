@@ -3,35 +3,10 @@ use crate::array::{
     Array2, BooleanArray, BooleanValuesBuffer, DecimalArray, ListArray, NullArray, OffsetIndex,
     PrimitiveArray, TimestampArray, VarlenArray, VarlenType2, VarlenValuesBuffer,
 };
-use crate::batch::Batch;
 use crate::datatype::DataType;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::macros::collect_arrays_of_type;
-
-/// Concat multiple batches into a single batch.
-///
-/// Errors if the batches do not have the same schema.
-pub fn concat_batches(batches: &[Batch]) -> Result<Batch> {
-    if batches.is_empty() {
-        return Ok(Batch::empty());
-    }
-
-    let num_cols = batches[0].num_columns();
-    let mut concatted = Vec::with_capacity(num_cols);
-
-    for col_idx in 0..num_cols {
-        let cols = batches
-            .iter()
-            .map(|batch| batch.column(col_idx).map(|a| a.as_ref()))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| RayexecError::new("Missing column"))?;
-
-        concatted.push(concat(&cols)?);
-    }
-
-    Batch::try_new(concatted)
-}
 
 /// Concat multiple arrays into a single array.
 ///

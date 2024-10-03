@@ -151,7 +151,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|expr| {
                             batch
                                 .batch
-                                .column(expr.idx)
+                                .column2(expr.idx)
                                 .expect("column to exist")
                                 .as_ref()
                         })
@@ -220,7 +220,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                     let mut batches = Vec::new();
                     while let Some(arrays) = multi_array_drain(&mut final_states, 1000)? {
-                        let batch = Batch::try_new(arrays)?;
+                        let batch = Batch::try_new2(arrays)?;
                         batches.push(batch);
                     }
 

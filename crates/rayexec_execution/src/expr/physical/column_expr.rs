@@ -13,11 +13,11 @@ pub struct PhysicalColumnExpr {
 
 impl PhysicalColumnExpr {
     pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
-        let col = batch.column(self.idx).ok_or_else(|| {
+        let col = batch.column2(self.idx).ok_or_else(|| {
             RayexecError::new(format!(
                 "Tried to get column at index {} in a batch with {} columns",
                 self.idx,
-                batch.columns().len()
+                batch.columns2().len()
             ))
         })?;
 

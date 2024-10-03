@@ -36,7 +36,7 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
+                    data: Batch::try_new2([
                         Array2::Int64(PrimitiveArray::from_iter([1, 2])),
                         Array2::Utf8(VarlenArray::from_iter(["a", "b"])),
                     ])?,
@@ -50,7 +50,7 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
+                    data: Batch::try_new2([
                         Array2::Int64(PrimitiveArray::from_iter([1, 2])),
                         Array2::Utf8(VarlenArray::from_iter(["a", "b"])),
                     ])?,

@@ -478,7 +478,7 @@ impl AsyncCsvStream {
             arrs.push(arr);
         }
 
-        Batch::try_new(arrs)
+        Batch::try_new2(arrs)
     }
 
     fn build_boolean(

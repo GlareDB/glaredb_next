@@ -246,7 +246,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     .iter()
                     .map(|idx| {
                         batch
-                            .column(*idx)
+                            .column2(*idx)
                             .expect("aggregate input column to exist")
                             .as_ref()
                     })
@@ -259,7 +259,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     .iter()
                     .map(|idx| {
                         batch
-                            .column(*idx)
+                            .column2(*idx)
                             .expect("grouping column to exist")
                             .as_ref()
                     })

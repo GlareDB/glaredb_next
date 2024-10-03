@@ -370,7 +370,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                         let row_count = shared.global_row_count as u64;
 
                         let row_count_batch =
-                            Batch::try_new([Array2::UInt64(PrimitiveArray::from_iter([
+                            Batch::try_new2([Array2::UInt64(PrimitiveArray::from_iter([
                                 row_count,
                             ]))])?;
 

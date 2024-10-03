@@ -945,7 +945,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let datatypes = Array2::Utf8(Utf8Array::from_iter(
             describe.node.schema.iter().map(|f| f.datatype.to_string()),
         ));
-        let batch = Batch::try_new(vec![names, datatypes])?;
+        let batch = Batch::try_new2(vec![names, datatypes])?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
@@ -1027,7 +1027,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-            Batch::try_new(vec![
+            Batch::try_new2(vec![
                 Array2::Utf8(Utf8Array::from(type_strings)),
                 Array2::Utf8(Utf8Array::from(plan_strings)),
             ])?,
@@ -1062,7 +1062,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-                Batch::try_new(vec![Array2::Utf8(Utf8Array::from_iter([show
+                Batch::try_new2(vec![Array2::Utf8(Utf8Array::from_iter([show
                     .var
                     .value
                     .to_string()
@@ -1721,11 +1721,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             cols.push(col);
         }
 
-        let batch = Batch::try_new(cols)?;
+        let batch = Batch::try_new2(cols)?;
 
         // TODO: Got lazy, we can just avoid evaluating the expressions above.
         match &projections.column_indices {
-            Some(indices) => Ok(batch.project(indices)),
+            Some(indices) => Ok(batch.project2(indices)),
             None => Ok(batch),
         }
     }

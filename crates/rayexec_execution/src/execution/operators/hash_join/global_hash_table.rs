@@ -176,9 +176,9 @@ impl GlobalHashTable {
             }
 
             // Initial right side of the batch.
-            let initial_right_side = Batch::try_new(
+            let initial_right_side = Batch::try_new2(
                 right
-                    .columns()
+                    .columns2()
                     .iter()
                     .map(|arr| compute::take::take(arr.as_ref(), &right_rows))
                     .collect::<Result<Vec<_>>>()?,
@@ -220,20 +220,20 @@ impl GlobalHashTable {
             // Get the left columns for this batch.
             let left_batch = self.batches.get(batch_idx).expect("batch to exist");
             let left_cols = left_batch
-                .columns()
+                .columns2()
                 .iter()
                 .map(|arr| compute::take::take(arr.as_ref(), &left_rows))
                 .collect::<Result<Vec<_>>>()?;
 
             // Trim down right cols using only selected rows.
             let right_cols = initial_right_side
-                .columns()
+                .columns2()
                 .iter()
                 .map(|arr| compute::filter::filter(arr, &selection))
                 .collect::<Result<Vec<_>>>()?;
 
             // Create final batch.
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch::try_new2(left_cols.into_iter().chain(right_cols))?;
             batches.push(batch);
         }
 

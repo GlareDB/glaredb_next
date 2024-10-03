@@ -173,7 +173,7 @@ impl GenerateSeriesScan {
         }
 
         let col = Array2::Int64(Int64Array::from(series));
-        let batch = Batch::try_new([col]).expect("batch to be valid");
+        let batch = Batch::try_new2([col]).expect("batch to be valid");
 
         Some(batch)
     }

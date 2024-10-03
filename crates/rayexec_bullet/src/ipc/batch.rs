@@ -46,7 +46,7 @@ pub fn ipc_to_batch(
         columns.push(array);
     }
 
-    Batch::try_new(columns)
+    Batch::try_new2(columns)
 }
 
 struct BufferReader<'a> {
@@ -250,7 +250,7 @@ pub fn batch_to_ipc<'a>(
     // arrow-rs follows the first part for offset, so that's what we'll do. It's
     // also easier than the alternative.
 
-    for col in batch.columns() {
+    for col in batch.columns2() {
         encode_array(col.as_ref(), data, &mut fields, &mut buffers)?;
     }
 
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn simple_batch_roundtrip() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_new2([
             Array2::Int32(vec![3, 2, 1].into()),
             Array2::UInt64(vec![9, 8, 7].into()),
         ])
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn utf8_roundtrip() {
-        let batch = Batch::try_new([Array2::Utf8(Utf8Array::from_iter([
+        let batch = Batch::try_new2([Array2::Utf8(Utf8Array::from_iter([
             "mario", "peach", "yoshi",
         ]))])
         .unwrap();
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn decimal128_roundtrip() {
-        let batch = Batch::try_new([Array2::Decimal128(Decimal128Array::new(
+        let batch = Batch::try_new2([Array2::Decimal128(Decimal128Array::new(
             4,
             2,
             PrimitiveArray::from_iter([1000, 1200, 1250]),

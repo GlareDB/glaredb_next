@@ -110,7 +110,7 @@ impl DatabaseProtoConv for PhysicalValues {
         let schema = match self.batches.first() {
             Some(batch) => Schema::new(
                 batch
-                    .columns()
+                    .columns2()
                     .iter()
                     .map(|c| Field::new("", c.datatype(), true)),
             ),
