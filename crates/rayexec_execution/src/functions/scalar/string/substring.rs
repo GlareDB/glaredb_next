@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array2, VarlenArray, VarlenValuesBuffer},
+    array::{Array, Array2, VarlenArray, VarlenValuesBuffer},
     datatype::{DataType, DataTypeId},
-    executor::scalar::{BinaryExecutor2, TernaryExecutor2},
+    executor::{
+        builder::{ArrayBuilder, GermanVarlenBuffer},
+        physical_type::{PhysicalI64, PhysicalUtf8},
+        scalar::{BinaryExecutor, BinaryExecutor2, TernaryExecutor, TernaryExecutor2},
+    },
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::functions::{
     exec_invalid_array_type_err, invalid_input_types_error, plan_check_num_args_one_of,
@@ -118,6 +122,41 @@ impl PlannedScalarFunction for SubstringImpl {
                 TernaryExecutor2::execute(strings, from, count, substring_from_count, &mut values)?;
 
             Ok(Array2::Utf8(VarlenArray::new(values, validity)))
+        }
+    }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        // TODO: Capacity
+        // TODO: Also would be possible to use the same underlying storage.
+        match inputs.len() {
+            2 => {
+                let len = inputs[0].logical_len();
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(len),
+                    },
+                    |s, from, buf| buf.put(substring_from(s, from)),
+                )
+            }
+            3 => {
+                let len = inputs[0].logical_len();
+                TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    inputs[2],
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(len),
+                    },
+                    |s, from, count, buf| buf.put(substring_from_count(s, from, count)),
+                )
+            }
+            other => Err(RayexecError::new(format!(
+                "Unexpected array count: {other}"
+            ))),
         }
     }
 }

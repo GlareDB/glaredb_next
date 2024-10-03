@@ -57,7 +57,7 @@ impl PlannedScalarFunction for RandomImpl {
         Ok(Array2::Float64(PrimitiveArray::new(vec![val], None)))
     }
 
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, _inputs: &[&Array]) -> Result<Array> {
         let val = rand::random::<f64>();
         Ok(Array::new_with_array_data(
             DataType::Float64,
