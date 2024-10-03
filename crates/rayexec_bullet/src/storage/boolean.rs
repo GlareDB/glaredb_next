@@ -21,6 +21,12 @@ impl AsRef<Bitmap> for BooleanStorage {
     }
 }
 
+impl From<Bitmap> for BooleanStorage {
+    fn from(value: Bitmap) -> Self {
+        BooleanStorage(value)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanStorageRef<'a>(&'a Bitmap);
 

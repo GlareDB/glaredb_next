@@ -1,9 +1,13 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use rayexec_bullet::array::Array2;
+use rayexec_bullet::array::{Array, Array2};
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
+use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::UniformExecutor2;
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
+use rayexec_bullet::executor::physical_type::PhysicalBool;
+use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor, UniformExecutor2};
+use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -81,6 +85,44 @@ impl PlannedScalarFunction for AndImpl {
 
         Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
     }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        match inputs.len() {
+            0 => {
+                let mut array = Array::new_with_array_data(
+                    DataType::Boolean,
+                    BooleanStorage::from(Bitmap::new_with_val(false, 1)),
+                );
+                array.set_physical_validity(0, false);
+                Ok(array)
+            }
+            1 => Ok(inputs[0].clone()),
+            2 => {
+                let a = inputs[0];
+                let b = inputs[1];
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a && b)),
+                )
+            }
+            _ => {
+                let len = inputs[0].logical_len();
+                UniformExecutor::execute::<PhysicalBool, _, _>(
+                    inputs,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(len),
+                    },
+                    |bools, buf| buf.put(&(bools.iter().all(|b| *b))),
+                )
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,6 +196,44 @@ impl PlannedScalarFunction for OrImpl {
             UniformExecutor2::execute(&bool_arrs, |bools| bools.iter().any(|b| *b), &mut buffer)?;
 
         Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
+    }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        match inputs.len() {
+            0 => {
+                let mut array = Array::new_with_array_data(
+                    DataType::Boolean,
+                    BooleanStorage::from(Bitmap::new_with_val(false, 1)),
+                );
+                array.set_physical_validity(0, false);
+                Ok(array)
+            }
+            1 => Ok(inputs[0].clone()),
+            2 => {
+                let a = inputs[0];
+                let b = inputs[1];
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a || b)),
+                )
+            }
+            _ => {
+                let len = inputs[0].logical_len();
+                UniformExecutor::execute::<PhysicalBool, _, _>(
+                    inputs,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(len),
+                    },
+                    |bools, buf| buf.put(&(bools.iter().any(|b| *b))),
+                )
+            }
+        }
     }
 }
 

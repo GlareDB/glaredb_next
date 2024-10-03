@@ -59,7 +59,7 @@ impl From<Arc<SelectionVector>> for Selection {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Array {
     /// Data type of the array.
     pub(crate) datatype: DataType,
@@ -94,6 +94,21 @@ impl Array {
 
     pub fn selection_vector(&self) -> Option<&SelectionVector> {
         self.selection.as_ref().map(|v| v.as_ref())
+    }
+
+    /// Sets the validity for a value at a given physical index.
+    pub fn set_physical_validity(&mut self, idx: usize, valid: bool) {
+        match &mut self.validity {
+            Some(validity) => validity.set_unchecked(idx, valid),
+            None => {
+                // Initialize validity.
+                let len = self.data.len();
+                let mut validity = Bitmap::new_with_all_true(len);
+                validity.set_unchecked(idx, valid);
+
+                self.validity = Some(validity)
+            }
+        }
     }
 
     // TODO: Validating variant too.
@@ -373,6 +388,12 @@ impl ArrayData {
                 BinaryData::German(s) => s.len(),
             },
         }
+    }
+}
+
+impl From<BooleanStorage> for ArrayData {
+    fn from(value: BooleanStorage) -> Self {
+        ArrayData::Boolean(value.into())
     }
 }
 

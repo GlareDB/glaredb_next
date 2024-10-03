@@ -1,9 +1,14 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array2, Utf8Array, VarlenValuesBuffer},
+    array::{Array, Array2, Utf8Array, VarlenValuesBuffer},
     datatype::{DataType, DataTypeId},
-    executor::scalar::UniformExecutor2,
+    executor::{
+        builder::{ArrayBuilder, GermanVarlenBuffer},
+        physical_type::PhysicalUtf8,
+        scalar::{BinaryExecutor, UniformExecutor, UniformExecutor2},
+    },
+    storage::GermanVarlenStorage,
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
@@ -86,5 +91,57 @@ impl PlannedScalarFunction for StringConcatImpl {
         let validity = UniformExecutor2::execute(&string_arrs, |strs| strs.join(""), &mut values)?;
 
         Ok(Array2::Utf8(Utf8Array::new(values, validity)))
+    }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        match inputs.len() {
+            0 => {
+                let mut array = Array::from_iter([""]);
+                array.set_physical_validity(0, false);
+                Ok(array)
+            }
+            1 => Ok(inputs[0].clone()),
+            2 => {
+                let a = inputs[0];
+                let b = inputs[1];
+
+                let mut string_buf = String::new();
+
+                // TODO: Compute data capacity.
+
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| {
+                        string_buf.clear();
+                        string_buf.push_str(a);
+                        string_buf.push_str(b);
+                        buf.put(string_buf.as_str());
+                    },
+                )
+            }
+            _ => {
+                let mut string_buf = String::new();
+
+                UniformExecutor::execute::<PhysicalUtf8, _, _>(
+                    inputs,
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(inputs[0].logical_len()),
+                    },
+                    |strings, buf| {
+                        string_buf.clear();
+                        for s in strings {
+                            string_buf.push_str(s);
+                        }
+                        buf.put(string_buf.as_str());
+                    },
+                )
+            }
+        }
     }
 }
