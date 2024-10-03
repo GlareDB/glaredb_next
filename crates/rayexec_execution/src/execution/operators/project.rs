@@ -25,7 +25,7 @@ impl StatelessOperation for ProjectOperation {
         let arrs = self
             .exprs
             .iter()
-            .map(|expr| expr.eval(&batch.batch, batch.selection.as_ref()))
+            .map(|expr| expr.eval2(&batch.batch, batch.selection.as_ref()))
             .collect::<Result<Vec<_>>>()?;
 
         let batch = Batch::try_new(arrs)?;

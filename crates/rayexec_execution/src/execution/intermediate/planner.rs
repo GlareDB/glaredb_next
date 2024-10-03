@@ -1695,7 +1695,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 .context("Failed to plan expressions for values")?;
             let arrs = exprs
                 .into_iter()
-                .map(|expr| expr.eval(&dummy_batch, None))
+                .map(|expr| expr.eval2(&dummy_batch, None))
                 .collect::<Result<Vec<_>>>()?;
             row_arrs.push(arrs);
         }

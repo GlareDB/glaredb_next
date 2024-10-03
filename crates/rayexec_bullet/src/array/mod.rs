@@ -475,6 +475,12 @@ impl From<PrimitiveStorage<Interval>> for ArrayData {
     }
 }
 
+impl From<GermanVarlenStorage> for ArrayData {
+    fn from(value: GermanVarlenStorage) -> Self {
+        ArrayData::Binary(BinaryData::German(Arc::new(value)))
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Array2 {
     Null(NullArray),

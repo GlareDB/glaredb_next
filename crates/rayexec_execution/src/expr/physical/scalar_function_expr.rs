@@ -20,11 +20,11 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
+    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let inputs = self
             .inputs
             .iter()
-            .map(|input| input.eval(batch, selection))
+            .map(|input| input.eval2(batch, selection))
             .collect::<Result<Vec<_>>>()?;
         let refs: Vec<_> = inputs.iter().collect(); // Can I not?
         let mut out = self.function.execute2(&refs)?;
@@ -40,7 +40,7 @@ impl PhysicalScalarFunctionExpr {
             // TODO: Probably want to check null, and create the
             // appropriate array type since this will create a
             // NullArray, and not the type we're expecting.
-            out = scalar.as_array(batch.num_rows());
+            out = scalar.as_array2(batch.num_rows());
         }
 
         // TODO: Do we want to Arc here? Should we allow batches to be mutable?

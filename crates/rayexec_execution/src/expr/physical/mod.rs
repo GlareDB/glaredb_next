@@ -34,18 +34,18 @@ pub enum PhysicalScalarExpression {
 
 impl PhysicalScalarExpression {
     /// Evaluates an expression on a batch using an optional row selection.
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
+    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         match self {
-            Self::Case(expr) => expr.eval(batch, selection),
-            Self::Cast(expr) => expr.eval(batch, selection),
-            Self::Column(expr) => expr.eval(batch, selection),
-            Self::Literal(expr) => expr.eval(batch, selection),
-            Self::ScalarFunction(expr) => expr.eval(batch, selection),
+            Self::Case(expr) => expr.eval2(batch, selection),
+            Self::Cast(expr) => expr.eval2(batch, selection),
+            Self::Column(expr) => expr.eval2(batch, selection),
+            Self::Literal(expr) => expr.eval2(batch, selection),
+            Self::ScalarFunction(expr) => expr.eval2(batch, selection),
         }
     }
 
     pub fn select(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
-        let arr = self.eval(batch, selection)?;
+        let arr = self.eval2(batch, selection)?;
         let bitmap = match arr.as_ref() {
             Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
             other => {

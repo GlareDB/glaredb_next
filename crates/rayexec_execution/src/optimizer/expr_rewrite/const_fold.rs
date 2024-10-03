@@ -26,7 +26,7 @@ fn maybe_fold(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
     if expr.is_const_foldable() {
         let planner = PhysicalExpressionPlanner::new(bind_context);
         let phys_expr = planner.plan_scalar(&[], expr)?;
-        let val = phys_expr.eval(&Batch::empty_with_num_rows(1), None)?;
+        let val = phys_expr.eval2(&Batch::empty_with_num_rows(1), None)?;
 
         if val.len() != 1 {
             return Err(RayexecError::new(format!(

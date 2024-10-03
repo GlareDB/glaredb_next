@@ -24,7 +24,7 @@ pub struct PhysicalCaseExpr {
 }
 
 impl PhysicalCaseExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
+    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let mut interleave_indices: Vec<_> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
 
         let mut case_outputs = Vec::new();
@@ -52,7 +52,7 @@ impl PhysicalCaseExpr {
             // results for yet.
             selected_rows.bit_and_mut(&needs_results)?;
 
-            let then_result = case.then.eval(batch, Some(&selected_rows))?;
+            let then_result = case.then.eval2(batch, Some(&selected_rows))?;
 
             // Update bitmap to skip these rows in the next case.
             needs_results.bit_and_not_mut(&selected_rows)?;
@@ -68,7 +68,7 @@ impl PhysicalCaseExpr {
 
         // Evaluate any remaining rows.
         if needs_results.count_trues() != 0 {
-            let else_result = self.else_expr.eval(batch, Some(&needs_results))?;
+            let else_result = self.else_expr.eval2(batch, Some(&needs_results))?;
 
             let arr_idx = case_outputs.len();
             case_outputs.push(else_result);

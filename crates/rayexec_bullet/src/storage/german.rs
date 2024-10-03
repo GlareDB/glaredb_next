@@ -1,6 +1,8 @@
 use rayexec_error::Result;
 use std::fmt;
 
+use crate::executor::physical_type::VarlenType;
+
 use super::{AddressableStorage, PrimitiveStorage};
 
 pub(crate) const INLINE_THRESHOLD: i32 = 12;
@@ -98,6 +100,17 @@ pub struct GermanVarlenStorage {
 }
 
 impl GermanVarlenStorage {
+    pub fn with_value<V>(val: &V) -> Self
+    where
+        V: VarlenType + ?Sized,
+    {
+        let bs = val.as_bytes();
+        let mut s = Self::with_metadata_capacity(1);
+        s.try_push(bs).unwrap();
+
+        s
+    }
+
     pub fn with_metadata_capacity(meta_cap: usize) -> Self {
         GermanVarlenStorage {
             metadata: Vec::with_capacity(meta_cap).into(),

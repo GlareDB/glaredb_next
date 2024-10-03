@@ -27,7 +27,7 @@ impl StatelessOperation for FilterOperation {
         // performed.
         let batch = batch.try_materialize()?;
 
-        let selection = self.predicate.eval(&batch, None)?;
+        let selection = self.predicate.eval2(&batch, None)?;
         let selection = match selection.as_ref() {
             Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
             other => {

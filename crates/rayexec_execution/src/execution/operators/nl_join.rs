@@ -444,7 +444,7 @@ fn cross_join(
 
         // If we have a filter, apply it to the intermediate batch.
         if let Some(filter_expr) = &filter_expr {
-            let arr = filter_expr.eval(&batch, None)?;
+            let arr = filter_expr.eval2(&batch, None)?;
             let selection = match arr.as_ref() {
                 Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
                 other => {

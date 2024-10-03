@@ -229,7 +229,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 let batch = batch.try_materialize()?;
 
                 // Compute left hashes on equality condition.
-                let result = self.equality.left.eval(&batch, None)?;
+                let result = self.equality.left.eval2(&batch, None)?;
                 state.hash_buf.clear();
                 state.hash_buf.resize(result.len(), 0);
                 let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
@@ -295,7 +295,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 // Compute right hashes on equality condition.
                 let batch = batch.try_materialize()?; // TODO: Try to remove.
-                let result = self.equality.right.eval(&batch, None)?;
+                let result = self.equality.right.eval2(&batch, None)?;
                 state.hash_buf.clear();
                 state.hash_buf.resize(result.len(), 0);
                 let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;

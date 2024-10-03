@@ -19,8 +19,8 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
-        let input = self.expr.eval(batch, selection)?;
+    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
+        let input = self.expr.eval2(batch, selection)?;
         let out = cast_array(&input, &self.to)?;
         Ok(Arc::new(out))
     }

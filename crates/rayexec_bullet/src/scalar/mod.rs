@@ -3,11 +3,12 @@ pub mod interval;
 pub mod timestamp;
 
 use crate::array::{
-    Array2, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
-    Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    IntervalArray, LargeBinaryArray, LargeUtf8Array, ListArray, NullArray, TimestampArray,
-    UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+    Array, Array2, ArrayData, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array,
+    Decimal64Array, Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array,
+    Int8Array, IntervalArray, ListArray, NullArray, TimestampArray, UInt128Array, UInt16Array,
+    UInt32Array, UInt64Array, UInt8Array, Utf8Array,
 };
+use crate::bitmap::Bitmap;
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
     Float32Formatter, Float64Formatter, Formatter, Int128Formatter, Int16Formatter, Int32Formatter,
@@ -16,9 +17,11 @@ use crate::compute::cast::format::{
     UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
 use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::selection::SelectionVector;
+use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -164,8 +167,40 @@ impl<'a> ScalarValue<'a> {
         }
     }
 
+    pub fn as_array(&self, n: usize) -> Result<Array> {
+        let data: ArrayData = match self {
+            Self::Null => not_implemented!("NULL scalar to array"), // TODO: Probably typed null
+            Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
+            Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int8(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int16(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int128(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt8(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt16(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt128(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Decimal64(v) => PrimitiveStorage::from(vec![v.value]).into(),
+            Self::Decimal128(v) => PrimitiveStorage::from(vec![v.value]).into(),
+            Self::Date32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Date64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Timestamp(v) => PrimitiveStorage::from(vec![v.value]).into(),
+            Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
+            other => not_implemented!("{other} to array"), // Struct, List
+        };
+
+        let mut array = Array::new_with_array_data(self.datatype(), data);
+        array.put_selection(SelectionVector::constant(n, 0));
+
+        Ok(array)
+    }
+
     /// Create an array of size `n` using the scalar value.
-    pub fn as_array(&self, n: usize) -> Array2 {
+    pub fn as_array2(&self, n: usize) -> Array2 {
         match self {
             Self::Null => Array2::Null(NullArray::new(n)),
             Self::Boolean(v) => {
@@ -226,7 +261,7 @@ impl<'a> ScalarValue<'a> {
             )),
             Self::Struct(_) => unimplemented!("struct into array"),
             Self::List(v) => {
-                let children: Vec<_> = v.iter().map(|v| v.as_array(n)).collect();
+                let children: Vec<_> = v.iter().map(|v| v.as_array2(n)).collect();
                 let refs: Vec<_> = children.iter().collect();
                 let array = if refs.is_empty() {
                     ListArray::new_empty_with_n_rows(n)

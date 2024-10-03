@@ -7,10 +7,19 @@ pub struct SelectionVector {
 }
 
 impl SelectionVector {
-    /// Create a new empty selection vector. Logically this indices no rows.
+    /// Create a new empty selection vector. Logically this means an array has
+    /// no rows even if the array physically contains data.
     pub const fn empty() -> Self {
         SelectionVector {
             indices: Vec::new(),
+        }
+    }
+
+    /// Creates a selection vector that that has all indices in the range [0,n)
+    /// point to the same physical index.
+    pub fn constant(len: usize, idx: usize) -> Self {
+        SelectionVector {
+            indices: vec![idx; len],
         }
     }
 
@@ -21,6 +30,8 @@ impl SelectionVector {
         }
     }
 
+    /// Try to get the location of an index, returning None if the index is out
+    /// of bounds.
     pub fn get(&self, idx: usize) -> Option<usize> {
         self.indices.get(idx).copied()
     }
