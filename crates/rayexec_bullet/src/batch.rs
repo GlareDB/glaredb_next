@@ -121,6 +121,10 @@ impl Batch {
         self.cols2.get(idx)
     }
 
+    pub fn column(&self, idx: usize) -> Option<&Array> {
+        self.cols.get(idx)
+    }
+
     pub fn columns2(&self) -> &[Arc<Array2>] {
         &self.cols2
     }

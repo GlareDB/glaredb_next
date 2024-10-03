@@ -6,14 +6,19 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
-use std::fmt;
 use std::sync::Arc;
+use std::{borrow::Cow, fmt};
 
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
-use rayexec_bullet::{array::Array2, batch::Batch, bitmap::Bitmap, datatype::DataType};
+use rayexec_bullet::{
+    array::{Array, Array2},
+    batch::Batch,
+    bitmap::Bitmap,
+    datatype::DataType,
+};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
@@ -33,6 +38,10 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+        unimplemented!()
+    }
+
     /// Evaluates an expression on a batch using an optional row selection.
     pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         match self {

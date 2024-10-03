@@ -1,5 +1,5 @@
-use std::fmt;
 use std::sync::Arc;
+use std::{borrow::Cow, fmt};
 
 use rayexec_bullet::{
     array::{Array, Array2},
@@ -18,8 +18,9 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
-    pub fn eval(&self, batch: &Batch) -> Result<Array> {
-        self.literal.as_array(batch.num_rows())
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+        let arr = self.literal.as_array(batch.num_rows())?;
+        Ok(Cow::Owned(arr))
     }
 
     pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {

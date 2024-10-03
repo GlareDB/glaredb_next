@@ -1,7 +1,12 @@
-use std::fmt;
 use std::sync::Arc;
+use std::{borrow::Cow, fmt};
 
-use rayexec_bullet::{array::Array2, batch::Batch, bitmap::Bitmap, compute};
+use rayexec_bullet::{
+    array::{Array, Array2},
+    batch::Batch,
+    bitmap::Bitmap,
+    compute,
+};
 use rayexec_error::{RayexecError, Result};
 
 use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
@@ -12,6 +17,18 @@ pub struct PhysicalColumnExpr {
 }
 
 impl PhysicalColumnExpr {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+        let col = batch.column(self.idx).ok_or_else(|| {
+            RayexecError::new(format!(
+                "Tried to get column at index {} in a batch with {} columns",
+                self.idx,
+                batch.columns2().len()
+            ))
+        })?;
+
+        Ok(Cow::Borrowed(col))
+    }
+
     pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let col = batch.column2(self.idx).ok_or_else(|| {
             RayexecError::new(format!(

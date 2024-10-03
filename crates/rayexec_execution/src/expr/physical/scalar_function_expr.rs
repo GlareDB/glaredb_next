@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::{
-    array::Array2, batch::Batch, bitmap::Bitmap, format::ugly::ugly_format_no_schema,
+    array::{Array, Array2},
+    batch::Batch,
+    bitmap::Bitmap,
 };
 use rayexec_error::{OptionExt, RayexecError, Result};
 
@@ -20,6 +22,29 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
+    pub fn eval(&self, batch: &Batch) -> Result<Array> {
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|input| input.eval(batch))
+            .collect::<Result<Vec<_>>>()?;
+
+        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?
+        let mut out = self.function.execute(&refs)?;
+
+        // If function is provided no input, it's expected to return an
+        // array of length 1. We extend the array here so that it's the
+        // same size as the rest.
+        //
+        // TODO: Could just extend the selection vector too.
+        if refs.is_empty() {
+            let scalar = out.logical_value(0)?;
+            out = scalar.as_array(batch.num_rows())?;
+        }
+
+        Ok(out)
+    }
+
     pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let inputs = self
             .inputs

@@ -1,20 +1,29 @@
 use crate::{
     array::{
-        Array2, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
-        DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
+        Array, Array2, ArrayAccessor, ArrayData, BooleanArray, BooleanValuesBuffer,
+        Decimal128Array, Decimal64Array, DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer,
+        VarlenArray, VarlenValuesBuffer,
     },
+    bitmap::Bitmap,
     datatype::{DataType, TimeUnit},
-    executor::scalar::UnaryExecutor2,
+    executor::{
+        builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer},
+        physical_type::PhysicalUtf8,
+        scalar::{UnaryExecutor, UnaryExecutor2},
+    },
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
+    storage::PrimitiveStorage,
 };
 use num::{Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
 use std::{
+    borrow::Cow,
     fmt::{self, Display},
     ops::{Div, Mul},
 };
 
 use super::{
+    behavior::CastFailBehavior,
     format::{
         BoolFormatter, Decimal128Formatter, Decimal64Formatter, Float32Formatter, Float64Formatter,
         Formatter, Int16Formatter, Int32Formatter, Int64Formatter, Int8Formatter,
@@ -24,13 +33,123 @@ use super::{
     },
     parse::{
         BoolParser, Date32Parser, Decimal128Parser, Decimal64Parser, Float32Parser, Float64Parser,
-        Int16Parser, Int32Parser, Int64Parser, Int8Parser, IntervalParser, Parser, UInt16Parser,
-        UInt32Parser, UInt64Parser, UInt8Parser,
+        Int128Parser, Int16Parser, Int32Parser, Int64Parser, Int8Parser, IntervalParser, Parser,
+        UInt128Parser, UInt16Parser, UInt32Parser, UInt64Parser, UInt8Parser,
     },
 };
 
+pub fn cast_array<'a>(
+    arr: &'a Array,
+    to: DataType,
+    behavior: CastFailBehavior,
+) -> Result<Cow<'a, Array>> {
+    if arr.datatype() == &to {
+        return Ok(Cow::Borrowed(arr));
+    }
+
+    let arr = match arr.datatype() {
+        DataType::Utf8 | DataType::LargeUtf8 => cast_from_utf8(arr, to, behavior)?,
+        _ => unimplemented!(),
+    };
+
+    Ok(Cow::Owned(arr))
+}
+
+pub fn cast_from_utf8(
+    arr: &Array,
+    datatype: DataType,
+    behavior: CastFailBehavior,
+) -> Result<Array> {
+    match datatype {
+        DataType::Boolean => cast_parse_bool(arr, behavior),
+        DataType::Int8 => cast_parse_primitive(arr, datatype, behavior, Int8Parser::default()),
+        DataType::Int16 => cast_parse_primitive(arr, datatype, behavior, Int16Parser::default()),
+        DataType::Int32 => cast_parse_primitive(arr, datatype, behavior, Int32Parser::default()),
+        DataType::Int64 => cast_parse_primitive(arr, datatype, behavior, Int64Parser::default()),
+        DataType::Int128 => cast_parse_primitive(arr, datatype, behavior, Int128Parser::default()),
+        DataType::UInt8 => cast_parse_primitive(arr, datatype, behavior, UInt8Parser::default()),
+        DataType::UInt16 => cast_parse_primitive(arr, datatype, behavior, UInt16Parser::default()),
+        DataType::UInt32 => cast_parse_primitive(arr, datatype, behavior, UInt32Parser::default()),
+        DataType::UInt64 => cast_parse_primitive(arr, datatype, behavior, UInt64Parser::default()),
+        DataType::UInt128 => {
+            cast_parse_primitive(arr, datatype, behavior, UInt128Parser::default())
+        }
+        DataType::Float32 => {
+            cast_parse_primitive(arr, datatype, behavior, Float32Parser::default())
+        }
+        DataType::Float64 => {
+            cast_parse_primitive(arr, datatype, behavior, Float64Parser::default())
+        }
+        DataType::Decimal64(m) => cast_parse_primitive(
+            arr,
+            datatype,
+            behavior,
+            Decimal64Parser::new(m.precision, m.scale),
+        ),
+        DataType::Decimal128(m) => cast_parse_primitive(
+            arr,
+            datatype,
+            behavior,
+            Decimal128Parser::new(m.precision, m.scale),
+        ),
+        DataType::Date32 => cast_parse_primitive(arr, datatype, behavior, Date32Parser),
+        DataType::Interval => {
+            cast_parse_primitive(arr, datatype, behavior, IntervalParser::default())
+        }
+        other => {
+            return Err(RayexecError::new(format!(
+                "Unable to cast utf8 array to {other}"
+            )))
+        }
+    }
+}
+
+fn cast_parse_bool(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
+    let mut fail_state = behavior.new_state_for_array(arr);
+    let arr = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+        arr,
+        ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(arr.logical_len()),
+        },
+        |v, buf| match BoolParser.parse(v) {
+            Some(v) => buf.put(&v),
+            None => fail_state.set_did_fail(buf.idx),
+        },
+    )?;
+
+    fail_state.apply(arr)
+}
+
+fn cast_parse_primitive<P, T>(
+    arr: &Array,
+    datatype: DataType,
+    behavior: CastFailBehavior,
+    mut parser: P,
+) -> Result<Array>
+where
+    T: Default + Copy,
+    P: Parser<Type = T>,
+    ArrayData: From<PrimitiveStorage<T>>,
+{
+    let mut fail_state = behavior.new_state_for_array(arr);
+    let arr = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+        arr,
+        ArrayBuilder {
+            datatype: datatype.clone(),
+            buffer: PrimitiveBuffer::<T>::with_len(arr.logical_len()),
+        },
+        |v, buf| match parser.parse(v) {
+            Some(v) => buf.put(&v),
+            None => fail_state.set_did_fail(buf.idx),
+        },
+    )?;
+
+    fail_state.apply(arr)
+}
+
 /// Cast an array to some other data type.
-pub fn cast_array(arr: &Array2, to: &DataType) -> Result<Array2> {
+pub fn cast_array2(arr: &Array2, to: &DataType) -> Result<Array2> {
     Ok(match (arr, to) {
         // Null to whatever.
         (Array2::Null(arr), datatype) => cast_from_null(arr.len(), datatype)?,
@@ -281,8 +400,8 @@ pub fn cast_array(arr: &Array2, to: &DataType) -> Result<Array2> {
         }
 
         // From Utf8
-        (Array2::Utf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
-        (Array2::LargeUtf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
+        (Array2::Utf8(arr), datatype) => cast_from_utf8_array2(arr, datatype)?,
+        (Array2::LargeUtf8(arr), datatype) => cast_from_utf8_array2(arr, datatype)?,
 
         // To Utf8
         (arr, DataType::Utf8) => Array2::Utf8(cast_to_utf8_array(arr)?),
@@ -334,35 +453,35 @@ pub fn cast_from_null(len: usize, datatype: &DataType) -> Result<Array2> {
     })
 }
 
-pub fn cast_from_utf8_array<O>(arr: &VarlenArray<str, O>, datatype: &DataType) -> Result<Array2>
+pub fn cast_from_utf8_array2<O>(arr: &VarlenArray<str, O>, datatype: &DataType) -> Result<Array2>
 where
     O: OffsetIndex,
 {
     Ok(match datatype {
         DataType::Boolean => Array2::Boolean(cast_parse_boolean(arr)?),
-        DataType::Int8 => Array2::Int8(cast_parse_primitive(arr, Int8Parser::default())?),
-        DataType::Int16 => Array2::Int16(cast_parse_primitive(arr, Int16Parser::default())?),
-        DataType::Int32 => Array2::Int32(cast_parse_primitive(arr, Int32Parser::default())?),
-        DataType::Int64 => Array2::Int64(cast_parse_primitive(arr, Int64Parser::default())?),
-        DataType::UInt8 => Array2::UInt8(cast_parse_primitive(arr, UInt8Parser::default())?),
-        DataType::UInt16 => Array2::UInt16(cast_parse_primitive(arr, UInt16Parser::default())?),
-        DataType::UInt32 => Array2::UInt32(cast_parse_primitive(arr, UInt32Parser::default())?),
-        DataType::UInt64 => Array2::UInt64(cast_parse_primitive(arr, UInt64Parser::default())?),
-        DataType::Float32 => Array2::Float32(cast_parse_primitive(arr, Float32Parser::default())?),
-        DataType::Float64 => Array2::Float64(cast_parse_primitive(arr, Float64Parser::default())?),
+        DataType::Int8 => Array2::Int8(cast_parse_primitive2(arr, Int8Parser::default())?),
+        DataType::Int16 => Array2::Int16(cast_parse_primitive2(arr, Int16Parser::default())?),
+        DataType::Int32 => Array2::Int32(cast_parse_primitive2(arr, Int32Parser::default())?),
+        DataType::Int64 => Array2::Int64(cast_parse_primitive2(arr, Int64Parser::default())?),
+        DataType::UInt8 => Array2::UInt8(cast_parse_primitive2(arr, UInt8Parser::default())?),
+        DataType::UInt16 => Array2::UInt16(cast_parse_primitive2(arr, UInt16Parser::default())?),
+        DataType::UInt32 => Array2::UInt32(cast_parse_primitive2(arr, UInt32Parser::default())?),
+        DataType::UInt64 => Array2::UInt64(cast_parse_primitive2(arr, UInt64Parser::default())?),
+        DataType::Float32 => Array2::Float32(cast_parse_primitive2(arr, Float32Parser::default())?),
+        DataType::Float64 => Array2::Float64(cast_parse_primitive2(arr, Float64Parser::default())?),
         DataType::Decimal64(meta) => {
             let primitive =
-                cast_parse_primitive(arr, Decimal64Parser::new(meta.precision, meta.scale))?;
+                cast_parse_primitive2(arr, Decimal64Parser::new(meta.precision, meta.scale))?;
             Array2::Decimal64(DecimalArray::new(meta.precision, meta.scale, primitive))
         }
         DataType::Decimal128(meta) => {
             let primitive =
-                cast_parse_primitive(arr, Decimal128Parser::new(meta.precision, meta.scale))?;
+                cast_parse_primitive2(arr, Decimal128Parser::new(meta.precision, meta.scale))?;
             Array2::Decimal128(DecimalArray::new(meta.precision, meta.scale, primitive))
         }
-        DataType::Date32 => Array2::Date32(cast_parse_primitive(arr, Date32Parser)?),
+        DataType::Date32 => Array2::Date32(cast_parse_primitive2(arr, Date32Parser)?),
         DataType::Interval => {
-            Array2::Interval(cast_parse_primitive(arr, IntervalParser::default())?)
+            Array2::Interval(cast_parse_primitive2(arr, IntervalParser::default())?)
         }
         other => {
             return Err(RayexecError::new(format!(
@@ -465,7 +584,7 @@ where
 }
 
 /// Cast from a utf8 array to a primitive array by parsing the utf8 values.
-fn cast_parse_primitive<O, T, P>(
+fn cast_parse_primitive2<O, T, P>(
     arr: &VarlenArray<str, O>,
     mut parser: P,
 ) -> Result<PrimitiveArray<T>>

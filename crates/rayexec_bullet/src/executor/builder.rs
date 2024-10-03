@@ -23,7 +23,9 @@ pub struct ArrayBuilder<B> {
 /// where to write a value to.
 #[derive(Debug)]
 pub struct OutputBuffer<B> {
+    /// Index in the buffer we're writing to.
     pub(crate) idx: usize,
+    /// The buffer itself.
     pub(crate) buffer: B,
 }
 
