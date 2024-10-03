@@ -200,6 +200,134 @@ impl PlannedScalarFunction for DivImpl {
             other => panic!("unexpected array type: {other:?}"),
         })
     }
+
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let a = inputs[0];
+        let b = inputs[1];
+
+        let datatype = self.datatype.clone();
+
+        // Special cases.
+        match (a.datatype(), b.datatype()) {
+            // TODO: Decimal
+            _ => (),
+        }
+
+        match (a.physical_type(), b.physical_type()) {
+            (PhysicalType::Int8, PhysicalType::Int8) => {
+                BinaryExecutor::execute::<PhysicalI8, PhysicalI8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::Int16, PhysicalType::Int16) => {
+                BinaryExecutor::execute::<PhysicalI16, PhysicalI16, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::Int32, PhysicalType::Int32) => {
+                BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::Int64, PhysicalType::Int64) => {
+                BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::Int128, PhysicalType::Int128) => {
+                BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+
+            (PhysicalType::UInt8, PhysicalType::UInt8) => {
+                BinaryExecutor::execute::<PhysicalU8, PhysicalU8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::UInt16, PhysicalType::UInt16) => {
+                BinaryExecutor::execute::<PhysicalU16, PhysicalU16, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::UInt32, PhysicalType::UInt32) => {
+                BinaryExecutor::execute::<PhysicalU32, PhysicalU32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::UInt64, PhysicalType::UInt64) => {
+                BinaryExecutor::execute::<PhysicalU64, PhysicalU64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::UInt128, PhysicalType::UInt128) => {
+                BinaryExecutor::execute::<PhysicalU128, PhysicalU128, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (a, b) => return Err(unhandled_physical_types_err(self, [a, b])),
+        }
+    }
 }
 
 #[cfg(test)]
