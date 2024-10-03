@@ -1,7 +1,10 @@
 use crate::functions::scalar::macros::{
     primitive_binary_execute, primitive_binary_execute_no_wrap,
 };
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{
+    invalid_input_types_error, plan_check_num_args, unhandled_physical_types_er, FunctionInfo,
+    Signature,
+};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use rayexec_bullet::array::{Array, Array2, Decimal128Array, Decimal64Array};
@@ -221,6 +224,35 @@ impl PlannedScalarFunction for AddImpl {
 
         let datatype = self.datatype.clone();
 
+        // Special cases.
+        match (a.datatype(), b.datatype()) {
+            (DataType::Date32, DataType::Int32) => {
+                // Date32 is stored as "days", so just add the values.
+                return BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                );
+            }
+            (DataType::Date32, DataType::Int64) => {
+                // Same as above.
+                return BinaryExecutor::execute::<PhysicalI32, PhysicalI64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b as i32)),
+                );
+            }
+            _ => (),
+        }
+
         match (a.physical_type(), b.physical_type()) {
             (PhysicalType::Int8, PhysicalType::Int8) => {
                 BinaryExecutor::execute::<PhysicalI8, PhysicalI8, _, _>(
@@ -233,7 +265,107 @@ impl PlannedScalarFunction for AddImpl {
                     |a, b, buf| buf.put(&(a + b)),
                 )
             }
-            (a, b) => unimplemented!(),
+            (PhysicalType::Int16, PhysicalType::Int16) => {
+                BinaryExecutor::execute::<PhysicalI16, PhysicalI16, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (PhysicalType::Int32, PhysicalType::Int32) => {
+                BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (PhysicalType::Int64, PhysicalType::Int64) => {
+                BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (PhysicalType::Int128, PhysicalType::Int128) => {
+                BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+
+            (PhysicalType::UInt8, PhysicalType::UInt8) => {
+                BinaryExecutor::execute::<PhysicalU8, PhysicalU8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (PhysicalType::UInt16, PhysicalType::UInt16) => {
+                BinaryExecutor::execute::<PhysicalU16, PhysicalU16, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (PhysicalType::UInt32, PhysicalType::UInt32) => {
+                BinaryExecutor::execute::<PhysicalU32, PhysicalU32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (PhysicalType::UInt64, PhysicalType::UInt64) => {
+                BinaryExecutor::execute::<PhysicalU64, PhysicalU64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (PhysicalType::UInt128, PhysicalType::UInt128) => {
+                BinaryExecutor::execute::<PhysicalU128, PhysicalU128, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
+            }
+            (a, b) => return Err(unhandled_physical_types_err(self, [a, b])),
         }
     }
 }

@@ -79,6 +79,10 @@ pub struct Array {
 }
 
 impl Array {
+    pub fn datatype(&self) -> &DataType {
+        &self.datatype
+    }
+
     pub fn selection_vector(&self) -> Option<&SelectionVector> {
         self.selection.as_ref().map(|v| v.as_ref())
     }

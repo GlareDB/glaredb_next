@@ -3,8 +3,12 @@ use std::sync::Arc;
 
 use crate::{
     array::{ArrayData, BinaryData},
+    bitmap::Bitmap,
     datatype::DataType,
-    storage::{GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata, INLINE_THRESHOLD},
+    storage::{
+        BooleanStorage, GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata,
+        INLINE_THRESHOLD,
+    },
 };
 
 use super::physical_type::VarlenType;
@@ -43,6 +47,35 @@ pub trait ArrayDataBuffer<'a> {
 
     /// Convert the buffer into array data.
     fn into_data(self) -> ArrayData;
+}
+
+#[derive(Debug)]
+pub struct BooleanBuffer {
+    pub(crate) values: Bitmap,
+}
+
+impl BooleanBuffer {
+    pub fn with_len(len: usize) -> Self {
+        BooleanBuffer {
+            values: Bitmap::new_with_all_false(len),
+        }
+    }
+}
+
+impl<'a> ArrayDataBuffer for BooleanBuffer {
+    type Type = bool;
+
+    fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::Type) {
+        self.values.set_unchecked(idx, *val)
+    }
+
+    fn into_data(self) -> ArrayData {
+        ArrayData::Boolean(Arc::new(BooleanStorage(self.values)))
+    }
 }
 
 #[derive(Debug)]
