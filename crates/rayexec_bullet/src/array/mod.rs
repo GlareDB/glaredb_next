@@ -141,6 +141,9 @@ impl Array {
         }
     }
 
+    /// Get the value at a logical index.
+    ///
+    /// Takes into account the validity and selection vector.
     pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
         let idx = match self.selection_vector() {
             Some(v) => v
@@ -148,6 +151,12 @@ impl Array {
                 .ok_or_else(|| RayexecError::new(format!("Logical index {idx} out of bounds")))?,
             None => idx,
         };
+
+        if let Some(validity) = &self.validity {
+            if !validity.value_unchecked(idx) {
+                return Ok(ScalarValue::Null);
+            }
+        }
 
         self.physical_scalar(idx)
     }

@@ -15,9 +15,7 @@ impl CastFailBehavior {
     pub(crate) fn new_state_for_array(&self, arr: &Array) -> CastFailState {
         match self {
             CastFailBehavior::Error => CastFailState::TrackOneAndError(None),
-            CastFailBehavior::Null => {
-                CastFailState::TrackManyAndInvalidate(arr.logical_len(), None)
-            }
+            CastFailBehavior::Null => CastFailState::TrackManyAndInvalidate(Vec::new()),
         }
     }
 }
@@ -28,10 +26,7 @@ pub(crate) enum CastFailState {
     /// Keep the row index of the first failure.
     TrackOneAndError(Option<usize>),
     /// Track all failures during casting.
-    ///
-    /// Lazily allocates the validity bitmap. ANDed with the resulting validity
-    /// bitmap for the array.
-    TrackManyAndInvalidate(usize, Option<Bitmap>),
+    TrackManyAndInvalidate(Vec<usize>),
 }
 
 impl CastFailState {
@@ -42,24 +37,31 @@ impl CastFailState {
                     *maybe_idx = Some(idx);
                 }
             }
-            Self::TrackManyAndInvalidate(len, maybe_bitmap) => {
-                let bitmap = maybe_bitmap.get_or_insert_with(|| Bitmap::new_with_all_true(*len));
-                bitmap.set_unchecked(idx, false);
-            }
+            Self::TrackManyAndInvalidate(indices) => indices.push(idx),
         }
     }
 
-    pub(crate) fn apply(&self, arr: Array) -> Result<Array> {
+    pub(crate) fn check_and_apply(self, original: &Array, mut output: Array) -> Result<Array> {
         match self {
-            Self::TrackOneAndError(None) => Ok(arr),
+            Self::TrackOneAndError(None) => Ok(output),
             Self::TrackOneAndError(Some(idx)) => {
-                let scalar = arr.logical_value(*idx)?;
+                let scalar = original.logical_value(idx)?;
                 Err(RayexecError::new(format!(
                     "Failed to parse '{scalar}' into {}",
-                    arr.datatype()
+                    output.datatype()
                 )))
             }
-            _ => unimplemented!(), // TODO
+            Self::TrackManyAndInvalidate(indices) => {
+                if indices.is_empty() {
+                    Ok(output)
+                } else {
+                    // Apply the nulls.
+                    for idx in indices {
+                        output.set_physical_validity(idx, false);
+                    }
+                    Ok(output)
+                }
+            }
         }
     }
 }

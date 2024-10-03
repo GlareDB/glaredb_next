@@ -1,7 +1,7 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::{Array2, BooleanArray, BooleanValuesBuffer};
-use rayexec_bullet::compute::cast::array::cast_decimal_to_new_precision_and_scale;
+use rayexec_bullet::compute::cast::array::cast_decimal_to_new_precision_and_scale2;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor2;
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -232,7 +232,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
         (Array2::Decimal64(left), Array2::Decimal64(right)) => {
             match left.scale().cmp(&right.scale()) {
                 Ordering::Greater => {
-                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
+                    let scaled_right = cast_decimal_to_new_precision_and_scale2::<Decimal64Type>(
                         right,
                         Decimal64Type::MAX_PRECISION,
                         left.scale(),
@@ -246,7 +246,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
                     )?
                 }
                 Ordering::Less => {
-                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
+                    let scaled_left = cast_decimal_to_new_precision_and_scale2::<Decimal64Type>(
                         left,
                         Decimal64Type::MAX_PRECISION,
                         right.scale(),
@@ -270,7 +270,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
         (Array2::Decimal128(left), Array2::Decimal128(right)) => {
             match left.scale().cmp(&right.scale()) {
                 Ordering::Greater => {
-                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
+                    let scaled_right = cast_decimal_to_new_precision_and_scale2::<Decimal128Type>(
                         right,
                         Decimal128Type::MAX_PRECISION,
                         left.scale(),
@@ -285,7 +285,7 @@ fn execute<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<Bool
                 }
 
                 Ordering::Less => {
-                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
+                    let scaled_left = cast_decimal_to_new_precision_and_scale2::<Decimal128Type>(
                         left,
                         Decimal128Type::MAX_PRECISION,
                         right.scale(),

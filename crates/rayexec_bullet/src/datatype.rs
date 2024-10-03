@@ -444,6 +444,28 @@ impl DataType {
         matches!(self, DataType::List(_))
     }
 
+    pub const fn is_utf8(&self) -> bool {
+        matches!(self, DataType::Utf8 | DataType::LargeUtf8)
+    }
+
+    pub const fn is_primitive_numeric(&self) -> bool {
+        matches!(
+            self,
+            DataType::Int8
+                | DataType::Int16
+                | DataType::Int32
+                | DataType::Int64
+                | DataType::Int128
+                | DataType::UInt8
+                | DataType::UInt16
+                | DataType::UInt32
+                | DataType::UInt64
+                | DataType::UInt128
+                | DataType::Float32
+                | DataType::Float64
+        )
+    }
+
     pub const fn is_numeric(&self) -> bool {
         matches!(
             self,
