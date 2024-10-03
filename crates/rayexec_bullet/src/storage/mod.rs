@@ -12,10 +12,13 @@ pub use shared_heap::*;
 mod german;
 pub use german::*;
 
+mod boolean;
+pub use boolean::*;
+
 use std::fmt::Debug;
 
 pub trait AddressableStorage: Debug {
-    type T: Debug + ?Sized;
+    type T: Debug;
 
     fn len(&self) -> usize;
 
@@ -23,7 +26,7 @@ pub trait AddressableStorage: Debug {
         self.len() == 0
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T>;
+    fn get(&self, idx: usize) -> Option<Self::T>;
 
-    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T;
+    unsafe fn get_unchecked(&self, idx: usize) -> Self::T;
 }

@@ -23,8 +23,8 @@ impl BinaryExecutor {
     ) -> Result<Array>
     where
         Op: FnMut(
-            &<S1::Storage as AddressableStorage>::T,
-            &<S2::Storage as AddressableStorage>::T,
+            <S1::Storage as AddressableStorage>::T,
+            <S2::Storage as AddressableStorage>::T,
             &mut OutputBuffer<B>,
         ),
         S1: PhysicalStorage<'a>,
@@ -159,7 +159,7 @@ mod tests {
         datatype::DataType,
         executor::{
             builder::{GermanVarlenBuffer, PrimitiveBuffer},
-            physical_type::{PhysicalI32, PhysicalStr},
+            physical_type::{PhysicalI32, PhysicalUtf8},
         },
         scalar::ScalarValue,
     };
@@ -180,7 +180,7 @@ mod tests {
             &left,
             &right,
             builder,
-            |&a, &b, buf| buf.put(&(a + b)),
+            |a, b, buf| buf.put(&(a + b)),
         )
         .unwrap();
 
@@ -200,11 +200,11 @@ mod tests {
         };
 
         let mut string_buf = String::new();
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalStr, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, _, _>(
             &left,
             &right,
             builder,
-            |&repeat, s, buf| {
+            |repeat, s, buf| {
                 string_buf.clear();
                 for _ in 0..repeat {
                     string_buf.push_str(s);

@@ -163,13 +163,13 @@ impl<'a, T: Copy + Debug> AddressableStorage for PrimitiveStorageSlice<'a, T> {
         self.slice.len()
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
-        self.slice.get(idx)
+    fn get(&self, idx: usize) -> Option<Self::T> {
+        self.slice.get(idx).copied()
     }
 
     #[inline]
-    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
-        self.slice.get_unchecked(idx)
+    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
+        *self.slice.get_unchecked(idx)
     }
 }
 

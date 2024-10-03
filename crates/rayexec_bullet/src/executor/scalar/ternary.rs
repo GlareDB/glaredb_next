@@ -26,9 +26,9 @@ impl TernaryExecutor {
     ) -> Result<Array>
     where
         Op: FnMut(
-            &<S1::Storage as AddressableStorage>::T,
-            &<S2::Storage as AddressableStorage>::T,
-            &<S3::Storage as AddressableStorage>::T,
+            <S1::Storage as AddressableStorage>::T,
+            <S2::Storage as AddressableStorage>::T,
+            <S3::Storage as AddressableStorage>::T,
             &mut OutputBuffer<B>,
         ),
         S1: PhysicalStorage<'a>,
@@ -181,7 +181,7 @@ mod tests {
         datatype::DataType,
         executor::{
             builder::GermanVarlenBuffer,
-            physical_type::{PhysicalI32, PhysicalStr},
+            physical_type::{PhysicalI32, PhysicalUtf8},
         },
         scalar::ScalarValue,
     };
@@ -197,16 +197,16 @@ mod tests {
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
-        let got = TernaryExecutor::execute::<PhysicalStr, PhysicalI32, PhysicalI32, _, _>(
+        let got = TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalI32, _, _>(
             &first,
             &second,
             &third,
             builder,
-            |s: &str, from: &i32, count: &i32, buf: &mut OutputBuffer<_>| {
+            |s: &str, from: i32, count: i32, buf: &mut OutputBuffer<_>| {
                 let s = s
                     .chars()
                     .skip((from - 1) as usize) // To match postgres' 1-indexing
-                    .take(*count as usize)
+                    .take(count as usize)
                     .collect::<String>();
                 buf.put(s.as_str())
             },

@@ -12,104 +12,6 @@ use crate::{
 use rayexec_error::{RayexecError, Result};
 
 #[derive(Debug, Clone, Copy)]
-pub struct UniformKnownSizeExecutor<const N: usize>;
-
-impl<const N: usize> UniformKnownSizeExecutor<N> {
-    pub fn execute<'a, S, B, Op>(
-        arrays: [&'a Array; N],
-        builder: ArrayBuilder<B>,
-        mut op: Op,
-    ) -> Result<Array>
-    where
-        Op: FnMut([&<S::Storage as AddressableStorage>::T; N], &mut OutputBuffer<B>),
-        S: PhysicalStorage<'a>,
-        B: ArrayDataBuffer<'a>,
-    {
-        let len = match arrays.first() {
-            Some(first) => validate_logical_len(&builder.buffer, first)?,
-            None => return Err(RayexecError::new("Cannot execute on no arrays")),
-        };
-
-        for arr in arrays {
-            let _ = validate_logical_len(&builder.buffer, arr)?;
-        }
-
-        let validity = union_validities(arrays.iter().map(|arr| arr.validity()))?;
-
-        let selections = arrays.map(|a| a.selection_vector());
-
-        let mut out_validity = None;
-        let mut output_buffer = OutputBuffer {
-            idx: 0,
-            buffer: builder.buffer,
-        };
-
-        let mut op_inputs = Vec::with_capacity(N);
-
-        match validity {
-            Some(validity) => {
-                let storage_values: [S::Storage; N] = arrays
-                    .iter()
-                    .map(|a| S::get_storage(&a.data))
-                    .collect::<Result<Vec<_>>>()?
-                    .try_into()
-                    .unwrap();
-
-                let mut out_validity_builder = Bitmap::new_with_all_true(len);
-
-                for idx in 0..len {
-                    if !validity.value_unchecked(idx) {
-                        out_validity_builder.set_unchecked(idx, false);
-                        continue;
-                    }
-
-                    op_inputs.clear();
-                    for arr_idx in 0..N {
-                        let sel = selection::get_unchecked(selections[arr_idx], idx);
-                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
-                        op_inputs.push(val);
-                    }
-
-                    output_buffer.idx = idx;
-                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
-                }
-
-                out_validity = Some(out_validity_builder);
-            }
-            None => {
-                let storage_values: [S::Storage; N] = arrays
-                    .iter()
-                    .map(|a| S::get_storage(&a.data))
-                    .collect::<Result<Vec<_>>>()?
-                    .try_into()
-                    .unwrap();
-
-                for idx in 0..len {
-                    op_inputs.clear();
-                    for arr_idx in 0..N {
-                        let sel = selection::get_unchecked(selections[arr_idx], idx);
-                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
-                        op_inputs.push(val);
-                    }
-
-                    output_buffer.idx = idx;
-                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
-                }
-            }
-        }
-
-        let data = output_buffer.buffer.into_data();
-
-        Ok(Array {
-            datatype: builder.datatype,
-            selection: None,
-            validity: out_validity,
-            data,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
 pub struct UniformExecutor;
 
 impl UniformExecutor {
@@ -119,7 +21,7 @@ impl UniformExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(&[&<S::Storage as AddressableStorage>::T], &mut OutputBuffer<B>),
+        Op: FnMut(&[<S::Storage as AddressableStorage>::T], &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
         B: ArrayDataBuffer<'a>,
     {
@@ -285,40 +187,9 @@ mod tests {
 
     use crate::{
         datatype::DataType,
-        executor::{builder::GermanVarlenBuffer, physical_type::PhysicalStr},
+        executor::{builder::GermanVarlenBuffer, physical_type::PhysicalUtf8},
         scalar::ScalarValue,
     };
-
-    #[test]
-    fn uniform_known_size_string_concat_row_wise() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let second = Array::from_iter(["1", "2", "3"]);
-        let third = Array::from_iter(["dog", "cat", "horse"]);
-
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(3),
-        };
-
-        let mut string_buffer = String::new();
-
-        let got = UniformKnownSizeExecutor::execute::<PhysicalStr, _, _>(
-            [&first, &second, &third],
-            builder,
-            |[a, b, c], buf| {
-                string_buffer.clear();
-                string_buffer.push_str(a);
-                string_buffer.push_str(b);
-                string_buffer.push_str(c);
-                buf.put(string_buffer.as_str())
-            },
-        )
-        .unwrap();
-
-        assert_eq!(ScalarValue::from("a1dog"), got.value(0).unwrap());
-        assert_eq!(ScalarValue::from("b2cat"), got.value(1).unwrap());
-        assert_eq!(ScalarValue::from("c3horse"), got.value(2).unwrap());
-    }
 
     #[test]
     fn uniform_string_concat_row_wise() {
@@ -333,7 +204,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalStr, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {

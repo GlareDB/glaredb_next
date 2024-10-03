@@ -148,13 +148,13 @@ pub struct ContiguousVarlenStorageSlice<'a, O> {
 }
 
 impl<'a, O: OffsetIndex> AddressableStorage for ContiguousVarlenStorageSlice<'a, O> {
-    type T = [u8];
+    type T = &'a [u8];
 
     fn len(&self) -> usize {
         self.offsets.len() - 1
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
+    fn get(&self, idx: usize) -> Option<Self::T> {
         let start = self.offsets.get(idx)?;
         let end = self.offsets.get(idx + 1)?;
 
@@ -162,7 +162,7 @@ impl<'a, O: OffsetIndex> AddressableStorage for ContiguousVarlenStorageSlice<'a,
     }
 
     #[inline]
-    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
         let start = self.offsets.get_unchecked(idx);
         let end = self.offsets.get_unchecked(idx + 1);
 

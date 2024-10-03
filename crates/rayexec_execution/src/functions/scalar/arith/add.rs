@@ -9,6 +9,7 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI8, PhysicalStorage, PhysicalType};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
+use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
@@ -222,59 +223,19 @@ impl PlannedScalarFunction for AddImpl {
 
         match (a.physical_type(), b.physical_type()) {
             (PhysicalType::Int8, PhysicalType::Int8) => {
-                add_primitive::<PhysicalI8, PhysicalI8>(datatype, a, b)
+                BinaryExecutor::execute::<PhysicalI8, PhysicalI8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a + b)),
+                )
             }
             (a, b) => unimplemented!(),
         }
     }
-}
-
-pub trait ScalarFunctionTesting {
-    fn plan(&self, datatypes: &[&DataType]) -> Box<dyn ExecutableFunction> {
-        match (&datatypes[0], &datatypes[1]) {
-            (DataType::Int8, DataType::Int8) => Box::new(BinaryNumericOperation {
-                datatype: DataType::Int8,
-                function: add_primitive::<PhysicalI8, PhysicalI8>,
-            }),
-            _ => unimplemented!(),
-        }
-    }
-}
-
-pub trait ExecutableFunction {
-    fn execute(&self, arrays: &[&Array]) -> Result<Array>;
-}
-
-pub struct BinaryNumericOperation<F: Fn(DataType, &Array, &Array) -> Result<Array>> {
-    pub datatype: DataType,
-    pub function: F,
-}
-
-impl<F> ExecutableFunction for BinaryNumericOperation<F>
-where
-    F: Fn(DataType, &Array, &Array) -> Result<Array>,
-{
-    fn execute(&self, arrays: &[&Array]) -> Result<Array> {
-        let a = arrays[0];
-        let b = arrays[1];
-        (self.function)(self.datatype.clone(), a, b)
-    }
-}
-
-fn add_primitive<'a, P1, P2>(datatype: DataType, a: &Array, b: &Array) -> Result<Array>
-where
-    P1: PhysicalStorage<'a>,
-    P2: PhysicalStorage<'a>,
-{
-    BinaryExecutor::execute::<P1, P2, _, _>(
-        a,
-        b,
-        ArrayBuilder {
-            datatype,
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        },
-        |a, b, buf| buf.put(&(a + b)),
-    )
 }
 
 #[cfg(test)]

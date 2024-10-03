@@ -69,17 +69,17 @@ pub struct SharedHeapStorageSlice<'a> {
 }
 
 impl<'a> AddressableStorage for SharedHeapStorageSlice<'a> {
-    type T = [u8];
+    type T = &'a [u8];
 
     fn len(&self) -> usize {
         self.blobs.len()
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
+    fn get(&self, idx: usize) -> Option<Self::T> {
         self.blobs.get(idx).map(|b| b.as_ref())
     }
 
-    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
         self.blobs.get_unchecked(idx).as_ref()
     }
 }

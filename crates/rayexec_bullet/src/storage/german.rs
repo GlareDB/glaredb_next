@@ -209,13 +209,13 @@ pub struct GermanVarlenStorageSlice<'a> {
 }
 
 impl<'a> AddressableStorage for GermanVarlenStorageSlice<'a> {
-    type T = [u8];
+    type T = &'a [u8];
 
     fn len(&self) -> usize {
         self.metadata.len()
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
+    fn get(&self, idx: usize) -> Option<Self::T> {
         let metadata = self.metadata.get(idx)?;
 
         match metadata.as_metadata() {
@@ -228,7 +228,7 @@ impl<'a> AddressableStorage for GermanVarlenStorageSlice<'a> {
         }
     }
 
-    unsafe fn get_unchecked(&self, idx: usize) -> &Self::T {
+    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
         self.get(idx).unwrap()
     }
 }

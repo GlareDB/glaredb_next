@@ -22,7 +22,7 @@ impl UnaryExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(&<S::Storage as AddressableStorage>::T, &mut OutputBuffer<B>),
+        Op: FnMut(<S::Storage as AddressableStorage>::T, &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
         B: ArrayDataBuffer<'a>,
     {
@@ -157,7 +157,7 @@ mod tests {
         datatype::DataType,
         executor::{
             builder::{GermanVarlenBuffer, PrimitiveBuffer},
-            physical_type::{PhysicalI32, PhysicalStr},
+            physical_type::{PhysicalI32, PhysicalUtf8},
         },
         scalar::ScalarValue,
     };
@@ -172,7 +172,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = UnaryExecutor::execute::<PhysicalI32, _, _>(&array, builder, |&v, buf| {
+        let got = UnaryExecutor::execute::<PhysicalI32, _, _>(&array, builder, |v, buf| {
             buf.put(&(v + 2))
         })
         .unwrap();
@@ -201,8 +201,8 @@ mod tests {
             buf.put(&double)
         }
 
-        let got =
-            UnaryExecutor::execute::<PhysicalStr, _, _>(&array, builder, my_string_double).unwrap();
+        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
+            .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.value(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.value(1).unwrap());
@@ -231,8 +231,8 @@ mod tests {
             buf.put(buffer.as_str())
         };
 
-        let got =
-            UnaryExecutor::execute::<PhysicalStr, _, _>(&array, builder, my_string_double).unwrap();
+        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
+            .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.value(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.value(1).unwrap());
@@ -255,7 +255,7 @@ mod tests {
             buf.put(s.get(0..len).unwrap_or(""))
         };
 
-        let got = UnaryExecutor::execute::<PhysicalStr, _, _>(&array, builder, my_string_truncate)
+        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_truncate)
             .unwrap();
 
         assert_eq!(ScalarValue::from("a"), got.value(0).unwrap());
@@ -288,8 +288,9 @@ mod tests {
             buf.put(s.as_str())
         };
 
-        let got = UnaryExecutor::execute::<PhysicalStr, _, _>(&array, builder, my_string_uppercase)
-            .unwrap();
+        let got =
+            UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_uppercase)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("DDDD"), got.value(0).unwrap());
         assert_eq!(ScalarValue::from("DDDD"), got.value(1).unwrap());

@@ -24,7 +24,8 @@ use crate::scalar::{
 };
 use crate::selection::SelectionVector;
 use crate::storage::{
-    ContiguousVarlenStorage, GermanVarlenStorage, PrimitiveStorage, SharedHeapStorage,
+    BooleanStorage, ContiguousVarlenStorage, GermanVarlenStorage, PrimitiveStorage,
+    SharedHeapStorage,
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use std::fmt::Debug;
@@ -105,7 +106,7 @@ impl Array {
     pub fn physical_type(&self) -> PhysicalType {
         match self.data.physical_type() {
             PhysicalType::Binary => match self.datatype {
-                DataType::Utf8 | DataType::LargeUtf8 => PhysicalType::Str,
+                DataType::Utf8 | DataType::LargeUtf8 => PhysicalType::Utf8,
                 _ => PhysicalType::Binary,
             },
             other => other,
@@ -118,7 +119,7 @@ impl Array {
     pub fn value(&self, idx: usize) -> Result<ScalarValue> {
         Ok(match &self.datatype {
             DataType::Boolean => match &self.data {
-                ArrayData::Boolean(arr) => arr.value_unchecked(idx).into(),
+                ArrayData::Boolean(arr) => arr.as_ref().as_ref().value_unchecked(idx).into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
             DataType::Float32 => match &self.data {
@@ -279,7 +280,7 @@ impl FromIterator<i32> for Array {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArrayData {
-    Boolean(Arc<Bitmap>),
+    Boolean(Arc<BooleanStorage>),
     Float32(Arc<PrimitiveStorage<f32>>),
     Float64(Arc<PrimitiveStorage<f64>>),
     Int8(Arc<PrimitiveStorage<i8>>),
@@ -307,20 +308,20 @@ pub enum BinaryData {
 impl ArrayData {
     pub fn physical_type(&self) -> PhysicalType {
         match self {
-            Self::Boolean(_) => unimplemented!(),
-            Self::Float32(_) => unimplemented!(),
-            Self::Float64(_) => unimplemented!(),
+            Self::Boolean(_) => PhysicalType::Boolean,
+            Self::Float32(_) => PhysicalType::Float32,
+            Self::Float64(_) => PhysicalType::Float64,
             Self::Int8(_) => PhysicalType::Int8,
-            Self::Int16(_) => unimplemented!(),
-            Self::Int32(_) => unimplemented!(),
-            Self::Int64(_) => unimplemented!(),
-            Self::Int128(_) => unimplemented!(),
-            Self::UInt8(_) => unimplemented!(),
-            Self::UInt16(_) => unimplemented!(),
-            Self::UInt32(_) => unimplemented!(),
-            Self::UInt64(_) => unimplemented!(),
-            Self::UInt128(_) => unimplemented!(),
-            Self::Interval(_) => unimplemented!(),
+            Self::Int16(_) => PhysicalType::Int16,
+            Self::Int32(_) => PhysicalType::Int32,
+            Self::Int64(_) => PhysicalType::Int64,
+            Self::Int128(_) => PhysicalType::Int128,
+            Self::UInt8(_) => PhysicalType::UInt8,
+            Self::UInt16(_) => PhysicalType::UInt16,
+            Self::UInt32(_) => PhysicalType::UInt32,
+            Self::UInt64(_) => PhysicalType::UInt64,
+            Self::UInt128(_) => PhysicalType::UInt128,
+            Self::Interval(_) => PhysicalType::Interval,
             Self::Binary(_) => PhysicalType::Binary,
         }
     }
