@@ -51,7 +51,7 @@ impl PhysicalCaseExpr {
                 break;
             }
 
-            let mut selected_rows = case.when.select(batch, Some(&needs_results))?;
+            let mut selected_rows = case.when.select2(batch, Some(&needs_results))?;
             // No cases returned true.
             if selected_rows.count_trues() == 0 {
                 continue;

@@ -13,6 +13,7 @@ use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_bullet::{
     array::{Array, Array2},
     batch::Batch,
@@ -53,7 +54,7 @@ impl PhysicalScalarExpression {
         }
     }
 
-    pub fn select(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
+    pub fn select2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
         let arr = self.eval2(batch, selection)?;
         let bitmap = match arr.as_ref() {
             Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
@@ -77,6 +78,16 @@ impl PhysicalScalarExpression {
         }
 
         Ok(zipped)
+    }
+
+    /// Produce a selection vector for the batch using this expression.
+    ///
+    /// The selection vector will include row indices where the expression
+    /// evaluates to true.
+    pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
+        let selected = self.eval(batch)?;
+
+        unimplemented!()
     }
 }
 

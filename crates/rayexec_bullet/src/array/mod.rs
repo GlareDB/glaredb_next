@@ -347,6 +347,18 @@ impl FromIterator<i32> for Array {
     }
 }
 
+impl FromIterator<bool> for Array {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        let vals: Bitmap = iter.into_iter().collect();
+        Array {
+            datatype: DataType::Boolean,
+            selection: None,
+            validity: None,
+            data: ArrayData::Boolean(Arc::new(vals.into())),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArrayData {
     Boolean(Arc<BooleanStorage>),

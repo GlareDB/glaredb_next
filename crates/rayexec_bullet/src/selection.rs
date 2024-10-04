@@ -15,6 +15,13 @@ impl SelectionVector {
         }
     }
 
+    /// Create an empty selection vector with capacity.
+    pub fn with_capacity(cap: usize) -> Self {
+        SelectionVector {
+            indices: Vec::with_capacity(cap),
+        }
+    }
+
     /// Creates a selection vector that that has all indices in the range [0,n)
     /// point to the same physical index.
     pub fn constant(len: usize, idx: usize) -> Self {
@@ -56,12 +63,33 @@ impl SelectionVector {
         SelectionVector { indices }
     }
 
+    /// Clear the selection vector.
+    pub fn clear(&mut self) {
+        self.indices.clear()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
         self.indices.iter().copied()
     }
 
     pub fn num_rows(&self) -> usize {
         self.indices.len()
+    }
+
+    /// Pushes a location to the next logical index.
+    ///
+    /// Crate visibility since this is specific to generating selection vectors
+    /// using the select executor.
+    pub(crate) fn push_location(&mut self, location: usize) {
+        self.indices.push(location)
+    }
+}
+
+impl FromIterator<usize> for SelectionVector {
+    fn from_iter<T: IntoIterator<Item = usize>>(iter: T) -> Self {
+        SelectionVector {
+            indices: iter.into_iter().collect(),
+        }
     }
 }
 
