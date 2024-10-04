@@ -189,6 +189,8 @@ impl UniformExecutor2 {
 
 #[cfg(test)]
 mod tests {
+    use selection::SelectionVector;
+
     use super::*;
 
     use crate::{
@@ -260,6 +262,39 @@ mod tests {
 
         assert_eq!(ScalarValue::from("a1dog"), got.logical_value(0).unwrap());
         assert_eq!(ScalarValue::Null, got.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from("c3horse"), got.logical_value(2).unwrap());
+    }
+
+    #[test]
+    fn uniform_string_concat_row_wise_with_invalid_and_reordered() {
+        let first = Array::from_iter(["a", "b", "c"]);
+        let mut second = Array::from_iter(["1", "2", "3"]);
+        second.set_physical_validity(1, false); // "2" => NULL
+        second.select_mut(&SelectionVector::from_iter([1, 0, 2]).into()); // ["1", "2", "3"] => ["2", "1", "3"]
+        let third = Array::from_iter(["dog", "cat", "horse"]);
+
+        let builder = ArrayBuilder {
+            datatype: DataType::Utf8,
+            buffer: GermanVarlenBuffer::<str>::with_len(3),
+        };
+
+        let mut string_buffer = String::new();
+
+        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+            &[&first, &second, &third],
+            builder,
+            |inputs, buf| {
+                string_buffer.clear();
+                for input in inputs {
+                    string_buffer.push_str(input);
+                }
+                buf.put(string_buffer.as_str())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(ScalarValue::Null, got.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from("b1cat"), got.logical_value(1).unwrap());
         assert_eq!(ScalarValue::from("c3horse"), got.logical_value(2).unwrap());
     }
 }
