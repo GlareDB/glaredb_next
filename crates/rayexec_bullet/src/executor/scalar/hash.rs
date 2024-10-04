@@ -3,11 +3,11 @@ use crate::{
     executor::physical_type::{
         PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
         PhysicalI32, PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalStorage, PhysicalType,
-        PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUtf8,
+        PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUntypedNull, PhysicalUtf8,
     },
     scalar::interval::Interval,
     selection,
-    storage::AddressableStorage,
+    storage::{AddressableStorage, UntypedNull},
 };
 use ahash::RandomState;
 use rayexec_error::Result;
@@ -25,6 +25,9 @@ impl HashExecutor {
 
             if combine_hash {
                 match array.physical_type() {
+                    PhysicalType::UntypedNull => {
+                        Self::hash_one_combine::<PhysicalUntypedNull>(array, hashes)?
+                    }
                     PhysicalType::Boolean => Self::hash_one_combine::<PhysicalBool>(array, hashes)?,
                     PhysicalType::Int8 => Self::hash_one_combine::<PhysicalI8>(array, hashes)?,
                     PhysicalType::Int16 => Self::hash_one_combine::<PhysicalI16>(array, hashes)?,
@@ -48,6 +51,9 @@ impl HashExecutor {
                 }
             } else {
                 match array.physical_type() {
+                    PhysicalType::UntypedNull => {
+                        Self::hash_one_no_combine::<PhysicalUntypedNull>(array, hashes)?
+                    }
                     PhysicalType::Boolean => {
                         Self::hash_one_no_combine::<PhysicalBool>(array, hashes)?
                     }
@@ -220,5 +226,11 @@ impl HashValue for f32 {
 impl HashValue for f64 {
     fn hash_one(&self) -> u64 {
         HASH_RANDOM_STATE.hash_one(self.to_ne_bytes())
+    }
+}
+
+impl HashValue for UntypedNull {
+    fn hash_one(&self) -> u64 {
+        null_hash_value()
     }
 }

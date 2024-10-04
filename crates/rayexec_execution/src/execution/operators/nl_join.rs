@@ -1,8 +1,5 @@
 use parking_lot::Mutex;
-use rayexec_bullet::array::Array2;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::compute::filter::filter;
-use rayexec_bullet::compute::take::take;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;

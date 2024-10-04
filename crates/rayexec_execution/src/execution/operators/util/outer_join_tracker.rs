@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array2, BooleanArray},
+    array::{Array, Array2, BooleanArray},
     batch::Batch,
     bitmap::Bitmap,
     compute::{self, filter::filter},
     datatype::DataType,
+    selection::SelectionVector,
 };
 use rayexec_error::Result;
 
@@ -118,51 +119,44 @@ impl LeftOuterJoinDrainState {
     /// This will filter out rows that have been visited, and join the remaining
     /// rows will null columns on the right.
     pub fn drain_next(&mut self) -> Result<Option<Batch>> {
-        let batch = match self.batches.get(self.batch_idx) {
-            Some(batch) => batch,
-            None => return Ok(None),
-        };
-        let bitmap = self
-            .tracker
-            .bitmaps
-            .get(self.batch_idx)
-            .expect("bitmap to exist");
-        self.batch_idx += 1;
+        loop {
+            let batch = match self.batches.get(self.batch_idx) {
+                Some(batch) => batch,
+                None => return Ok(None),
+            };
+            let bitmap = self
+                .tracker
+                .bitmaps
+                .get(self.batch_idx)
+                .expect("bitmap to exist");
+            self.batch_idx += 1;
 
-        let num_rows = bitmap.len() - bitmap.count_trues();
+            // TODO: Don't clone. Also might make sense to have the bitmap logic
+            // flipped to avoid the negate here (we're already doing that for RIGHT
+            // joins).
+            let mut bitmap = bitmap.clone();
+            bitmap.bit_negate();
 
-        // TODO: Don't clone. Also might make sense to have the bitmap logic
-        // flipped to avoid the negate here (we're already doing that for RIGHT
-        // joins).
-        let mut bitmap = bitmap.clone();
-        bitmap.bit_negate();
+            // Create a selection for just the unvisited rows in the left batch.
+            let selection = SelectionVector::from_iter(bitmap.index_iter());
+            let num_rows = selection.num_rows();
 
-        // TODO: We could just skip this batch.
-        if num_rows == 0 {
-            let cols = self
-                .left_types
+            if num_rows == 0 {
+                // Try the next batch.
+                continue;
+            }
+
+            let left_cols = batch.select(Arc::new(selection)).into_arrays();
+            let right_cols = self
+                .right_types
                 .iter()
-                .chain(self.right_types.iter())
-                .map(|t| Array2::new_nulls(t, 0));
-            let batch = Batch::try_new2(cols)?;
+                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+                .collect::<Result<Vec<_>>>()?;
+
+            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
 
             return Ok(Some(batch));
         }
-
-        let left_cols = batch
-            .columns2()
-            .iter()
-            .map(|c| filter(c, &bitmap))
-            .collect::<Result<Vec<_>>>()?;
-
-        let right_cols = self
-            .right_types
-            .iter()
-            .map(|t| Array2::new_nulls(t, num_rows));
-
-        let batch = Batch::try_new2(left_cols.into_iter().chain(right_cols))?;
-
-        Ok(Some(batch))
     }
 }
 

@@ -203,7 +203,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn and_bool() {
+    fn and_bool_2() {
         let a = Array::from_iter([true, false, false]);
         let b = Array::from_iter([true, true, false]);
 
@@ -219,7 +219,24 @@ mod tests {
     }
 
     #[test]
-    fn or_bool() {
+    fn and_bool_3() {
+        let a = Array::from_iter([true, true, true]);
+        let b = Array::from_iter([false, true, true]);
+        let c = Array::from_iter([true, true, false]);
+
+        let specialized = And
+            .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
+            .unwrap();
+
+        let out = specialized.execute(&[&a, &b, &c]).unwrap();
+
+        assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+    }
+
+    #[test]
+    fn or_bool_2() {
         let a = Array::from_iter([true, false, false]);
         let b = Array::from_iter([true, true, false]);
 

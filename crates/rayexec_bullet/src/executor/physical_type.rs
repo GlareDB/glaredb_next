@@ -6,11 +6,15 @@ use crate::{
     storage::{
         AddressableStorage, BooleanStorage, BooleanStorageRef, ContiguousVarlenStorageSlice,
         GermanVarlenStorageSlice, PrimitiveStorageSlice, SharedHeapStorageSlice,
+        UntypedNullStorage,
     },
 };
 
+use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
+    UntypedNull,
     Boolean,
     Int8,
     Int16,
@@ -27,6 +31,30 @@ pub enum PhysicalType {
     Interval,
     Binary,
     Utf8,
+}
+
+impl PhysicalType {
+    pub fn zeroed_array_data(&self, len: usize) -> ArrayData {
+        match self {
+            Self::UntypedNull => UntypedNullStorage(len).into(),
+            Self::Boolean => BooleanBuffer::with_len(len).into_data(),
+            Self::Int8 => PrimitiveBuffer::<i8>::with_len(len).into_data(),
+            Self::Int16 => PrimitiveBuffer::<i16>::with_len(len).into_data(),
+            Self::Int32 => PrimitiveBuffer::<i32>::with_len(len).into_data(),
+            Self::Int64 => PrimitiveBuffer::<i64>::with_len(len).into_data(),
+            Self::Int128 => PrimitiveBuffer::<i128>::with_len(len).into_data(),
+            Self::UInt8 => PrimitiveBuffer::<u8>::with_len(len).into_data(),
+            Self::UInt16 => PrimitiveBuffer::<u16>::with_len(len).into_data(),
+            Self::UInt32 => PrimitiveBuffer::<u32>::with_len(len).into_data(),
+            Self::UInt64 => PrimitiveBuffer::<u64>::with_len(len).into_data(),
+            Self::UInt128 => PrimitiveBuffer::<u128>::with_len(len).into_data(),
+            Self::Float32 => PrimitiveBuffer::<f32>::with_len(len).into_data(),
+            Self::Float64 => PrimitiveBuffer::<f64>::with_len(len).into_data(),
+            Self::Interval => PrimitiveBuffer::<Interval>::with_len(len).into_data(),
+            Self::Binary => GermanVarlenBuffer::<[u8]>::with_len(len).into_data(),
+            Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
+        }
+    }
 }
 
 pub trait VarlenType {
@@ -50,6 +78,19 @@ pub trait PhysicalStorage<'a> {
     type Storage: AddressableStorage;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage>;
+}
+
+pub struct PhysicalUntypedNull;
+
+impl<'a> PhysicalStorage<'a> for PhysicalUntypedNull {
+    type Storage = UntypedNullStorage;
+
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
+        match data {
+            ArrayData::UntypedNull(s) => Ok(*s),
+            _ => return Err(RayexecError::new("invalid storage")),
+        }
+    }
 }
 
 pub struct PhysicalBool;

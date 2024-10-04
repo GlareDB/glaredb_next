@@ -15,9 +15,14 @@ pub use german::*;
 mod boolean;
 pub use boolean::*;
 
+mod untyped_null;
+pub use untyped_null::*;
+
 use std::fmt::Debug;
 
+/// In-memory array storage that can be directly indexed into.
 pub trait AddressableStorage: Debug {
+    /// The type we can get from the storage.
     type T: Debug;
 
     fn len(&self) -> usize;

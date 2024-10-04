@@ -24,8 +24,8 @@ use crate::scalar::{
 };
 use crate::selection::SelectionVector;
 use crate::storage::{
-    BooleanStorage, ContiguousVarlenStorage, GermanVarlenStorage, PrimitiveStorage,
-    SharedHeapStorage,
+    AddressableStorage, BooleanStorage, ContiguousVarlenStorage, GermanVarlenStorage,
+    PrimitiveStorage, SharedHeapStorage, UntypedNullStorage,
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use std::fmt::Debug;
@@ -79,17 +79,31 @@ pub struct Array {
 }
 
 impl Array {
-    pub fn new_null_array(len: usize) -> Self {
-        let validity = Some(Bitmap::new_with_all_false(len));
-        // TODO: Is this fine?
-        let data = BooleanStorage::from(Bitmap::new_with_all_false(len));
+    pub fn new_untyped_null_array(len: usize) -> Self {
+        let data = UntypedNullStorage(len);
 
         Array {
             datatype: DataType::Null,
             selection: None,
-            validity,
+            validity: None,
             data: data.into(),
         }
+    }
+
+    /// Creates a new typed array with all values being set to null.
+    pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
+        // Create physical array data of length 1, and use a selection vector to
+        // extend it out to the desired size.
+        let data = datatype.physical_type()?.zeroed_array_data(1);
+        let validity = Bitmap::new_with_all_false(1);
+        let selection = SelectionVector::constant(len, 0);
+
+        Ok(Array {
+            datatype,
+            selection: Some(selection.into()),
+            validity: Some(validity),
+            data,
+        })
     }
 
     pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData>) -> Self {
@@ -203,6 +217,10 @@ impl Array {
     /// Ignores validity and selectivitity.
     pub fn physical_scalar(&self, idx: usize) -> Result<ScalarValue> {
         Ok(match &self.datatype {
+            DataType::Null => match &self.data {
+                ArrayData::UntypedNull(_) => ScalarValue::Null,
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
             DataType::Boolean => match &self.data {
                 ArrayData::Boolean(arr) => arr.as_ref().as_ref().value_unchecked(idx).into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
@@ -398,6 +416,7 @@ impl FromIterator<bool> for Array {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArrayData {
+    UntypedNull(UntypedNullStorage),
     Boolean(Arc<BooleanStorage>),
     Float32(Arc<PrimitiveStorage<f32>>),
     Float64(Arc<PrimitiveStorage<f64>>),
@@ -426,6 +445,7 @@ pub enum BinaryData {
 impl ArrayData {
     pub fn physical_type(&self) -> PhysicalType {
         match self {
+            Self::UntypedNull(_) => PhysicalType::UntypedNull,
             Self::Boolean(_) => PhysicalType::Boolean,
             Self::Float32(_) => PhysicalType::Float32,
             Self::Float64(_) => PhysicalType::Float64,
@@ -446,6 +466,7 @@ impl ArrayData {
 
     pub fn len(&self) -> usize {
         match self {
+            Self::UntypedNull(s) => s.len(),
             Self::Boolean(s) => s.len(),
             Self::Float32(s) => s.len(),
             Self::Float64(s) => s.len(),
@@ -467,6 +488,12 @@ impl ArrayData {
                 BinaryData::German(s) => s.len(),
             },
         }
+    }
+}
+
+impl From<UntypedNullStorage> for ArrayData {
+    fn from(value: UntypedNullStorage) -> Self {
+        ArrayData::UntypedNull(value)
     }
 }
 

@@ -255,7 +255,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 hash_buf.resize(num_rows, 0);
                 partitions_idx_buf.resize(num_rows, 0);
 
-                let null_col = Array::new_null_array(num_rows);
+                let null_col = Array::new_untyped_null_array(num_rows);
 
                 let mut masked_grouping_columns: Vec<&Array> =
                     Vec::with_capacity(grouping_columns.len());
