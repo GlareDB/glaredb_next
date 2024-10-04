@@ -3,6 +3,7 @@ use rayexec_bullet::array::Array2;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute::filter::filter;
 use rayexec_bullet::compute::take::take;
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
@@ -424,51 +425,30 @@ fn cross_join(
 
     // For each row in the left batch, join the entirety of right.
     for left_idx in 0..left.num_rows() {
-        let left_indices = vec![left_idx; right.num_rows()];
+        // Create constant selection vector pointing to the one row on the left.
+        let selection = SelectionVector::constant(right.num_rows(), left_idx);
 
-        let mut cols = Vec::new();
-        for col in left.columns2() {
-            // TODO: It'd be nice to have a logical repeated array type instead
-            // of having to physically copy the same element `n` times into a
-            // new array.
-            let left_repeated = take(col, &left_indices)?;
-            cols.push(Arc::new(left_repeated));
-        }
+        // Columns from the left, one row repeated.
+        let left_columns = left.select(Arc::new(selection)).into_arrays();
+        // Columns from the right, all rows.
+        let right_columns = right.clone().into_arrays();
 
-        // Join all of right.
-        cols.extend_from_slice(right.columns2());
-        let mut batch = Batch::try_new2(cols)?;
+        let mut output = Batch::try_new(left_columns.into_iter().chain(right_columns))?;
 
-        // If we have a filter, apply it to the intermediate batch.
+        // If we have a filter, apply it to the output batch.
         if let Some(filter_expr) = &filter_expr {
-            let arr = filter_expr.eval2(&batch, None)?;
-            let selection = match arr.as_ref() {
-                Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected filter predicate in cross join to return a boolean, got {}",
-                        other.datatype()
-                    )))
-                }
-            };
-
-            let filtered = batch
-                .columns2()
-                .iter()
-                .map(|col| filter(col, &selection))
-                .collect::<Result<Vec<_>, _>>()?;
+            let selection = Arc::new(filter_expr.select(&output)?);
+            output = output.select(selection.clone());
 
             // If we're left joining, compute indices in the left batch that we
             // visited.
             if let Some(left_outer_tracker) = &mut left_outer_tracker {
-                let indices: Vec<_> = selection.index_iter().collect();
-                left_outer_tracker.mark_rows_visited_for_batch(left_batch_idx, &indices);
+                left_outer_tracker
+                    .mark_rows_visited_for_batch(left_batch_idx, selection.iter_locations());
             }
-
-            batch = Batch::try_new2(filtered)?;
         }
 
-        batches.push(batch);
+        batches.push(output);
     }
 
     Ok(batches)

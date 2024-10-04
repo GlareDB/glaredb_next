@@ -6,7 +6,7 @@ use rayexec_bullet::{
     executor::{
         builder::{ArrayBuilder, GermanVarlenBuffer},
         physical_type::PhysicalUtf8,
-        scalar::{BinaryExecutor, UniformExecutor, UniformExecutor2},
+        scalar::{BinaryExecutor, UniformExecutor},
     },
     storage::GermanVarlenStorage,
 };
@@ -70,27 +70,7 @@ impl PlannedScalarFunction for StringConcatImpl {
     }
 
     fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        if inputs.is_empty() {
-            return Ok(Array2::Utf8(Utf8Array::from(vec![String::new()])));
-        }
-
-        let string_arrs = inputs
-            .iter()
-            .map(|arr| match arr.as_ref() {
-                Array2::Utf8(arr) => Ok(arr),
-                other => Err(RayexecError::new(format!(
-                    "Expected Utf8 arrays, got {}",
-                    other.datatype(),
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut values = VarlenValuesBuffer::default();
-
-        // TODO: Reusable buffer?
-        let validity = UniformExecutor2::execute(&string_arrs, |strs| strs.join(""), &mut values)?;
-
-        Ok(Array2::Utf8(Utf8Array::new(values, validity)))
+        unimplemented!()
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {

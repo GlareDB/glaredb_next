@@ -68,7 +68,8 @@ impl SelectionVector {
         self.indices.clear()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+    /// Returns an iterator of locations being pointed to.
+    pub fn iter_locations(&self) -> impl Iterator<Item = usize> + '_ {
         self.indices.iter().copied()
     }
 

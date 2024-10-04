@@ -6,7 +6,7 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalBool;
-use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor, UniformExecutor2};
+use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
@@ -63,27 +63,7 @@ impl PlannedScalarFunction for AndImpl {
     }
 
     fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        let first = match inputs.first() {
-            Some(first) => first,
-            None => return Ok(Array2::Boolean(BooleanArray::new_nulls(1))),
-        };
-
-        let bool_arrs = inputs
-            .iter()
-            .map(|arr| match arr.as_ref() {
-                Array2::Boolean(arr) => Ok(arr),
-                other => Err(RayexecError::new(format!(
-                    "Expected Boolean arrays, got {}",
-                    other.datatype(),
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-        let validity =
-            UniformExecutor2::execute(&bool_arrs, |bools| bools.iter().all(|b| *b), &mut buffer)?;
-
-        Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
+        unimplemented!()
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
@@ -175,27 +155,7 @@ impl PlannedScalarFunction for OrImpl {
     }
 
     fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        let first = match inputs.first() {
-            Some(first) => first,
-            None => return Ok(Array2::Boolean(BooleanArray::new_nulls(1))),
-        };
-
-        let bool_arrs = inputs
-            .iter()
-            .map(|arr| match arr.as_ref() {
-                Array2::Boolean(arr) => Ok(arr),
-                other => Err(RayexecError::new(format!(
-                    "Expected Boolean arrays, got {}",
-                    other.datatype(),
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-        let validity =
-            UniformExecutor2::execute(&bool_arrs, |bools| bools.iter().any(|b| *b), &mut buffer)?;
-
-        Ok(Array2::Boolean(BooleanArray::new(buffer, validity)))
+        unimplemented!()
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {

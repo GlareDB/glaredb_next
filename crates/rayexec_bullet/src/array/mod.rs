@@ -141,7 +141,7 @@ impl Array {
                 let input_sel = selection.as_ref();
                 let mut new_sel = SelectionVector::with_capacity(input_sel.num_rows());
 
-                for input_loc in input_sel.iter() {
+                for input_loc in input_sel.iter_locations() {
                     new_sel.push_location(existing.get_unchecked(input_loc));
                 }
             }

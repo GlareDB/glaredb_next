@@ -1,8 +1,5 @@
 use crate::{
-    array::{
-        validity::{self, union_validities},
-        Array, ArrayAccessor, ValuesBuffer,
-    },
+    array::Array,
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
@@ -111,82 +108,6 @@ impl UniformExecutor {
     }
 }
 
-/// Execute an operation on a uniform variadic number of arrays.
-#[derive(Debug, Clone, Copy)]
-pub struct UniformExecutor2;
-
-impl UniformExecutor2 {
-    pub fn execute<Array, Type, Iter, Output>(
-        arrays: &[Array],
-        mut operation: impl FnMut(&[Type]) -> Output,
-        buffer: &mut impl ValuesBuffer<Output>,
-    ) -> Result<Option<Bitmap>>
-    where
-        Array: ArrayAccessor<Type, ValueIter = Iter>,
-        Iter: Iterator<Item = Type>,
-    {
-        let len = match arrays.first() {
-            Some(arr) => arr.len(),
-            None => return Ok(None),
-        };
-
-        for arr in arrays {
-            if arr.len() != len {
-                return Err(RayexecError::new("Not all arrays are of the same length"));
-            }
-        }
-
-        let validity = union_validities(arrays.iter().map(|arr| arr.validity()))?;
-
-        // TODO: Length check
-
-        let mut values_iters: Vec<_> = arrays.iter().map(|arr| arr.values_iter()).collect();
-
-        let mut row_vals = Vec::with_capacity(arrays.len());
-
-        match &validity {
-            Some(validity) => {
-                for valid in validity.iter() {
-                    if valid {
-                        row_vals.clear();
-
-                        for iter in values_iters.iter_mut() {
-                            let val = iter.next().expect("value to exist");
-                            row_vals.push(val);
-                        }
-
-                        let out = operation(&row_vals);
-                        buffer.push_value(out);
-                    } else {
-                        // When not valid, we still need to move through the
-                        // underlying values iterators.
-                        for iter in values_iters.iter_mut() {
-                            let _ = iter.next().expect("value to exist");
-                        }
-
-                        buffer.push_null();
-                    }
-                }
-            }
-            None => {
-                for _idx in 0..len {
-                    row_vals.clear();
-
-                    for iter in values_iters.iter_mut() {
-                        let val = iter.next().expect("value to exist");
-                        row_vals.push(val);
-                    }
-
-                    let out = operation(&row_vals);
-                    buffer.push_value(out);
-                }
-            }
-        }
-
-        Ok(validity)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use selection::SelectionVector;
@@ -269,8 +190,8 @@ mod tests {
     fn uniform_string_concat_row_wise_with_invalid_and_reordered() {
         let first = Array::from_iter(["a", "b", "c"]);
         let mut second = Array::from_iter(["1", "2", "3"]);
-        second.set_physical_validity(1, false); // "2" => NULL
         second.select_mut(&SelectionVector::from_iter([1, 0, 2]).into()); // ["1", "2", "3"] => ["2", "1", "3"]
+        second.set_physical_validity(1, false); // "2" => NULL, referencing physical index
         let third = Array::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {

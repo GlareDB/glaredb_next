@@ -184,6 +184,10 @@ impl Batch {
     pub fn num_rows(&self) -> usize {
         self.num_rows
     }
+
+    pub fn into_arrays(self) -> Vec<Array> {
+        self.cols
+    }
 }
 
 #[cfg(test)]

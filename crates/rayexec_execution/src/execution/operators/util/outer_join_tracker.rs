@@ -45,10 +45,14 @@ impl LeftOuterJoinTracker {
         }
     }
 
-    pub fn mark_rows_visited_for_batch(&mut self, batch_idx: usize, rows: &[usize]) {
+    pub fn mark_rows_visited_for_batch(
+        &mut self,
+        batch_idx: usize,
+        visited_rows: impl IntoIterator<Item = usize>,
+    ) {
         let bitmap = self.bitmaps.get_mut(batch_idx).expect("bitmap to exist");
-        for row in rows {
-            bitmap.set_unchecked(*row, true);
+        for row in visited_rows {
+            bitmap.set_unchecked(row, true);
         }
     }
 }

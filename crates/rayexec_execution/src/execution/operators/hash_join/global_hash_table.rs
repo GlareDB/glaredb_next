@@ -208,7 +208,8 @@ impl GlobalHashTable {
             //
             // May be None if we're not doing a LEFT JOIN.
             if let Some(left_outer_tracker) = left_outer_tracker.as_mut() {
-                left_outer_tracker.mark_rows_visited_for_batch(batch_idx, &left_rows);
+                left_outer_tracker
+                    .mark_rows_visited_for_batch(batch_idx, left_rows.iter().copied());
             }
 
             // Don't actually do the join.
