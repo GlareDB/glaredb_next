@@ -1,17 +1,17 @@
 pub mod aggregate_hash_table;
 
 use parking_lot::Mutex;
-use rayexec_bullet::array::{Array2, NullArray};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{RayexecError, Result};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
     ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
@@ -21,7 +21,6 @@ use crate::expr::physical::PhysicalAggregateExpression;
 
 use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
 
-use super::util::hash::{AhashHasher, ArrayHasher};
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
 
 #[derive(Debug)]
@@ -223,15 +222,12 @@ impl ExecutableOperator for PhysicalHashAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
-
-        // TODO: Dont
-        let batch = batch.try_materialize()?;
 
         match state {
             HashAggregatePartitionState::Aggregating {
@@ -244,12 +240,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 let aggregate_columns: Vec<_> = self
                     .aggregate_columns
                     .iter()
-                    .map(|idx| {
-                        batch
-                            .column2(*idx)
-                            .expect("aggregate input column to exist")
-                            .as_ref()
-                    })
+                    .map(|idx| batch.column(*idx).expect("aggregate input column to exist"))
                     .collect();
 
                 // Get the columns containg the "group" values (the columns in a
@@ -257,21 +248,16 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 let grouping_columns: Vec<_> = self
                     .group_columns
                     .iter()
-                    .map(|idx| {
-                        batch
-                            .column2(*idx)
-                            .expect("grouping column to exist")
-                            .as_ref()
-                    })
+                    .map(|idx| batch.column(*idx).expect("grouping column to exist"))
                     .collect();
 
                 let num_rows = batch.num_rows();
                 hash_buf.resize(num_rows, 0);
                 partitions_idx_buf.resize(num_rows, 0);
 
-                let null_col = Array2::Null(NullArray::new(num_rows));
+                let null_col = Array::new_null_array(num_rows);
 
-                let mut masked_grouping_columns: Vec<&Array2> =
+                let mut masked_grouping_columns: Vec<&Array> =
                     Vec::with_capacity(grouping_columns.len());
 
                 // For null mask, create a new set of grouping values, hash
@@ -290,7 +276,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     let group_id = null_mask.try_as_u64()?;
 
                     // Compute hashes on the group by values.
-                    let hashes = AhashHasher::hash_arrays(&masked_grouping_columns, hash_buf)?;
+                    let hashes = HashExecutor::hash(&masked_grouping_columns, hash_buf)?;
 
                     // Compute _output_ partitions based on the hash values.
                     let num_partitions = output_hashtables.len();

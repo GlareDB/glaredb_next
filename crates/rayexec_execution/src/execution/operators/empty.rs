@@ -1,6 +1,6 @@
 use crate::{
     database::DatabaseContext,
-    execution::{computed_batch::ComputedBatch, operators::InputOutputStates},
+    execution::operators::InputOutputStates,
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
 };
@@ -50,7 +50,7 @@ impl ExecutableOperator for PhysicalEmpty {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: ComputedBatch,
+        _batch: Batch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }

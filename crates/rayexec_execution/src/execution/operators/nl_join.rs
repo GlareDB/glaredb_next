@@ -8,7 +8,6 @@ use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
@@ -244,11 +243,11 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::NestedLoopJoinBuild(state) => {
-                state.batches.push(batch.try_materialize()?);
+                state.batches.push(batch);
                 Ok(PollPush::Pushed)
             }
             PartitionState::NestedLoopJoinProbe(state) => {
@@ -300,7 +299,6 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
 
                 // Do the join.
                 let mut batches = Vec::new();
-                let batch = batch.try_materialize()?;
                 for (left_idx, left) in state.all_batches.iter().enumerate() {
                     let mut out = cross_join(
                         left_idx,

@@ -1,5 +1,4 @@
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -7,6 +6,7 @@ use crate::{
     execution::operators::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush},
     expr::physical::PhysicalSortExpression,
 };
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::sync::Arc;
 use std::task::{Context, Waker};
@@ -85,14 +85,12 @@ impl ExecutableOperator for PhysicalScatterSort {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
-
-        let batch = batch.try_materialize()?;
 
         match state {
             ScatterSortPartitionState::Consuming {

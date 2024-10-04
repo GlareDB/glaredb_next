@@ -1,6 +1,5 @@
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
@@ -21,16 +20,17 @@ impl ProjectOperation {
 }
 
 impl StatelessOperation for ProjectOperation {
-    fn execute(&self, batch: ComputedBatch) -> Result<ComputedBatch> {
+    fn execute(&self, batch: Batch) -> Result<Batch> {
         let arrs = self
             .exprs
             .iter()
-            .map(|expr| expr.eval2(&batch.batch, batch.selection.as_ref()))
+            .map(|expr| {
+                let arr = expr.eval(&batch)?;
+                Ok(arr.into_owned())
+            })
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new2(arrs)?;
-
-        Ok(batch.into())
+        Batch::try_new(arrs)
     }
 }
 

@@ -1,5 +1,4 @@
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
@@ -28,7 +27,7 @@ impl ExecutableOperator for PhysicalAnalyze {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: ComputedBatch,
+        _batch: Batch,
     ) -> Result<PollPush> {
         unimplemented!()
     }

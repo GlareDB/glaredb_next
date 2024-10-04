@@ -1,5 +1,4 @@
 use crate::database::create::CreateViewInfo;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -79,7 +78,7 @@ impl ExecutableOperator for PhysicalCreateView {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: ComputedBatch,
+        _batch: Batch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical create view"))
     }

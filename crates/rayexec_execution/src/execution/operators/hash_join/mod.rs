@@ -7,7 +7,7 @@ use condition::HashJoinCondition;
 use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
 use partition_hash_table::PartitionHashTable;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::{batch::Batch, datatype::DataType};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use std::{
     sync::Arc,
@@ -16,10 +16,7 @@ use std::{
 
 use crate::{
     database::DatabaseContext,
-    execution::{
-        computed_batch::ComputedBatch,
-        operators::util::hash::{AhashHasher, ArrayHasher},
-    },
+    execution::operators::util::hash::{AhashHasher, ArrayHasher},
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     logical::logical_join::JoinType,
 };
@@ -222,17 +219,15 @@ impl ExecutableOperator for PhysicalHashJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
-                let batch = batch.try_materialize()?;
-
                 // Compute left hashes on equality condition.
                 let result = self.equality.left.eval2(&batch, None)?;
                 state.hash_buf.clear();
                 state.hash_buf.resize(result.len(), 0);
-                let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
+                let hashes = AhashHasher::hash_arrays2(&[result.as_ref()], &mut state.hash_buf)?;
 
                 state
                     .local_hashtable
@@ -294,11 +289,10 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 // Compute right hashes on equality condition.
-                let batch = batch.try_materialize()?; // TODO: Try to remove.
                 let result = self.equality.right.eval2(&batch, None)?;
                 state.hash_buf.clear();
                 state.hash_buf.resize(result.len(), 0);
-                let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
+                let hashes = AhashHasher::hash_arrays2(&[result.as_ref()], &mut state.hash_buf)?;
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
 

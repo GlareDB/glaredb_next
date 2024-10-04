@@ -1,10 +1,4 @@
-use super::{
-    helpers::{
-        create_single_decimal_input_grouped_state, create_single_primitive_input_grouped_state,
-        create_single_timestamp_input_grouped_state,
-    },
-    AggregateFunction, GroupedStates, PlannedAggregateFunction,
-};
+use super::{AggregateFunction, GroupedStates, PlannedAggregateFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
@@ -136,45 +130,46 @@ impl PlannedAggregateFunction for MinImpl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        match &self.datatype {
-            DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MinState<i8>),
-            DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MinState<i16>),
-            DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MinState<i32>),
-            DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MinState<i64>),
-            DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MinState<u8>),
-            DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MinState<u16>),
-            DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MinState<u32>),
-            DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MinState<u64>),
-            DataType::Float32 => {
-                create_single_primitive_input_grouped_state!(Float32, MinState<f32>)
-            }
-            DataType::Float64 => {
-                create_single_primitive_input_grouped_state!(Float64, MinState<f64>)
-            }
-            DataType::Interval => {
-                create_single_primitive_input_grouped_state!(Interval, MinState<Interval>)
-            }
-            DataType::Timestamp(meta) => {
-                create_single_timestamp_input_grouped_state::<MinState<i64>>(meta.unit)
-            }
-            DataType::Decimal64(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal64,
-                    MinState<i64>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            DataType::Decimal128(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal128,
-                    MinState<i128>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            datatype => panic!("unexpected datatype {datatype}"),
-        }
+        unimplemented!()
+        // match &self.datatype {
+        //     DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MinState<i8>),
+        //     DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MinState<i16>),
+        //     DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MinState<i32>),
+        //     DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MinState<i64>),
+        //     DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MinState<u8>),
+        //     DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MinState<u16>),
+        //     DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MinState<u32>),
+        //     DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MinState<u64>),
+        //     DataType::Float32 => {
+        //         create_single_primitive_input_grouped_state!(Float32, MinState<f32>)
+        //     }
+        //     DataType::Float64 => {
+        //         create_single_primitive_input_grouped_state!(Float64, MinState<f64>)
+        //     }
+        //     DataType::Interval => {
+        //         create_single_primitive_input_grouped_state!(Interval, MinState<Interval>)
+        //     }
+        //     DataType::Timestamp(meta) => {
+        //         create_single_timestamp_input_grouped_state::<MinState<i64>>(meta.unit)
+        //     }
+        //     DataType::Decimal64(meta) => {
+        //         create_single_decimal_input_grouped_state!(
+        //             Decimal64,
+        //             MinState<i64>,
+        //             meta.precision,
+        //             meta.scale
+        //         )
+        //     }
+        //     DataType::Decimal128(meta) => {
+        //         create_single_decimal_input_grouped_state!(
+        //             Decimal128,
+        //             MinState<i128>,
+        //             meta.precision,
+        //             meta.scale
+        //         )
+        //     }
+        //     datatype => panic!("unexpected datatype {datatype}"),
+        // }
     }
 }
 
@@ -197,45 +192,46 @@ impl PlannedAggregateFunction for MaxImpl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        match &self.datatype {
-            DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MaxState<i8>),
-            DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MaxState<i16>),
-            DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MaxState<i32>),
-            DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MaxState<i64>),
-            DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MaxState<u8>),
-            DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MaxState<u16>),
-            DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MaxState<u32>),
-            DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MaxState<u64>),
-            DataType::Float32 => {
-                create_single_primitive_input_grouped_state!(Float32, MaxState<f32>)
-            }
-            DataType::Float64 => {
-                create_single_primitive_input_grouped_state!(Float64, MaxState<f64>)
-            }
-            DataType::Interval => {
-                create_single_primitive_input_grouped_state!(Interval, MaxState<Interval>)
-            }
-            DataType::Timestamp(meta) => {
-                create_single_timestamp_input_grouped_state::<MaxState<i64>>(meta.unit)
-            }
-            DataType::Decimal64(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal64,
-                    MaxState<i64>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            DataType::Decimal128(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal128,
-                    MaxState<i128>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            datatype => panic!("unexpected datatype {datatype}"),
-        }
+        unimplemented!()
+        // match &self.datatype {
+        //     DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MaxState<i8>),
+        //     DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MaxState<i16>),
+        //     DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MaxState<i32>),
+        //     DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MaxState<i64>),
+        //     DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MaxState<u8>),
+        //     DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MaxState<u16>),
+        //     DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MaxState<u32>),
+        //     DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MaxState<u64>),
+        //     DataType::Float32 => {
+        //         create_single_primitive_input_grouped_state!(Float32, MaxState<f32>)
+        //     }
+        //     DataType::Float64 => {
+        //         create_single_primitive_input_grouped_state!(Float64, MaxState<f64>)
+        //     }
+        //     DataType::Interval => {
+        //         create_single_primitive_input_grouped_state!(Interval, MaxState<Interval>)
+        //     }
+        //     DataType::Timestamp(meta) => {
+        //         create_single_timestamp_input_grouped_state::<MaxState<i64>>(meta.unit)
+        //     }
+        //     DataType::Decimal64(meta) => {
+        //         create_single_decimal_input_grouped_state!(
+        //             Decimal64,
+        //             MaxState<i64>,
+        //             meta.precision,
+        //             meta.scale
+        //         )
+        //     }
+        //     DataType::Decimal128(meta) => {
+        //         create_single_decimal_input_grouped_state!(
+        //             Decimal128,
+        //             MaxState<i128>,
+        //             meta.precision,
+        //             meta.scale
+        //         )
+        //     }
+        //     datatype => panic!("unexpected datatype {datatype}"),
+        // }
     }
 }
 

@@ -1,5 +1,4 @@
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
@@ -180,7 +179,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::Sink(state) => match state {
@@ -203,14 +202,12 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     // A "workaround" for the below hack. Not strictly
                     // necessary, but it makes me a feel a bit better than the
                     // hacky stuff is localized to just here.
-                    if batch.num_selected_rows() == 0 {
+                    if batch.num_rows() == 0 {
                         return Ok(PollPush::NeedsMore);
                     }
 
                     let inner = inner.as_mut().unwrap();
-                    inner.current_row_count += batch.num_selected_rows();
-
-                    let batch = batch.try_materialize()?;
+                    inner.current_row_count += batch.num_rows();
 
                     let mut push_future = inner.sink.push(batch);
                     match push_future.poll_unpin(cx) {

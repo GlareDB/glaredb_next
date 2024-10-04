@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::{
     ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
@@ -125,7 +124,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::RoundRobinPush(state) => state,
@@ -244,7 +243,7 @@ struct BatchBufferInner {
     /// Batches buffer.
     ///
     /// Should be bounded to some capacity.
-    batches: VecDeque<ComputedBatch>,
+    batches: VecDeque<Batch>,
 
     /// Waker on the receiving side of the buffer.
     recv_waker: Option<Waker>,

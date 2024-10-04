@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
@@ -21,24 +22,11 @@ impl FilterOperation {
 }
 
 impl StatelessOperation for FilterOperation {
-    fn execute(&self, batch: ComputedBatch) -> Result<ComputedBatch> {
-        // TODO: We should try to skip this. I don't know that the current
-        // `select` method is actually correct when multiple selections are
-        // performed.
-        let batch = batch.try_materialize()?;
+    fn execute(&self, batch: Batch) -> Result<Batch> {
+        let selection = self.predicate.select(&batch)?;
+        let batch = batch.select(Arc::new(selection)); // TODO: Select mut
 
-        let selection = self.predicate.eval2(&batch, None)?;
-        let selection = match selection.as_ref() {
-            Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Expected filter predicate to evaluate to a boolean, got {}",
-                    other.datatype()
-                )))
-            }
-        };
-
-        ComputedBatch::try_with_selection(batch, selection)
+        Ok(batch)
     }
 }
 

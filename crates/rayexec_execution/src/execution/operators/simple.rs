@@ -1,5 +1,4 @@
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::fmt::Debug;
@@ -16,7 +15,7 @@ use super::{
 #[derive(Debug)]
 pub struct SimplePartitionState {
     /// A batch that's waiting to be pulled.
-    buffered: Option<ComputedBatch>,
+    buffered: Option<Batch>,
 
     /// Waker on the pull side.
     ///
@@ -53,7 +52,7 @@ impl SimplePartitionState {
 
 /// A stateless operation on a batch.
 pub trait StatelessOperation: Sync + Send + Debug + Explainable {
-    fn execute(&self, batch: ComputedBatch) -> Result<ComputedBatch>;
+    fn execute(&self, batch: Batch) -> Result<Batch>;
 }
 
 /// A simple operator is an operator that wraps a function that requires no
@@ -92,7 +91,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,

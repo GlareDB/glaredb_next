@@ -81,7 +81,8 @@ impl PlannedAggregateFunction for CountNonNullImpl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        unimplemented!()
+        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 

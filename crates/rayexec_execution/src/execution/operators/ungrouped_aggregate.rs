@@ -1,5 +1,4 @@
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
@@ -124,7 +123,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
@@ -134,13 +133,8 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         match state {
             UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
                 // All rows contribute to computing the aggregate.
-                let row_selection = match batch.selection.clone() {
-                    Some(selection) => selection,
-                    None => {
-                        // All rows contribute to computing the aggregate.
-                        Bitmap::new_with_val(true, batch.batch.num_rows())
-                    }
-                };
+                let row_selection = Bitmap::new_with_val(true, batch.num_rows());
+
                 // All rows map to the same group (group 0)
                 let mapping = vec![0; row_selection.len()];
 
@@ -148,13 +142,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     let cols: Vec<_> = agg
                         .columns
                         .iter()
-                        .map(|expr| {
-                            batch
-                                .batch
-                                .column2(expr.idx)
-                                .expect("column to exist")
-                                .as_ref()
-                        })
+                        .map(|expr| batch.column(expr.idx).expect("column to exist"))
                         .collect();
 
                     agg_states[agg_idx].update_states(&row_selection, &cols, &mapping)?;
@@ -220,7 +208,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                     let mut batches = Vec::new();
                     while let Some(arrays) = multi_array_drain(&mut final_states, 1000)? {
-                        let batch = Batch::try_new2(arrays)?;
+                        let batch = Batch::try_new(arrays)?;
                         batches.push(batch);
                     }
 

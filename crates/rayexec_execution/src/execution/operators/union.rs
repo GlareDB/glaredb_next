@@ -1,7 +1,7 @@
-use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::{
     sync::Arc,
@@ -16,7 +16,7 @@ use super::{
 #[derive(Debug)]
 pub struct UnionTopPartitionState {
     partition_idx: usize,
-    batch: Option<ComputedBatch>,
+    batch: Option<Batch>,
     finished: bool,
     push_waker: Option<Waker>,
     pull_waker: Option<Waker>,
@@ -34,7 +34,7 @@ pub struct UnionOperatorState {
 
 #[derive(Debug)]
 struct SharedPartitionState {
-    batch: Option<ComputedBatch>,
+    batch: Option<Batch>,
     finished: bool,
     push_waker: Option<Waker>,
     pull_waker: Option<Waker>,
@@ -114,7 +114,7 @@ impl ExecutableOperator for PhysicalUnion {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::UnionTop(state) => {

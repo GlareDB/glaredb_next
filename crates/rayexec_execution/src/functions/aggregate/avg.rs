@@ -187,10 +187,11 @@ impl AvgDecimal64Impl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let scale = self.scale;
-        let finalize = move |states: vec::Drain<_>| Self::finalize(scale, states);
+        unimplemented!()
+        // let scale = self.scale;
+        // let finalize = move |states: vec::Drain<_>| Self::finalize(scale, states);
 
-        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        // Box::new(DefaultGroupedStates::new(Self::update, finalize))
     }
 }
 
@@ -231,10 +232,11 @@ impl AvgDecimal128Impl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let scale = self.scale;
-        let finalize = move |states: vec::Drain<_>| Self::finalize(scale, states);
+        unimplemented!()
+        // let scale = self.scale;
+        // let finalize = move |states: vec::Drain<_>| Self::finalize(scale, states);
 
-        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        // Box::new(DefaultGroupedStates::new(Self::update, finalize))
     }
 }
 
@@ -264,7 +266,8 @@ impl AvgFloat64Impl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        unimplemented!()
+        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
@@ -292,7 +295,8 @@ impl AvgInt64Impl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        unimplemented!()
+        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 

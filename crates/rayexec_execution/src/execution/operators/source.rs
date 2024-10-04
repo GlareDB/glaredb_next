@@ -7,8 +7,8 @@ use std::{
     task::{Context, Poll},
 };
 
+use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{database::DatabaseContext, execution::computed_batch::ComputedBatch};
 use std::fmt::Debug;
 
 use super::{
@@ -109,7 +109,7 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: ComputedBatch,
+        _batch: Batch,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }

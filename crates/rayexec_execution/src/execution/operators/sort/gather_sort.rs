@@ -1,5 +1,4 @@
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatch;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -11,6 +10,7 @@ use crate::{
     expr::physical::PhysicalSortExpression,
 };
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::sync::Arc;
 use std::task::{Context, Waker};
@@ -241,7 +241,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::GatherSortPush(state) => state,
@@ -261,8 +261,6 @@ impl ExecutableOperator for PhysicalGatherSort {
             shared.push_wakers[state.partition_idx] = Some(cx.waker().clone());
             return Ok(PollPush::Pending(batch));
         }
-
-        let batch = batch.try_materialize()?;
 
         let keys = state.extractor.sort_keys(&batch)?;
         let sorted = PhysicallySortedBatch { batch, keys };

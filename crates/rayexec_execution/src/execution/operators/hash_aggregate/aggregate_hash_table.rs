@@ -1,7 +1,7 @@
 use crate::functions::aggregate::GroupedStates;
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::Array2,
+    array::{Array, Array2},
     batch::Batch,
     bitmap::Bitmap,
     datatype::DataType,
@@ -99,9 +99,9 @@ impl PartitionAggregateHashTable {
 
     pub fn insert_groups(
         &mut self,
-        groups: &[&Array2],
+        groups: &[&Array],
         hashes: &[u64],
-        inputs: &[&Array2],
+        inputs: &[&Array],
         selection: &Bitmap,
         group_id: u64,
     ) -> Result<()> {
@@ -137,7 +137,7 @@ impl PartitionAggregateHashTable {
 
     fn find_or_create_group_indices(
         &mut self,
-        groups: &[&Array2],
+        groups: &[&Array],
         hashes: &[u64],
         selection: &Bitmap,
         group_id: u64,
@@ -321,7 +321,7 @@ impl AggregateHashTableDrain {
         // groups, so set to non-zero value.
         let num_rows = result_cols
             .first()
-            .map(|col| col.len())
+            .map(|col| col.logical_len())
             .unwrap_or(usize::min(self.table.group_values.len(), self.batch_size));
 
         // No results, and nothing left in groups.
@@ -329,7 +329,7 @@ impl AggregateHashTableDrain {
             return Ok(None);
         }
 
-        let mut group_cols = Vec::with_capacity(self.group_types.len());
+        // let mut group_cols = Vec::with_capacity(self.group_types.len());
 
         // Drain out collected group rows into our local buffer equal to the
         // number of rows we're returning.
@@ -345,13 +345,15 @@ impl AggregateHashTableDrain {
                 .iter_mut()
                 .map(|row| row.columns.remove(0)); // TODO: Could probably use something other than `remove(0)` here.
 
-            let arr = Array2::try_from_scalars(group_dt.clone(), iter)?;
-            group_cols.push(Arc::new(arr));
+            // let arr = Array2::try_from_scalars(group_dt.clone(), iter)?;
+            // group_cols.push(Arc::new(arr));
+            unimplemented!()
         }
 
-        let batch = Batch::try_new2(result_cols.into_iter().chain(group_cols.into_iter()))?;
+        unimplemented!()
+        // let batch = Batch::try_new(result_cols.into_iter().chain(group_cols.into_iter()))?;
 
-        Ok(Some(batch))
+        // Ok(Some(batch))
     }
 }
 

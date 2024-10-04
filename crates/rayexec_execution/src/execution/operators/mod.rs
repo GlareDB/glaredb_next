@@ -48,6 +48,7 @@ use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use nl_join::PhysicalNestedLoopJoin;
 use project::{PhysicalProject, ProjectOperation};
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
@@ -88,7 +89,7 @@ use self::sort::gather_sort::{
 use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 
-use super::computed_batch::{ComputedBatch, ComputedBatches};
+use super::computed_batch::ComputedBatches;
 
 /// States local to a partition within a single operator.
 // Current size: 240 bytes
@@ -150,7 +151,7 @@ pub enum PollPush {
     ///
     /// A waker will be registered for a later wakeup. This same batch should be
     /// pushed at that time.
-    Pending(ComputedBatch),
+    Pending(Batch),
 
     /// This operator requires no more input.
     ///
@@ -269,7 +270,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush>;
 
     /// Finalize pushing to partition.
@@ -364,7 +365,7 @@ impl ExecutableOperator for PhysicalOperator {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: ComputedBatch,
+        batch: Batch,
     ) -> Result<PollPush> {
         match self {
             Self::HashAggregate(op) => op.poll_push(cx, partition_state, operator_state, batch),

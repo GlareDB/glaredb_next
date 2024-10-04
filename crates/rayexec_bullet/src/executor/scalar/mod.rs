@@ -24,6 +24,9 @@ pub use uniform::*;
 mod select;
 pub use select::*;
 
+mod hash;
+pub use hash::*;
+
 use crate::array::Array;
 use rayexec_error::{RayexecError, Result};
 

@@ -42,12 +42,13 @@ impl UnaryExecutor {
                 let mut out_validity_builder = Bitmap::new_with_all_true(len);
 
                 for idx in 0..len {
+                    let sel = selection::get_unchecked(selection, idx);
+
                     if !validity.value_unchecked(idx) {
                         out_validity_builder.set_unchecked(idx, false);
                         continue;
                     }
 
-                    let sel = selection::get_unchecked(selection, idx);
                     let val = unsafe { values.get_unchecked(sel) };
 
                     output_buffer.idx = idx;

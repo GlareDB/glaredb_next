@@ -53,6 +53,7 @@ impl BinaryExecutor {
                 let mut out_validity_builder = Bitmap::new_with_all_true(len);
 
                 for idx in 0..len {
+                    // TODO: FIX
                     if !validity.value_unchecked(idx) {
                         out_validity_builder.set_unchecked(idx, false);
                         continue;

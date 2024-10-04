@@ -79,6 +79,19 @@ pub struct Array {
 }
 
 impl Array {
+    pub fn new_null_array(len: usize) -> Self {
+        let validity = Some(Bitmap::new_with_all_false(len));
+        // TODO: Is this fine?
+        let data = BooleanStorage::from(Bitmap::new_with_all_false(len));
+
+        Array {
+            datatype: DataType::Null,
+            selection: None,
+            validity,
+            data: data.into(),
+        }
+    }
+
     pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData>) -> Self {
         Array {
             datatype,
