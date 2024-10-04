@@ -1,6 +1,5 @@
 //! Compute kernels.
 pub mod cast;
-pub mod concat;
 pub mod date;
 pub mod filter;
 pub mod interleave;

@@ -41,13 +41,10 @@ use super::{
     },
 };
 
-pub fn cast_array<'a>(
-    arr: &'a Array,
-    to: DataType,
-    behavior: CastFailBehavior,
-) -> Result<Cow<'a, Array>> {
+pub fn cast_array<'a>(arr: &'a Array, to: DataType, behavior: CastFailBehavior) -> Result<Array> {
     if arr.datatype() == &to {
-        return Ok(Cow::Borrowed(arr));
+        // TODO: Cow?
+        return Ok(arr.clone());
     }
 
     let arr = match arr.datatype() {
@@ -150,7 +147,7 @@ pub fn cast_array<'a>(
         }
     };
 
-    Ok(Cow::Owned(arr))
+    Ok(arr)
 }
 
 fn decimal_rescale_helper<'a, S>(

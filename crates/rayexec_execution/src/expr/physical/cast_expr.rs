@@ -1,8 +1,15 @@
-use std::fmt;
 use std::sync::Arc;
+use std::{borrow::Cow, fmt};
 
+use rayexec_bullet::array::Array;
 use rayexec_bullet::{
-    array::Array2, batch::Batch, bitmap::Bitmap, compute::cast::array::cast_array2,
+    array::Array2,
+    batch::Batch,
+    bitmap::Bitmap,
+    compute::cast::{
+        array::{cast_array, cast_array2},
+        behavior::CastFailBehavior,
+    },
     datatype::DataType,
 };
 use rayexec_error::{OptionExt, Result};
@@ -19,6 +26,12 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+        let input = self.expr.eval(batch)?;
+        let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
+        Ok(Cow::Owned(out))
+    }
+
     pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         let input = self.expr.eval2(batch, selection)?;
         let out = cast_array2(&input, &self.to)?;

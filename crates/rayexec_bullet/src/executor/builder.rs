@@ -24,6 +24,9 @@ pub struct ArrayBuilder<B> {
 #[derive(Debug)]
 pub struct OutputBuffer<B> {
     /// Index in the buffer we're writing to.
+    ///
+    /// This index corresponds to the logical index in the input arrays, and the
+    /// physical (and logical) index in the output array.
     pub(crate) idx: usize,
     /// The buffer itself.
     pub(crate) buffer: B,

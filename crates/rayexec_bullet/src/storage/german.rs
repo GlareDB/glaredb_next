@@ -5,8 +5,10 @@ use crate::executor::physical_type::VarlenType;
 
 use super::{AddressableStorage, PrimitiveStorage};
 
+/// Byte length threshold for inlining varlen data in the array's metadata.
 pub(crate) const INLINE_THRESHOLD: i32 = 12;
 
+/// Metadata for small (<= 12 bytes) varlen data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct GermanSmallMetadata {
@@ -14,6 +16,7 @@ pub struct GermanSmallMetadata {
     pub inline: [u8; 12],
 }
 
+/// Metadata for large (> 12 bytes) varlen data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct GermanLargeMetadata {

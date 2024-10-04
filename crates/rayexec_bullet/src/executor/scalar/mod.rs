@@ -21,6 +21,9 @@ pub use ternary::*;
 mod uniform;
 pub use uniform::*;
 
+mod select;
+pub use select::*;
+
 use crate::array::Array;
 use rayexec_error::{RayexecError, Result};
 

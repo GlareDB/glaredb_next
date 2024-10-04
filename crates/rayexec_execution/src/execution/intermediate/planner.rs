@@ -70,9 +70,8 @@ use crate::{
     storage::table_storage::Projections,
 };
 use rayexec_bullet::{
-    array::{Array2, Utf8Array},
+    array::{Array, Array2, Utf8Array},
     batch::Batch,
-    compute::concat::concat,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
 use std::{collections::BTreeSet, sync::Arc};
@@ -780,9 +779,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 partitioning_requirement: None,
             },
             ScanSource::ExpressionList { rows } => {
-                let batch = self.create_batch_for_row_values(projections, rows)?;
+                let batches = self.create_batches_for_row_values(projections, rows)?;
                 IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
+                    operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(batches))),
                     partitioning_requirement: None,
                 }
             }
@@ -1673,18 +1672,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn create_batch_for_row_values(
+    fn create_batches_for_row_values(
         &self,
         projections: Projections,
         rows: Vec<Vec<Expression>>,
-    ) -> Result<Batch> {
+    ) -> Result<Vec<Batch>> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
         // TODO: This could probably be simplified.
 
-        let mut row_arrs: Vec<Vec<Arc<Array2>>> = Vec::new(); // Row oriented.
+        let mut row_arrs: Vec<Vec<Array>> = Vec::new(); // Row oriented.
         let dummy_batch = Batch::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
@@ -1695,38 +1694,27 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 .context("Failed to plan expressions for values")?;
             let arrs = exprs
                 .into_iter()
-                .map(|expr| expr.eval2(&dummy_batch, None))
+                .map(|expr| {
+                    let arr = expr.eval(&dummy_batch)?;
+                    Ok(arr.into_owned())
+                })
                 .collect::<Result<Vec<_>>>()?;
             row_arrs.push(arrs);
         }
 
-        let num_cols = row_arrs.first().map(|row| row.len()).unwrap_or(0);
-        let mut col_arrs = Vec::with_capacity(num_cols); // Column oriented.
+        let batches = row_arrs
+            .into_iter()
+            .map(|cols| {
+                let batch = Batch::try_new(cols)?;
 
-        // Convert the row-oriented vector into a column oriented one.
-        for _ in 0..num_cols {
-            let cols: Vec<_> = row_arrs.iter_mut().map(|row| row.pop().unwrap()).collect();
-            col_arrs.push(cols);
-        }
+                // TODO: Got lazy, we can just avoid evaluating the expressions above.
+                match &projections.column_indices {
+                    Some(indices) => Ok(batch.project(indices)),
+                    None => Ok(batch),
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        // Reverse since we worked from right to left when converting to
-        // column-oriented.
-        col_arrs.reverse();
-
-        // Concat column values into a single array.
-        let mut cols = Vec::with_capacity(col_arrs.len());
-        for arrs in col_arrs {
-            let refs: Vec<&Array2> = arrs.iter().map(|a| a.as_ref()).collect();
-            let col = concat(&refs)?;
-            cols.push(col);
-        }
-
-        let batch = Batch::try_new2(cols)?;
-
-        // TODO: Got lazy, we can just avoid evaluating the expressions above.
-        match &projections.column_indices {
-            Some(indices) => Ok(batch.project2(indices)),
-            None => Ok(batch),
-        }
+        Ok(batches)
     }
 }

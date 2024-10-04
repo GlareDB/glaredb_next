@@ -100,6 +100,17 @@ impl Batch {
         }
     }
 
+    // TODO: Owned variant
+    pub fn project(&self, indices: &[usize]) -> Self {
+        let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();
+
+        Batch {
+            cols2: Vec::new(),
+            cols,
+            num_rows: self.num_rows,
+        }
+    }
+
     /// Get the row at some index.
     pub fn row2(&self, idx: usize) -> Option<ScalarRow> {
         if idx >= self.num_rows {
