@@ -27,10 +27,18 @@ pub use select::*;
 mod hash;
 pub use hash::*;
 
-use crate::array::Array;
+use crate::{array::Array, bitmap::Bitmap};
 use rayexec_error::{RayexecError, Result};
 
 use super::builder::ArrayDataBuffer;
+
+#[inline]
+pub(crate) fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
+    match validity {
+        Some(v) => v.value_unchecked(idx),
+        None => true,
+    }
+}
 
 /// Validates that the length of a buffer that we're using for building a new
 /// array matches the logical length of some other array.

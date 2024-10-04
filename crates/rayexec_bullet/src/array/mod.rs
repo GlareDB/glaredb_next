@@ -22,7 +22,7 @@ use crate::scalar::{
     decimal::{Decimal128Scalar, Decimal64Scalar},
     ScalarValue,
 };
-use crate::selection::{self, SelectionVector};
+use crate::selection::SelectionVector;
 use crate::storage::{
     BooleanStorage, ContiguousVarlenStorage, GermanVarlenStorage, PrimitiveStorage,
     SharedHeapStorage,
