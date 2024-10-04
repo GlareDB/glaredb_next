@@ -423,7 +423,7 @@ fn cross_join(
     // For each row in the left batch, join the entirety of right.
     for left_idx in 0..left.num_rows() {
         // Create constant selection vector pointing to the one row on the left.
-        let selection = SelectionVector::constant(right.num_rows(), left_idx);
+        let selection = SelectionVector::repeated(right.num_rows(), left_idx);
 
         // Columns from the left, one row repeated.
         let left_columns = left.select(Arc::new(selection)).into_arrays();

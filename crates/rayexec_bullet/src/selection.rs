@@ -24,7 +24,7 @@ impl SelectionVector {
 
     /// Creates a selection vector that that has all indices in the range [0,n)
     /// point to the same physical index.
-    pub fn constant(len: usize, idx: usize) -> Self {
+    pub fn repeated(len: usize, idx: usize) -> Self {
         SelectionVector {
             indices: vec![idx; len],
         }

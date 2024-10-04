@@ -96,7 +96,7 @@ impl Array {
         // extend it out to the desired size.
         let data = datatype.physical_type()?.zeroed_array_data(1);
         let validity = Bitmap::new_with_all_false(1);
-        let selection = SelectionVector::constant(len, 0);
+        let selection = SelectionVector::repeated(len, 0);
 
         Ok(Array {
             datatype,

@@ -231,7 +231,7 @@ mod tests {
     fn binary_add_with_invalid() {
         // Make left constant null.
         let mut left = Array::from_iter([1]);
-        left.put_selection(SelectionVector::constant(3, 0));
+        left.put_selection(SelectionVector::repeated(3, 0));
         left.set_physical_validity(0, false);
 
         let right = Array::from_iter([2, 3, 4]);
