@@ -1,5 +1,5 @@
 use crate::{
-    array::{Array, Array2},
+    array::{Array, Array2, Selection},
     row::ScalarRow,
 };
 use rayexec_error::{RayexecError, Result};
@@ -117,6 +117,26 @@ impl Batch {
             cols2: Vec::new(),
             cols,
             num_rows: count,
+        }
+    }
+
+    /// Selects rows in the batch.
+    pub fn select(&self, selection: impl Into<Selection>) -> Batch {
+        let selection = selection.into();
+        let cols = self
+            .cols
+            .iter()
+            .map(|c| {
+                let mut col = c.clone();
+                col.select_mut(&selection);
+                col
+            })
+            .collect();
+
+        Batch {
+            cols2: Vec::new(),
+            cols,
+            num_rows: selection.as_ref().num_rows(),
         }
     }
 

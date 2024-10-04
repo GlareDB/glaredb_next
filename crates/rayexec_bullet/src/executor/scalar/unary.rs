@@ -282,7 +282,7 @@ mod tests {
         selection.set_unchecked(2, 3);
         selection.set_unchecked(3, 1);
         selection.set_unchecked(4, 2);
-        array.put_selection(selection);
+        array.select_mut(&selection.into());
 
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,

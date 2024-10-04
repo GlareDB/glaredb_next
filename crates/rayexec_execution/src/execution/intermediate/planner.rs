@@ -20,7 +20,7 @@ use crate::{
             scan::PhysicalScan,
             simple::SimpleOperator,
             sink::SinkOperator,
-            sort::{local_sort::PhysicalScatterSort, merge_sorted::PhysicalGatherSort},
+            sort::{gather_sort::PhysicalGatherSort, scatter_sort::PhysicalScatterSort},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
             union::PhysicalUnion,

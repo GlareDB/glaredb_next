@@ -13,6 +13,7 @@ use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
+use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_bullet::{
     array::{Array, Array2},
@@ -87,7 +88,10 @@ impl PhysicalScalarExpression {
     pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
         let selected = self.eval(batch)?;
 
-        unimplemented!()
+        let mut selection = SelectionVector::with_capacity(selected.logical_len());
+        SelectExecutor::select(&selected, &mut selection)?;
+
+        Ok(selection)
     }
 }
 

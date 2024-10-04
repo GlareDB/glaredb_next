@@ -116,6 +116,30 @@ impl Array {
         self.selection = Some(selection.into())
     }
 
+    /// Updates this array's selection vector.
+    ///
+    /// Takes into account any existing selection. This allows for repeated
+    /// selection (filtering) against the same array.
+    pub fn select_mut(&mut self, selection: &Selection) {
+        match self.selection_vector() {
+            Some(existing) => {
+                // Existing selection, need to create a new vector that selects
+                // from the existing vector.
+                let input_sel = selection.as_ref();
+                let mut new_sel = SelectionVector::with_capacity(input_sel.num_rows());
+
+                for input_loc in input_sel.iter() {
+                    new_sel.push_location(existing.get_unchecked(input_loc));
+                }
+            }
+            None => {
+                // No existing selection, we can just use the provided vector
+                // directly.
+                self.selection = Some(selection.clone())
+            }
+        }
+    }
+
     pub fn logical_len(&self) -> usize {
         match self.selection_vector() {
             Some(v) => v.num_rows(),
