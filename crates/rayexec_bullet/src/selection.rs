@@ -138,3 +138,48 @@ pub fn get_unchecked(selection: Option<&SelectionVector>, idx: usize) -> usize {
         None => idx,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn select_select_simple() {
+        // 0 => 4
+        // 1 => 5
+        // 2 => 6
+        // 3 => 10
+        // 4 => 11
+        let orig = SelectionVector::from_iter([4, 5, 6, 10, 11]);
+
+        // 0 => 1
+        // 1 => 2
+        // 2 => 4
+        let selection = SelectionVector::from_iter([1, 2, 4]);
+
+        // 0 => ORIG[1] => 5
+        // 1 => ORIG[2] => 6
+        // 2 => ORIG[4] => 11
+        let out = orig.select(&selection);
+
+        assert_eq!(Some(5), out.get(0));
+        assert_eq!(Some(6), out.get(1));
+        assert_eq!(Some(11), out.get(2));
+        assert_eq!(None, out.get(3));
+    }
+
+    #[test]
+    fn select_select_repeat() {
+        let orig = SelectionVector::from_iter([4, 5, 6, 7]);
+        let selection = SelectionVector::from_iter([1, 1, 2, 2, 2]);
+
+        let out = orig.select(&selection);
+
+        assert_eq!(Some(5), out.get(0));
+        assert_eq!(Some(5), out.get(1));
+        assert_eq!(Some(6), out.get(2));
+        assert_eq!(Some(6), out.get(3));
+        assert_eq!(Some(6), out.get(4));
+        assert_eq!(None, out.get(5));
+    }
+}
