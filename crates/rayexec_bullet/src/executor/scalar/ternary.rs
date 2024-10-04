@@ -42,8 +42,6 @@ impl TernaryExecutor {
         let _ = validate_logical_len(&builder.buffer, array2)?;
         let _ = validate_logical_len(&builder.buffer, array3)?;
 
-        let validity = union_validities([array1.validity(), array2.validity(), array2.validity()])?;
-
         let selection1 = array1.selection_vector();
         let selection2 = array2.selection_vector();
         let selection3 = array3.selection_vector();
@@ -103,54 +101,6 @@ impl TernaryExecutor {
 
                 output_buffer.idx = idx;
                 op(val1, val2, val3, &mut output_buffer);
-            }
-        }
-
-        match validity {
-            Some(validity) => {
-                let values1 = S1::get_storage(&array1.data)?;
-                let values2 = S2::get_storage(&array2.data)?;
-                let values3 = S3::get_storage(&array3.data)?;
-
-                let mut out_validity_builder = Bitmap::new_with_all_true(len);
-
-                for idx in 0..len {
-                    if !validity.value_unchecked(idx) {
-                        out_validity_builder.set_unchecked(idx, false);
-                        continue;
-                    }
-
-                    let sel1 = selection::get_unchecked(selection1, idx);
-                    let sel2 = selection::get_unchecked(selection2, idx);
-                    let sel3 = selection::get_unchecked(selection3, idx);
-
-                    let val1 = unsafe { values1.get_unchecked(sel1) };
-                    let val2 = unsafe { values2.get_unchecked(sel2) };
-                    let val3 = unsafe { values3.get_unchecked(sel3) };
-
-                    output_buffer.idx = idx;
-                    op(val1, val2, val3, &mut output_buffer);
-                }
-
-                out_validity = Some(out_validity_builder)
-            }
-            None => {
-                let values1 = S1::get_storage(&array1.data)?;
-                let values2 = S2::get_storage(&array2.data)?;
-                let values3 = S3::get_storage(&array3.data)?;
-
-                for idx in 0..len {
-                    let sel1 = selection::get_unchecked(selection1, idx);
-                    let sel2 = selection::get_unchecked(selection2, idx);
-                    let sel3 = selection::get_unchecked(selection3, idx);
-
-                    let val1 = unsafe { values1.get_unchecked(sel1) };
-                    let val2 = unsafe { values2.get_unchecked(sel2) };
-                    let val3 = unsafe { values3.get_unchecked(sel3) };
-
-                    output_buffer.idx = idx;
-                    op(val1, val2, val3, &mut output_buffer);
-                }
             }
         }
 

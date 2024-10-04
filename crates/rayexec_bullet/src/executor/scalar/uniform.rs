@@ -1,5 +1,8 @@
 use crate::{
-    array::{validity::union_validities, Array, ArrayAccessor, ValuesBuffer},
+    array::{
+        validity::{self, union_validities},
+        Array, ArrayAccessor, ValuesBuffer,
+    },
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
@@ -10,6 +13,8 @@ use crate::{
     storage::AddressableStorage,
 };
 use rayexec_error::{RayexecError, Result};
+
+use super::check_validity;
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniformExecutor;
@@ -34,7 +39,7 @@ impl UniformExecutor {
             let _ = validate_logical_len(&builder.buffer, arr)?;
         }
 
-        let validity = union_validities(arrays.iter().map(|arr| arr.validity()))?;
+        let any_invalid = arrays.iter().any(|a| a.validity().is_some());
 
         let selections: Vec<_> = arrays.iter().map(|a| a.selection_vector()).collect();
 
@@ -46,51 +51,52 @@ impl UniformExecutor {
 
         let mut op_inputs = Vec::with_capacity(arrays.len());
 
-        match validity {
-            Some(validity) => {
-                let storage_values: Vec<_> = arrays
-                    .iter()
-                    .map(|a| S::get_storage(&a.data))
-                    .collect::<Result<Vec<_>>>()?;
+        if any_invalid {
+            let storage_values: Vec<_> = arrays
+                .iter()
+                .map(|a| S::get_storage(&a.data))
+                .collect::<Result<Vec<_>>>()?;
 
-                let mut out_validity_builder = Bitmap::new_with_all_true(len);
+            let validities: Vec<_> = arrays.iter().map(|a| a.validity()).collect();
 
-                for idx in 0..len {
-                    if !validity.value_unchecked(idx) {
+            let mut out_validity_builder = Bitmap::new_with_all_true(len);
+
+            for idx in 0..len {
+                op_inputs.clear();
+                let mut row_invalid = false;
+                for arr_idx in 0..arrays.len() {
+                    let sel = selection::get_unchecked(selections[arr_idx], idx);
+                    if row_invalid || !check_validity(sel, validities[arr_idx]) {
+                        row_invalid = true;
                         out_validity_builder.set_unchecked(idx, false);
                         continue;
                     }
 
-                    op_inputs.clear();
-                    for arr_idx in 0..arrays.len() {
-                        let sel = selection::get_unchecked(selections[arr_idx], idx);
-                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
-                        op_inputs.push(val);
-                    }
-
-                    output_buffer.idx = idx;
-                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+                    let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
+                    op_inputs.push(val);
                 }
 
-                out_validity = Some(out_validity_builder);
+                output_buffer.idx = idx;
+                op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
             }
-            None => {
-                let storage_values: Vec<_> = arrays
-                    .iter()
-                    .map(|a| S::get_storage(&a.data))
-                    .collect::<Result<Vec<_>>>()?;
 
-                for idx in 0..len {
-                    op_inputs.clear();
-                    for arr_idx in 0..arrays.len() {
-                        let sel = selection::get_unchecked(selections[arr_idx], idx);
-                        let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
-                        op_inputs.push(val);
-                    }
+            out_validity = Some(out_validity_builder);
+        } else {
+            let storage_values: Vec<_> = arrays
+                .iter()
+                .map(|a| S::get_storage(&a.data))
+                .collect::<Result<Vec<_>>>()?;
 
-                    output_buffer.idx = idx;
-                    op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+            for idx in 0..len {
+                op_inputs.clear();
+                for arr_idx in 0..arrays.len() {
+                    let sel = selection::get_unchecked(selections[arr_idx], idx);
+                    let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
+                    op_inputs.push(val);
                 }
+
+                output_buffer.idx = idx;
+                op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
             }
         }
 
@@ -223,5 +229,37 @@ mod tests {
             ScalarValue::from("c3horse"),
             got.physical_scalar(2).unwrap()
         );
+    }
+
+    #[test]
+    fn uniform_string_concat_row_wise_with_invalid() {
+        let first = Array::from_iter(["a", "b", "c"]);
+        let mut second = Array::from_iter(["1", "2", "3"]);
+        second.set_physical_validity(1, false); // "2" => NULL
+        let third = Array::from_iter(["dog", "cat", "horse"]);
+
+        let builder = ArrayBuilder {
+            datatype: DataType::Utf8,
+            buffer: GermanVarlenBuffer::<str>::with_len(3),
+        };
+
+        let mut string_buffer = String::new();
+
+        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+            &[&first, &second, &third],
+            builder,
+            |inputs, buf| {
+                string_buffer.clear();
+                for input in inputs {
+                    string_buffer.push_str(input);
+                }
+                buf.put(string_buffer.as_str())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(ScalarValue::from("a1dog"), got.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::Null, got.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from("c3horse"), got.logical_value(2).unwrap());
     }
 }
