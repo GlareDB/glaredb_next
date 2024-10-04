@@ -20,7 +20,7 @@ use crate::{
             scan::PhysicalScan,
             simple::SimpleOperator,
             sink::SinkOperator,
-            sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
+            sort::{local_sort::PhysicalScatterSort, merge_sorted::PhysicalGatherSort},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
             union::PhysicalUnion,
@@ -1208,7 +1208,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalLocalSort::new(
+            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
                 exprs.clone(),
             ))),
             partitioning_requirement: None,
@@ -1217,9 +1217,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Global sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::MergeSorted(
-                PhysicalMergeSortedInputs::new(exprs),
-            )),
+            operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
+                exprs,
+            ))),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;

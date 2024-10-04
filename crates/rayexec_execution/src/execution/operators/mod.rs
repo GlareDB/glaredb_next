@@ -48,14 +48,13 @@ use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use nl_join::PhysicalNestedLoopJoin;
 use project::{PhysicalProject, ProjectOperation};
-use rayexec_bullet::batch::Batch;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use simple::SimpleOperator;
 use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
-use sort::local_sort::PhysicalLocalSort;
-use sort::merge_sorted::PhysicalMergeSortedInputs;
+use sort::gather_sort::PhysicalGatherSort;
+use sort::scatter_sort::PhysicalScatterSort;
 use source::{SourceOperation, SourceOperator, SourcePartitionState};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -83,10 +82,10 @@ use self::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
-use self::sort::local_sort::LocalSortPartitionState;
-use self::sort::merge_sorted::{
-    MergeSortedOperatorState, MergeSortedPullPartitionState, MergeSortedPushPartitionState,
+use self::sort::gather_sort::{
+    GatherSortOperatorState, GatherSortPullPartitionState, GatherSortPushPartitionState,
 };
+use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 
 use super::computed_batch::{ComputedBatch, ComputedBatches};
@@ -106,9 +105,9 @@ pub enum PartitionState {
     Source(SourcePartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
-    MergeSortedPush(MergeSortedPushPartitionState),
-    MergeSortedPull(MergeSortedPullPartitionState),
-    LocalSort(LocalSortPartitionState),
+    GatherSortPush(GatherSortPushPartitionState),
+    GatherSortPull(GatherSortPullPartitionState),
+    ScatterSort(ScatterSortPartitionState),
     Limit(LimitPartitionState),
     UnionTop(UnionTopPartitionState),
     UnionBottom(UnionBottomPartitionState),
@@ -131,7 +130,7 @@ pub enum OperatorState {
     NestedLoopJoin(NestedLoopJoinOperatorState),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
-    MergeSorted(MergeSortedOperatorState),
+    GatherSort(GatherSortOperatorState),
     Union(UnionOperatorState),
     Sink(SinkOperatorState),
     None,
@@ -307,8 +306,8 @@ pub enum PhysicalOperator {
     MaterializedSink(SinkOperator<MaterializedSinkOperation>),
     MaterializedSource(SourceOperator<MaterializeSourceOperation>),
     RoundRobin(PhysicalRoundRobinRepartition),
-    MergeSorted(PhysicalMergeSortedInputs),
-    LocalSort(PhysicalLocalSort),
+    MergeSorted(PhysicalGatherSort),
+    LocalSort(PhysicalScatterSort),
     Limit(PhysicalLimit),
     Union(PhysicalUnion),
     Filter(SimpleOperator<FilterOperation>),
@@ -589,11 +588,11 @@ impl DatabaseProtoConv for PhysicalOperator {
                 PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
             }
             Value::LocalSort(op) => {
-                PhysicalOperator::LocalSort(PhysicalLocalSort::from_proto_ctx(op, context)?)
+                PhysicalOperator::LocalSort(PhysicalScatterSort::from_proto_ctx(op, context)?)
             }
-            Value::MergeSorted(op) => PhysicalOperator::MergeSorted(
-                PhysicalMergeSortedInputs::from_proto_ctx(op, context)?,
-            ),
+            Value::MergeSorted(op) => {
+                PhysicalOperator::MergeSorted(PhysicalGatherSort::from_proto_ctx(op, context)?)
+            }
         })
     }
 }
