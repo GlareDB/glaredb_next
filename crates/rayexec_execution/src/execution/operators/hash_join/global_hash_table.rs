@@ -1,5 +1,8 @@
 use hashbrown::raw::RawTable;
-use rayexec_bullet::{batch::Batch, bitmap::Bitmap, compute, datatype::DataType};
+use rayexec_bullet::{
+    array::Selection, batch::Batch, bitmap::Bitmap, compute, datatype::DataType,
+    selection::SelectionVector,
+};
 use rayexec_error::Result;
 use std::{collections::HashMap, fmt};
 
@@ -167,37 +170,27 @@ impl GlobalHashTable {
 
         let mut batches = Vec::with_capacity(row_indices.len());
         for (batch_idx, row_indices) in row_indices {
-            let (left_rows, right_rows): (Vec<_>, Vec<_>) = row_indices.into_iter().unzip();
+            // Coarse-grained selection vectors.
+            //
+            // Contains rows on left and right that had the same hash key. Still
+            // needs run through the filter expressions.
+            let (left_row_sel, right_row_sel): (SelectionVector, SelectionVector) =
+                row_indices.into_iter().unzip();
+
+            // Fine-grained selections, computed by applying the join conditions
+            // to the selected inputs.
+            let (left_row_sel, right_row_sel) = self.conditions.compute_selection_for_probe(
+                batch_idx,
+                left_row_sel,
+                right_row_sel,
+                right,
+            )?;
 
             // Update right unvisited bitmap. May be None if we're not doing a
             // RIGHT JOIN.
             if let Some(right_outer_tracker) = right_tracker.as_mut() {
-                right_outer_tracker.mark_rows_visited(&right_rows);
+                right_outer_tracker.mark_rows_visited(right_row_sel.iter_locations());
             }
-
-            // Initial right side of the batch.
-            let initial_right_side = Batch::try_new2(
-                right
-                    .columns2()
-                    .iter()
-                    .map(|arr| compute::take::take(arr.as_ref(), &right_rows))
-                    .collect::<Result<Vec<_>>>()?,
-            )?;
-
-            // Run through conditions. This will also check the column equality
-            // for the join key (since it's just another condition).
-            let selection = self.conditions.compute_selection_for_probe(
-                batch_idx,
-                &left_rows,
-                &initial_right_side,
-            )?;
-
-            // Prune left row indices using selection.
-            let left_rows: Vec<_> = left_rows
-                .into_iter()
-                .zip(selection.iter())
-                .filter_map(|(left_row, selected)| if selected { Some(left_row) } else { None })
-                .collect();
 
             // Update left visit bitmaps with rows we're visiting from batches
             // in the hash table.
@@ -209,7 +202,7 @@ impl GlobalHashTable {
             // May be None if we're not doing a LEFT JOIN.
             if let Some(left_outer_tracker) = left_outer_tracker.as_mut() {
                 left_outer_tracker
-                    .mark_rows_visited_for_batch(batch_idx, left_rows.iter().copied());
+                    .mark_rows_visited_for_batch(batch_idx, left_row_sel.iter_locations());
             }
 
             // Don't actually do the join.
@@ -220,28 +213,21 @@ impl GlobalHashTable {
 
             // Get the left columns for this batch.
             let left_batch = self.batches.get(batch_idx).expect("batch to exist");
-            let left_cols = left_batch
-                .columns2()
-                .iter()
-                .map(|arr| compute::take::take(arr.as_ref(), &left_rows))
-                .collect::<Result<Vec<_>>>()?;
+            let left_cols = left_batch.select(left_row_sel).into_arrays();
 
-            // Trim down right cols using only selected rows.
-            let right_cols = initial_right_side
-                .columns2()
-                .iter()
-                .map(|arr| compute::filter::filter(arr, &selection))
-                .collect::<Result<Vec<_>>>()?;
+            // Get the right.
+            let right_cols = right.select(right_row_sel).into_arrays();
 
             // Create final batch.
-            let batch = Batch::try_new2(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
             batches.push(batch);
         }
 
         // Append batch from RIGHT OUTER if needed.
         if let Some(right_tracker) = right_tracker {
-            let extra = right_tracker.into_unvisited(&self.left_types, right)?;
-            batches.push(extra);
+            if let Some(extra) = right_tracker.into_unvisited(&self.left_types, right)? {
+                batches.push(extra);
+            }
         }
 
         Ok(batches)

@@ -6,6 +6,12 @@ pub struct SelectionVector {
     indices: Vec<usize>,
 }
 
+impl Default for SelectionVector {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 impl SelectionVector {
     /// Create a new empty selection vector. Logically this means an array has
     /// no rows even if the array physically contains data.
@@ -63,6 +69,22 @@ impl SelectionVector {
         SelectionVector { indices }
     }
 
+    /// Selects indices from this selection vector using some other selection
+    /// vector.
+    ///
+    /// OUT[IDX] = SELF[SELECTION[IDX]]
+    pub fn select(&self, selection: &SelectionVector) -> Self {
+        let mut new_indices = Vec::with_capacity(selection.num_rows());
+        for loc in selection.iter_locations() {
+            let orig_loc = self.get_unchecked(loc);
+            new_indices.push(orig_loc);
+        }
+
+        SelectionVector {
+            indices: new_indices,
+        }
+    }
+
     /// Clear the selection vector.
     pub fn clear(&mut self) {
         self.indices.clear()
@@ -97,6 +119,12 @@ impl FromIterator<usize> for SelectionVector {
         SelectionVector {
             indices: iter.into_iter().collect(),
         }
+    }
+}
+
+impl Extend<usize> for SelectionVector {
+    fn extend<T: IntoIterator<Item = usize>>(&mut self, iter: T) {
+        self.indices.extend(iter)
     }
 }
 

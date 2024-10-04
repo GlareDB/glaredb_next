@@ -4,7 +4,6 @@ use rayexec_bullet::{
     array::{Array, Array2, BooleanArray},
     batch::Batch,
     bitmap::Bitmap,
-    compute::{self, filter::filter},
     datatype::DataType,
     selection::SelectionVector,
 };
@@ -182,8 +181,8 @@ impl RightOuterJoinTracker {
     }
 
     /// Mark the given row indices as visited.
-    pub fn mark_rows_visited(&mut self, rows: &[usize]) {
-        for &idx in rows {
+    pub fn mark_rows_visited(&mut self, visited_rows: impl IntoIterator<Item = usize>) {
+        for idx in visited_rows {
             self.unvisited.set_unchecked(idx, false);
         }
     }
@@ -194,19 +193,24 @@ impl RightOuterJoinTracker {
     ///
     /// `left_types` is used to create typed null columns for the left side of
     /// the batch.
-    pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Batch> {
-        let unvisited_count = self.unvisited.count_trues();
+    ///
+    /// Returns None if all row on the right were visited.
+    pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Option<Batch>> {
+        let selection = SelectionVector::from_iter(self.unvisited.index_iter());
+        let num_rows = selection.num_rows();
+        if num_rows == 0 {
+            return Ok(None);
+        }
 
-        let right_unvisited = right
-            .columns2()
-            .iter()
-            .map(|a| compute::filter::filter(a, &self.unvisited))
-            .collect::<Result<Vec<_>>>()?;
+        let right_cols = right.select(Arc::new(selection)).into_arrays();
 
         let left_null_cols = left_types
             .iter()
-            .map(|t| Array2::new_nulls(t, unvisited_count));
+            .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+            .collect::<Result<Vec<_>>>()?;
 
-        Batch::try_new2(left_null_cols.chain(right_unvisited))
+        let batch = Batch::try_new(left_null_cols.into_iter().chain(right_cols))?;
+
+        Ok(Some(batch))
     }
 }
