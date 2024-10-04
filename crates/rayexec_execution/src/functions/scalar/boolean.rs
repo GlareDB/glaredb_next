@@ -1,7 +1,6 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use rayexec_bullet::array::{Array, Array2};
-use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
@@ -199,45 +198,39 @@ impl PlannedScalarFunction for OrImpl {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::BooleanArray;
+    use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
 
     #[test]
     fn and_bool() {
-        let a = Arc::new(Array2::Boolean(BooleanArray::from_iter([
-            true, false, false,
-        ])));
-        let b = Arc::new(Array2::Boolean(BooleanArray::from_iter([
-            true, true, false,
-        ])));
+        let a = Array::from_iter([true, false, false]);
+        let b = Array::from_iter([true, true, false]);
 
         let specialized = And
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = specialized.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::Boolean(BooleanArray::from_iter([true, false, false]));
+        let out = specialized.execute(&[&a, &b]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
     }
 
     #[test]
     fn or_bool() {
-        let a = Arc::new(Array2::Boolean(BooleanArray::from_iter([
-            true, false, false,
-        ])));
-        let b = Arc::new(Array2::Boolean(BooleanArray::from_iter([
-            true, true, false,
-        ])));
+        let a = Array::from_iter([true, false, false]);
+        let b = Array::from_iter([true, true, false]);
 
         let specialized = Or
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = specialized.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::Boolean(BooleanArray::from_iter([true, true, false]));
+        let out = specialized.execute(&[&a, &b]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
     }
 }

@@ -69,6 +69,12 @@ impl SelectionVector {
     }
 
     /// Returns an iterator of locations being pointed to.
+    ///
+    /// Locations are iterated in their logical ordering, so the resulting
+    /// iterator may produce locations out of order and/or duplicated.
+    ///
+    /// For example, a constant vector of length '3' pointing to physical
+    /// location '1' will return '1' 3 times.
     pub fn iter_locations(&self) -> impl Iterator<Item = usize> + '_ {
         self.indices.iter().copied()
     }
