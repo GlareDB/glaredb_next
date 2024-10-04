@@ -2,7 +2,6 @@ use crate::execution::computed_batch::ComputedBatch;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::compute;
 use rayexec_error::Result;
 use std::{
     sync::Arc,
@@ -117,25 +116,15 @@ impl ExecutableOperator for PhysicalLimit {
                 state.remaining_count,
             );
 
-            let cols = batch
-                .columns2()
-                .iter()
-                .map(|arr| compute::slice::slice(arr.as_ref(), state.remaining_offset, count))
-                .collect::<Result<Vec<_>>>()?;
+            let batch = batch.slice(state.remaining_offset, count);
 
-            let batch = Batch::try_new2(cols)?;
             state.remaining_offset = 0;
             state.remaining_count -= batch.num_rows();
             batch
         } else if state.remaining_count < batch.num_rows() {
             // Remaining offset is 0, and input batch is has more rows than we
             // need, just slice to the right size.
-            let cols = batch
-                .columns2()
-                .iter()
-                .map(|arr| compute::slice::slice(arr.as_ref(), 0, state.remaining_count))
-                .collect::<Result<Vec<_>>>()?;
-            let batch = Batch::try_new2(cols)?;
+            let batch = batch.slice(0, state.remaining_count);
             state.remaining_count = 0;
             batch
         } else {
@@ -238,8 +227,11 @@ impl DatabaseProtoConv for PhysicalLimit {
 
 #[cfg(test)]
 mod tests {
+    use rayexec_bullet::scalar::ScalarValue;
+
     use crate::execution::operators::test_util::{
-        make_i32_batch, test_database_context, unwrap_poll_pull_batch, TestWakerContext,
+        logical_value, make_i32_batch, test_database_context, unwrap_poll_pull_batch,
+        TestWakerContext,
     };
     use std::sync::Arc;
 
@@ -318,8 +310,8 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
-        let expected = make_i32_batch([5]);
-        assert_eq!(expected, output);
+
+        assert_eq!(ScalarValue::Int32(5), logical_value(&output, 0, 0));
     }
 
     #[test]
@@ -350,8 +342,9 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
-        let expected = make_i32_batch([3, 4]); // First two elements skipped.
-        assert_eq!(expected, output);
+        // First two elements skipped.
+        assert_eq!(ScalarValue::Int32(3), logical_value(&output, 0, 0),);
+        assert_eq!(ScalarValue::Int32(4), logical_value(&output, 0, 1),);
 
         // Push next batch
         let poll_push = push_cx
@@ -369,8 +362,10 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
-        let expected = make_i32_batch([5, 6, 7]);
-        assert_eq!(expected, output);
+
+        assert_eq!(ScalarValue::Int32(5), logical_value(&output, 0, 0),);
+        assert_eq!(ScalarValue::Int32(6), logical_value(&output, 0, 1),);
+        assert_eq!(ScalarValue::Int32(7), logical_value(&output, 0, 2),);
     }
 
     #[test]
@@ -413,8 +408,9 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
-        let expected = make_i32_batch([6, 7]);
-        assert_eq!(expected, output);
+
+        assert_eq!(ScalarValue::Int32(6), logical_value(&output, 0, 0),);
+        assert_eq!(ScalarValue::Int32(7), logical_value(&output, 0, 1),);
     }
 
     #[test]

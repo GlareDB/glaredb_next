@@ -1,4 +1,5 @@
 //! Utilities for testing operator implementations.
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::Result;
 use std::sync::Arc;
 use std::task::Context;
@@ -7,7 +8,7 @@ use std::{
     task::{Wake, Waker},
 };
 
-use rayexec_bullet::array::{Array2, Int32Array};
+use rayexec_bullet::array::{Array, Array2, Int32Array};
 use rayexec_bullet::batch::Batch;
 
 use crate::database::system::new_system_catalog;
@@ -107,7 +108,11 @@ pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
     }
 }
 
+pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
+    batch.column(column).unwrap().logical_value(row).unwrap()
+}
+
 /// Makes a batch with a single column i32 values provided by the iterator.
 pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch {
-    Batch::try_new2(vec![Array2::Int32(Int32Array::from_iter(iter.into_iter()))]).unwrap()
+    Batch::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
 }

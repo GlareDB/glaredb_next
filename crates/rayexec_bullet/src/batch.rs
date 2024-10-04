@@ -111,6 +111,15 @@ impl Batch {
         }
     }
 
+    pub fn slice(&self, offset: usize, count: usize) -> Self {
+        let cols = self.cols.iter().map(|c| c.slice(offset, count)).collect();
+        Batch {
+            cols2: Vec::new(),
+            cols,
+            num_rows: count,
+        }
+    }
+
     /// Get the row at some index.
     pub fn row2(&self, idx: usize) -> Option<ScalarRow> {
         if idx >= self.num_rows {

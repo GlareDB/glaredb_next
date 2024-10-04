@@ -3,7 +3,6 @@ pub mod cast;
 pub mod date;
 pub mod filter;
 pub mod interleave;
-pub mod slice;
 pub mod take;
 
 pub mod util;

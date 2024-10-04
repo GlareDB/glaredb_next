@@ -51,6 +51,11 @@ impl SelectionVector {
         self.indices[idx] = location
     }
 
+    pub fn slice_unchecked(&self, offset: usize, count: usize) -> Self {
+        let indices = self.indices[offset..(offset + count)].to_vec();
+        SelectionVector { indices }
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
         self.indices.iter().copied()
     }

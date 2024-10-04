@@ -289,6 +289,27 @@ impl Array {
             other => not_implemented!("get value: {other}"),
         })
     }
+
+    pub fn try_slice(&self, offset: usize, count: usize) -> Result<Self> {
+        if offset + count > self.logical_len() {
+            return Err(RayexecError::new("Slice out of bounds"));
+        }
+        Ok(self.slice(offset, count))
+    }
+
+    pub fn slice(&self, offset: usize, count: usize) -> Self {
+        let selection = match self.selection_vector() {
+            Some(sel) => sel.slice_unchecked(offset, count),
+            None => SelectionVector::with_range(offset..(offset + count)),
+        };
+
+        Array {
+            datatype: self.datatype.clone(),
+            selection: Some(selection.into()),
+            validity: self.validity.clone(),
+            data: self.data.clone(),
+        }
+    }
 }
 
 fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {

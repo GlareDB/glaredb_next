@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use rayexec_bullet::{batch::Batch, bitmap::Bitmap, compute::filter::filter};
 use rayexec_error::{RayexecError, Result};
 
+// TODO: Remove
 /// A computed batch from an operator.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComputedBatch {
