@@ -1,8 +1,5 @@
 use hashbrown::raw::RawTable;
-use rayexec_bullet::{
-    array::Selection, batch::Batch, bitmap::Bitmap, compute, datatype::DataType,
-    selection::SelectionVector,
-};
+use rayexec_bullet::{batch::Batch, datatype::DataType, selection::SelectionVector};
 use rayexec_error::Result;
 use std::{collections::HashMap, fmt};
 
@@ -15,6 +12,11 @@ use super::{
     partition_hash_table::{PartitionHashTable, RowKey},
 };
 
+/// Global hash table shared across all partitions for a single instance of a
+/// hash join operator.
+///
+/// Contains read-only left-side data, and probed using batches from the right
+/// side.
 pub struct GlobalHashTable {
     /// All collected batches.
     batches: Vec<Batch>,
@@ -118,7 +120,6 @@ impl GlobalHashTable {
     pub fn probe(
         &self,
         right: &Batch,
-        selection: Option<&Bitmap>,
         hashes: &[u64],
         mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
     ) -> Result<Vec<Batch>> {
@@ -163,22 +164,23 @@ impl GlobalHashTable {
         }
 
         let mut right_tracker = if self.right_join {
-            Some(RightOuterJoinTracker::new_for_batch(right, selection))
+            Some(RightOuterJoinTracker::new_for_batch(right))
         } else {
             None
         };
 
         let mut batches = Vec::with_capacity(row_indices.len());
         for (batch_idx, row_indices) in row_indices {
-            // Coarse-grained selection vectors.
+            // Initial selection vectors, may include rows that aren't part of
+            // the join.
             //
             // Contains rows on left and right that had the same hash key. Still
             // needs run through the filter expressions.
             let (left_row_sel, right_row_sel): (SelectionVector, SelectionVector) =
                 row_indices.into_iter().unzip();
 
-            // Fine-grained selections, computed by applying the join conditions
-            // to the selected inputs.
+            // Actual selection vectors, rows not part of the join are pruned
+            // out.
             let (left_row_sel, right_row_sel) = self.conditions.compute_selection_for_probe(
                 batch_idx,
                 left_row_sel,

@@ -171,13 +171,10 @@ pub struct RightOuterJoinTracker {
 
 impl RightOuterJoinTracker {
     /// Create a new tracker for the provided batch.
-    pub fn new_for_batch(batch: &Batch, selection: Option<&Bitmap>) -> Self {
-        let unvisited = match selection {
-            Some(selection) => selection.clone(),
-            None => Bitmap::new_with_all_true(batch.num_rows()),
-        };
-
-        RightOuterJoinTracker { unvisited }
+    pub fn new_for_batch(batch: &Batch) -> Self {
+        RightOuterJoinTracker {
+            unvisited: Bitmap::new_with_all_true(batch.num_rows()),
+        }
     }
 
     /// Mark the given row indices as visited.

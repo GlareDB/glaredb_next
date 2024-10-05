@@ -296,12 +296,8 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
 
-                let batches = hashtable.probe(
-                    &batch,
-                    None,
-                    hashes,
-                    state.partition_outer_join_tracker.as_mut(),
-                )?;
+                let batches =
+                    hashtable.probe(&batch, hashes, state.partition_outer_join_tracker.as_mut())?;
 
                 if batches.is_empty() {
                     // No batches joined, keep pushing to this operator.

@@ -1,13 +1,11 @@
 use rayexec_bullet::{
     array::{Array, Array2},
     batch::Batch,
-    bitmap::Bitmap,
     executor::scalar::SelectExecutor,
     selection::SelectionVector,
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
-use std::sync::Arc;
 
 use crate::{
     expr::physical::PhysicalScalarExpression,

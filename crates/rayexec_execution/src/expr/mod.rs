@@ -9,7 +9,6 @@ pub mod conjunction_expr;
 pub mod is_expr;
 pub mod literal_expr;
 pub mod negate_expr;
-pub mod scalar;
 pub mod scalar_function_expr;
 pub mod subquery_expr;
 pub mod window_expr;
