@@ -39,6 +39,12 @@ pub union UnionedGermanMetadata {
     large: GermanLargeMetadata,
 }
 
+impl Default for UnionedGermanMetadata {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
 impl UnionedGermanMetadata {
     pub fn as_metadata(&self) -> GermanMetadata {
         unsafe {

@@ -15,13 +15,11 @@ pub mod validity;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::{DataType, DecimalTypeMeta, TimestampTypeMeta};
-use crate::executor::builder::{
-    ArrayBuilder, ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
-};
+use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::executor::physical_type::{
     PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32,
-    PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalStorage, PhysicalType, PhysicalU128,
-    PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUtf8,
+    PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16,
+    PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUtf8,
 };
 use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::interval::Interval;
@@ -558,6 +556,42 @@ impl<'a> FromIterator<&'a str> for Array {
             selection: None,
             validity: None,
             data: ArrayData::Binary(BinaryData::German(Arc::new(german))),
+        }
+    }
+}
+
+impl FromIterator<i64> for Array {
+    fn from_iter<T: IntoIterator<Item = i64>>(iter: T) -> Self {
+        let vals: Vec<_> = iter.into_iter().collect();
+        Array {
+            datatype: DataType::Int64,
+            selection: None,
+            validity: None,
+            data: ArrayData::Int64(Arc::new(vals.into())),
+        }
+    }
+}
+
+impl FromIterator<u32> for Array {
+    fn from_iter<T: IntoIterator<Item = u32>>(iter: T) -> Self {
+        let vals: Vec<_> = iter.into_iter().collect();
+        Array {
+            datatype: DataType::UInt32,
+            selection: None,
+            validity: None,
+            data: ArrayData::UInt32(Arc::new(vals.into())),
+        }
+    }
+}
+
+impl FromIterator<u64> for Array {
+    fn from_iter<T: IntoIterator<Item = u64>>(iter: T) -> Self {
+        let vals: Vec<_> = iter.into_iter().collect();
+        Array {
+            datatype: DataType::UInt64,
+            selection: None,
+            validity: None,
+            data: ArrayData::UInt64(Arc::new(vals.into())),
         }
     }
 }

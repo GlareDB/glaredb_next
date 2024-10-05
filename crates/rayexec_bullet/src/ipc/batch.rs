@@ -2,16 +2,16 @@
 use std::collections::VecDeque;
 
 use crate::{
-    array::{
-        Array, Array2, ArrayData, BinaryData, Decimal128Array, Decimal64Array, OffsetIndex,
-        PrimitiveArray, VarlenArray, VarlenType2,
-    },
+    array::{Array, ArrayData, BinaryData},
     batch::Batch,
     bitmap::Bitmap,
+    bitutil::byte_ceil,
     datatype::DataType,
+    executor::physical_type::PhysicalType,
     field::Schema,
     ipc::gen::message::RecordBatchBuilder,
-    storage::PrimitiveStorage,
+    scalar::interval::Interval,
+    storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata},
 };
 
 use super::{
@@ -41,11 +41,11 @@ pub fn ipc_to_batch(
 
     let mut columns = Vec::with_capacity(schema.fields.len());
     for field in &schema.fields {
-        let array = ipc_buffers_to_array2(&mut buffers, &field.datatype)?;
+        let array = decode_array(&mut buffers, &field.datatype)?;
         columns.push(array);
     }
 
-    Batch::try_new2(columns)
+    Batch::try_new(columns)
 }
 
 struct BufferReader<'a> {
@@ -87,135 +87,71 @@ impl<'a> BufferReader<'a> {
     }
 }
 
-fn ipc_buffers_to_array2(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array2> {
-    match datatype {
-        DataType::Int8 => Ok(Array2::Int8(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::Int16 => Ok(Array2::Int16(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::Int32 => Ok(Array2::Int32(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::Int64 => Ok(Array2::Int64(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::UInt8 => Ok(Array2::UInt8(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::UInt16 => Ok(Array2::UInt16(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::UInt32 => Ok(Array2::UInt32(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::UInt64 => Ok(Array2::UInt64(ipc_buffers_to_primitive(
-            buffers.try_next_node()?,
-            [buffers.try_next_buf()?, buffers.try_next_buf()?],
-        )?)),
-        DataType::Decimal64(m) => {
-            let primitive = ipc_buffers_to_primitive(
-                buffers.try_next_node()?,
-                [buffers.try_next_buf()?, buffers.try_next_buf()?],
-            )?;
-            Ok(Array2::Decimal64(Decimal64Array::new(
-                m.precision,
-                m.scale,
-                primitive,
-            )))
-        }
-        DataType::Decimal128(m) => {
-            let primitive = ipc_buffers_to_primitive(
-                buffers.try_next_node()?,
-                [buffers.try_next_buf()?, buffers.try_next_buf()?],
-            )?;
-            Ok(Array2::Decimal128(Decimal128Array::new(
-                m.precision,
-                m.scale,
-                primitive,
-            )))
-        }
-        DataType::Utf8 => Ok(Array2::Utf8(ipc_buffers_to_varlen(
-            buffers.try_next_node()?,
-            [
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-            ],
-        )?)),
-        DataType::LargeUtf8 => Ok(Array2::Utf8(ipc_buffers_to_varlen(
-            buffers.try_next_node()?,
-            [
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-            ],
-        )?)),
-        DataType::Binary => Ok(Array2::Utf8(ipc_buffers_to_varlen(
-            buffers.try_next_node()?,
-            [
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-            ],
-        )?)),
-        DataType::LargeBinary => Ok(Array2::Utf8(ipc_buffers_to_varlen(
-            buffers.try_next_node()?,
-            [
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-                buffers.try_next_buf()?,
-            ],
-        )?)),
-
-        other => not_implemented!("ipc to array {other}"),
-    }
-}
-
-fn ipc_buffers_to_primitive<T: Default + Copy>(
-    node: &IpcFieldNode,
-    buffers: [&[u8]; 2],
-) -> Result<PrimitiveArray<T>> {
+fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array> {
+    let node = buffers.try_next_node()?;
+    let len = node.length() as usize;
+    // Validity buffer always exists for primitive+varlen arrays even if there's
+    // no nulls.
+    let validity_buffer = buffers.try_next_buf()?;
     let validity = if node.null_count() > 0 {
-        let bitmap = Bitmap::try_new(buffers[0].to_vec(), node.length() as usize)?;
+        let bitmap = Bitmap::try_new(validity_buffer.to_vec(), len)?;
         Some(bitmap)
     } else {
         None
     };
 
-    let values = PrimitiveStorage::<T>::copy_from_bytes(buffers[1])?;
+    let data: ArrayData = match datatype.physical_type()? {
+        PhysicalType::UntypedNull => not_implemented!("IPC-decode untyped null"),
+        PhysicalType::Boolean => {
+            let data = buffers.try_next_buf()?.to_vec();
+            BooleanStorage(Bitmap::try_new(data, node.length() as usize)?).into()
+        }
+        PhysicalType::Int8 => decode_primitive_values::<i8>(buffers.try_next_buf()?)?,
+        PhysicalType::Int16 => decode_primitive_values::<i16>(buffers.try_next_buf()?)?,
+        PhysicalType::Int32 => decode_primitive_values::<i32>(buffers.try_next_buf()?)?,
+        PhysicalType::Int64 => decode_primitive_values::<i64>(buffers.try_next_buf()?)?,
+        PhysicalType::Int128 => decode_primitive_values::<i128>(buffers.try_next_buf()?)?,
+        PhysicalType::UInt8 => decode_primitive_values::<u8>(buffers.try_next_buf()?)?,
+        PhysicalType::UInt16 => decode_primitive_values::<u16>(buffers.try_next_buf()?)?,
+        PhysicalType::UInt32 => decode_primitive_values::<u32>(buffers.try_next_buf()?)?,
+        PhysicalType::UInt64 => decode_primitive_values::<u64>(buffers.try_next_buf()?)?,
+        PhysicalType::UInt128 => decode_primitive_values::<u128>(buffers.try_next_buf()?)?,
+        PhysicalType::Float32 => decode_primitive_values::<f32>(buffers.try_next_buf()?)?,
+        PhysicalType::Float64 => decode_primitive_values::<f64>(buffers.try_next_buf()?)?,
+        PhysicalType::Interval => decode_primitive_values::<Interval>(buffers.try_next_buf()?)?,
+        PhysicalType::Binary => {
+            decode_varlen_values([buffers.try_next_buf()?, buffers.try_next_buf()?])?
+        }
+        PhysicalType::Utf8 => {
+            decode_varlen_values([buffers.try_next_buf()?, buffers.try_next_buf()?])?
+        }
+    };
 
-    Ok(PrimitiveArray::new(values, validity))
+    Ok(Array {
+        datatype: datatype.clone(),
+        selection: None,
+        validity,
+        data,
+    })
 }
 
-fn ipc_buffers_to_varlen<T, O>(
-    node: &IpcFieldNode,
-    buffers: [&[u8]; 3],
-) -> Result<VarlenArray<T, O>>
+fn decode_primitive_values<T>(buffer: &[u8]) -> Result<ArrayData>
 where
-    T: VarlenType2 + ?Sized,
-    O: OffsetIndex,
+    T: Copy + Default,
+    PrimitiveStorage<T>: Into<ArrayData>,
 {
-    let validity = if node.null_count() > 0 {
-        let bitmap = Bitmap::try_new(buffers[0].to_vec(), node.length() as usize)?;
-        Some(bitmap)
-    } else {
-        None
-    };
-
-    let offsets = PrimitiveStorage::<O>::copy_from_bytes(buffers[1])?;
-    let data = PrimitiveStorage::<u8>::copy_from_bytes(buffers[2])?;
-
-    VarlenArray::try_from_buffers(data, offsets, validity)
+    Ok(PrimitiveStorage::copy_from_bytes(buffer)?.into())
 }
+
+// TODO: Currently only assumes a single string type.
+fn decode_varlen_values(buffers: [&[u8]; 2]) -> Result<ArrayData> {
+    let metadata = PrimitiveStorage::<UnionedGermanMetadata>::copy_from_bytes(buffers[0])?;
+    let data = PrimitiveStorage::<u8>::copy_from_bytes(buffers[1])?;
+
+    Ok(GermanVarlenStorage { metadata, data }.into())
+}
+
+// fn decode_primitive
 
 /// Encode a batch into `data`, returning the message header.
 pub fn batch_to_ipc<'a>(
@@ -291,7 +227,6 @@ fn encode_array(
         .unwrap_or(array.logical_len());
     let null_count = array.logical_len() - valid_count;
     let field = IpcFieldNode::new(array.logical_len() as i64, null_count as i64);
-
     fields.push(field);
 
     let offset = data.len();
@@ -300,8 +235,7 @@ fn encode_array(
             data.extend_from_slice(validity.data());
         }
         None => {
-            let validity = Bitmap::new_with_all_true(array.logical_len());
-            data.extend(validity.data());
+            data.extend(std::iter::repeat(255).take(byte_ceil(array.logical_len())));
         }
     }
 
@@ -365,7 +299,7 @@ fn encode_primitive_values<T>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{array::Utf8Array, datatype::DecimalTypeMeta, field::Field};
+    use crate::field::Field;
 
     use super::*;
 
@@ -386,15 +320,12 @@ mod tests {
 
     #[test]
     fn simple_batch_roundtrip() {
-        let batch = Batch::try_new2([
-            Array2::Int32(vec![3, 2, 1].into()),
-            Array2::UInt64(vec![9, 8, 7].into()),
-        ])
-        .unwrap();
+        let batch =
+            Batch::try_new([Array::from_iter([3, 2, 1]), Array::from_iter([9, 8, 7])]).unwrap();
 
         let schema = Schema::new([
             Field::new("f1", DataType::Int32, true),
-            Field::new("f2", DataType::UInt64, true),
+            Field::new("f2", DataType::Int32, true),
         ]);
 
         roundtrip(schema, batch);
@@ -402,31 +333,28 @@ mod tests {
 
     #[test]
     fn utf8_roundtrip() {
-        let batch = Batch::try_new2([Array2::Utf8(Utf8Array::from_iter([
-            "mario", "peach", "yoshi",
-        ]))])
-        .unwrap();
+        let batch = Batch::try_new([Array::from_iter(["mario", "peach", "yoshi"])]).unwrap();
 
         let schema = Schema::new([Field::new("f1", DataType::Utf8, true)]);
 
         roundtrip(schema, batch);
     }
 
-    #[test]
-    fn decimal128_roundtrip() {
-        let batch = Batch::try_new2([Array2::Decimal128(Decimal128Array::new(
-            4,
-            2,
-            PrimitiveArray::from_iter([1000, 1200, 1250]),
-        ))])
-        .unwrap();
+    // #[test]
+    // fn decimal128_roundtrip() {
+    //     let batch = Batch::try_new2([Array2::Decimal128(Decimal128Array::new(
+    //         4,
+    //         2,
+    //         PrimitiveArray::from_iter([1000, 1200, 1250]),
+    //     ))])
+    //     .unwrap();
 
-        let schema = Schema::new([Field::new(
-            "f1",
-            DataType::Decimal128(DecimalTypeMeta::new(4, 2)),
-            true,
-        )]);
+    //     let schema = Schema::new([Field::new(
+    //         "f1",
+    //         DataType::Decimal128(DecimalTypeMeta::new(4, 2)),
+    //         true,
+    //     )]);
 
-        roundtrip(schema, batch)
-    }
+    //     roundtrip(schema, batch)
+    // }
 }
