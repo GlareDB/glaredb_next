@@ -15,7 +15,15 @@ pub mod validity;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::{DataType, DecimalTypeMeta, TimestampTypeMeta};
-use crate::executor::physical_type::PhysicalType;
+use crate::executor::builder::{
+    ArrayBuilder, ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
+};
+use crate::executor::physical_type::{
+    PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32,
+    PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalStorage, PhysicalType, PhysicalU128,
+    PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUtf8,
+};
+use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::interval::Interval;
 use crate::scalar::timestamp::TimestampScalar;
 use crate::scalar::{
@@ -210,6 +218,170 @@ impl Array {
         }
 
         self.physical_scalar(idx)
+    }
+
+    /// Takes an array fully materializes the selection.
+    ///
+    /// The resulting array's logical and physical indices will be the same.
+    ///
+    /// This mostly exists for arrow ipc since arrow doesn't have a concept of
+    /// selection vectors. We'll probably a non-conforming ipc mode where we write
+    /// the selection vector as just another buffer to reduce the need for this.
+    pub fn unselect(&self) -> Result<Self> {
+        if self.selection.is_none() {
+            // Return array as-is. This currently copies the validity
+            // bitmap, unsure if we care. The array data should behind an
+            // arc, or just really cheap to clone.
+            return Ok(self.clone());
+        }
+
+        match self.array_data() {
+            ArrayData::UntypedNull(_) => Ok(Array {
+                datatype: self.datatype.clone(),
+                selection: None,
+                validity: None,
+                data: UntypedNullStorage(self.logical_len()).into(),
+            }),
+            ArrayData::Boolean(_) => UnaryExecutor::execute::<PhysicalBool, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: BooleanBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Int8(_) => UnaryExecutor::execute::<PhysicalI8, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Int16(_) => UnaryExecutor::execute::<PhysicalI16, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Int32(_) => UnaryExecutor::execute::<PhysicalI32, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Int64(_) => UnaryExecutor::execute::<PhysicalI64, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Int128(_) => UnaryExecutor::execute::<PhysicalI128, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::UInt8(_) => UnaryExecutor::execute::<PhysicalU8, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::UInt16(_) => UnaryExecutor::execute::<PhysicalU16, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::UInt32(_) => UnaryExecutor::execute::<PhysicalU32, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::UInt64(_) => UnaryExecutor::execute::<PhysicalU64, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::UInt128(_) => UnaryExecutor::execute::<PhysicalU128, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Float32(_) => UnaryExecutor::execute::<PhysicalF32, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Float64(_) => UnaryExecutor::execute::<PhysicalF64, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Interval(_) => UnaryExecutor::execute::<PhysicalInterval, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
+            ArrayData::Binary(_) => {
+                // Use the german varlen storage for all output varlen arrays,
+                // even if the input use using some other variant.
+                //
+                // TODO: We could special case german varlen input and clone the
+                // data while just selecting the appropriate metadata. Instead
+                // this will just copy everything.
+                if self.datatype().is_utf8() {
+                    UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+                        self,
+                        ArrayBuilder {
+                            datatype: self.datatype.clone(),
+                            buffer: GermanVarlenBuffer::<str>::with_len(self.logical_len()),
+                        },
+                        |v, buf| buf.put(&v),
+                    )
+                } else {
+                    UnaryExecutor::execute::<PhysicalBinary, _, _>(
+                        self,
+                        ArrayBuilder {
+                            datatype: self.datatype.clone(),
+                            buffer: GermanVarlenBuffer::<[u8]>::with_len(self.logical_len()),
+                        },
+                        |v, buf| buf.put(&v),
+                    )
+                }
+            }
+        }
     }
 
     /// Gets the scalar value at the physical index.

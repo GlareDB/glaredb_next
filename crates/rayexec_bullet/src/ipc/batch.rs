@@ -3,12 +3,11 @@ use std::collections::VecDeque;
 
 use crate::{
     array::{
-        Array2, Decimal128Array, Decimal64Array, OffsetIndex, PrimitiveArray, VarlenArray,
-        VarlenType2,
+        Array, Array2, ArrayData, BinaryData, Decimal128Array, Decimal64Array, OffsetIndex,
+        PrimitiveArray, VarlenArray, VarlenType2,
     },
     batch::Batch,
     bitmap::Bitmap,
-    bitutil::byte_ceil,
     datatype::DataType,
     field::Schema,
     ipc::gen::message::RecordBatchBuilder,
@@ -42,7 +41,7 @@ pub fn ipc_to_batch(
 
     let mut columns = Vec::with_capacity(schema.fields.len());
     for field in &schema.fields {
-        let array = ipc_buffers_to_array(&mut buffers, &field.datatype)?;
+        let array = ipc_buffers_to_array2(&mut buffers, &field.datatype)?;
         columns.push(array);
     }
 
@@ -88,7 +87,7 @@ impl<'a> BufferReader<'a> {
     }
 }
 
-fn ipc_buffers_to_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array2> {
+fn ipc_buffers_to_array2(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array2> {
     match datatype {
         DataType::Int8 => Ok(Array2::Int8(ipc_buffers_to_primitive(
             buffers.try_next_node()?,
@@ -226,6 +225,7 @@ pub fn batch_to_ipc<'a>(
 ) -> Result<WIPOffset<IpcRecordBatch<'a>>> {
     let mut fields: Vec<IpcFieldNode> = Vec::new();
     let mut buffers: Vec<IpcBuffer> = Vec::new();
+    let mut variadic_counts: Vec<i64> = Vec::new();
 
     // TODO: There's some ambiguity in the spec about what the offset should
     // actually be.
@@ -250,157 +250,115 @@ pub fn batch_to_ipc<'a>(
     // arrow-rs follows the first part for offset, so that's what we'll do. It's
     // also easier than the alternative.
 
-    for col in batch.columns2() {
-        encode_array(col.as_ref(), data, &mut fields, &mut buffers)?;
+    for col in batch.columns() {
+        encode_array(col, data, &mut fields, &mut buffers, &mut variadic_counts)?;
     }
 
     let fields = builder.create_vector(&fields);
     let buffers = builder.create_vector(&buffers);
+    let variadic_counts = builder.create_vector(&variadic_counts);
 
     let mut batch_builder = RecordBatchBuilder::new(builder);
     batch_builder.add_length(batch.num_rows() as i64);
     batch_builder.add_nodes(fields);
     batch_builder.add_buffers(buffers);
+    batch_builder.add_variadicBufferCounts(variadic_counts);
 
     Ok(batch_builder.finish())
 }
 
 fn encode_array(
-    array: &Array2,
+    array: &Array,
     data: &mut Vec<u8>,
     fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
+    variadic_counts: &mut Vec<i64>,
 ) -> Result<()> {
     // TODO: These encoding methods aren't entirely IPC compliant. We'll need to
     // optionally compress the buffers, include the compressed length, and
     // ensure they're padded out to 8 bytes.
 
-    match array {
-        Array2::Int8(arr) => {
-            encode_primitive(arr, data, fields, buffers);
+    // Buffer listing: <https://arrow.apache.org/docs/format/Columnar.html#buffer-listing-for-each-layout>
+
+    // Since arrow doesn't have selection vectors, need to fully materialize the
+    // array.
+    let array = array.unselect()?;
+
+    // Encode validity.
+    let valid_count = array
+        .validity()
+        .map(|v| v.count_trues())
+        .unwrap_or(array.logical_len());
+    let null_count = array.logical_len() - valid_count;
+    let field = IpcFieldNode::new(array.logical_len() as i64, null_count as i64);
+
+    fields.push(field);
+
+    let offset = data.len();
+    match array.validity() {
+        Some(validity) => {
+            data.extend_from_slice(validity.data());
         }
-        Array2::Int16(arr) => {
-            encode_primitive(arr, data, fields, buffers);
+        None => {
+            let validity = Bitmap::new_with_all_true(array.logical_len());
+            data.extend(validity.data());
         }
-        Array2::Int32(arr) => {
-            encode_primitive(arr, data, fields, buffers);
+    }
+
+    let validity_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
+    buffers.push(validity_buffer);
+
+    // Encode buffers.
+    match array.array_data() {
+        ArrayData::UntypedNull(_) => not_implemented!("IPC-encode untyped null"), // Spec says do nothing.
+        ArrayData::Boolean(d) => {
+            let offset = data.len();
+            data.extend_from_slice(d.0.data());
+            let values_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
+            buffers.push(values_buffer);
         }
-        Array2::Int64(arr) => {
-            encode_primitive(arr, data, fields, buffers);
-        }
-        Array2::UInt8(arr) => {
-            encode_primitive(arr, data, fields, buffers);
-        }
-        Array2::UInt16(arr) => {
-            encode_primitive(arr, data, fields, buffers);
-        }
-        Array2::UInt32(arr) => {
-            encode_primitive(arr, data, fields, buffers);
-        }
-        Array2::UInt64(arr) => {
-            encode_primitive(arr, data, fields, buffers);
-        }
-        Array2::Decimal64(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
-        Array2::Decimal128(arr) => encode_primitive(arr.get_primitive(), data, fields, buffers),
-        Array2::Utf8(arr) => {
-            encode_varlen(arr, data, fields, buffers);
-        }
-        Array2::LargeUtf8(arr) => {
-            encode_varlen(arr, data, fields, buffers);
-        }
-        Array2::Binary(arr) => {
-            encode_varlen(arr, data, fields, buffers);
-        }
-        Array2::LargeBinary(arr) => {
-            encode_varlen(arr, data, fields, buffers);
-        }
-        other => not_implemented!("array type to field and buffers: {}", other.datatype()),
+        ArrayData::Int8(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Int16(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Int32(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Int64(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Int128(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::UInt8(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::UInt16(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::UInt32(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::UInt64(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::UInt128(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Float32(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Float64(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Interval(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Binary(d) => match d {
+            BinaryData::SharedHeap(_) => not_implemented!("IPC-encode shared heap binary"),
+            BinaryData::Binary(d) => {
+                encode_primitive_values(&d.offsets, data, buffers);
+                encode_primitive_values(&d.data, data, buffers);
+            }
+            BinaryData::LargeBinary(d) => {
+                encode_primitive_values(&d.offsets, data, buffers);
+                encode_primitive_values(&d.data, data, buffers);
+            }
+            BinaryData::German(d) => {
+                encode_primitive_values(&d.metadata, data, buffers);
+                // Currently only hold 1 data array for these.
+                variadic_counts.push(1);
+                encode_primitive_values(&d.data, data, buffers);
+            }
+        },
     }
 
     Ok(())
 }
 
-fn encode_varlen<T, O>(
-    array: &VarlenArray<T, O>,
+fn encode_primitive_values<T>(
+    vals: &PrimitiveStorage<T>,
     data: &mut Vec<u8>,
-    fields: &mut Vec<IpcFieldNode>,
-    buffers: &mut Vec<IpcBuffer>,
-) where
-    T: VarlenType2 + ?Sized,
-    O: OffsetIndex,
-{
-    let valid_count = array
-        .validity()
-        .map(|v| v.count_trues())
-        .unwrap_or(array.len());
-    let null_count = array.len() - valid_count;
-    let field = IpcFieldNode::new(array.len() as i64, null_count as i64);
-
-    fields.push(field);
-
-    let offset = data.len();
-    match array.validity() {
-        Some(validity) => {
-            data.extend_from_slice(validity.data());
-        }
-        None => {
-            data.extend(std::iter::repeat(255).take(byte_ceil(array.len())));
-        }
-    }
-
-    // Buffer order:
-    // 1. Validity
-    // 2. Offsets
-    // 3. Data
-
-    let validity_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
-    buffers.push(validity_buffer);
-
-    let offsets_offset = data.len();
-    data.extend_from_slice(array.offsets().as_bytes());
-
-    let offsets_buffer =
-        IpcBuffer::new(offsets_offset as i64, (data[offsets_offset..]).len() as i64);
-    buffers.push(offsets_buffer);
-
-    let values_offset = data.len();
-    data.extend_from_slice(array.data().as_bytes());
-
-    let values_buffer = IpcBuffer::new(values_offset as i64, (data[values_offset..]).len() as i64);
-    buffers.push(values_buffer);
-}
-
-fn encode_primitive<T>(
-    array: &PrimitiveArray<T>,
-    data: &mut Vec<u8>,
-    fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
 ) {
-    let valid_count = array
-        .validity()
-        .map(|v| v.count_trues())
-        .unwrap_or(array.len());
-    let null_count = array.len() - valid_count;
-    let field = IpcFieldNode::new(array.len() as i64, null_count as i64);
-
-    fields.push(field);
-
     let offset = data.len();
-    match array.validity() {
-        Some(validity) => {
-            data.extend_from_slice(validity.data());
-        }
-        None => {
-            data.extend(std::iter::repeat(255).take(byte_ceil(array.len())));
-        }
-    }
-
-    let validity_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
-    buffers.push(validity_buffer);
-
-    let offset = data.len();
-    data.extend_from_slice(array.values().as_bytes());
-
+    data.extend_from_slice(vals.as_bytes());
     let values_buffer = IpcBuffer::new(offset as i64, (data[offset..]).len() as i64);
     buffers.push(values_buffer);
 }
