@@ -107,6 +107,10 @@ impl<T> PrimitiveStorage<T> {
         unsafe { std::slice::from_raw_parts(ptr.cast(), num_bytes) }
     }
 
+    pub fn data_size_bytes(&self) -> usize {
+        std::mem::size_of_val(self.as_ref())
+    }
+
     pub fn len(&self) -> usize {
         self.as_ref().len()
     }

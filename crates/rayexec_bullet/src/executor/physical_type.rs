@@ -73,6 +73,18 @@ impl VarlenType for [u8] {
     }
 }
 
+impl VarlenType for &str {
+    fn as_bytes(&self) -> &[u8] {
+        (*self).as_bytes()
+    }
+}
+
+impl VarlenType for &[u8] {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
 /// Helper trait for getting the underlying data for an array.
 pub trait PhysicalStorage<'a> {
     type Storage: AddressableStorage;

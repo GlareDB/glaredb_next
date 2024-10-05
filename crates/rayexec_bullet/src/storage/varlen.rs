@@ -96,6 +96,10 @@ impl<O: OffsetIndex> ContiguousVarlenStorage<O> {
         }
     }
 
+    pub fn data_size_bytes(&self) -> usize {
+        self.data.data_size_bytes()
+    }
+
     pub fn as_contiguous_storage_slice(&self) -> ContiguousVarlenStorageSlice<O> {
         ContiguousVarlenStorageSlice {
             offsets: self.offsets.as_ref(),

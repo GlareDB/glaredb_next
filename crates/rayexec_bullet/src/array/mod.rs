@@ -541,6 +541,34 @@ fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {
     RayexecError::new(format!("Array data not valid for data type: {datatype}"))
 }
 
+impl<F> FromIterator<Option<F>> for Array
+where
+    F: Default,
+    Array: FromIterator<F>,
+{
+    fn from_iter<T: IntoIterator<Item = Option<F>>>(iter: T) -> Self {
+        // TODO: Whatever. Just need it for tests.
+        let vals: Vec<_> = iter.into_iter().collect();
+        let mut validity = Bitmap::new_with_all_true(vals.len());
+
+        let mut new_vals = Vec::with_capacity(vals.len());
+        for (idx, val) in vals.into_iter().enumerate() {
+            match val {
+                Some(val) => new_vals.push(val),
+                None => {
+                    new_vals.push(F::default());
+                    validity.set_unchecked(idx, false);
+                }
+            }
+        }
+
+        let mut array = Array::from_iter(new_vals);
+        array.validity = Some(validity);
+
+        array
+    }
+}
+
 impl<'a> FromIterator<&'a str> for Array {
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
         let iter = iter.into_iter();

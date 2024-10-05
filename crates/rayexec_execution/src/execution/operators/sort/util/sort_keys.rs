@@ -1,5 +1,5 @@
 use rayexec_bullet::{
-    array::Array2,
+    array::Array,
     batch::Batch,
     row::encoding::{ComparableColumn, ComparableRowEncoder, ComparableRows},
 };
@@ -12,7 +12,6 @@ use crate::expr::physical::PhysicalSortExpression;
 pub struct SortKeysExtractor {
     /// Columns that make up the sort key.
     order_by: Vec<usize>,
-
     /// Encoder for producing comparable rows.
     encoder: ComparableRowEncoder,
 }
@@ -41,14 +40,13 @@ impl SortKeysExtractor {
     }
 
     /// Get the columns that make up the sort keys.
-    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array2>> {
+    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array>> {
         let sort_cols = self
             .order_by
             .iter()
             .map(|idx| {
                 batch
-                    .column2(*idx)
-                    .map(|col| col.as_ref())
+                    .column(*idx)
                     .ok_or_else(|| RayexecError::new("Missing column"))
             })
             .collect::<Result<Vec<_>>>()?;

@@ -58,6 +58,11 @@ impl UnionedGermanMetadata {
         }
     }
 
+    pub fn len(&self) -> i32 {
+        // SAFETY: `len` field is in the same place in both variants.
+        unsafe { self.small.len }
+    }
+
     pub(crate) fn as_small_mut(&mut self) -> &mut GermanSmallMetadata {
         unsafe { &mut self.small }
     }
@@ -190,6 +195,10 @@ impl GermanVarlenStorage {
             storage: self,
             idx: 0,
         }
+    }
+
+    pub fn data_size_bytes(&self) -> usize {
+        self.metadata.iter().map(|m| m.len() as usize).sum()
     }
 
     pub fn as_german_storage_slice(&self) -> GermanVarlenStorageSlice {

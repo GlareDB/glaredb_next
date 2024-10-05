@@ -77,6 +77,77 @@ impl UnaryExecutor {
             data,
         })
     }
+
+    /// Helper for iterating over all values in an array, taking into account
+    /// the array's selection vector and validity mask.
+    ///
+    /// `op` is called for each logical entry in the array with the index and
+    /// either Some(val) if the value is valid, or None if it's not.
+    pub fn for_each<'a, S, Op>(array: &'a Array, mut op: Op) -> Result<()>
+    where
+        Op: FnMut(usize, Option<<S::Storage as AddressableStorage>::T>),
+        S: PhysicalStorage<'a>,
+    {
+        let selection = array.selection_vector();
+        let len = array.logical_len();
+
+        match &array.validity {
+            Some(validity) => {
+                let values = S::get_storage(&array.data)?;
+
+                for idx in 0..len {
+                    let sel = selection::get_unchecked(selection, idx);
+                    if !validity.value_unchecked(sel) {
+                        op(idx, None);
+                        continue;
+                    }
+
+                    let val = unsafe { values.get_unchecked(sel) };
+                    op(idx, Some(val));
+                }
+            }
+            None => {
+                let values = S::get_storage(&array.data)?;
+                for idx in 0..len {
+                    let sel = selection::get_unchecked(selection, idx);
+                    let val = unsafe { values.get_unchecked(sel) };
+                    op(idx, Some(val));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn value_at_unchecked<'a, S>(
+        array: &'a Array,
+        idx: usize,
+    ) -> Result<Option<<S::Storage as AddressableStorage>::T>>
+    where
+        S: PhysicalStorage<'a>,
+    {
+        let selection = array.selection_vector();
+
+        match &array.validity {
+            Some(validity) => {
+                let values = S::get_storage(&array.data)?;
+
+                let sel = selection::get_unchecked(selection, idx);
+                if !validity.value_unchecked(sel) {
+                    Ok(None)
+                } else {
+                    let val = unsafe { values.get_unchecked(sel) };
+                    Ok(Some(val))
+                }
+            }
+            None => {
+                let values = S::get_storage(&array.data)?;
+                let sel = selection::get_unchecked(selection, idx);
+                let val = unsafe { values.get_unchecked(sel) };
+                Ok(Some(val))
+            }
+        }
+    }
 }
 
 /// Execute an operation on a single array.
