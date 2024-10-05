@@ -25,7 +25,7 @@ impl UniformExecutor {
     where
         Op: FnMut(&[<S::Storage as AddressableStorage>::T], &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
-        B: ArrayDataBuffer<'a>,
+        B: ArrayDataBuffer,
     {
         let len = match arrays.first() {
             Some(first) => validate_logical_len(&builder.buffer, first)?,

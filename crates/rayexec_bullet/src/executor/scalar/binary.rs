@@ -31,7 +31,7 @@ impl BinaryExecutor {
         ),
         S1: PhysicalStorage<'a>,
         S2: PhysicalStorage<'a>,
-        B: ArrayDataBuffer<'a>,
+        B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
         let _ = validate_logical_len(&builder.buffer, array2)?;

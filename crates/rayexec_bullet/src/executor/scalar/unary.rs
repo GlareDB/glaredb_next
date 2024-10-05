@@ -24,7 +24,7 @@ impl UnaryExecutor {
     where
         Op: FnMut(<S::Storage as AddressableStorage>::T, &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
-        B: ArrayDataBuffer<'a>,
+        B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array)?;
 
@@ -194,7 +194,7 @@ mod tests {
 
         fn my_string_double<'a, B>(s: &str, buf: &mut OutputBuffer<B>)
         where
-            B: ArrayDataBuffer<'a, Type = str>,
+            B: ArrayDataBuffer<Type = str>,
         {
             let mut double = s.to_string();
             double.push_str(s);

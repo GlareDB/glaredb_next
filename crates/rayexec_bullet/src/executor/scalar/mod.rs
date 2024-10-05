@@ -27,6 +27,9 @@ pub use select::*;
 mod hash;
 pub use hash::*;
 
+mod fill;
+pub use fill::*;
+
 use crate::{array::Array, bitmap::Bitmap};
 use rayexec_error::{RayexecError, Result};
 
@@ -44,9 +47,9 @@ pub(crate) fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
 /// array matches the logical length of some other array.
 ///
 /// Returns the logical length.
-pub(crate) fn validate_logical_len<'a, B>(buffer: &B, array: &Array) -> Result<usize>
+pub(crate) fn validate_logical_len<B>(buffer: &B, array: &Array) -> Result<usize>
 where
-    B: ArrayDataBuffer<'a>,
+    B: ArrayDataBuffer,
 {
     let len = buffer.len();
     if buffer.len() != array.logical_len() {

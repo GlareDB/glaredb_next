@@ -644,7 +644,7 @@ pub enum ArrayData {
 pub enum BinaryData {
     Binary(Arc<ContiguousVarlenStorage<i32>>),
     LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
-    SharedHeap(SharedHeapStorage), // TODO: Arc?
+    SharedHeap(Arc<SharedHeapStorage>),
     German(Arc<GermanVarlenStorage>),
 }
 

@@ -34,7 +34,7 @@ pub struct OutputBuffer<B> {
 
 impl<'a, B> OutputBuffer<B>
 where
-    B: ArrayDataBuffer<'a>,
+    B: ArrayDataBuffer,
 {
     pub fn put(&mut self, val: &B::Type) {
         self.buffer.put(self.idx, val)
@@ -42,7 +42,7 @@ where
 }
 
 /// Trait for handling building up array data.
-pub trait ArrayDataBuffer<'a> {
+pub trait ArrayDataBuffer {
     type Type: ?Sized;
 
     fn len(&self) -> usize;
@@ -67,7 +67,7 @@ impl BooleanBuffer {
     }
 }
 
-impl<'a> ArrayDataBuffer<'a> for BooleanBuffer {
+impl ArrayDataBuffer for BooleanBuffer {
     type Type = bool;
 
     fn len(&self) -> usize {
@@ -100,7 +100,7 @@ where
     }
 }
 
-impl<'a, T> ArrayDataBuffer<'a> for PrimitiveBuffer<T>
+impl<T> ArrayDataBuffer for PrimitiveBuffer<T>
 where
     T: Copy,
     Vec<T>: Into<PrimitiveStorage<T>>,
@@ -145,7 +145,7 @@ where
     }
 }
 
-impl<'a, T> ArrayDataBuffer<'a> for GermanVarlenBuffer<T>
+impl<T> ArrayDataBuffer for GermanVarlenBuffer<T>
 where
     T: VarlenType + ?Sized,
 {
