@@ -2,7 +2,6 @@
 pub mod cast;
 pub mod date;
 pub mod interleave;
-pub mod take;
 
 pub mod util;
 

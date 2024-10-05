@@ -2,7 +2,6 @@ use rayexec_bullet::{
     array::{Array, Array2},
     batch::Batch,
     bitmap::Bitmap,
-    compute::take::take,
     executor::scalar::SelectExecutor,
     selection::SelectionVector,
 };
