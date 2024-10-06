@@ -123,7 +123,7 @@ impl UnaryNonNullUpdate2 {
 
 #[cfg(test)]
 mod tests {
-    use crate::executor::physical_type::PhysicalI32;
+    use crate::executor::physical_type::{PhysicalI32, PhysicalUtf8};
 
     use super::*;
 
@@ -149,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn unary_single_state() {
+    fn unary_primitive_single_state() {
         let mut states = [TestSumState::default()];
         let array = Array::from_iter([1, 2, 3, 4, 5]);
         let mapping = [
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn unary_single_state_skip_null() {
+    fn unary_primitive_single_state_skip_null() {
         let mut states = [TestSumState::default()];
         let array = Array::from_iter([Some(1), Some(2), Some(3), None, Some(5)]);
         let mapping = [
@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn unary_multiple_state() {
+    fn unary_primitive_multiple_state() {
         let mut states = [TestSumState::default(), TestSumState::default()];
         let array = Array::from_iter([1, 2, 3, 4, 5]);
         let mapping = [
@@ -223,5 +223,51 @@ mod tests {
 
         assert_eq!(5, states[0].val);
         assert_eq!(7, states[1].val);
+    }
+
+    #[derive(Debug, Default)]
+    struct TestStringAgg {
+        buf: String,
+    }
+
+    impl AggregateState<&str, String> for TestStringAgg {
+        fn merge(&mut self, other: Self) -> Result<()> {
+            self.buf.push_str(&other.buf);
+            Ok(())
+        }
+
+        fn update(&mut self, input: &str) -> Result<()> {
+            self.buf.push_str(input);
+            Ok(())
+        }
+
+        fn finalize(self) -> Result<(String, bool)> {
+            Ok((self.buf, true))
+        }
+    }
+
+    #[test]
+    fn unary_str_single_state() {
+        // Test just checks to ensure working with varlen is sane.
+        let mut states = [TestStringAgg::default()];
+        let array = Array::from_iter(["aa", "bbb", "cccc"]);
+        let mapping = [
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 0,
+            },
+        ];
+
+        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _, _>(&array, mapping, &mut states).unwrap();
+
+        assert_eq!("aabbbcccc", &states[0].buf);
     }
 }
