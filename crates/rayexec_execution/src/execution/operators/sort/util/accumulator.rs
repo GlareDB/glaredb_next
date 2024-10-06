@@ -1,4 +1,4 @@
-use rayexec_bullet::{batch::Batch, compute};
+use rayexec_bullet::{batch::Batch, compute, executor::scalar::interleave};
 use rayexec_error::{RayexecError, Result};
 
 /// Tracks the state per input into the merge.
@@ -8,15 +8,14 @@ struct InputState {
     batch_idx: usize,
 }
 
-/// Accumulate interleave indices across batches from multiple inputs.
+/// Accumulate fill mapping indices from multiple inputs to produce a sorted
+/// batch output.
 #[derive(Debug)]
 pub struct IndicesAccumulator {
     /// Batches we're using for the build.
     batches: Vec<(usize, Batch)>,
-
     /// States for each input we're reading from.
     states: Vec<InputState>,
-
     /// Interleave indices referencing the stored batches.
     indices: Vec<(usize, usize)>,
 }
@@ -69,15 +68,15 @@ impl IndicesAccumulator {
                 let cols: Vec<_> = self
                     .batches
                     .iter()
-                    .map(|(_, batch)| batch.column2(col_idx).expect("column to exist").as_ref())
+                    .map(|(_, batch)| batch.column(col_idx).expect("column to exist"))
                     .collect();
 
-                compute::interleave::interleave(&cols, &self.indices)
+                interleave(&cols, &self.indices)
             })
             .collect::<Result<Vec<_>>>()?;
         self.indices.clear();
 
-        let batch = Batch::try_new2(merged)?;
+        let batch = Batch::try_new(merged)?;
 
         // Drops batches that are no longer reachable (won't be contributing to
         // the output).
@@ -107,7 +106,7 @@ impl IndicesAccumulator {
     /// Errors if there's no buffered batches.
     fn num_columns(&self) -> Result<usize> {
         match self.batches.first() {
-            Some((_, b)) => Ok(b.num_columns2()),
+            Some((_, b)) => Ok(b.num_columns()),
             None => Err(RayexecError::new("Cannot get number of columns")),
         }
     }

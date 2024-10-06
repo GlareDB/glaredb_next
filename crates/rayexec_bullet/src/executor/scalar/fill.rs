@@ -1,16 +1,22 @@
 use std::borrow::Borrow;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::{
     array::Array,
     bitmap::Bitmap,
     executor::{
-        builder::{ArrayBuilder, ArrayDataBuffer},
-        physical_type::PhysicalStorage,
+        builder::{
+            ArrayBuilder, ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
+        },
+        physical_type::{
+            PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
+            PhysicalI32, PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalStorage, PhysicalType,
+            PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUtf8,
+        },
     },
     selection,
-    storage::AddressableStorage,
+    storage::{AddressableStorage, UntypedNullStorage},
 };
 
 /// Singular mapping of a `from` index to a `to` index.
@@ -104,6 +110,176 @@ where
     }
 }
 
+/// Interleave multiple arrays into one.
+///
+/// Indices contains (array_idx, row_idx) pairs where 'row_idx' is the row
+/// within the array. The length of indices indicates the length of the output
+/// array.
+///
+/// Indices may be specified more than once.
+pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array> {
+    let datatype = match arrays.first() {
+        Some(arr) => arr.datatype(),
+        None => return Err(RayexecError::new("Cannot interleave zero arrays")),
+    };
+
+    match datatype.physical_type()? {
+        PhysicalType::UntypedNull => Ok(Array {
+            datatype: datatype.clone(),
+            selection: None,
+            validity: None,
+            data: UntypedNullStorage(indices.len()).into(),
+        }),
+        PhysicalType::Boolean => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: BooleanBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalBool, _>(arrays, indices, state)
+        }
+        PhysicalType::Int8 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalI8, _>(arrays, indices, state)
+        }
+        PhysicalType::Int16 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalI16, _>(arrays, indices, state)
+        }
+        PhysicalType::Int32 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalI32, _>(arrays, indices, state)
+        }
+        PhysicalType::Int64 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalI64, _>(arrays, indices, state)
+        }
+        PhysicalType::Int128 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalI128, _>(arrays, indices, state)
+        }
+        PhysicalType::UInt8 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalU8, _>(arrays, indices, state)
+        }
+        PhysicalType::UInt16 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalU16, _>(arrays, indices, state)
+        }
+        PhysicalType::UInt32 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalU32, _>(arrays, indices, state)
+        }
+        PhysicalType::UInt64 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalU64, _>(arrays, indices, state)
+        }
+        PhysicalType::UInt128 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalU128, _>(arrays, indices, state)
+        }
+        PhysicalType::Float32 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalF32, _>(arrays, indices, state)
+        }
+        PhysicalType::Float64 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalF64, _>(arrays, indices, state)
+        }
+        PhysicalType::Interval => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalInterval, _>(arrays, indices, state)
+        }
+        PhysicalType::Utf8 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: GermanVarlenBuffer::<str>::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalUtf8, _>(arrays, indices, state)
+        }
+        PhysicalType::Binary => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: GermanVarlenBuffer::<[u8]>::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalBinary, _>(arrays, indices, state)
+        }
+    }
+}
+
+fn interleave_with_fill_state<'a, S, B>(
+    arrays: &'a [&Array],
+    indices: &[(usize, usize)],
+    mut fill_state: FillState<B>,
+) -> Result<Array>
+where
+    S: PhysicalStorage<'a>,
+    B: ArrayDataBuffer,
+    <<S as PhysicalStorage<'a>>::Storage as AddressableStorage>::T:
+        Borrow<<B as ArrayDataBuffer>::Type>,
+{
+    for (idx, array) in arrays.iter().enumerate() {
+        // Generates an iter that maps rows from the array we're currently on to
+        // the rows in the output.
+        let iter =
+            indices
+                .iter()
+                .enumerate()
+                .filter_map(|(row_idx, (array_idx, array_row_idx))| {
+                    if *array_idx == idx {
+                        Some(FillMapping {
+                            from: *array_row_idx,
+                            to: row_idx,
+                        })
+                    } else {
+                        None
+                    }
+                });
+
+        fill_state.fill::<S, _>(array, iter)?;
+    }
+
+    Ok(fill_state.finish())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -135,6 +311,29 @@ mod tests {
         assert_eq!(ScalarValue::from(4), got.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(5), got.logical_value(1).unwrap());
         assert_eq!(ScalarValue::from(6), got.logical_value(2).unwrap());
+    }
+
+    #[test]
+    fn fill_repeated() {
+        let mut state = FillState::new(ArrayBuilder {
+            datatype: DataType::Int32,
+            buffer: PrimitiveBuffer::<i32>::with_len(3),
+        });
+
+        let arr = Array::from_iter([4, 5, 6]);
+        let mapping = [
+            FillMapping { from: 1, to: 0 },
+            FillMapping { from: 1, to: 1 },
+            FillMapping { from: 1, to: 2 },
+        ];
+
+        state.fill::<PhysicalI32, _>(&arr, mapping).unwrap();
+
+        let got = state.finish();
+
+        assert_eq!(ScalarValue::from(5), got.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(5), got.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(5), got.logical_value(2).unwrap());
     }
 
     #[test]
@@ -191,5 +390,37 @@ mod tests {
         assert_eq!(ScalarValue::from(8), got.logical_value(3).unwrap());
         assert_eq!(ScalarValue::from(5), got.logical_value(4).unwrap());
         assert_eq!(ScalarValue::from(9), got.logical_value(5).unwrap());
+    }
+
+    #[test]
+    fn interleave_2() {
+        let arr1 = Array::from_iter([4, 5, 6]);
+        let arr2 = Array::from_iter([7, 8, 9]);
+
+        let indices = [(0, 1), (0, 2), (1, 0), (1, 1), (0, 0), (1, 2)];
+
+        let got = interleave(&[&arr1, &arr2], &indices).unwrap();
+
+        assert_eq!(ScalarValue::from(5), got.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(6), got.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(7), got.logical_value(2).unwrap());
+        assert_eq!(ScalarValue::from(8), got.logical_value(3).unwrap());
+        assert_eq!(ScalarValue::from(4), got.logical_value(4).unwrap());
+        assert_eq!(ScalarValue::from(9), got.logical_value(5).unwrap());
+    }
+
+    #[test]
+    fn interleave_2_repeated() {
+        let arr1 = Array::from_iter([4, 5]);
+        let arr2 = Array::from_iter([7, 8]);
+
+        let indices = [(0, 1), (1, 1), (0, 1), (1, 1)];
+
+        let got = interleave(&[&arr1, &arr2], &indices).unwrap();
+
+        assert_eq!(ScalarValue::from(5), got.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(8), got.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(5), got.logical_value(2).unwrap());
+        assert_eq!(ScalarValue::from(8), got.logical_value(3).unwrap());
     }
 }
