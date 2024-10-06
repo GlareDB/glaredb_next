@@ -22,7 +22,7 @@ impl PhysicalColumnExpr {
             RayexecError::new(format!(
                 "Tried to get column at index {} in a batch with {} columns",
                 self.idx,
-                batch.columns2().len()
+                batch.columns().len()
             ))
         })?;
 

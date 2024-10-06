@@ -25,7 +25,7 @@ where
                         .format_array_value(col, idx)
                         .expect("value to exist")
                 )?;
-                if col_idx < batch.columns2().len() - 1 {
+                if col_idx < batch.columns().len() - 1 {
                     write!(buf, "| ")?;
                 }
             }
@@ -61,7 +61,7 @@ where
                         .format_array_value(col, idx)
                         .expect("value to exist")
                 )?;
-                if col_idx < batch.columns2().len() - 1 {
+                if col_idx < batch.columns().len() - 1 {
                     write!(buf, "| ")?;
                 }
             }

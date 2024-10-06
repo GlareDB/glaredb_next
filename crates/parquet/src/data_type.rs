@@ -168,6 +168,12 @@ impl ByteArray {
             .as_ref()
     }
 
+    /// Return the underlying `Bytes`.
+    #[inline]
+    pub fn bytes_data(&self) -> Bytes {
+        self.data.clone().expect("set_data should have been called")
+    }
+
     /// Return the number of bytes this byte array is taking up.
     ///
     /// Return None if data hasn't been set.

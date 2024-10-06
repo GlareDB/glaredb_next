@@ -90,19 +90,6 @@ impl Batch {
         })
     }
 
-    /// Project a batch using the provided indices.
-    ///
-    /// Panics if any index is out of bounds.
-    pub fn project2(&self, indices: &[usize]) -> Self {
-        let cols = indices.iter().map(|idx| self.cols2[*idx].clone()).collect();
-
-        Batch {
-            cols2: cols,
-            cols: Vec::new(),
-            num_rows: self.num_rows,
-        }
-    }
-
     // TODO: Owned variant
     pub fn project(&self, indices: &[usize]) -> Self {
         let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();
@@ -144,32 +131,24 @@ impl Batch {
     }
 
     /// Get the row at some index.
-    pub fn row2(&self, idx: usize) -> Option<ScalarRow> {
+    pub fn row(&self, idx: usize) -> Option<ScalarRow> {
         if idx >= self.num_rows {
             return None;
         }
 
         // Non-zero number of rows, but no actual columns. Just return an empty
         // row.
-        if self.cols2.is_empty() {
+        if self.cols.is_empty() {
             return Some(ScalarRow::empty());
         }
 
-        let row = self.cols2.iter().map(|col| col.scalar(idx).unwrap());
+        let row = self.cols.iter().map(|col| col.logical_value(idx).unwrap());
 
         Some(ScalarRow::from_iter(row))
     }
 
-    pub fn column2(&self, idx: usize) -> Option<&Arc<Array2>> {
-        self.cols2.get(idx)
-    }
-
     pub fn column(&self, idx: usize) -> Option<&Array> {
         self.cols.get(idx)
-    }
-
-    pub fn columns2(&self) -> &[Arc<Array2>] {
-        &self.cols2
     }
 
     pub fn columns(&self) -> &[Array] {

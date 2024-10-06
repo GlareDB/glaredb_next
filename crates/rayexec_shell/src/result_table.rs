@@ -84,10 +84,10 @@ impl MaterializedResultTable {
     pub fn try_new(schema: Schema, batches: impl IntoIterator<Item = Batch>) -> Result<Self> {
         let batches: Vec<_> = batches.into_iter().collect();
         for batch in &batches {
-            if batch.columns2().len() != schema.fields.len() {
+            if batch.columns().len() != schema.fields.len() {
                 return Err(RayexecError::new(format!(
                     "Batch contains different number of columns than schema, batch: {}, schema: {}",
-                    batch.columns2().len(),
+                    batch.columns().len(),
                     schema.fields.len()
                 )));
             }
@@ -240,7 +240,7 @@ impl<'a> Iterator for MaterializedRowIter<'a> {
             let batch = self.table.batches.get(self.batch_idx)?;
 
             // TODO: Reuse underlying vec
-            match batch.row2(self.row_idx) {
+            match batch.row(self.row_idx) {
                 Some(row) => {
                     self.row_idx += 1;
                     return Some(row);

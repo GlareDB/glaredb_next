@@ -107,12 +107,26 @@ impl<T> PrimitiveStorage<T> {
         unsafe { std::slice::from_raw_parts(ptr.cast(), num_bytes) }
     }
 
+    pub fn as_slice(&self) -> &[T] {
+        self.as_ref()
+    }
+
     pub fn data_size_bytes(&self) -> usize {
         std::mem::size_of_val(self.as_ref())
     }
 
     pub fn len(&self) -> usize {
         self.as_ref().len()
+    }
+
+    pub unsafe fn try_reintepret_cast<U>(&self) -> Result<&PrimitiveStorage<U>> {
+        if std::mem::size_of::<T>() != std::mem::size_of::<U>() {
+            return Err(RayexecError::new(
+                "Cannot reintepret cast to a different sized type",
+            ));
+        }
+
+        Ok(std::mem::transmute(self))
     }
 
     /// Iterate over the primitive values.

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array, Array2, BooleanArray},
+    array::{Array, Array2, ArrayData, BooleanArray},
     batch::Batch,
     bitmap::Bitmap,
     datatype::DataType,
@@ -100,15 +100,15 @@ impl LeftOuterJoinDrainState {
         self.batch_idx += 1;
 
         let cols = batch
-            .columns2()
+            .columns()
             .iter()
             .cloned()
-            .chain([Arc::new(Array2::Boolean(BooleanArray::new(
-                bitmap.clone(),
-                None,
-            )))]);
+            .chain([Array::new_with_array_data(
+                DataType::Boolean,
+                ArrayData::Boolean(Arc::new(bitmap.clone().into())),
+            )]);
 
-        let batch = Batch::try_new2(cols)?;
+        let batch = Batch::try_new(cols)?;
 
         Ok(Some(batch))
     }

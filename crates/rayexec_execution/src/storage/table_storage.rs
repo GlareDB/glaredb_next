@@ -91,7 +91,7 @@ impl<S: DataTableScan> ProjectedScan<S> {
 
         match self.projections.column_indices.as_ref() {
             Some(indices) => {
-                let batch = batch.project2(indices);
+                let batch = batch.project(indices);
                 Ok(Some(batch))
             }
             None => Ok(Some(batch)),

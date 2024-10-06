@@ -11,7 +11,7 @@ use parquet::data_type::{
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
-use rayexec_bullet::array::Array2;
+use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
@@ -28,7 +28,7 @@ use crate::metadata::Metadata;
 
 pub trait ArrayBuilder<P: PageReader>: Send {
     /// Consume the current buffer and build an array.
-    fn build(&mut self) -> Result<Array2>;
+    fn build(&mut self) -> Result<Array>;
 
     /// Sets the page reader the builder should now be reading from.
     fn set_page_reader(&mut self, page_reader: P) -> Result<()>;
@@ -94,7 +94,7 @@ where
 
 /// Trait for converting a buffer of values into an array.
 pub trait IntoArray {
-    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array2;
+    fn into_array(self, datatype: DataType, def_levels: Option<Vec<i16>>) -> Array;
 }
 
 pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
@@ -237,7 +237,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             .map(|state| state.builder.build())
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new2(arrays)?;
+        let batch = Batch::try_new(arrays)?;
 
         if batch.num_rows() == 0 {
             Ok(None)

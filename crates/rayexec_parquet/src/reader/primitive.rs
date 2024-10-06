@@ -2,13 +2,10 @@ use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
-use rayexec_bullet::array::{
-    Array2, BooleanArray, Decimal64Array, Float32Array, Float64Array, Int16Array, Int32Array,
-    Int64Array, Int8Array, PrimitiveArray, TimestampArray, UInt16Array, UInt32Array, UInt64Array,
-    UInt8Array,
-};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, TimeUnit};
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};
@@ -36,43 +33,22 @@ where
     }
 
     /// Take the currently read values and convert into an array.
-    pub fn take_array(&mut self) -> Result<Array2> {
+    pub fn take_array(&mut self) -> Result<Array> {
         let data = std::mem::replace(&mut self.values_buffer, Vec::with_capacity(self.batch_size));
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
 
         // TODO: Other types.
         let arr = match (T::get_physical_type(), &self.datatype) {
-            (PhysicalType::BOOLEAN, DataType::Boolean) => data.into_array(def_levels),
-            (PhysicalType::INT32, DataType::Int32) => data.into_array(def_levels),
-            (PhysicalType::INT32, DataType::Date32) => {
-                let arr = data.into_array(def_levels);
-                match arr {
-                    Array2::Int32(arr) => Array2::Date32(arr),
-                    other => return Err(RayexecError::new(format!("Unexpected array type when converting to Date32: {}", other.datatype())))
-                }
-            },
-            (PhysicalType::INT64, DataType::Int64) => data.into_array(def_levels),
-            (PhysicalType::INT64, DataType::Decimal64(meta)) => {
-                let arr = data.into_array(def_levels);
-                match arr {
-                    Array2::Int64(arr) => Array2::Decimal64(Decimal64Array::new(meta.precision, meta.scale, arr)),
-                    other => return Err(RayexecError::new(format!("Unexpected array type when converting to Decimal64: {}", other.datatype())))
-                }
-            }
-            (PhysicalType::INT64, DataType::Timestamp(meta)) => {
-                let prim = match data.into_array(def_levels) {
-                    Array2::Int64(prim) => prim,
-                    other => return Err(RayexecError::new(format!("Expected Int64 primitive array for timestamp, got {}", other.datatype()))),
-                };
-                Array2::Timestamp(TimestampArray::new(meta.unit, prim))
-            }
-            (PhysicalType::INT96, DataType::Timestamp(meta)) => match meta.unit {
-                TimeUnit::Nanosecond => data.into_array(def_levels),
-                other => return Err(RayexecError::new(format!("Unexpected time unit for INT96 physical type: {other}")))
-            },
-            (PhysicalType::FLOAT, DataType::Float32) => data.into_array(def_levels),
-            (PhysicalType::DOUBLE, DataType::Float64) => data.into_array(def_levels),
+            (PhysicalType::BOOLEAN, DataType::Boolean) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT32, DataType::Int32) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT32, DataType::Date32) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT32, DataType::Int64) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT32, DataType::Decimal64(_)) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT64, DataType::Timestamp(_)) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT96, DataType::Timestamp(_)) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::FLOAT, DataType::Float32) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::DOUBLE, DataType::Float64) => data.into_array(self.datatype.clone(), def_levels),
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parqet: {p_other}, bullet: {d_other}")))
         };
 
@@ -86,7 +62,7 @@ where
     P: PageReader,
     Vec<T::T>: IntoArray,
 {
-    fn build(&mut self) -> Result<Array2> {
+    fn build(&mut self) -> Result<Array> {
         self.take_array()
     }
 
@@ -100,66 +76,76 @@ where
 }
 
 impl IntoArray for Vec<bool> {
-    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array2 {
+    fn into_array(self, datatype: DataType, def_levels: Option<Vec<i16>>) -> Array {
         match def_levels {
             Some(levels) => {
                 let bitmap = def_levels_into_bitmap(levels);
                 let values = insert_null_values(self, &bitmap);
                 let values = Bitmap::from_iter(values);
-                Array2::Boolean(BooleanArray::new(values, Some(bitmap)))
+                Array::new_with_validity_and_array_data(
+                    datatype,
+                    bitmap,
+                    BooleanStorage::from(values),
+                )
             }
-            None => Array2::Boolean(BooleanArray::from_iter(self)),
+            None => {
+                Array::new_with_array_data(datatype, BooleanStorage::from(Bitmap::from_iter(self)))
+            }
         }
     }
 }
 
-impl IntoArray for Vec<Int96> {
-    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array2 {
-        let values = self.into_iter().map(|v| v.to_nanos()).collect();
-        match def_levels {
-            Some(levels) => {
-                let bitmap = def_levels_into_bitmap(levels);
-                let values = insert_null_values(values, &bitmap);
-                Array2::Timestamp(TimestampArray::new(
-                    TimeUnit::Nanosecond,
-                    PrimitiveArray::new(values, Some(bitmap)),
-                ))
-            }
-            None => Array2::Timestamp(TimestampArray::new(
-                TimeUnit::Nanosecond,
-                PrimitiveArray::from_iter(values),
-            )),
-        }
-    }
-}
-
-macro_rules! into_array_prim {
-    ($prim:ty, $variant:ident, $array:ty) => {
+macro_rules! impl_into_array_primitive {
+    ($prim:ty) => {
         impl IntoArray for Vec<$prim> {
-            fn into_array(self, def_levels: Option<Vec<i16>>) -> Array2 {
+            fn into_array(self, datatype: DataType, def_levels: Option<Vec<i16>>) -> Array {
                 match def_levels {
                     Some(levels) => {
                         let bitmap = def_levels_into_bitmap(levels);
                         let values = insert_null_values(self, &bitmap);
-                        Array2::$variant(<$array>::new(values, Some(bitmap)))
+                        Array::new_with_validity_and_array_data(
+                            datatype,
+                            bitmap,
+                            PrimitiveStorage::from(values),
+                        )
                     }
-                    None => Array2::$variant(<$array>::from(self)),
+                    None => Array::new_with_array_data(datatype, PrimitiveStorage::from(self)),
                 }
             }
         }
     };
 }
 
-into_array_prim!(i8, Int8, Int8Array);
-into_array_prim!(i16, Int16, Int16Array);
-into_array_prim!(i32, Int32, Int32Array);
-into_array_prim!(i64, Int64, Int64Array);
-into_array_prim!(u8, UInt8, UInt8Array);
-into_array_prim!(u16, UInt16, UInt16Array);
-into_array_prim!(u32, UInt32, UInt32Array);
-into_array_prim!(u64, UInt64, UInt64Array);
-into_array_prim!(f32, Float32, Float32Array);
-into_array_prim!(f64, Float64, Float64Array);
+impl_into_array_primitive!(i8);
+impl_into_array_primitive!(i16);
+impl_into_array_primitive!(i32);
+impl_into_array_primitive!(i64);
+impl_into_array_primitive!(i128);
+impl_into_array_primitive!(u8);
+impl_into_array_primitive!(u16);
+impl_into_array_primitive!(u32);
+impl_into_array_primitive!(u64);
+impl_into_array_primitive!(u128);
+impl_into_array_primitive!(f32);
+impl_into_array_primitive!(f64);
+
+impl IntoArray for Vec<Int96> {
+    fn into_array(self, datatype: DataType, def_levels: Option<Vec<i16>>) -> Array {
+        let values = self.into_iter().map(|v| v.to_nanos()).collect();
+        match def_levels {
+            Some(levels) => {
+                let bitmap = def_levels_into_bitmap(levels);
+                let values = insert_null_values(values, &bitmap);
+                Array::new_with_validity_and_array_data(
+                    datatype,
+                    bitmap,
+                    PrimitiveStorage::from(values),
+                )
+            }
+            None => Array::new_with_array_data(datatype, PrimitiveStorage::from(values)),
+        }
+    }
+}
 
 /// Insert null (meaningless) values into the vec according to the validity
 /// bitmap.

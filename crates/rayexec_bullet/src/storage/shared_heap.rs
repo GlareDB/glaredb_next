@@ -47,6 +47,12 @@ impl SharedHeapStorage {
     }
 }
 
+impl From<Vec<Bytes>> for SharedHeapStorage {
+    fn from(value: Vec<Bytes>) -> Self {
+        SharedHeapStorage { blobs: value }
+    }
+}
+
 #[derive(Debug)]
 pub struct SharedHeapIter<'a> {
     inner: std::slice::Iter<'a, Bytes>,

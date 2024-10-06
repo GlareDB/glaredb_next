@@ -1,9 +1,10 @@
+use bytes::Bytes;
 use parquet::column::page::PageReader;
-use parquet::data_type::{AsBytes, ByteArray, ByteArrayType, DataType as ParquetDataType};
+use parquet::data_type::{ByteArray, ByteArrayType, DataType as ParquetDataType};
 use parquet::{basic::Type as PhysicalType, schema::types::ColumnDescPtr};
-use rayexec_bullet::array::{Array2, ValuesBuffer};
-use rayexec_bullet::array::{BinaryArray, VarlenArray, VarlenValuesBuffer};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::storage::SharedHeapStorage;
 use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, ArrayBuilder, ValuesReader};
@@ -12,6 +13,8 @@ use super::{def_levels_into_bitmap, ArrayBuilder, ValuesReader};
 pub struct VarlenArrayReader<P: PageReader> {
     datatype: DataType,
     values_reader: ValuesReader<ByteArrayType, P>,
+    // TODO: Change varlen decoding to not use this type and instead write into
+    // a contiguous buffer that we can construct array data out of.
     values_buffer: Vec<ByteArray>,
 }
 
@@ -27,78 +30,35 @@ where
         }
     }
 
-    pub fn take_array(&mut self) -> Result<Array2> {
+    pub fn take_array(&mut self) -> Result<Array> {
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
 
         let arr = match (ByteArrayType::get_physical_type(), &self.datatype) {
-            (PhysicalType::BYTE_ARRAY, DataType::Utf8) => {
-                // TODO: Ideally we change the decoding to write directly into a buffer
-                // we can use for constructing the array instead of needing to copy it.
-                //
-                // TODO: Byte array methods panic on no data except for
-                // `num_bytes` which I added. Make that clearer and/or fix it.
-                let data_cap: usize = self.values_buffer.iter().map(|a| a.num_bytes().unwrap_or(0)).sum();
-                let mut buffer = VarlenValuesBuffer::with_data_and_offset_caps(data_cap, self.values_buffer.len());
-
-                let validity = match def_levels {
+            (PhysicalType::BYTE_ARRAY, _) => {
+                match def_levels {
                     Some(levels) => {
                         let bitmap = def_levels_into_bitmap(levels);
-                        let mut values_iter = self.values_buffer.iter();
+
+                        let mut buf_iter = self.values_buffer.drain(..);
+                        let mut values = Vec::with_capacity(bitmap.len());
 
                         for valid in bitmap.iter() {
                             if valid {
-                                let value = values_iter.next().expect("value to exist");
-                                let s = unsafe { std::str::from_utf8_unchecked(value.as_bytes()) };
-                                buffer.push_value(s);
+                                values.push(buf_iter.next().expect("buffered value to exist").bytes_data())
                             } else {
-                                buffer.push_value("");
+                                values.push(Bytes::new())
                             }
                         }
 
-                        Some(bitmap)
+                        Array::new_with_validity_and_array_data(self.datatype.clone(),bitmap, SharedHeapStorage::from(values))
                     }
                     None => {
-                        for buf in &self.values_buffer {
-                            let s = unsafe { std::str::from_utf8_unchecked(buf.as_bytes()) };
-                            buffer.push_value(s);
-                        }
-                        None
+                        let values: Vec<_> = self.values_buffer.drain(..).map(|b| b.bytes_data()).collect();
+
+                        Array::new_with_array_data(self.datatype.clone(), SharedHeapStorage::from(values))
                     }
-                };
-
-                Array2::Utf8(VarlenArray::new(buffer, validity))
-
-            }
-            (PhysicalType::BYTE_ARRAY, DataType::Binary) => {
-                let data_cap: usize = self.values_buffer.iter().map(|a| a.num_bytes().unwrap_or(0)).sum();
-                let mut buffer = VarlenValuesBuffer::with_data_and_offset_caps(data_cap, self.values_buffer.len());
-
-                let validity = match def_levels {
-                    Some(levels) => {
-                        let bitmap = def_levels_into_bitmap(levels);
-                        let mut values_iter = self.values_buffer.iter();
-
-                        for valid in bitmap.iter() {
-                            if valid {
-                                let value = values_iter.next().expect("value to exist");
-                                buffer.push_value(value.as_bytes());
-                            } else {
-                                let null: &[u8] = &[];
-                                buffer.push_value(null);
-                            }
-                        }
-                        Some(bitmap)
-                    }
-                    None => {
-                        for buf in &self.values_buffer {
-                            buffer.push_value(buf.as_bytes());
-                        }
-                        None
-                    }
-                };
-
-                Array2::Binary(BinaryArray::new(buffer, validity))
+                }
             }
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in varlen reader; parqet: {p_other}, bullet: {d_other}")))
         };
@@ -113,7 +73,7 @@ impl<P> ArrayBuilder<P> for VarlenArrayReader<P>
 where
     P: PageReader,
 {
-    fn build(&mut self) -> Result<Array2> {
+    fn build(&mut self) -> Result<Array> {
         self.take_array()
     }
 

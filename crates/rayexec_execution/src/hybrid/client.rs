@@ -334,9 +334,9 @@ impl ProtoConv for IpcBatch {
         // compatability with arrow ipc, but we only care about the data types.
         let schema = Schema::new(
             self.0
-                .columns2()
+                .columns()
                 .iter()
-                .map(|c| Field::new("", c.datatype(), true)),
+                .map(|c| Field::new("", c.datatype().clone(), true)),
         );
 
         let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;

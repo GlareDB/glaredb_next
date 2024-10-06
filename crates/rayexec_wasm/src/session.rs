@@ -181,7 +181,7 @@ impl WasmMaterializedColumn {
 #[cfg(test)]
 mod tests {
     use rayexec_bullet::{
-        array::{Array2, Int32Array},
+        array::Array,
         batch::Batch,
         datatype::DataType,
         field::{Field, Schema},
@@ -194,9 +194,9 @@ mod tests {
         let table = MaterializedResultTable::try_new(
             Schema::new([Field::new("c1", DataType::Int32, true)]),
             [
-                Batch::try_new2([Array2::Int32(Int32Array::from_iter([0, 1, 2, 3]))]).unwrap(),
-                Batch::try_new2([Array2::Int32(Int32Array::from_iter([4, 5]))]).unwrap(),
-                Batch::try_new2([Array2::Int32(Int32Array::from_iter([6, 7, 8, 9, 10]))]).unwrap(),
+                Batch::try_new([Array::from_iter([0, 1, 2, 3])]).unwrap(),
+                Batch::try_new([Array::from_iter([4, 5])]).unwrap(),
+                Batch::try_new([Array::from_iter([6, 7, 8, 9, 10])]).unwrap(),
             ],
         )
         .unwrap();

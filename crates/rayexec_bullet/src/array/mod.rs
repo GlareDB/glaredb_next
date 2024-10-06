@@ -121,8 +121,25 @@ impl Array {
         }
     }
 
+    pub fn new_with_validity_and_array_data(
+        datatype: DataType,
+        validity: Bitmap,
+        data: impl Into<ArrayData>,
+    ) -> Self {
+        Array {
+            datatype,
+            selection: None,
+            validity: Some(validity),
+            data: data.into(),
+        }
+    }
+
     pub fn datatype(&self) -> &DataType {
         &self.datatype
+    }
+
+    pub fn has_selection(&self) -> bool {
+        self.selection.is_some()
     }
 
     pub fn selection_vector(&self) -> Option<&SelectionVector> {
@@ -848,6 +865,12 @@ impl From<PrimitiveStorage<u128>> for ArrayData {
 impl From<PrimitiveStorage<Interval>> for ArrayData {
     fn from(value: PrimitiveStorage<Interval>) -> Self {
         ArrayData::Interval(value.into())
+    }
+}
+
+impl From<SharedHeapStorage> for ArrayData {
+    fn from(value: SharedHeapStorage) -> Self {
+        ArrayData::Binary(BinaryData::SharedHeap(Arc::new(value)))
     }
 }
 
