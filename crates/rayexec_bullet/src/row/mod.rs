@@ -25,7 +25,12 @@ impl<'a> ScalarRow<'a> {
     }
 
     pub fn try_new_from_arrays(arrays: &[&'a Array], row: usize) -> Result<ScalarRow<'a>> {
-        unimplemented!()
+        let vals = arrays
+            .iter()
+            .map(|a| a.logical_value(row))
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(ScalarRow { columns: vals })
     }
 
     /// Create a new row representation backed by data from arrays.

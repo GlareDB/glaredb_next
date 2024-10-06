@@ -41,13 +41,14 @@ where
     }
 }
 
-/// Trait for handling building up array data.
+/// Pre-allocated buffer for arbitrarily putting values into.
 pub trait ArrayDataBuffer {
     type Type: ?Sized;
 
+    /// Length of the buffer.
     fn len(&self) -> usize;
 
-    /// Put a value at `idx`.
+    /// Put a value at `idx`. Guaranteed to be in bounds according to `len`.
     fn put(&mut self, idx: usize, val: &Self::Type);
 
     /// Convert the buffer into array data.

@@ -6,6 +6,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::HashExecutor;
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -284,16 +285,25 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         *partition = partition_for_hash(*hash, num_partitions);
                     }
 
-                    // For each partition, produce a selection bitmap, and
+                    // For each partition, produce a selection vector, and
                     // insert the rows corresponding to that partition into the
                     // partition's hash table.
                     for (partition_idx, partition_hashtable) in
                         output_hashtables.iter_mut().enumerate()
                     {
-                        // TODO: Could probably reuse bitmap allocations.
-                        let selection = Bitmap::from_iter(
-                            partitions_idx_buf.iter().map(|idx| *idx == partition_idx),
-                        );
+                        // Only select rows that this partition is concerned
+                        // about.
+                        let selection: SelectionVector = partitions_idx_buf
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(row, selected_partition)| {
+                                if selected_partition == &partition_idx {
+                                    Some(row)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
 
                         partition_hashtable.insert_groups(
                             &masked_grouping_columns,

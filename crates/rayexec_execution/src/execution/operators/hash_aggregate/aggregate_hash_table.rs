@@ -5,7 +5,9 @@ use rayexec_bullet::{
     batch::Batch,
     bitmap::Bitmap,
     datatype::DataType,
+    executor::aggregate::RowToStateMapping,
     row::{OwnedScalarRow, ScalarRow},
+    selection::SelectionVector,
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
@@ -72,8 +74,8 @@ pub struct PartitionAggregateHashTable {
     /// Hash table pointing to the group index.
     hash_table: RawTable<(u64, usize)>,
 
-    /// Buffer used when looking for group indices for group values.
-    indexes_buffer: Vec<usize>,
+    // Reusable buffer for building up the row to state mappings.
+    mappings_buffer: Vec<RowToStateMapping>,
 }
 
 impl PartitionAggregateHashTable {
@@ -93,7 +95,7 @@ impl PartitionAggregateHashTable {
             agg_states,
             group_values: Vec::new(),
             hash_table: RawTable::new(),
-            indexes_buffer: Vec::new(),
+            mappings_buffer: Vec::new(),
         })
     }
 
@@ -102,13 +104,11 @@ impl PartitionAggregateHashTable {
         groups: &[&Array],
         hashes: &[u64],
         inputs: &[&Array],
-        selection: &Bitmap,
+        selection: &SelectionVector,
         group_id: u64,
     ) -> Result<()> {
-        let row_count = selection.count_trues();
-
-        self.indexes_buffer.clear();
-        self.indexes_buffer.reserve(row_count);
+        self.mappings_buffer.clear();
+        self.mappings_buffer.reserve(selection.num_rows());
 
         // Get group indices, creating new states as needed for groups we've
         // never seen before.
@@ -125,7 +125,7 @@ impl PartitionAggregateHashTable {
 
             agg_states
                 .states
-                .update_states(selection, &input_cols, &self.indexes_buffer)?;
+                .update_states(&input_cols, &self.mappings_buffer)?;
         }
 
         Ok(())
@@ -139,13 +139,11 @@ impl PartitionAggregateHashTable {
         &mut self,
         groups: &[&Array],
         hashes: &[u64],
-        selection: &Bitmap,
+        selection: &SelectionVector,
         group_id: u64,
     ) -> Result<()> {
-        for (row_idx, (&hash, selected)) in hashes.iter().zip(selection.iter()).enumerate() {
-            if !selected {
-                continue;
-            }
+        for row_idx in selection.iter_locations() {
+            let hash = hashes[row_idx];
 
             // TODO: This is probably a bit slower than we'd want.
             //
@@ -164,7 +162,10 @@ impl PartitionAggregateHashTable {
             match ent {
                 Some((_, group_idx)) => {
                     // Group already exists.
-                    self.indexes_buffer.push(*group_idx);
+                    self.mappings_buffer.push(RowToStateMapping {
+                        from_row: row_idx,
+                        to_state: *group_idx,
+                    });
                 }
                 None => {
                     let group_idx = self.group_values.len();
@@ -184,7 +185,11 @@ impl PartitionAggregateHashTable {
                         row: value.row.into_owned(),
                         group_id: value.group_id,
                     });
-                    self.indexes_buffer.push(group_idx);
+
+                    self.mappings_buffer.push(RowToStateMapping {
+                        from_row: row_idx,
+                        to_state: group_idx,
+                    });
                 }
             }
         }
@@ -200,8 +205,7 @@ impl PartitionAggregateHashTable {
         }
 
         // This buffer is used to build up a mapping of (other_group -> own_group) for merging.
-        self.indexes_buffer.clear();
-        self.indexes_buffer.resize(row_count, 0);
+        let mut state_mappings = vec![0; row_count];
 
         // Ensure the has table we're merging into has all the groups from
         // the other hash table.
@@ -222,7 +226,7 @@ impl PartitionAggregateHashTable {
                     // 'self' already has the group from the other table.
                     //
                     // Map other group to this group for merge.
-                    self.indexes_buffer[other_group_idx] = *self_group_idx;
+                    state_mappings[other_group_idx] = *self_group_idx;
                 }
                 None => {
                     // 'self' has never seend this group before. Add it to the map with
@@ -243,7 +247,7 @@ impl PartitionAggregateHashTable {
                     self.group_values.push(row);
 
                     // Map other group to the newly created group in this table.
-                    self.indexes_buffer[other_group_idx] = new_group_idx
+                    state_mappings[other_group_idx] = new_group_idx
                 }
             }
         }
@@ -256,7 +260,7 @@ impl PartitionAggregateHashTable {
         for (own_state, other_state) in self.agg_states.iter_mut().zip(other_states.into_iter()) {
             own_state
                 .states
-                .try_combine(other_state.states, &self.indexes_buffer)?;
+                .try_combine(other_state.states, &state_mappings)?;
         }
 
         Ok(())
@@ -308,7 +312,7 @@ impl AggregateHashTableDrain {
             .table
             .agg_states
             .iter_mut()
-            .map(|agg_state| agg_state.states.drain_finalize_n(self.batch_size))
+            .map(|agg_state| agg_state.states.drain_next(self.batch_size))
             .collect::<Result<Option<Vec<_>>>>()?;
         let result_cols: Vec<_> = match result_cols {
             Some(cols) => cols.into_iter().map(Arc::new).collect(),
