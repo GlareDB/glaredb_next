@@ -70,35 +70,6 @@ impl Batch {
         })
     }
 
-    /// Create a new batch from some number of arrays.
-    ///
-    /// All arrays should be of the same length.
-    pub fn try_new2<A>(cols: impl IntoIterator<Item = A>) -> Result<Self>
-    where
-        A: Into<Arc<Array2>>,
-    {
-        let cols: Vec<_> = cols.into_iter().map(|arr| arr.into()).collect();
-        let len = match cols.first() {
-            Some(arr) => arr.len(),
-            None => return Ok(Self::empty()),
-        };
-
-        for (idx, col) in cols.iter().enumerate() {
-            if col.len() != len {
-                return Err(RayexecError::new(format!(
-                    "Expected column length to be {len}, got {}. Column idx: {idx}",
-                    col.len()
-                )));
-            }
-        }
-
-        Ok(Batch {
-            cols2: cols,
-            cols: Vec::new(),
-            num_rows: len,
-        })
-    }
-
     // TODO: Owned variant
     pub fn project(&self, indices: &[usize]) -> Self {
         let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();

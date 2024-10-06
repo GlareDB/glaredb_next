@@ -641,53 +641,34 @@ impl<'a> FromIterator<&'a str> for Array {
     }
 }
 
-impl FromIterator<i64> for Array {
-    fn from_iter<T: IntoIterator<Item = i64>>(iter: T) -> Self {
-        let vals: Vec<_> = iter.into_iter().collect();
-        Array {
-            datatype: DataType::Int64,
-            selection: None,
-            validity: None,
-            data: ArrayData::Int64(Arc::new(vals.into())),
+macro_rules! impl_primitive_from_iter {
+    ($prim:ty, $variant:ident) => {
+        impl FromIterator<$prim> for Array {
+            fn from_iter<T: IntoIterator<Item = $prim>>(iter: T) -> Self {
+                let vals: Vec<_> = iter.into_iter().collect();
+                Array {
+                    datatype: DataType::$variant,
+                    selection: None,
+                    validity: None,
+                    data: ArrayData::$variant(Arc::new(vals.into())),
+                }
+            }
         }
-    }
+    };
 }
 
-impl FromIterator<u32> for Array {
-    fn from_iter<T: IntoIterator<Item = u32>>(iter: T) -> Self {
-        let vals: Vec<_> = iter.into_iter().collect();
-        Array {
-            datatype: DataType::UInt32,
-            selection: None,
-            validity: None,
-            data: ArrayData::UInt32(Arc::new(vals.into())),
-        }
-    }
-}
-
-impl FromIterator<u64> for Array {
-    fn from_iter<T: IntoIterator<Item = u64>>(iter: T) -> Self {
-        let vals: Vec<_> = iter.into_iter().collect();
-        Array {
-            datatype: DataType::UInt64,
-            selection: None,
-            validity: None,
-            data: ArrayData::UInt64(Arc::new(vals.into())),
-        }
-    }
-}
-
-impl FromIterator<i32> for Array {
-    fn from_iter<T: IntoIterator<Item = i32>>(iter: T) -> Self {
-        let vals: Vec<_> = iter.into_iter().collect();
-        Array {
-            datatype: DataType::Int32,
-            selection: None,
-            validity: None,
-            data: ArrayData::Int32(Arc::new(vals.into())),
-        }
-    }
-}
+impl_primitive_from_iter!(i8, Int8);
+impl_primitive_from_iter!(i16, Int16);
+impl_primitive_from_iter!(i32, Int32);
+impl_primitive_from_iter!(i64, Int64);
+impl_primitive_from_iter!(i128, Int128);
+impl_primitive_from_iter!(u8, UInt8);
+impl_primitive_from_iter!(u16, UInt16);
+impl_primitive_from_iter!(u32, UInt32);
+impl_primitive_from_iter!(u64, UInt64);
+impl_primitive_from_iter!(u128, UInt128);
+impl_primitive_from_iter!(f32, Float32);
+impl_primitive_from_iter!(f64, Float64);
 
 impl FromIterator<bool> for Array {
     fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {

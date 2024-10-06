@@ -314,8 +314,9 @@ impl AggregateHashTableDrain {
             .iter_mut()
             .map(|agg_state| agg_state.states.drain_next(self.batch_size))
             .collect::<Result<Option<Vec<_>>>>()?;
-        let result_cols: Vec<_> = match result_cols {
-            Some(cols) => cols.into_iter().map(Arc::new).collect(),
+
+        let result_cols = match result_cols {
+            Some(cols) => cols,
             None => return Ok(None),
         };
 
@@ -333,31 +334,19 @@ impl AggregateHashTableDrain {
             return Ok(None);
         }
 
-        // let mut group_cols = Vec::with_capacity(self.group_types.len());
-
         // Drain out collected group rows into our local buffer equal to the
         // number of rows we're returning.
         self.group_values_drain_buf.clear();
         self.group_values_drain_buf
             .extend(self.table.group_values.drain(0..num_rows).map(|v| v.row));
 
-        for group_dt in self.group_types.iter() {
-            // Since group values are in row format, we just pop the value for
-            // each row in each iteration to get the column values.
-            let iter = self
-                .group_values_drain_buf
-                .iter_mut()
-                .map(|row| row.columns.remove(0)); // TODO: Could probably use something other than `remove(0)` here.
+        let group_cols =
+            Batch::try_from_rows(&self.group_values_drain_buf, &self.group_types)?.into_arrays();
 
-            // let arr = Array2::try_from_scalars(group_dt.clone(), iter)?;
-            // group_cols.push(Arc::new(arr));
-            unimplemented!()
-        }
+        // Create batch with result cols first, then group cols after.
+        let batch = Batch::try_new(result_cols.into_iter().chain(group_cols))?;
 
-        unimplemented!()
-        // let batch = Batch::try_new(result_cols.into_iter().chain(group_cols.into_iter()))?;
-
-        // Ok(Some(batch))
+        Ok(Some(batch))
     }
 }
 
