@@ -41,44 +41,13 @@ pub enum PhysicalScalarExpression {
 
 impl PhysicalScalarExpression {
     pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
-        unimplemented!()
-    }
-
-    /// Evaluates an expression on a batch using an optional row selection.
-    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
         match self {
-            Self::Case(expr) => expr.eval2(batch, selection),
-            Self::Cast(expr) => expr.eval2(batch, selection),
-            Self::Column(expr) => expr.eval2(batch, selection),
-            Self::Literal(expr) => expr.eval2(batch, selection),
-            Self::ScalarFunction(expr) => expr.eval2(batch, selection),
+            Self::Case(e) => e.eval(batch),
+            Self::Cast(e) => e.eval(batch),
+            Self::Column(e) => e.eval(batch),
+            Self::Literal(e) => e.eval(batch),
+            Self::ScalarFunction(e) => e.eval(batch),
         }
-    }
-
-    pub fn select2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
-        let arr = self.eval2(batch, selection)?;
-        let bitmap = match arr.as_ref() {
-            Array2::Boolean(arr) => arr.clone().into_selection_bitmap(),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Expected expression to return bools for select, got {}",
-                    other.datatype()
-                )))
-            }
-        };
-
-        let selection = match selection {
-            Some(sel) => sel,
-            None => return Ok(bitmap),
-        };
-
-        let mut zipped = Bitmap::new_with_all_false(selection.len());
-
-        for (row_idx, selected) in selection.index_iter().zip(bitmap.iter()) {
-            zipped.set_unchecked(row_idx, selected);
-        }
-
-        Ok(zipped)
     }
 
     /// Produce a selection vector for the batch using this expression.

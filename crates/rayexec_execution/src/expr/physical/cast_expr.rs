@@ -31,12 +31,6 @@ impl PhysicalCastExpr {
         let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
         Ok(Cow::Owned(out))
     }
-
-    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
-        let input = self.expr.eval2(batch, selection)?;
-        let out = cast_array2(&input, &self.to)?;
-        Ok(Arc::new(out))
-    }
 }
 
 impl fmt::Display for PhysicalCastExpr {

@@ -26,16 +26,17 @@ fn maybe_fold(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
     if expr.is_const_foldable() {
         let planner = PhysicalExpressionPlanner::new(bind_context);
         let phys_expr = planner.plan_scalar(&[], expr)?;
-        let val = phys_expr.eval2(&Batch::empty_with_num_rows(1), None)?;
+        let dummy = Batch::empty_with_num_rows(1);
+        let val = phys_expr.eval(&dummy)?;
 
-        if val.len() != 1 {
+        if val.logical_len() != 1 {
             return Err(RayexecError::new(format!(
                 "Expected 1 value from const eval, got {}",
-                val.len()
+                val.logical_len()
             )));
         }
 
-        let val = val.scalar(0).unwrap(); // Len checked above.
+        let val = val.logical_value(0).unwrap(); // Len checked above.
 
         // Our brand new expression.
         *expr = Expression::Literal(LiteralExpr {

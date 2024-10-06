@@ -4,7 +4,6 @@ use std::{borrow::Cow, fmt};
 use rayexec_bullet::{
     array::{Array, Array2},
     batch::Batch,
-    bitmap::Bitmap,
     scalar::OwnedScalarValue,
 };
 use rayexec_error::{OptionExt, Result};
@@ -21,13 +20,6 @@ impl PhysicalLiteralExpr {
     pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
         let arr = self.literal.as_array(batch.num_rows())?;
         Ok(Cow::Owned(arr))
-    }
-
-    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
-        match selection {
-            Some(selection) => Ok(Arc::new(self.literal.as_array2(selection.count_trues()))),
-            None => Ok(Arc::new(self.literal.as_array2(batch.num_rows()))),
-        }
     }
 }
 

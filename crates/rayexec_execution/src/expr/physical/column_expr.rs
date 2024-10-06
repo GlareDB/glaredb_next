@@ -28,10 +28,6 @@ impl PhysicalColumnExpr {
 
         Ok(Cow::Borrowed(col))
     }
-
-    pub fn eval2(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array2>> {
-        unimplemented!()
-    }
 }
 
 impl fmt::Display for PhysicalColumnExpr {

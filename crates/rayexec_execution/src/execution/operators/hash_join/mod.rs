@@ -7,7 +7,7 @@ use condition::HashJoinCondition;
 use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
 use partition_hash_table::PartitionHashTable;
-use rayexec_bullet::{batch::Batch, datatype::DataType};
+use rayexec_bullet::{batch::Batch, datatype::DataType, executor::scalar::HashExecutor};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use std::{
     sync::Arc,
@@ -224,10 +224,10 @@ impl ExecutableOperator for PhysicalHashJoin {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
                 // Compute left hashes on equality condition.
-                let result = self.equality.left.eval2(&batch, None)?;
+                let result = self.equality.left.eval(&batch)?;
                 state.hash_buf.clear();
-                state.hash_buf.resize(result.len(), 0);
-                let hashes = AhashHasher::hash_arrays2(&[result.as_ref()], &mut state.hash_buf)?;
+                state.hash_buf.resize(result.logical_len(), 0);
+                let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
 
                 state
                     .local_hashtable
@@ -289,10 +289,10 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 // Compute right hashes on equality condition.
-                let result = self.equality.right.eval2(&batch, None)?;
+                let result = self.equality.right.eval(&batch)?;
                 state.hash_buf.clear();
-                state.hash_buf.resize(result.len(), 0);
-                let hashes = AhashHasher::hash_arrays2(&[result.as_ref()], &mut state.hash_buf)?;
+                state.hash_buf.resize(result.logical_len(), 0);
+                let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
 
