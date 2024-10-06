@@ -35,6 +35,9 @@ impl Batch {
         }
     }
 
+    /// Create a new batch from some number of arrays.
+    ///
+    /// All arrays should have the same logical length.
     pub fn try_new(cols: impl IntoIterator<Item = Array>) -> Result<Self> {
         let cols: Vec<_> = cols.into_iter().collect();
         let len = match cols.first() {
@@ -177,68 +180,11 @@ impl Batch {
         self.cols.len()
     }
 
-    pub fn num_columns2(&self) -> usize {
-        self.cols2.len()
-    }
-
     pub fn num_rows(&self) -> usize {
         self.num_rows
     }
 
     pub fn into_arrays(self) -> Vec<Array> {
         self.cols
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        array::{Int32Array, Utf8Array},
-        scalar::ScalarValue,
-    };
-
-    use super::*;
-
-    #[test]
-    fn get_row_simple() {
-        let batch = Batch::try_new2([
-            Array2::Int32(Int32Array::from_iter([1, 2, 3])),
-            Array2::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
-        ])
-        .unwrap();
-
-        // Expected rows at index 0, 1, and 2
-        let expected = [
-            ScalarRow::from_iter([ScalarValue::Int32(1), ScalarValue::Utf8("a".into())]),
-            ScalarRow::from_iter([ScalarValue::Int32(2), ScalarValue::Utf8("b".into())]),
-            ScalarRow::from_iter([ScalarValue::Int32(3), ScalarValue::Utf8("c".into())]),
-        ];
-
-        for idx in 0..3 {
-            let got = batch.row2(idx).unwrap();
-            assert_eq!(expected[idx], got);
-        }
-    }
-
-    #[test]
-    fn get_row_out_of_bounds() {
-        let batch = Batch::try_new2([
-            Array2::Int32(Int32Array::from_iter([1, 2, 3])),
-            Array2::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
-        ])
-        .unwrap();
-
-        let got = batch.row2(3);
-        assert_eq!(None, got);
-    }
-
-    #[test]
-    fn get_row_no_columns_non_zero_rows() {
-        let batch = Batch::empty_with_num_rows(3);
-
-        for idx in 0..3 {
-            let got = batch.row2(idx).unwrap();
-            assert_eq!(ScalarRow::empty(), got);
-        }
     }
 }

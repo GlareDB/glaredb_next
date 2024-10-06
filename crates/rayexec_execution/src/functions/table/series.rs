@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     database::DatabaseContext,
     storage::table_storage::{
@@ -6,7 +8,7 @@ use crate::{
 };
 use futures::future::BoxFuture;
 use rayexec_bullet::{
-    array::{Array2, Int64Array},
+    array::{Array, Array2, ArrayData, Int64Array},
     batch::Batch,
     datatype::DataType,
     field::{Field, Schema},
@@ -172,8 +174,9 @@ impl GenerateSeriesScan {
             self.curr = *last + self.step;
         }
 
-        let col = Array2::Int64(Int64Array::from(series));
-        let batch = Batch::try_new2([col]).expect("batch to be valid");
+        let col =
+            Array::new_with_array_data(DataType::Int64, ArrayData::Int64(Arc::new(series.into())));
+        let batch = Batch::try_new([col]).expect("batch to be valid");
 
         Some(batch)
     }

@@ -7,7 +7,6 @@ use crate::{
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
-use rayexec_error::OptionExt;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::{
@@ -136,7 +135,6 @@ impl WasmMaterializedResultTable {
             |arr, row| {
                 FORMATTER
                     .format_array_value(arr, row)
-                    .required("row to be in range")
                     .map(|v| v.to_string())
             },
             col,

@@ -1,6 +1,5 @@
 use crate::{
     bitmap::Bitmap,
-    compute::interleave::interleave,
     datatype::{DataType, ListTypeMeta},
     scalar::ScalarValue,
     storage::PrimitiveStorage,
@@ -89,20 +88,21 @@ where
             }
         }
 
-        let child = interleave(children, &indices)?;
+        unimplemented!()
+        // let child = interleave(children, &indices)?;
 
-        let mut offsets = Vec::with_capacity(len);
-        let mut offset = 0;
-        for _ in 0..len {
-            offsets.push(O::from_usize(offset));
-            offset += children.len();
-        }
-        offsets.push(O::from_usize(offset));
+        // let mut offsets = Vec::with_capacity(len);
+        // let mut offset = 0;
+        // for _ in 0..len {
+        //     offsets.push(O::from_usize(offset));
+        //     offset += children.len();
+        // }
+        // offsets.push(O::from_usize(offset));
 
-        // TODO: How do we want to handle validity here? If one of the inputs is
-        // a null array, mark it as invalid?
+        // // TODO: How do we want to handle validity here? If one of the inputs is
+        // // a null array, mark it as invalid?
 
-        Ok(Self::new(child, offsets, None))
+        // Ok(Self::new(child, offsets, None))
     }
 
     pub fn data_type(&self) -> DataType {

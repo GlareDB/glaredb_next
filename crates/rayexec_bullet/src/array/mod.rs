@@ -184,6 +184,23 @@ impl Array {
         self.validity.as_ref()
     }
 
+    pub fn is_valid(&self, idx: usize) -> Option<bool> {
+        if idx >= self.logical_len() {
+            return None;
+        }
+
+        let idx = match self.selection_vector() {
+            Some(v) => v.get(idx)?,
+            None => idx,
+        };
+
+        if let Some(validity) = &self.validity {
+            return Some(validity.value_unchecked(idx));
+        }
+
+        Some(true)
+    }
+
     pub fn array_data(&self) -> &ArrayData {
         &self.data
     }
@@ -566,6 +583,25 @@ where
         array.validity = Some(validity);
 
         array
+    }
+}
+
+impl FromIterator<String> for Array {
+    fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut german = GermanVarlenStorage::with_metadata_capacity(lower);
+
+        for s in iter {
+            german.try_push(s.as_str().as_bytes()).unwrap();
+        }
+
+        Array {
+            datatype: DataType::Utf8,
+            selection: None,
+            validity: None,
+            data: ArrayData::Binary(BinaryData::German(Arc::new(german))),
+        }
     }
 }
 

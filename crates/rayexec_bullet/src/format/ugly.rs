@@ -17,7 +17,7 @@ where
 
     for batch in batches.into_iter() {
         for idx in 0..batch.num_rows() {
-            for (col_idx, col) in batch.columns2().iter().enumerate() {
+            for (col_idx, col) in batch.columns().iter().enumerate() {
                 write!(
                     buf,
                     "{}\t ",
@@ -53,7 +53,7 @@ where
 
     for batch in batches.into_iter() {
         for idx in 0..batch.num_rows() {
-            for (col_idx, col) in batch.columns2().iter().enumerate() {
+            for (col_idx, col) in batch.columns().iter().enumerate() {
                 write!(
                     buf,
                     "{}\t ",
