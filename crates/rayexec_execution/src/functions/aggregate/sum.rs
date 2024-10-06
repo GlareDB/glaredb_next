@@ -5,7 +5,7 @@ use rayexec_bullet::{
     array::{Array2, Decimal128Array, Decimal64Array, PrimitiveArray},
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdate2},
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -161,7 +161,7 @@ impl SumInt64Impl {
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
         match &arrays[0] {
-            Array2::Int64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
+            Array2::Int64(arr) => UnaryNonNullUpdate2::update(row_selection, arr, mapping, states),
             other => panic!("unexpected array type: {other:?}"),
         }
     }
@@ -191,7 +191,7 @@ impl SumFloat64Impl {
     ) -> Result<()> {
         match &arrays[0] {
             Array2::Float64(arr) => {
-                UnaryNonNullUpdater::update(row_selection, arr, mapping, states)
+                UnaryNonNullUpdate2::update(row_selection, arr, mapping, states)
             }
             other => panic!("unexpected array type: {other:?}"),
         }
@@ -225,7 +225,7 @@ impl SumDecimal64Impl {
     ) -> Result<()> {
         match &arrays[0] {
             Array2::Decimal64(arr) => {
-                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
+                UnaryNonNullUpdate2::update(row_selection, arr.get_primitive(), mapping, states)
             }
             other => panic!("unexpected array type: {other:?}"),
         }
@@ -267,7 +267,7 @@ impl SumDecimal128Impl {
     ) -> Result<()> {
         match &arrays[0] {
             Array2::Decimal128(arr) => {
-                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
+                UnaryNonNullUpdate2::update(row_selection, arr.get_primitive(), mapping, states)
             }
             other => panic!("unexpected array type: {other:?}"),
         }

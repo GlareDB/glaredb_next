@@ -2,6 +2,7 @@ use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
+use rayexec_bullet::array::Array;
 use rayexec_bullet::{
     array::{Array2, PrimitiveArray},
     batch::Batch,
@@ -366,10 +367,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                         let row_count = shared.global_row_count as u64;
 
-                        let row_count_batch =
-                            Batch::try_new2([Array2::UInt64(PrimitiveArray::from_iter([
-                                row_count,
-                            ]))])?;
+                        let row_count_batch = Batch::try_new([Array::from_iter([row_count])])?;
 
                         return Ok(PollPull::Computed(row_count_batch.into()));
                     }

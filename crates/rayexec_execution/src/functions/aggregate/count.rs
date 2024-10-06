@@ -2,7 +2,7 @@ use rayexec_bullet::{
     array::{Array2, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdate2},
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
@@ -56,7 +56,7 @@ impl CountNonNullImpl {
         states: &mut [CountNonNullState],
     ) -> Result<()> {
         let unit_arr = UnitArrayAccessor::new(arrays[0]);
-        UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
+        UnaryNonNullUpdate2::update(row_selection, unit_arr, mapping, states)
     }
 
     fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array2> {

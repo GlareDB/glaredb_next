@@ -43,13 +43,13 @@ where
             (PhysicalType::BOOLEAN, DataType::Boolean) => data.into_array(self.datatype.clone(), def_levels),
             (PhysicalType::INT32, DataType::Int32) => data.into_array(self.datatype.clone(), def_levels),
             (PhysicalType::INT32, DataType::Date32) => data.into_array(self.datatype.clone(), def_levels),
-            (PhysicalType::INT32, DataType::Int64) => data.into_array(self.datatype.clone(), def_levels),
-            (PhysicalType::INT32, DataType::Decimal64(_)) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT64, DataType::Int64) => data.into_array(self.datatype.clone(), def_levels),
+            (PhysicalType::INT64, DataType::Decimal64(_)) => data.into_array(self.datatype.clone(), def_levels),
             (PhysicalType::INT64, DataType::Timestamp(_)) => data.into_array(self.datatype.clone(), def_levels),
             (PhysicalType::INT96, DataType::Timestamp(_)) => data.into_array(self.datatype.clone(), def_levels),
             (PhysicalType::FLOAT, DataType::Float32) => data.into_array(self.datatype.clone(), def_levels),
             (PhysicalType::DOUBLE, DataType::Float64) => data.into_array(self.datatype.clone(), def_levels),
-            (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parqet: {p_other}, bullet: {d_other}")))
+            (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parquet: {p_other}, bullet: {d_other}")))
         };
 
         Ok(arr)

@@ -187,7 +187,12 @@ impl RowGroupWriter {
 
     fn write(&mut self, batch: &Batch) -> Result<()> {
         for (writer, col) in self.column_writers.iter_mut().zip(batch.columns()) {
-            write_array(writer, col)?;
+            if col.has_selection() {
+                let unselected_array = col.unselect()?;
+                write_array(writer, &unselected_array)?;
+            } else {
+                write_array(writer, col)?;
+            }
         }
 
         self.num_rows += batch.num_rows();
