@@ -1,18 +1,16 @@
-use std::sync::Arc;
-
 use rayexec_bullet::{
-    array::{Array, Array2, VarlenArray, VarlenValuesBuffer},
+    array::Array,
     datatype::{DataType, DataTypeId},
     executor::{
         builder::{ArrayBuilder, GermanVarlenBuffer},
         physical_type::{PhysicalI64, PhysicalUtf8},
-        scalar::{BinaryExecutor, BinaryExecutor2, TernaryExecutor, TernaryExecutor2},
+        scalar::{BinaryExecutor, TernaryExecutor},
     },
 };
 use rayexec_error::{RayexecError, Result};
 
 use crate::functions::{
-    exec_invalid_array_type_err, invalid_input_types_error, plan_check_num_args_one_of,
+    invalid_input_types_error, plan_check_num_args_one_of,
     scalar::{PlannedScalarFunction, ScalarFunction},
     FunctionInfo, Signature,
 };

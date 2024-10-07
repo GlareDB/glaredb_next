@@ -1,15 +1,13 @@
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::{Array, Array2};
-use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
-use rayexec_bullet::executor::scalar::{BinaryExecutor, BinaryExecutor2};
+use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Repeat;

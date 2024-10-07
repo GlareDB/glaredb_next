@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::{
-    array::{validity::union_validities, Array, ArrayAccessor, ValuesBuffer},
+    array::Array,
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
@@ -11,7 +11,7 @@ use crate::{
     selection,
     storage::AddressableStorage,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::check_validity;
 
@@ -112,113 +112,5 @@ impl TernaryExecutor {
             validity: out_validity,
             data,
         })
-    }
-}
-
-/// Execute an operation on three arrays.
-#[derive(Debug, Clone, Copy)]
-pub struct TernaryExecutor2;
-
-impl TernaryExecutor2 {
-    pub fn execute<Array1, Type1, Iter1, Array2, Type2, Iter2, Array3, Type3, Iter3, Output>(
-        first: Array1,
-        second: Array2,
-        third: Array3,
-        mut operation: impl FnMut(Type1, Type2, Type3) -> Output,
-        buffer: &mut impl ValuesBuffer<Output>,
-    ) -> Result<Option<Bitmap>>
-    where
-        Output: Debug,
-        Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
-        Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
-        Array3: ArrayAccessor<Type3, ValueIter = Iter3>,
-        Iter1: Iterator<Item = Type1>,
-        Iter2: Iterator<Item = Type2>,
-        Iter3: Iterator<Item = Type3>,
-    {
-        if first.len() != second.len() || second.len() != third.len() {
-            return Err(RayexecError::new(format!(
-                "Differing lengths of arrays, got {}, {}, and {}",
-                first.len(),
-                second.len(),
-                third.len(),
-            )));
-        }
-
-        let validity = union_validities([first.validity(), second.validity(), third.validity()])?;
-
-        match &validity {
-            Some(validity) => {
-                for ((first, (second, third)), valid) in first
-                    .values_iter()
-                    .zip(second.values_iter().zip(third.values_iter()))
-                    .zip(validity.iter())
-                {
-                    if valid {
-                        let out = operation(first, second, third);
-                        buffer.push_value(out);
-                    } else {
-                        buffer.push_null();
-                    }
-                }
-            }
-            None => {
-                for (first, (second, third)) in first
-                    .values_iter()
-                    .zip(second.values_iter().zip(third.values_iter()))
-                {
-                    let out = operation(first, second, third);
-                    buffer.push_value(out);
-                }
-            }
-        }
-
-        Ok(validity)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use crate::{
-        datatype::DataType,
-        executor::{
-            builder::GermanVarlenBuffer,
-            physical_type::{PhysicalI32, PhysicalUtf8},
-        },
-        scalar::ScalarValue,
-    };
-
-    #[test]
-    fn ternary_substr() {
-        let first = Array::from_iter(["alphabet", "horse", "cat"]);
-        let second = Array::from_iter([3, 1, 2]);
-        let third = Array::from_iter([2, 3, 1]);
-
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(3),
-        };
-
-        let got = TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalI32, _, _>(
-            &first,
-            &second,
-            &third,
-            builder,
-            |s: &str, from: i32, count: i32, buf: &mut OutputBuffer<_>| {
-                let s = s
-                    .chars()
-                    .skip((from - 1) as usize) // To match postgres' 1-indexing
-                    .take(count as usize)
-                    .collect::<String>();
-                buf.put(s.as_str())
-            },
-        )
-        .unwrap();
-
-        assert_eq!(ScalarValue::from("ph"), got.physical_scalar(0).unwrap());
-        assert_eq!(ScalarValue::from("hor"), got.physical_scalar(1).unwrap());
-        assert_eq!(ScalarValue::from("a"), got.physical_scalar(2).unwrap());
     }
 }

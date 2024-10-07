@@ -167,6 +167,7 @@ impl<'a> ScalarValue<'a> {
         }
     }
 
+    /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
         let data: ArrayData = match self {
             Self::Null => UntypedNullStorage(1).into(),
@@ -198,80 +199,6 @@ impl<'a> ScalarValue<'a> {
         array.selection = Some(SelectionVector::repeated(n, 0).into());
 
         Ok(array)
-    }
-
-    /// Create an array of size `n` using the scalar value.
-    pub fn as_array2(&self, n: usize) -> Array2 {
-        match self {
-            Self::Null => Array2::Null(NullArray::new(n)),
-            Self::Boolean(v) => {
-                Array2::Boolean(BooleanArray::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Float32(v) => {
-                Array2::Float32(Float32Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Float64(v) => {
-                Array2::Float64(Float64Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Int8(v) => Array2::Int8(Int8Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int16(v) => Array2::Int16(Int16Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int32(v) => Array2::Int32(Int32Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int64(v) => Array2::Int64(Int64Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int128(v) => {
-                Array2::Int128(Int128Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::UInt8(v) => Array2::UInt8(UInt8Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt16(v) => {
-                Array2::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::UInt32(v) => {
-                Array2::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::UInt64(v) => {
-                Array2::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::UInt128(v) => {
-                Array2::UInt128(UInt128Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Decimal64(v) => {
-                let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array2::Decimal64(Decimal64Array::new(v.precision, v.scale, primitive))
-            }
-            Self::Decimal128(v) => {
-                let primitive = Int128Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array2::Decimal128(Decimal128Array::new(v.precision, v.scale, primitive))
-            }
-            Self::Date32(v) => {
-                Array2::Date32(Date32Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Date64(v) => {
-                Array2::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Timestamp(v) => {
-                let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array2::Timestamp(TimestampArray::new(v.unit, primitive))
-            }
-            Self::Interval(v) => {
-                Array2::Interval(IntervalArray::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Utf8(v) => {
-                Array2::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
-            }
-            Self::Binary(v) => Array2::Binary(BinaryArray::from_iter(
-                std::iter::repeat(v.as_ref()).take(n),
-            )),
-            Self::Struct(_) => unimplemented!("struct into array"),
-            Self::List(v) => {
-                let children: Vec<_> = v.iter().map(|v| v.as_array2(n)).collect();
-                let refs: Vec<_> = children.iter().collect();
-                let array = if refs.is_empty() {
-                    ListArray::new_empty_with_n_rows(n)
-                } else {
-                    ListArray::try_from_children(&refs).expect("list array to build")
-                };
-                Array2::List(array)
-            }
-        }
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {

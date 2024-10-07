@@ -1,9 +1,5 @@
 use crate::{
-    array::{
-        Array, Array2, ArrayAccessor, ArrayData, BooleanArray, BooleanValuesBuffer,
-        Decimal128Array, Decimal64Array, DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer,
-        VarlenArray, VarlenValuesBuffer,
-    },
+    array::{Array, ArrayData},
     bitmap::Bitmap,
     datatype::{DataType, TimeUnit},
     executor::{
@@ -13,9 +9,9 @@ use crate::{
             PhysicalI64, PhysicalI8, PhysicalStorage, PhysicalU128, PhysicalU16, PhysicalU32,
             PhysicalU64, PhysicalU8, PhysicalUtf8,
         },
-        scalar::{UnaryExecutor, UnaryExecutor2},
+        scalar::UnaryExecutor,
     },
-    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalPrimitive, DecimalType},
+    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
     storage::{AddressableStorage, PrimitiveStorage},
 };
 use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};

@@ -3,18 +3,15 @@
 mod unary;
 pub use unary::*;
 
-mod binary;
-pub use binary::*;
-
 use rayexec_error::Result;
 use std::{borrow::Borrow, fmt::Debug};
 
 use crate::{
     array::{
         validity::{self, union_validities},
-        Array, ArrayAccessor, ValuesBuffer,
+        Array,
     },
-    bitmap::{zip::ZipBitmapsIter, Bitmap},
+    bitmap::Bitmap,
 };
 
 use super::builder::{ArrayBuilder, ArrayDataBuffer};
