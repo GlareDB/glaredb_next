@@ -148,10 +148,6 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// Return type of the function.
     fn return_type(&self) -> DataType;
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        unimplemented!()
-    }
-
     /// Execution the function array inputs.
     ///
     /// For functions that accept no input (e.g. random), an array of length one

@@ -149,44 +149,6 @@ impl PlannedScalarFunction for RemImpl {
         self.datatype.clone()
     }
 
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array2::Int8(first), Array2::Int8(second)) => {
-                primitive_binary_execute!(first, second, Int8, |a, b| a % b)
-            }
-            (Array2::Int16(first), Array2::Int16(second)) => {
-                primitive_binary_execute!(first, second, Int16, |a, b| a % b)
-            }
-            (Array2::Int32(first), Array2::Int32(second)) => {
-                primitive_binary_execute!(first, second, Int32, |a, b| a % b)
-            }
-            (Array2::Int64(first), Array2::Int64(second)) => {
-                primitive_binary_execute!(first, second, Int64, |a, b| a % b)
-            }
-            (Array2::UInt8(first), Array2::UInt8(second)) => {
-                primitive_binary_execute!(first, second, UInt8, |a, b| a % b)
-            }
-            (Array2::UInt16(first), Array2::UInt16(second)) => {
-                primitive_binary_execute!(first, second, UInt16, |a, b| a % b)
-            }
-            (Array2::UInt32(first), Array2::UInt32(second)) => {
-                primitive_binary_execute!(first, second, UInt32, |a, b| a % b)
-            }
-            (Array2::UInt64(first), Array2::UInt64(second)) => {
-                primitive_binary_execute!(first, second, UInt64, |a, b| a % b)
-            }
-            (Array2::Float32(first), Array2::Float32(second)) => {
-                primitive_binary_execute!(first, second, Float32, |a, b| a % b)
-            }
-            (Array2::Float64(first), Array2::Float64(second)) => {
-                primitive_binary_execute!(first, second, Float64, |a, b| a % b)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
-    }
-
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
@@ -325,15 +287,15 @@ mod tests {
 
     #[test]
     fn rem_i32() {
-        let a = Arc::new(Array2::Int32(Int32Array::from_iter([4, 5, 6])));
-        let b = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let a = Array::from_iter([4, 5, 6]);
+        let b = Array::from_iter([1, 2, 3]);
 
         let specialized = Rem
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::Int32(Int32Array::from_iter([0, 1, 0]));
+        let out = specialized.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([0, 1, 0]);
 
         assert_eq!(expected, out);
     }

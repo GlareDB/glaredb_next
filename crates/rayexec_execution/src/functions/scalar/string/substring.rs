@@ -85,46 +85,6 @@ impl PlannedScalarFunction for SubstringImpl {
         DataType::Utf8
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        if inputs.len() == 2 {
-            let strings = match inputs[0].as_ref() {
-                Array2::Utf8(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let from = match inputs[1].as_ref() {
-                Array2::Int64(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let mut values = VarlenValuesBuffer::<i32>::default();
-            let validity = BinaryExecutor2::execute(strings, from, substring_from, &mut values)?;
-
-            Ok(Array2::Utf8(VarlenArray::new(values, validity)))
-        } else {
-            let strings = match inputs[0].as_ref() {
-                Array2::Utf8(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let from = match inputs[1].as_ref() {
-                Array2::Int64(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let count = match inputs[2].as_ref() {
-                Array2::Int64(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let mut values = VarlenValuesBuffer::<i32>::default();
-            let validity =
-                TernaryExecutor2::execute(strings, from, count, substring_from_count, &mut values)?;
-
-            Ok(Array2::Utf8(VarlenArray::new(values, validity)))
-        }
-    }
-
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         // TODO: Capacity
         // TODO: Also would be possible to use the same underlying storage.

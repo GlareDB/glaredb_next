@@ -152,74 +152,6 @@ impl PlannedScalarFunction for SubImpl {
         self.datatype.clone()
     }
 
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array2::Int8(first), Array2::Int8(second)) => {
-                primitive_binary_execute!(first, second, Int8, |a, b| a - b)
-            }
-            (Array2::Int16(first), Array2::Int16(second)) => {
-                primitive_binary_execute!(first, second, Int16, |a, b| a - b)
-            }
-            (Array2::Int32(first), Array2::Int32(second)) => {
-                primitive_binary_execute!(first, second, Int32, |a, b| a - b)
-            }
-            (Array2::Int64(first), Array2::Int64(second)) => {
-                primitive_binary_execute!(first, second, Int64, |a, b| a - b)
-            }
-            (Array2::UInt8(first), Array2::UInt8(second)) => {
-                primitive_binary_execute!(first, second, UInt8, |a, b| a - b)
-            }
-            (Array2::UInt16(first), Array2::UInt16(second)) => {
-                primitive_binary_execute!(first, second, UInt16, |a, b| a - b)
-            }
-            (Array2::UInt32(first), Array2::UInt32(second)) => {
-                primitive_binary_execute!(first, second, UInt32, |a, b| a - b)
-            }
-            (Array2::UInt64(first), Array2::UInt64(second)) => {
-                primitive_binary_execute!(first, second, UInt64, |a, b| a - b)
-            }
-            (Array2::Float32(first), Array2::Float32(second)) => {
-                primitive_binary_execute!(first, second, Float32, |a, b| a - b)
-            }
-            (Array2::Float64(first), Array2::Float64(second)) => {
-                primitive_binary_execute!(first, second, Float64, |a, b| a - b)
-            }
-            (Array2::Decimal64(first), Array2::Decimal64(second)) => {
-                // TODO: Scale
-                Decimal64Array::new(
-                    first.precision(),
-                    first.scale(),
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| a - b
-                    ),
-                )
-                .into()
-            }
-            (Array2::Decimal128(first), Array2::Decimal128(second)) => {
-                // TODO: Scale
-                Decimal128Array::new(
-                    first.precision(),
-                    first.scale(),
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| a - b
-                    ),
-                )
-                .into()
-            }
-            (Array2::Date32(first), Array2::Int64(second)) => {
-                // Date32 is stored as "days", so just sub the values.
-                primitive_binary_execute!(first, second, Date32, |a, b| a - b as i32)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
-    }
-
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
@@ -374,12 +306,7 @@ impl PlannedScalarFunction for SubImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use rayexec_bullet::{
-        array::{Array2, Int32Array},
-        datatype::DataType,
-    };
+    use rayexec_bullet::datatype::DataType;
 
     use crate::functions::scalar::ScalarFunction;
 
@@ -387,15 +314,15 @@ mod tests {
 
     #[test]
     fn sub_i32() {
-        let a = Arc::new(Array2::Int32(Int32Array::from_iter([4, 5, 6])));
-        let b = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let a = Array::from_iter([4, 5, 6]);
+        let b = Array::from_iter([1, 2, 3]);
 
         let specialized = Sub
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::Int32(Int32Array::from_iter([3, 3, 3]));
+        let out = specialized.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([3, 3, 3]);
 
         assert_eq!(expected, out);
     }

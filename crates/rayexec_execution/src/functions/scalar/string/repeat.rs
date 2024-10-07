@@ -66,34 +66,6 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
         DataType::Utf8
     }
 
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let strings = arrays[0];
-        let nums = arrays[1];
-        Ok(match (strings.as_ref(), nums.as_ref()) {
-            (Array2::Utf8(strings), Array2::Int64(nums)) => {
-                let mut buffer = VarlenValuesBuffer::default();
-                let validity = BinaryExecutor2::execute(
-                    strings,
-                    nums,
-                    |s, count| s.repeat(count as usize),
-                    &mut buffer,
-                )?;
-                Array2::Utf8(VarlenArray::new(buffer, validity))
-            }
-            (Array2::LargeUtf8(strings), Array2::Int64(nums)) => {
-                let mut buffer = VarlenValuesBuffer::default();
-                let validity = BinaryExecutor2::execute(
-                    strings,
-                    nums,
-                    |s, count| s.repeat(count as usize),
-                    &mut buffer,
-                )?;
-                Array2::LargeUtf8(VarlenArray::new(buffer, validity))
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
-    }
-
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let strings = inputs[0];
         let nums = inputs[1];

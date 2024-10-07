@@ -177,92 +177,6 @@ impl PlannedScalarFunction for MulImpl {
         self.datatype.clone()
     }
 
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array2::Int8(first), Array2::Int8(second)) => {
-                primitive_binary_execute!(first, second, Int8, |a, b| a * b)
-            }
-            (Array2::Int16(first), Array2::Int16(second)) => {
-                primitive_binary_execute!(first, second, Int16, |a, b| a * b)
-            }
-            (Array2::Int32(first), Array2::Int32(second)) => {
-                primitive_binary_execute!(first, second, Int32, |a, b| a * b)
-            }
-            (Array2::Int64(first), Array2::Int64(second)) => {
-                primitive_binary_execute!(first, second, Int64, |a, b| a * b)
-            }
-            (Array2::UInt8(first), Array2::UInt8(second)) => {
-                primitive_binary_execute!(first, second, UInt8, |a, b| a * b)
-            }
-            (Array2::UInt16(first), Array2::UInt16(second)) => {
-                primitive_binary_execute!(first, second, UInt16, |a, b| a * b)
-            }
-            (Array2::UInt32(first), Array2::UInt32(second)) => {
-                primitive_binary_execute!(first, second, UInt32, |a, b| a * b)
-            }
-            (Array2::UInt64(first), Array2::UInt64(second)) => {
-                primitive_binary_execute!(first, second, UInt64, |a, b| a * b)
-            }
-            (Array2::Float32(first), Array2::Float32(second)) => {
-                primitive_binary_execute!(first, second, Float32, |a, b| a * b)
-            }
-            (Array2::Float64(first), Array2::Float64(second)) => {
-                primitive_binary_execute!(first, second, Float64, |a, b| a * b)
-            }
-            (Array2::Decimal64(first), Array2::Decimal64(second)) => {
-                let meta = self.datatype.try_get_decimal_type_meta()?;
-                Decimal64Array::new(
-                    meta.precision,
-                    meta.scale,
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| {
-                            a.checked_mul(b).unwrap_or(0) // TODO
-                        }
-                    ),
-                )
-                .into()
-            }
-            (Array2::Decimal128(first), Array2::Decimal128(second)) => {
-                let meta = self.datatype.try_get_decimal_type_meta()?;
-                Decimal128Array::new(
-                    meta.precision,
-                    meta.scale,
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| {
-                            a.checked_mul(b).unwrap_or(0) // TODO
-                        }
-                    ),
-                )
-                .into()
-            }
-            (Array2::Interval(first), Array2::Int32(second)) => {
-                primitive_binary_execute!(first, second, Interval, |a, b| {
-                    Interval {
-                        months: a.months * b,
-                        days: a.days * b,
-                        nanos: a.nanos * b as i64,
-                    }
-                })
-            }
-            (Array2::Interval(first), Array2::Int64(second)) => {
-                primitive_binary_execute!(first, second, Interval, |a, b| {
-                    Interval {
-                        months: a.months * (b as i32),
-                        days: a.days * (b as i32),
-                        nanos: a.nanos * b,
-                    }
-                })
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
-    }
-
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
@@ -425,12 +339,7 @@ impl PlannedScalarFunction for MulImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use rayexec_bullet::{
-        array::{Array2, Int32Array},
-        datatype::DataType,
-    };
+    use rayexec_bullet::datatype::DataType;
 
     use crate::functions::scalar::ScalarFunction;
 
@@ -438,15 +347,15 @@ mod tests {
 
     #[test]
     fn mul_i32() {
-        let a = Arc::new(Array2::Int32(Int32Array::from_iter([4, 5, 6])));
-        let b = Arc::new(Array2::Int32(Int32Array::from_iter([1, 2, 3])));
+        let a = Array::from_iter([4, 5, 6]);
+        let b = Array::from_iter([1, 2, 3]);
 
         let specialized = Mul
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
-        let out = specialized.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::Int32(Int32Array::from_iter([4, 10, 18]));
+        let out = specialized.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([4, 10, 18]);
 
         assert_eq!(expected, out);
     }

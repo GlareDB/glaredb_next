@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::Array2,
-    compute::date::{self, ExtractDatePart},
+    array::{Array, Array2},
+    compute::date::{self, extract_date_part},
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
     scalar::decimal::{Decimal64Type, DecimalType},
 };
@@ -12,7 +12,7 @@ use rayexec_parser::ast;
 use crate::{
     expr::Expression,
     functions::{
-        exec_invalid_array_type_err, invalid_input_types_error, plan_check_num_args,
+        invalid_input_types_error, plan_check_num_args,
         scalar::{PlannedScalarFunction, ScalarFunction},
         FunctionInfo, Signature,
     },
@@ -109,17 +109,9 @@ impl PlannedScalarFunction for DatePartImpl {
         ))
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         // First input ignored (the constant "part" to extract)
-
-        let dec_arr = match inputs[1].as_ref() {
-            Array2::Date32(arr) => arr.extract_date_part(self.part)?,
-            Array2::Date64(arr) => arr.extract_date_part(self.part)?,
-            Array2::Timestamp(arr) => arr.extract_date_part(self.part)?,
-            other => return Err(exec_invalid_array_type_err(self, other)),
-        };
-
-        Ok(Array2::Decimal64(dec_arr))
+        extract_date_part(self.part, inputs[1])
     }
 }
 
