@@ -24,7 +24,7 @@ impl SelectExecutor {
                 let values = PhysicalBool::get_storage(&bool_array.data)?;
 
                 for idx in 0..len {
-                    if validity.value_unchecked(idx) {
+                    if !validity.value_unchecked(idx) {
                         continue;
                     }
 
@@ -66,6 +66,17 @@ mod tests {
         SelectExecutor::select(&arr, &mut selection).unwrap();
 
         let expected = SelectionVector::from_iter([1, 2, 4]);
+        assert_eq!(selection, expected)
+    }
+
+    #[test]
+    fn select_with_nulls() {
+        let arr = Array::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
+        let mut selection = SelectionVector::with_capacity(5);
+
+        SelectExecutor::select(&arr, &mut selection).unwrap();
+
+        let expected = SelectionVector::from_iter([1, 4]);
         assert_eq!(selection, expected)
     }
 
