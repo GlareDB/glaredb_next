@@ -1,5 +1,9 @@
 # list_values function
 
+# TODO: Add back list functions
+# <https://github.com/GlareDB/rayexec/issues/276>
+halt
+
 query ?
 select list_values();
 ----
