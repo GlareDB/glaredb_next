@@ -71,12 +71,18 @@ pub struct Array {
 
 impl Array {
     pub fn new_untyped_null_array(len: usize) -> Self {
-        let data = UntypedNullStorage(len);
+        // Note that we're adding a bitmap here even though the data already
+        // returns NULL. This allows the executors (especially for aggregates)
+        // to solely look at the bitmap to determine if a row should executed
+        // on.
+        let validity = Bitmap::new_with_all_false(1);
+        let selection = SelectionVector::repeated(len, 0);
+        let data = UntypedNullStorage(1);
 
         Array {
             datatype: DataType::Null,
-            selection: None,
-            validity: None,
+            selection: Some(selection.into()),
+            validity: Some(validity),
             data: data.into(),
         }
     }

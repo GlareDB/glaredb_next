@@ -2,9 +2,7 @@ pub mod decimal;
 pub mod interval;
 pub mod timestamp;
 
-use crate::array::{
-    Array, ArrayData,
-};
+use crate::array::{Array, ArrayData};
 use crate::bitmap::Bitmap;
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
@@ -167,7 +165,7 @@ impl<'a> ScalarValue<'a> {
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
         let data: ArrayData = match self {
-            Self::Null => UntypedNullStorage(1).into(),
+            Self::Null => return Ok(Array::new_untyped_null_array(n)),
             Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
             Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
