@@ -14,11 +14,7 @@ use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    datatype::DataType,
-};
+use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType};
 use rayexec_error::{not_implemented, OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
@@ -184,5 +180,56 @@ impl DatabaseProtoConv for PhysicalSortExpression {
             desc: proto.desc,
             nulls_first: proto.nulls_first,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::functions::scalar::comparison::GtImpl;
+
+    use super::*;
+
+    #[test]
+    fn select_some() {
+        let batch = Batch::try_new([
+            Array::from_iter([1, 4, 6, 9, 12]),
+            Array::from_iter([2, 3, 8, 9, 10]),
+        ])
+        .unwrap();
+
+        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+            function: Box::new(GtImpl),
+            inputs: vec![
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+            ],
+        });
+
+        let selection = expr.select(&batch).unwrap();
+        let expected = SelectionVector::from_iter([1, 4]);
+
+        assert_eq!(expected, selection)
+    }
+
+    #[test]
+    fn select_none() {
+        let batch = Batch::try_new([
+            Array::from_iter([1, 2, 6, 9, 9]),
+            Array::from_iter([2, 3, 8, 9, 10]),
+        ])
+        .unwrap();
+
+        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+            function: Box::new(GtImpl),
+            inputs: vec![
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+            ],
+        });
+
+        let selection = expr.select(&batch).unwrap();
+        let expected = SelectionVector::empty();
+
+        assert_eq!(expected, selection)
     }
 }

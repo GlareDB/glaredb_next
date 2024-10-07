@@ -166,6 +166,8 @@ impl Array {
                 for input_loc in input_sel.iter_locations() {
                     new_sel.push_location(existing.get_unchecked(input_loc));
                 }
+
+                self.selection = Some(new_sel.into())
             }
             None => {
                 // No existing selection, we can just use the provided vector
@@ -861,49 +863,58 @@ mod tests {
 
     use super::*;
 
-    fn datatypes() -> Vec<DataType> {
-        vec![
-            DataType::Null,
-            DataType::Boolean,
-            DataType::Int8,
-            DataType::Int16,
-            DataType::Int32,
-            DataType::Int64,
-            DataType::Int128,
-            DataType::UInt8,
-            DataType::UInt16,
-            DataType::UInt32,
-            DataType::UInt64,
-            DataType::UInt128,
-            DataType::Float32,
-            DataType::Float64,
-            DataType::Decimal64(DecimalTypeMeta::new(18, 9)),
-            DataType::Decimal128(DecimalTypeMeta::new(38, 9)),
-            DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Millisecond)),
-            DataType::Date32,
-            DataType::Date64,
-            DataType::Interval,
-            DataType::Utf8,
-            DataType::LargeUtf8,
-            DataType::Binary,
-            DataType::LargeBinary,
-            // TODO: Struct, list
-        ]
+    #[test]
+    fn select_mut_no_change() {
+        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let selection = SelectionVector::with_range(0..3);
+
+        arr.select_mut(&selection.into());
+
+        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from("c"), arr.logical_value(2).unwrap());
     }
 
-    // #[test]
-    // fn new_nulls_empty() {
-    //     for datatype in datatypes() {
-    //         let arr = Array2::new_nulls(&datatype, 0);
-    //         assert_eq!(0, arr.len(), "datatype: {datatype}");
-    //     }
-    // }
+    #[test]
+    fn select_mut_prune_rows() {
+        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let selection = SelectionVector::from_iter([0, 2]);
 
-    // #[test]
-    // fn new_nulls_not_empty() {
-    //     for datatype in datatypes() {
-    //         let arr = Array2::new_nulls(&datatype, 3);
-    //         assert_eq!(3, arr.len(), "datatype: {datatype}");
-    //     }
-    // }
+        arr.select_mut(&selection.into());
+
+        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
+        assert!(arr.logical_value(2).is_err());
+    }
+
+    #[test]
+    fn select_mut_expand_rows() {
+        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let selection = SelectionVector::from_iter([0, 1, 1, 2]);
+
+        arr.select_mut(&selection.into());
+
+        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from("b"), arr.logical_value(2).unwrap());
+        assert_eq!(ScalarValue::from("c"), arr.logical_value(3).unwrap());
+        assert!(arr.logical_value(4).is_err());
+    }
+
+    #[test]
+    fn select_mut_existing_selection() {
+        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let selection = SelectionVector::from_iter([0, 2]);
+
+        // => ["a", "c"]
+        arr.select_mut(&selection.into());
+
+        let selection = SelectionVector::from_iter([1, 1, 0]);
+        arr.select_mut(&selection.into());
+
+        assert_eq!(ScalarValue::from("c"), arr.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from("a"), arr.logical_value(2).unwrap());
+        assert!(arr.logical_value(3).is_err());
+    }
 }
