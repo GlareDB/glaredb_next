@@ -258,7 +258,10 @@ where
     <S::Storage as AddressableStorage>::T: Float,
     ArrayData: From<PrimitiveStorage<D::Primitive>>,
 {
-    let scale = to.try_get_decimal_type_meta()?.scale;
+    let decimal_meta = to.try_get_decimal_type_meta()?;
+    let scale = decimal_meta.scale;
+    let precision = decimal_meta.precision;
+
     let scale = <<S::Storage as AddressableStorage>::T as NumCast>::from(
         10.pow(scale.unsigned_abs() as u32),
     )
@@ -276,7 +279,13 @@ where
             let scaled_value = v.mul(scale).round();
 
             match <D::Primitive as NumCast>::from(scaled_value) {
-                Some(v) => buf.put(&v),
+                Some(v) => {
+                    if let Err(err) = D::validate_precision(v, precision) {
+                        fail_state.set_did_fail_with_error(buf.idx, err);
+                        return;
+                    }
+                    buf.put(&v)
+                }
                 None => fail_state.set_did_fail(buf.idx),
             }
         },
@@ -351,7 +360,10 @@ where
     <S::Storage as AddressableStorage>::T: PrimInt,
     ArrayData: From<PrimitiveStorage<D::Primitive>>,
 {
-    let scale = to.try_get_decimal_type_meta()?.scale;
+    let decimal_meta = to.try_get_decimal_type_meta()?;
+    let scale = decimal_meta.scale;
+    let precision = decimal_meta.precision;
+
     let scale_amount = <D::Primitive as NumCast>::from(10.pow(scale.unsigned_abs() as u32))
         .expect("to be in range");
 
@@ -373,17 +385,30 @@ where
             };
 
             // Scale.
-            if scale > 0 {
+            let val = if scale > 0 {
                 match v.checked_mul(&scale_amount) {
-                    Some(v) => buf.put(&v),
-                    None => fail_state.set_did_fail(buf.idx),
+                    Some(v) => v,
+                    None => {
+                        fail_state.set_did_fail(buf.idx);
+                        return;
+                    }
                 }
             } else {
                 match v.checked_div(&scale_amount) {
-                    Some(v) => buf.put(&v),
-                    None => fail_state.set_did_fail(buf.idx),
+                    Some(v) => v,
+                    None => {
+                        fail_state.set_did_fail(buf.idx);
+                        return;
+                    }
                 }
+            };
+
+            if let Err(err) = D::validate_precision(val, precision) {
+                fail_state.set_did_fail_with_error(buf.idx, err);
+                return;
             }
+
+            buf.put(&val);
         },
     )?;
 
