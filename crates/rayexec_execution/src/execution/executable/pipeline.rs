@@ -375,7 +375,7 @@ impl ExecutablePartitionPipeline {
 
                             // We got results, increment operator index to push
                             // it into the next operator.
-                            operator.profile_data.rows_emitted += batch.num_columns(); // TODO: We should have something to indicate materialized vs not.
+                            operator.profile_data.rows_emitted += batch.num_rows(); // TODO: We should have something to indicate materialized vs not.
                             *state = PipelinePartitionState::PushTo {
                                 batch,
                                 operator_idx: *operator_idx + 1,
