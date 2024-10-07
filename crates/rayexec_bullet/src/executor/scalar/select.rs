@@ -24,11 +24,11 @@ impl SelectExecutor {
                 let values = PhysicalBool::get_storage(&bool_array.data)?;
 
                 for idx in 0..len {
-                    if !validity.value_unchecked(idx) {
+                    let sel = selection::get_unchecked(selection, idx);
+                    if !validity.value_unchecked(sel) {
                         continue;
                     }
 
-                    let sel = selection::get_unchecked(selection, idx);
                     let val = unsafe { values.get_unchecked(sel) };
 
                     if val {
@@ -77,6 +77,19 @@ mod tests {
         SelectExecutor::select(&arr, &mut selection).unwrap();
 
         let expected = SelectionVector::from_iter([1, 4]);
+        assert_eq!(selection, expected)
+    }
+
+    #[test]
+    fn select_with_selection() {
+        let mut arr = Array::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
+        // => [NULL, false, true]
+        arr.select_mut(&SelectionVector::from_iter([2, 3, 4]).into());
+
+        let mut selection = SelectionVector::with_capacity(3);
+        SelectExecutor::select(&arr, &mut selection).unwrap();
+
+        let expected = SelectionVector::from_iter([2]);
         assert_eq!(selection, expected)
     }
 

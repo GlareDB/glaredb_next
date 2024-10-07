@@ -17,7 +17,7 @@ select concat('a', 'b');
 ----
 ab
 
-query T
+query T rowsort
 select concat(a, b) from (values ('mario', 'luigi'), ('peach', 'yoshi')) v(a, b);
 ----
 marioluigi
