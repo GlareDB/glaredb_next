@@ -23,6 +23,12 @@ use std::sync::Arc;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 
+use rayexec_bullet::executor::physical_type::{
+    PhysicalBinary, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64,
+    PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32,
+    PhysicalU64, PhysicalU8, PhysicalUtf8,
+};
+
 use super::FunctionInfo;
 
 // List of all scalar functions.
