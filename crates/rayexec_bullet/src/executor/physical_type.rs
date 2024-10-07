@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use rayexec_error::{RayexecError, Result};
 
 use crate::{
@@ -57,29 +59,39 @@ impl PhysicalType {
     }
 }
 
-pub trait VarlenType {
+pub trait VarlenType: Debug + PartialEq + Eq {
+    type Owned: Debug + Default + PartialEq + Eq;
+
     fn as_bytes(&self) -> &[u8];
 }
 
 impl VarlenType for str {
+    type Owned = String;
+
     fn as_bytes(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
 impl VarlenType for [u8] {
+    type Owned = Vec<u8>;
+
     fn as_bytes(&self) -> &[u8] {
         self
     }
 }
 
 impl VarlenType for &str {
+    type Owned = String;
+
     fn as_bytes(&self) -> &[u8] {
         (*self).as_bytes()
     }
 }
 
 impl VarlenType for &[u8] {
+    type Owned = Vec<u8>;
+
     fn as_bytes(&self) -> &[u8] {
         self
     }
@@ -90,6 +102,43 @@ pub trait PhysicalStorage<'a> {
     type Storage: AddressableStorage;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage>;
+}
+
+/// Type that's able to be used for any physical type.
+///
+/// While this allows any array type to used in the executors, there's no way to
+/// actually get the underlying values. This is useful if the values aren't
+/// actually needed (e.g. COUNT(*)).
+pub struct PhysicalAny;
+
+impl<'a> PhysicalStorage<'a> for PhysicalAny {
+    type Storage = UnitStorage;
+
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
+        Ok(UnitStorage(data.len()))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct UnitStorage(usize);
+
+impl AddressableStorage for UnitStorage {
+    type T = ();
+
+    fn len(&self) -> usize {
+        self.0
+    }
+
+    fn get(&self, idx: usize) -> Option<Self::T> {
+        if idx >= self.0 {
+            return None;
+        }
+        Some(())
+    }
+
+    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
+        self.get(idx).unwrap()
+    }
 }
 
 pub struct PhysicalUntypedNull;

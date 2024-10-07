@@ -7,10 +7,17 @@ pub mod sum;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::array::{Array, Array2};
+use rayexec_bullet::array::{Array, Array2, ArrayData};
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::aggregate::{AggregateState, RowToStateMapping, StateCombiner};
+use rayexec_bullet::executor::aggregate::{
+    AggregateState, RowToStateMapping, StateCombiner, StateFinalizer, UnaryNonNullUpdater,
+};
+use rayexec_bullet::executor::builder::{
+    ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
+};
+use rayexec_bullet::executor::physical_type::PhysicalStorage;
+use rayexec_bullet::storage::{AddressableStorage, GermanVarlenStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
 use std::hash::Hash;
@@ -279,6 +286,55 @@ where
             .field("states", &self.states)
             .finish_non_exhaustive()
     }
+}
+
+pub fn unary_update<State, Storage, Output>(
+    arrays: &[&Array],
+    mapping: &[RowToStateMapping],
+    states: &mut [State],
+) -> Result<()>
+where
+    Storage: for<'a> PhysicalStorage<'a>,
+    State: for<'a> AggregateState<
+        <<Storage as PhysicalStorage<'a>>::Storage as AddressableStorage>::T,
+        Output,
+    >,
+{
+    UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping.iter().copied(), states)
+}
+
+pub fn untyped_null_finalize<State>(states: vec::Drain<State>) -> Result<Array> {
+    Ok(Array::new_untyped_null_array(states.len()))
+}
+
+pub fn boolean_finalize<State, Input>(
+    datatype: DataType,
+    states: vec::Drain<State>,
+) -> Result<Array>
+where
+    State: AggregateState<Input, bool>,
+{
+    let builder = ArrayBuilder {
+        datatype,
+        buffer: BooleanBuffer::with_len(states.len()),
+    };
+    StateFinalizer::finalize(states, builder)
+}
+
+pub fn primitive_finalize<State, Input, Output>(
+    datatype: DataType,
+    states: vec::Drain<State>,
+) -> Result<Array>
+where
+    State: AggregateState<Input, Output>,
+    Output: Copy + Default,
+    ArrayData: From<PrimitiveStorage<Output>>,
+{
+    let builder = ArrayBuilder {
+        datatype,
+        buffer: PrimitiveBuffer::with_len(states.len()),
+    };
+    StateFinalizer::finalize(states, builder)
 }
 
 /// Helper to drain from multiple states at a time.

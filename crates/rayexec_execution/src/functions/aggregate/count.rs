@@ -1,8 +1,11 @@
 use rayexec_bullet::{
-    array::{Array2, PrimitiveArray, UnitArrayAccessor},
-    bitmap::Bitmap,
+    array::Array,
     datatype::{DataType, DataTypeId},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdate2},
+    executor::{
+        aggregate::{AggregateState, RowToStateMapping, StateFinalizer, UnaryNonNullUpdater},
+        builder::{ArrayBuilder, PrimitiveBuffer},
+        physical_type::PhysicalAny,
+    },
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
@@ -50,20 +53,23 @@ pub struct CountNonNullImpl;
 
 impl CountNonNullImpl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [CountNonNullState],
     ) -> Result<()> {
-        let unit_arr = UnitArrayAccessor::new(arrays[0]);
-        UnaryNonNullUpdate2::update(row_selection, unit_arr, mapping, states)
+        UnaryNonNullUpdater::update::<PhysicalAny, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array2::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Int64,
+            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 }
 
@@ -81,8 +87,7 @@ impl PlannedAggregateFunction for CountNonNullImpl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 

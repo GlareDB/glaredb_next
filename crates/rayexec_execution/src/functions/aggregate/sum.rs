@@ -2,10 +2,13 @@ use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggre
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use num_traits::CheckedAdd;
 use rayexec_bullet::{
-    array::{Array2, Decimal128Array, Decimal64Array, PrimitiveArray},
-    bitmap::Bitmap,
+    array::Array,
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdate2},
+    executor::{
+        aggregate::{AggregateState, RowToStateMapping, StateFinalizer, UnaryNonNullUpdater},
+        builder::{ArrayBuilder, PrimitiveBuffer},
+        physical_type::{PhysicalF64, PhysicalI128, PhysicalI64},
+    },
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -155,27 +158,27 @@ pub struct SumInt64Impl;
 
 impl SumInt64Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Int64(arr) => UnaryNonNullUpdate2::update(row_selection, arr, mapping, states),
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array2::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Int64,
+            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
@@ -184,29 +187,27 @@ pub struct SumFloat64Impl;
 
 impl SumFloat64Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [SumStateAdd<f64>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Float64(arr) => {
-                UnaryNonNullUpdate2::update(row_selection, arr, mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalF64, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(states: vec::Drain<SumStateAdd<f64>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array2::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
+    fn finalize(states: vec::Drain<SumStateAdd<f64>>) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Float64,
+            buffer: PrimitiveBuffer::<f64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
@@ -218,37 +219,33 @@ pub struct SumDecimal64Impl {
 
 impl SumDecimal64Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Decimal64(arr) => {
-                UnaryNonNullUpdate2::update(row_selection, arr.get_primitive(), mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array2::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+    fn finalize(&self, states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Decimal64(DecimalTypeMeta {
+                precision: self.precision,
+                scale: self.scale,
+            }),
+            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // let precision = self.precision;
-        // let scale = self.scale;
-        // let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-        //     Array2::Int64(arr) => Ok(Array2::Decimal64(Decimal64Array::new(
-        //         precision, scale, arr,
-        //     ))),
-        //     other => panic!("unexpected array type: {}", other.datatype()),
-        // };
-        // Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        let this = *self;
+        Box::new(DefaultGroupedStates::new(Self::update, move |states| {
+            this.finalize(states)
+        }))
     }
 }
 
@@ -260,37 +257,33 @@ pub struct SumDecimal128Impl {
 
 impl SumDecimal128Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [SumStateCheckedAdd<i128>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Decimal128(arr) => {
-                UnaryNonNullUpdate2::update(row_selection, arr.get_primitive(), mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalI128, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i128>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array2::Int128(PrimitiveArray::new(buffer, Some(bitmap))))
+    fn finalize(&self, states: vec::Drain<SumStateCheckedAdd<i128>>) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Decimal128(DecimalTypeMeta {
+                precision: self.precision,
+                scale: self.scale,
+            }),
+            buffer: PrimitiveBuffer::<i128>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // let precision = self.precision;
-        // let scale = self.scale;
-        // let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-        //     Array2::Int128(arr) => Ok(Array2::Decimal128(Decimal128Array::new(
-        //         precision, scale, arr,
-        //     ))),
-        //     other => panic!("unexpected array type: {}", other.datatype()),
-        // };
-        // Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        let this = *self;
+        Box::new(DefaultGroupedStates::new(Self::update, move |states| {
+            this.finalize(states)
+        }))
     }
 }
 

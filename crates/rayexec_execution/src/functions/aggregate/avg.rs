@@ -1,9 +1,13 @@
 use num_traits::AsPrimitive;
 use rayexec_bullet::{
-    array::{Array2, PrimitiveArray},
+    array::Array,
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdate2},
+    executor::{
+        aggregate::{AggregateState, RowToStateMapping, StateFinalizer, UnaryNonNullUpdater},
+        builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer},
+        physical_type::{PhysicalF64, PhysicalI128, PhysicalI64},
+    },
 };
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
@@ -158,40 +162,51 @@ pub struct AvgDecimal64Impl {
 
 impl AvgDecimal64Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [AvgStateDecimal<i64>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Decimal64(arr) => {
-                UnaryNonNullUpdate2::update(row_selection, arr.get_primitive(), mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(scale: i8, states: vec::Drain<AvgStateDecimal<i64>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+    fn finalize(&self, states: vec::Drain<AvgStateDecimal<i64>>) -> Result<Array> {
+        let mut builder = ArrayBuilder {
+            datatype: DataType::Float64,
+            buffer: PrimitiveBuffer::with_len(states.len()),
+        };
 
-        let scale = f64::powi(10.0, scale.abs() as i32);
-        let mut vals = Vec::with_capacity(buffer.len());
-        for (sum, count) in buffer {
+        let mut validities = Bitmap::new_with_all_true(states.len());
+
+        let scale = f64::powi(10.0, self.scale.abs() as i32);
+
+        for (idx, state) in states.enumerate() {
+            let ((sum, count), valid) = state.finalize()?;
+
+            if !valid {
+                validities.set_unchecked(idx, false);
+                continue;
+            }
+
             let val = (sum as f64) / (count as f64 * scale);
-            vals.push(val)
+            builder.buffer.put(idx, &val);
         }
 
-        Ok(Array2::Float64(PrimitiveArray::new(vals, Some(bitmap))))
+        Ok(Array::new_with_validity_and_array_data(
+            builder.datatype,
+            validities,
+            builder.buffer.into_data(),
+        ))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // let scale = self.scale;
-        // let finalize = move |states: vec::Drain<_>| Self::finalize(scale, states);
-
-        // Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        let this = *self;
+        Box::new(DefaultGroupedStates::new(Self::update, move |states| {
+            this.finalize(states)
+        }))
     }
 }
 
@@ -203,40 +218,51 @@ pub struct AvgDecimal128Impl {
 
 impl AvgDecimal128Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [AvgStateDecimal<i128>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Decimal128(arr) => {
-                UnaryNonNullUpdate2::update(row_selection, arr.get_primitive(), mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalI128, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(scale: i8, states: vec::Drain<AvgStateDecimal<i128>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+    fn finalize(&self, states: vec::Drain<AvgStateDecimal<i128>>) -> Result<Array> {
+        let mut builder = ArrayBuilder {
+            datatype: DataType::Float64,
+            buffer: PrimitiveBuffer::with_len(states.len()),
+        };
 
-        let scale = f64::powi(10.0, scale.abs() as i32);
-        let mut vals = Vec::with_capacity(buffer.len());
-        for (sum, count) in buffer {
+        let mut validities = Bitmap::new_with_all_true(states.len());
+
+        let scale = f64::powi(10.0, self.scale.abs() as i32);
+
+        for (idx, state) in states.enumerate() {
+            let ((sum, count), valid) = state.finalize()?;
+
+            if !valid {
+                validities.set_unchecked(idx, false);
+                continue;
+            }
+
             let val = (sum as f64) / (count as f64 * scale);
-            vals.push(val)
+            builder.buffer.put(idx, &val);
         }
 
-        Ok(Array2::Float64(PrimitiveArray::new(vals, Some(bitmap))))
+        Ok(Array::new_with_validity_and_array_data(
+            builder.datatype,
+            validities,
+            builder.buffer.into_data(),
+        ))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // let scale = self.scale;
-        // let finalize = move |states: vec::Drain<_>| Self::finalize(scale, states);
-
-        // Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        let this = *self;
+        Box::new(DefaultGroupedStates::new(Self::update, move |states| {
+            this.finalize(states)
+        }))
     }
 }
 
@@ -245,29 +271,27 @@ pub struct AvgFloat64Impl;
 
 impl AvgFloat64Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [AvgStateF64<f64>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Float64(arr) => {
-                UnaryNonNullUpdate2::update(row_selection, arr, mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalF64, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(states: vec::Drain<AvgStateF64<f64>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array2::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
+    fn finalize(states: vec::Drain<AvgStateF64<f64>>) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Float64,
+            buffer: PrimitiveBuffer::<f64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
@@ -276,27 +300,27 @@ pub struct AvgInt64Impl;
 
 impl AvgInt64Impl {
     fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array2],
-        mapping: &[usize],
+        arrays: &[&Array],
+        mapping: &[RowToStateMapping],
         states: &mut [AvgStateF64<i64>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array2::Int64(arr) => UnaryNonNullUpdate2::update(row_selection, arr, mapping, states),
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
-    fn finalize(states: vec::Drain<AvgStateF64<i64>>) -> Result<Array2> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array2::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
+    fn finalize(states: vec::Drain<AvgStateF64<i64>>) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Float64,
+            buffer: PrimitiveBuffer::<f64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        unimplemented!()
-        // Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 

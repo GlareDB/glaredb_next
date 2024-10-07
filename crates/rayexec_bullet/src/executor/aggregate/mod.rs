@@ -7,12 +7,17 @@ mod binary;
 pub use binary::*;
 
 use rayexec_error::Result;
-use std::fmt::Debug;
+use std::{borrow::Borrow, fmt::Debug};
 
 use crate::{
-    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
+    array::{
+        validity::{self, union_validities},
+        Array, ArrayAccessor, ValuesBuffer,
+    },
     bitmap::{zip::ZipBitmapsIter, Bitmap},
 };
+
+use super::builder::{ArrayBuilder, ArrayDataBuffer};
 
 /// State for a single group's aggregate.
 ///
@@ -68,22 +73,39 @@ impl StateCombiner {
 pub struct StateFinalizer;
 
 impl StateFinalizer {
-    /// Finalizes aggregate states, pushing values and validities into the
-    /// provided buffers.
-    pub fn finalize<S, T, O>(
-        states: impl IntoIterator<Item = S>,
-        values: &mut impl ValuesBuffer<O>,
-        validities: &mut Bitmap,
-    ) -> Result<()>
+    pub fn finalize<State, I, B, Input, Output>(
+        states: I,
+        mut builder: ArrayBuilder<B>,
+    ) -> Result<Array>
     where
-        S: AggregateState<T, O>,
+        B: ArrayDataBuffer,
+        I: Iterator<Item = State> + ExactSizeIterator,
+        State: AggregateState<Input, Output>,
+        Output: Borrow<<B as ArrayDataBuffer>::Type>,
     {
-        for state in states {
+        let mut validities = Bitmap::new_with_all_true(states.len());
+
+        for (idx, state) in states.enumerate() {
             let (out, valid) = state.finalize()?;
-            values.push_value(out);
-            validities.push(valid);
+            if !valid {
+                validities.set_unchecked(idx, false);
+                continue;
+            }
+
+            builder.buffer.put(idx, out.borrow());
         }
 
-        Ok(())
+        let validities = if validities.is_all_true() {
+            None
+        } else {
+            Some(validities)
+        };
+
+        Ok(Array {
+            datatype: builder.datatype,
+            selection: None,
+            validity: validities,
+            data: builder.buffer.into_data(),
+        })
     }
 }

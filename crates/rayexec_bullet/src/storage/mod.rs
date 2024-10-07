@@ -23,7 +23,7 @@ use std::fmt::Debug;
 /// In-memory array storage that can be directly indexed into.
 pub trait AddressableStorage: Debug {
     /// The type we can get from the storage.
-    type T: Debug;
+    type T: Send + Debug;
 
     fn len(&self) -> usize;
 
