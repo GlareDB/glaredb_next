@@ -1,7 +1,5 @@
 use crate::{
-    array::{
-        Array, ArrayData, BinaryData,
-    },
+    array::{Array, ArrayData, BinaryData},
     executor::{
         physical_type::{
             PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
@@ -170,7 +168,11 @@ impl ComparableRowEncoder {
         let size = self.compute_data_size(columns)?;
         let mut data = vec![0; size];
 
-        let mut offsets: Vec<usize> = vec![0];
+        // Track start offset per row.
+        //
+        // First offset is always 0.
+        let mut offsets: Vec<usize> = Vec::with_capacity(num_rows + 1);
+        offsets.push(0);
 
         for row_idx in 0..num_rows {
             let data = data.as_mut_slice();
@@ -442,8 +444,6 @@ impl ComparableEncode for &[u8] {
 #[cfg(test)]
 mod tests {
     use std::cmp::Ordering;
-
-    
 
     use super::*;
 
