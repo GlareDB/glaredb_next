@@ -321,8 +321,8 @@ def setup_datafusion(ctx):
 def execute_rayexec(conn, dump_profile=False):
     df = pd.DataFrame(columns=["dur", "query"])
     for query_id, query in sorted(queries.items()):
-        start = time.time()
         print("Query " + str(query_id))
+        start = time.time()
         try:
             collect_profile_data = dump_profile
             table = conn.query(query, collect_profile_data)
@@ -333,7 +333,6 @@ def execute_rayexec(conn, dump_profile=False):
                 table.dump_profile()
         except Exception as err:
             print(err)
-            duration = 0
         print(duration)
         row = {"dur": duration, "query": query_id}
         df = pd.concat(
