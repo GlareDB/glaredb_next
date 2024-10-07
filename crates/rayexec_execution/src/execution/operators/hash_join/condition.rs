@@ -1,5 +1,5 @@
 use rayexec_bullet::{
-    array::{Array, Array2},
+    array::Array,
     batch::Batch,
     executor::scalar::SelectExecutor,
     selection::SelectionVector,

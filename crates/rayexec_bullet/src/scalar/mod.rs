@@ -3,10 +3,7 @@ pub mod interval;
 pub mod timestamp;
 
 use crate::array::{
-    Array, Array2, ArrayData, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array,
-    Decimal64Array, Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array,
-    Int8Array, IntervalArray, ListArray, NullArray, TimestampArray, UInt128Array, UInt16Array,
-    UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+    Array, ArrayData,
 };
 use crate::bitmap::Bitmap;
 use crate::compute::cast::format::{

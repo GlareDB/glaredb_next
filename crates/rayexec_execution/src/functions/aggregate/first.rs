@@ -1,13 +1,12 @@
 use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
     executor::{
-        aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+        aggregate::{AggregateState, StateFinalizer},
         builder::{ArrayBuilder, GermanVarlenBuffer},
         physical_type::{
             PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
             PhysicalI32, PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128,
             PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUntypedNull, PhysicalUtf8,
-            VarlenType,
         },
     },
     scalar::interval::Interval,

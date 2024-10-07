@@ -70,7 +70,7 @@ use crate::{
     storage::table_storage::Projections,
 };
 use rayexec_bullet::{
-    array::{Array, Array2, Utf8Array},
+    array::Array,
     batch::Batch,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};

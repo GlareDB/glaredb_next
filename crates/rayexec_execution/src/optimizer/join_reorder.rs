@@ -6,12 +6,10 @@ use crate::{
         binder::bind_context::{BindContext, TableRef},
         logical_filter::LogicalFilter,
         logical_join::{JoinType, LogicalComparisonJoin, LogicalCrossJoin},
-        logical_materialization::LogicalMaterializationScan,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
     optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor,
 };
-use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 
 use super::{

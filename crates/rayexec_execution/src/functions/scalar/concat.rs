@@ -7,7 +7,7 @@ use rayexec_bullet::{
         scalar::{BinaryExecutor, UniformExecutor},
     },
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};

@@ -8,8 +8,7 @@ use crate::functions::{
 use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
     executor::{
-        aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
-        builder::{ArrayBuilder, PrimitiveBuffer},
+        aggregate::AggregateState,
         physical_type::{
             PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64,
             PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32,
@@ -22,7 +21,7 @@ use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, vec};
+use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Min;

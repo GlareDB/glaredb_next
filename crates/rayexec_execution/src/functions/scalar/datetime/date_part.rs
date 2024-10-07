@@ -1,7 +1,6 @@
-use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array, Array2},
+    array::Array,
     compute::date::{self, extract_date_part},
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
     scalar::decimal::{Decimal64Type, DecimalType},

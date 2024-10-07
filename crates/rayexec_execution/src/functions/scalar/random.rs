@@ -1,10 +1,9 @@
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::{Array, Array2, PrimitiveArray};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use super::{PlannedScalarFunction, ScalarFunction};
 

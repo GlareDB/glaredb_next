@@ -16,7 +16,6 @@ use std::{
 
 use crate::{
     database::DatabaseContext,
-    execution::operators::util::hash::{AhashHasher, ArrayHasher},
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     logical::logical_join::JoinType,
 };

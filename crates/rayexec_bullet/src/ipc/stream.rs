@@ -234,7 +234,6 @@ mod tests {
     };
 
     use crate::{
-        array::{Array, Array2},
         batch::Batch,
         datatype::DataType,
         field::{Field, Schema},

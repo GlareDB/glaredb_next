@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array, Array2, ArrayData, BooleanArray},
+    array::{Array, ArrayData},
     batch::Batch,
     bitmap::Bitmap,
     datatype::DataType,

@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::{array::Array, bitmap::Bitmap};
+use crate::array::Array;
 
 /// Behavior when a cast fail due to under/overflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

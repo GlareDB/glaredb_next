@@ -744,10 +744,7 @@ const fn elide_index<T>(v: &[T]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        array::{Int32Array, Utf8Array},
-        field::Field,
-    };
+    use crate::field::Field;
 
     use super::*;
 

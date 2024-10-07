@@ -1,13 +1,11 @@
-use std::sync::Arc;
 use std::{borrow::Cow, fmt};
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::{
-    array::{Array, Array2},
+    array::Array,
     batch::Batch,
-    bitmap::Bitmap,
 };
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{OptionExt, Result};
 
 use crate::{
     database::DatabaseContext, functions::scalar::PlannedScalarFunction, proto::DatabaseProtoConv,

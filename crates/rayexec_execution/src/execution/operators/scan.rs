@@ -7,7 +7,7 @@ use crate::{
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use std::{fmt, task::Poll};
 use std::{sync::Arc, task::Context};
 

@@ -2,7 +2,7 @@ pub mod pretty;
 pub mod ugly;
 
 use crate::{
-    array::{Array, Array2},
+    array::Array,
     scalar::ScalarValue,
 };
 use rayexec_error::Result;

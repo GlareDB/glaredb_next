@@ -1,7 +1,7 @@
 use crate::functions::aggregate::GroupedStates;
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::{Array, Array2},
+    array::Array,
     batch::Batch,
     bitmap::Bitmap,
     datatype::DataType,
@@ -11,7 +11,6 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
-use std::sync::Arc;
 
 /// States for a single aggregation.
 #[derive(Debug)]

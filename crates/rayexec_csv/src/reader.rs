@@ -22,8 +22,7 @@ use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
 use rayexec_bullet::{
     array::{
-        Array, Array2, ArrayData, BooleanArray, OffsetIndex, PrimitiveArray, ValuesBuffer,
-        VarlenArray, VarlenValuesBuffer,
+        Array, ArrayData,
     },
     batch::Batch,
     bitmap::Bitmap,
@@ -31,7 +30,7 @@ use rayexec_bullet::{
     datatype::{DataType, TimeUnit, TimestampTypeMeta},
     executor::builder::{ArrayDataBuffer, GermanVarlenBuffer},
     field::{Field, Schema},
-    storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage},
+    storage::{BooleanStorage, PrimitiveStorage},
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::FileSource;

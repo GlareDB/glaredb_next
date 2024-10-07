@@ -1,5 +1,5 @@
 use crate::{
-    array::{validity::union_validities, Array, ArrayAccessor, ValuesBuffer},
+    array::{Array, ArrayAccessor},
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
@@ -9,7 +9,7 @@ use crate::{
     selection,
     storage::AddressableStorage,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::check_validity;
 

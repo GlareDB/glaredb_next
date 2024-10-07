@@ -1,7 +1,6 @@
-use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::{Array, Array2},
+    array::Array,
     datatype::{DataType, DataTypeId},
     executor::{
         builder::{ArrayBuilder, BooleanBuffer},

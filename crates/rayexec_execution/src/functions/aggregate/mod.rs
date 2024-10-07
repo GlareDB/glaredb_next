@@ -7,17 +7,16 @@ pub mod sum;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::array::{Array, Array2, ArrayData};
-use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{
     AggregateState, RowToStateMapping, StateCombiner, StateFinalizer, UnaryNonNullUpdater,
 };
 use rayexec_bullet::executor::builder::{
-    ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
+    ArrayBuilder, BooleanBuffer, PrimitiveBuffer,
 };
 use rayexec_bullet::executor::physical_type::PhysicalStorage;
-use rayexec_bullet::storage::{AddressableStorage, GermanVarlenStorage, PrimitiveStorage};
+use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
 use std::hash::Hash;

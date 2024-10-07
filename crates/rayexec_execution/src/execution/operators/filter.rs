@@ -5,8 +5,8 @@ use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
-use rayexec_bullet::{array::Array2, batch::Batch};
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_bullet::batch::Batch;
+use rayexec_error::{OptionExt, Result};
 
 pub type PhysicalFilter = SimpleOperator<FilterOperation>;
 

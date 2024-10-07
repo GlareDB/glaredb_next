@@ -1,5 +1,5 @@
 use rayexec_bullet::{
-    array::{Array, Array2, PrimitiveArray, VarlenArray},
+    array::Array,
     batch::Batch,
     datatype::DataType,
     field::Field,

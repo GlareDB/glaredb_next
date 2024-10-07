@@ -7,10 +7,7 @@ use rayexec_error::Result;
 use std::{borrow::Borrow, fmt::Debug};
 
 use crate::{
-    array::{
-        validity::{self, union_validities},
-        Array,
-    },
+    array::Array,
     bitmap::Bitmap,
 };
 

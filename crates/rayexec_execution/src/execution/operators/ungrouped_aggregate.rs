@@ -6,7 +6,6 @@ use crate::functions::aggregate::{multi_array_drain, GroupedStates};
 use crate::proto::DatabaseProtoConv;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::executor::aggregate::RowToStateMapping;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;

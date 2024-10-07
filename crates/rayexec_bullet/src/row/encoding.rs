@@ -1,6 +1,6 @@
 use crate::{
     array::{
-        Array, Array2, ArrayData, BinaryData, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType2,
+        Array, ArrayData, BinaryData,
     },
     executor::{
         physical_type::{
@@ -443,7 +443,7 @@ impl ComparableEncode for &[u8] {
 mod tests {
     use std::cmp::Ordering;
 
-    use crate::array::{Int32Array, Utf8Array};
+    
 
     use super::*;
 

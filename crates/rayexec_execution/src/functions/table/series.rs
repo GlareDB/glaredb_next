@@ -8,7 +8,7 @@ use crate::{
 };
 use futures::future::BoxFuture;
 use rayexec_bullet::{
-    array::{Array, Array2, ArrayData, Int64Array},
+    array::{Array, ArrayData},
     batch::Batch,
     datatype::DataType,
     field::{Field, Schema},

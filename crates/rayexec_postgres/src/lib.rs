@@ -5,10 +5,7 @@ mod decimal;
 use decimal::PostgresDecimal;
 use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
-    array::{
-        Array, Array2, BooleanArray, Decimal128Array, Int128Array, Int16Array, Int32Array,
-        Int64Array, Int8Array, Utf8Array,
-    },
+    array::Array,
     batch::Batch,
     datatype::{DataType, DecimalTypeMeta},
     field::Field,

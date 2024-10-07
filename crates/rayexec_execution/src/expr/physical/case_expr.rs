@@ -1,10 +1,8 @@
-use std::{borrow::Cow, fmt, sync::Arc};
+use std::{borrow::Cow, fmt};
 
 use rayexec_bullet::{
-    array::{Array, Array2},
+    array::Array,
     batch::Batch,
-    bitmap::Bitmap,
-    compute,
 };
 use rayexec_error::{not_implemented, Result};
 

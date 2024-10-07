@@ -3,10 +3,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::{
-    array::{Array2, PrimitiveArray},
-    batch::Batch,
-};
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Waker};

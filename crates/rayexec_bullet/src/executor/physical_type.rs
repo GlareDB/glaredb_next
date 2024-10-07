@@ -6,7 +6,7 @@ use crate::{
     array::{ArrayData, BinaryData},
     scalar::interval::Interval,
     storage::{
-        AddressableStorage, BooleanStorage, BooleanStorageRef, ContiguousVarlenStorageSlice,
+        AddressableStorage, BooleanStorageRef, ContiguousVarlenStorageSlice,
         GermanVarlenStorageSlice, PrimitiveStorageSlice, SharedHeapStorageSlice,
         UntypedNullStorage,
     },

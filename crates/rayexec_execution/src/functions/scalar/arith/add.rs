@@ -4,21 +4,18 @@ use crate::functions::{
 };
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::{Array, Array2, Decimal128Array, Decimal64Array};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8,
-    PhysicalStorage, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
+    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
 };
 use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Add;

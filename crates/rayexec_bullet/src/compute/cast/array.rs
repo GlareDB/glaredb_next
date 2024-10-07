@@ -16,11 +16,7 @@ use crate::{
 };
 use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
-use std::{
-    borrow::Cow,
-    fmt::{self, Display},
-    ops::{Div, Mul},
-};
+use std::ops::{Div, Mul};
 
 use super::{
     behavior::CastFailBehavior,

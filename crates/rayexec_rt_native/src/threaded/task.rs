@@ -7,7 +7,6 @@ use rayon::ThreadPool;
 use std::{
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
-    thread::Thread,
 };
 
 use crate::time::NativeInstant;

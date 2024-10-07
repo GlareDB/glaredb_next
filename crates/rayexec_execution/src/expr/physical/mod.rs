@@ -6,7 +6,6 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
-use std::sync::Arc;
 use std::{borrow::Cow, fmt};
 
 use case_expr::PhysicalCaseExpr;
@@ -16,12 +15,11 @@ use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_bullet::{
-    array::{Array, Array2},
+    array::Array,
     batch::Batch,
-    bitmap::Bitmap,
     datatype::DataType,
 };
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 

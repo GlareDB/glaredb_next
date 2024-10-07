@@ -8,7 +8,7 @@ use std::{
     task::{Wake, Waker},
 };
 
-use rayexec_bullet::array::{Array, Array2, Int32Array};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 
 use crate::database::system::new_system_catalog;
