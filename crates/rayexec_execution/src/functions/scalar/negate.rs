@@ -1,4 +1,3 @@
-use crate::functions::scalar::macros::primitive_unary_execute;
 use crate::functions::{
     invalid_input_types_error, plan_check_num_args, unhandled_physical_types_err, FunctionInfo,
     Signature,
@@ -12,14 +11,11 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalU8,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
-use super::macros::primitive_unary_execute_bool;
 use super::{PlannedScalarFunction, ScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

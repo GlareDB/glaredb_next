@@ -1,4 +1,3 @@
-use crate::functions::scalar::macros::primitive_binary_execute;
 use crate::functions::{
     invalid_input_types_error, plan_check_num_args, unhandled_physical_types_err, FunctionInfo,
     Signature,

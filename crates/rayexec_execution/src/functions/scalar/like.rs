@@ -18,11 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     expr::Expression,
-    functions::{
-        invalid_input_types_error, plan_check_num_args,
-        scalar::macros::{primitive_binary_execute_bool, primitive_unary_execute_bool},
-        FunctionInfo, Signature,
-    },
+    functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature},
     logical::{binder::bind_context::BindContext, consteval::ConstEval},
 };
 
