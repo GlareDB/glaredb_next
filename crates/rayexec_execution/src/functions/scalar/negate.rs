@@ -5,12 +5,14 @@ use crate::functions::{
 };
 use rayexec_bullet::array::{Array, Array2};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8,
-    PhysicalStorage, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
+    PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64,
+    PhysicalI8, PhysicalStorage, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64,
+    PhysicalU8,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
+use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
@@ -108,31 +110,6 @@ impl PlannedScalarFunction for NegateImpl {
 
     fn return_type(&self) -> DataType {
         self.datatype.clone()
-    }
-
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let first = arrays[0];
-        Ok(match first.as_ref() {
-            Array2::Int8(input) => {
-                primitive_unary_execute!(input, Int8, |a| -a)
-            }
-            Array2::Int16(input) => {
-                primitive_unary_execute!(input, Int16, |a| -a)
-            }
-            Array2::Int32(input) => {
-                primitive_unary_execute!(input, Int32, |a| -a)
-            }
-            Array2::Int64(input) => {
-                primitive_unary_execute!(input, Int64, |a| -a)
-            }
-            Array2::Float32(input) => {
-                primitive_unary_execute!(input, Float32, |a| -a)
-            }
-            Array2::Float64(input) => {
-                primitive_unary_execute!(input, Float64, |a| -a)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
@@ -249,10 +226,14 @@ impl PlannedScalarFunction for NotImpl {
         DataType::Boolean
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        Ok(match inputs[0].as_ref() {
-            Array2::Boolean(arr) => primitive_unary_execute_bool!(arr, |b| !b),
-            other => panic!("unexpected array type: {other:?}"),
-        })
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        UnaryExecutor::execute::<PhysicalBool, _, _>(
+            inputs[0],
+            ArrayBuilder {
+                datatype: DataType::Boolean,
+                buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
+            },
+            |b, buf| buf.put(&(!b)),
+        )
     }
 }

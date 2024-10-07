@@ -1,11 +1,7 @@
-use std::{ops::Deref, sync::Arc};
+use std::ops::Deref;
 
 use rayexec_bullet::{
-    array::{
-        Array2, ListArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType2,
-        VarlenValuesBuffer,
-    },
-    bitmap::Bitmap,
+    array::Array,
     datatype::{DataType, DataTypeId, ListTypeMeta},
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
@@ -113,131 +109,9 @@ impl PlannedScalarFunction for ListExtractImpl {
         self.datatype.clone()
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        let list = match &inputs[0].as_ref() {
-            Array2::List(list) => list,
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Unexpected array type: {}",
-                    other.datatype()
-                )))
-            }
-        };
-
-        let offsets = list.offsets();
-        let validity = list.validity();
-
-        Ok(match list.child_array().as_ref() {
-            Array2::Int8(arr) => {
-                Array2::Int8(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::Int16(arr) => {
-                Array2::Int16(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::Int32(arr) => {
-                Array2::Int32(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::Int64(arr) => {
-                Array2::Int64(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::Int128(arr) => {
-                Array2::Int128(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::UInt8(arr) => {
-                Array2::UInt8(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::UInt16(arr) => {
-                Array2::UInt16(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::UInt32(arr) => {
-                Array2::UInt32(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::UInt64(arr) => {
-                Array2::UInt64(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::UInt128(arr) => {
-                Array2::UInt128(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::Float32(arr) => {
-                Array2::Float32(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::Float64(arr) => {
-                Array2::Float64(list_extract_primitive(arr, offsets, validity, self.index)?)
-            }
-            Array2::Utf8(arr) => {
-                Array2::Utf8(list_extract_varlen(arr, offsets, validity, self.index)?)
-            }
-            Array2::LargeUtf8(arr) => {
-                Array2::LargeUtf8(list_extract_varlen(arr, offsets, validity, self.index)?)
-            }
-            other => not_implemented!("list extract {}", other.datatype()),
-        })
+    fn execute(&self, _inputs: &[&Array]) -> Result<Array> {
+        not_implemented!("list extract")
     }
-}
-
-fn list_extract_primitive<T, O>(
-    array: &PrimitiveArray<T>,
-    offsets: &[O],
-    validity: Option<&Bitmap>,
-    idx: usize,
-) -> Result<PrimitiveArray<T>>
-where
-    T: Copy + Default,
-    O: OffsetIndex,
-{
-    let mut result_validity = Bitmap::with_capacity(offsets.len() - 1);
-    let mut values = Vec::with_capacity(offsets.len() - 1);
-
-    for row_idx in 0..(offsets.len() - 1) {
-        let offset = offsets[row_idx].as_usize();
-        let value_offset = offset + idx;
-        if value_offset >= offsets[row_idx + 1].as_usize() {
-            result_validity.push(false);
-            values.push(T::default());
-        } else {
-            result_validity.push(
-                validity
-                    .map(|v| v.value_unchecked(value_offset))
-                    .unwrap_or(true),
-            );
-            values.push(*array.value(value_offset).expect("value to exist"));
-        }
-    }
-
-    Ok(PrimitiveArray::new(values, Some(result_validity)))
-}
-
-fn list_extract_varlen<T, O1, O2>(
-    array: &VarlenArray<T, O1>,
-    offsets: &[O2],
-    validity: Option<&Bitmap>,
-    idx: usize,
-) -> Result<VarlenArray<T, O1>>
-where
-    T: VarlenType2 + ?Sized,
-    O1: OffsetIndex,
-    O2: OffsetIndex,
-{
-    let mut result_validity = Bitmap::with_capacity(offsets.len() - 1);
-    let mut values = VarlenValuesBuffer::default();
-
-    for row_idx in 0..(offsets.len() - 1) {
-        let offset = offsets[row_idx].as_usize();
-        let value_offset = offset + idx;
-        if value_offset >= offsets[row_idx + 1].as_usize() {
-            result_validity.push(false);
-            values.push_value(T::NULL);
-        } else {
-            result_validity.push(
-                validity
-                    .map(|v| v.value_unchecked(value_offset))
-                    .unwrap_or(true),
-            );
-            values.push_value(array.value(value_offset).expect("value to exist"))
-        }
-    }
-
-    Ok(VarlenArray::new(values, Some(result_validity)))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -308,14 +182,7 @@ impl PlannedScalarFunction for ListValuesImpl {
         self.datatype.clone()
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect();
-        let array = if refs.is_empty() {
-            ListArray::new_empty_with_n_rows(1)
-        } else {
-            ListArray::try_from_children(&refs)?
-        };
-
-        Ok(Array2::List(array))
+    fn execute(&self, _inputs: &[&Array]) -> Result<Array> {
+        not_implemented!("list values")
     }
 }
