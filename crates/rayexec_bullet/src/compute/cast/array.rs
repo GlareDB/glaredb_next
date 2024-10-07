@@ -273,6 +273,45 @@ where
     fail_state.check_and_apply(arr, output)
 }
 
+// TODO: Weird to specify both the float generic and datatype.
+pub fn cast_decimal_to_float<'a, S, F>(
+    arr: &'a Array,
+    to: DataType,
+    behavior: CastFailBehavior,
+) -> Result<Array>
+where
+    S: PhysicalStorage<'a>,
+    F: Float + Default + Copy,
+    <<S as PhysicalStorage<'a>>::Storage as AddressableStorage>::T: ToPrimitive,
+    ArrayData: From<PrimitiveStorage<F>>,
+{
+    let decimal_meta = arr.datatype().try_get_decimal_type_meta()?;
+
+    let scale = <F as NumCast>::from((10.0).powi(decimal_meta.scale as i32)).ok_or_else(|| {
+        RayexecError::new(format!(
+            "Failed to cast scale {} to float",
+            decimal_meta.scale
+        ))
+    })?;
+
+    let builder = ArrayBuilder {
+        datatype: to,
+        buffer: PrimitiveBuffer::<F>::with_len(arr.logical_len()),
+    };
+
+    let mut fail_state = behavior.new_state_for_array(arr);
+    let output =
+        UnaryExecutor::execute::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
+            Some(v) => {
+                let scaled = v.div(scale);
+                buf.put(&scaled);
+            }
+            None => fail_state.set_did_fail(buf.idx),
+        })?;
+
+    fail_state.check_and_apply(arr, output)
+}
+
 fn cast_int_to_decimal_helper<'a, S>(
     arr: &'a Array,
     to: DataType,
@@ -823,16 +862,16 @@ pub fn cast_array2(arr: &Array2, to: &DataType) -> Result<Array2> {
 
         // From Decimal
         (Array2::Decimal64(arr), DataType::Float32) => {
-            Array2::Float32(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+            Array2::Float32(cast_decimal_to_float2::<_, Decimal64Type>(arr)?)
         }
         (Array2::Decimal64(arr), DataType::Float64) => {
-            Array2::Float64(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+            Array2::Float64(cast_decimal_to_float2::<_, Decimal64Type>(arr)?)
         }
         (Array2::Decimal128(arr), DataType::Float32) => {
-            Array2::Float32(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+            Array2::Float32(cast_decimal_to_float2::<_, Decimal128Type>(arr)?)
         }
         (Array2::Decimal128(arr), DataType::Float64) => {
-            Array2::Float64(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+            Array2::Float64(cast_decimal_to_float2::<_, Decimal128Type>(arr)?)
         }
 
         // From Utf8
@@ -1073,7 +1112,7 @@ where
     })
 }
 
-pub fn cast_decimal_to_float<F, D>(arr: &DecimalArray<D::Primitive>) -> Result<PrimitiveArray<F>>
+pub fn cast_decimal_to_float2<F, D>(arr: &DecimalArray<D::Primitive>) -> Result<PrimitiveArray<F>>
 where
     F: Float + fmt::Display,
     D: DecimalType,

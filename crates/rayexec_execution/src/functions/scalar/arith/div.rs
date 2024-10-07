@@ -5,12 +5,13 @@ use crate::functions::{
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use rayexec_bullet::array::{Array, Array2};
-use rayexec_bullet::compute::cast::array::cast_decimal_to_float;
+use rayexec_bullet::compute::cast::array::{cast_decimal_to_float, cast_decimal_to_float2};
+use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
     PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8,
-    PhysicalStorage, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
+    PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
 };
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
@@ -168,7 +169,50 @@ impl PlannedScalarFunction for DivImpl {
 
         // Special cases.
         match (a.datatype(), b.datatype()) {
-            // TODO: Decimal
+            (DataType::Decimal64(_), DataType::Decimal64(_)) => {
+                let a = cast_decimal_to_float::<PhysicalI64, f64>(
+                    a,
+                    DataType::Float64,
+                    CastFailBehavior::Error,
+                )?;
+                let b = cast_decimal_to_float::<PhysicalI64, f64>(
+                    b,
+                    DataType::Float64,
+                    CastFailBehavior::Error,
+                )?;
+                let builder = ArrayBuilder {
+                    datatype: DataType::Float64,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                };
+                return BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
+                    &a,
+                    &b,
+                    builder,
+                    |a, b, buf| buf.put(&(a / b)),
+                );
+            }
+            (DataType::Decimal128(_), DataType::Decimal128(_)) => {
+                let a = cast_decimal_to_float::<PhysicalI128, f64>(
+                    a,
+                    DataType::Float64,
+                    CastFailBehavior::Error,
+                )?;
+                let b = cast_decimal_to_float::<PhysicalI128, f64>(
+                    b,
+                    DataType::Float64,
+                    CastFailBehavior::Error,
+                )?;
+                let builder = ArrayBuilder {
+                    datatype: DataType::Float64,
+                    buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                };
+                return BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
+                    &a,
+                    &b,
+                    builder,
+                    |a, b, buf| buf.put(&(a / b)),
+                );
+            }
             _ => (),
         }
 

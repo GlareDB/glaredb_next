@@ -36,7 +36,13 @@ fn maybe_fold(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
             )));
         }
 
-        let val = val.logical_value(0).unwrap(); // Len checked above.
+        let val = val
+            .logical_value(0) // Len checked above.
+            .map_err(|_| {
+                RayexecError::new(format!(
+                    "Failed to get folded scalar value from expression: {expr}"
+                ))
+            })?;
 
         // Our brand new expression.
         *expr = Expression::Literal(LiteralExpr {
