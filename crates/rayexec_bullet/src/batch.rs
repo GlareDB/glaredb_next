@@ -1,5 +1,5 @@
 use crate::{
-    array::{Array, Array2, Selection},
+    array::{Array, Selection},
     bitmap::Bitmap,
     datatype::DataType,
     executor::{
@@ -12,14 +12,11 @@ use crate::{
     scalar::{interval::Interval, ScalarValue},
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
-use std::sync::Arc;
 
 /// A batch of same-length arrays.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
     /// Columns that make up this batch.
-    cols2: Vec<Arc<Array2>>,
-
     cols: Vec<Array>,
 
     /// Number of rows in this batch. Needed to allow for a batch that has no
@@ -30,7 +27,6 @@ pub struct Batch {
 impl Batch {
     pub const fn empty() -> Self {
         Batch {
-            cols2: Vec::new(),
             cols: Vec::new(),
             num_rows: 0,
         }
@@ -38,7 +34,6 @@ impl Batch {
 
     pub fn empty_with_num_rows(num_rows: usize) -> Self {
         Batch {
-            cols2: Vec::new(),
             cols: Vec::new(),
             num_rows,
         }
@@ -64,7 +59,6 @@ impl Batch {
         }
 
         Ok(Batch {
-            cols2: Vec::new(),
             cols,
             num_rows: len,
         })
@@ -75,7 +69,6 @@ impl Batch {
         let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();
 
         Batch {
-            cols2: Vec::new(),
             cols,
             num_rows: self.num_rows,
         }
@@ -84,7 +77,6 @@ impl Batch {
     pub fn slice(&self, offset: usize, count: usize) -> Self {
         let cols = self.cols.iter().map(|c| c.slice(offset, count)).collect();
         Batch {
-            cols2: Vec::new(),
             cols,
             num_rows: count,
         }
@@ -104,7 +96,6 @@ impl Batch {
             .collect();
 
         Batch {
-            cols2: Vec::new(),
             cols,
             num_rows: selection.as_ref().num_rows(),
         }

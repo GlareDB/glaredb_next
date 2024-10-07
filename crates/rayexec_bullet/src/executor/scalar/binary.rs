@@ -1,5 +1,5 @@
 use crate::{
-    array::{Array, ArrayAccessor},
+    array::Array,
     bitmap::Bitmap,
     executor::{
         builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},

@@ -1,15 +1,12 @@
 use rayexec_error::Result;
 
 use crate::{
-    array::{Array, ArrayAccessor},
-    bitmap::{zip::ZipBitmapsIter, Bitmap},
-    executor::physical_type::PhysicalStorage,
-    selection,
-    storage::AddressableStorage,
+    array::Array, executor::physical_type::PhysicalStorage, selection, storage::AddressableStorage,
 };
 
 use super::{AggregateState, RowToStateMapping};
 
+/// Updates aggregate states for an aggregate that accepts one input.
 #[derive(Debug, Clone, Copy)]
 pub struct UnaryNonNullUpdater;
 
@@ -52,67 +49,6 @@ impl UnaryNonNullUpdater {
                     let state = &mut states[mapping.to_state];
 
                     state.update(val)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
-
-/// Updates aggregate states for an aggregate that accepts one input.
-#[derive(Debug, Clone, Copy)]
-pub struct UnaryNonNullUpdate2;
-
-impl UnaryNonNullUpdate2 {
-    /// Updates a list of target states from some inputs.
-    ///
-    /// The row selection bitmap indicates which rows from the input to use for
-    /// the update, and the mapping slice maps rows to target states.
-    ///
-    /// Values that are considered null (not valid) will not be passed to the
-    /// state for udpates.
-    pub fn update<Array, Type, Iter, State, Output>(
-        row_selection: &Bitmap,
-        inputs: Array,
-        mapping: &[usize],
-        target_states: &mut [State],
-    ) -> Result<()>
-    where
-        Array: ArrayAccessor<Type, ValueIter = Iter>,
-        Iter: Iterator<Item = Type>,
-        State: AggregateState<Type, Output>,
-    {
-        debug_assert_eq!(
-            row_selection.count_trues(),
-            mapping.len(),
-            "number of rows selected in input must equal length of mappings"
-        );
-
-        match inputs.validity() {
-            Some(validity) => {
-                // Skip rows that are not selected or are not valid.
-                let should_compute = ZipBitmapsIter::try_new([row_selection, validity])?;
-
-                let mut mapping_idx = 0;
-                for (input, should_compute) in inputs.values_iter().zip(should_compute) {
-                    if !should_compute {
-                        continue;
-                    }
-                    let target = &mut target_states[mapping[mapping_idx]];
-                    target.update(input)?;
-                    mapping_idx += 1;
-                }
-            }
-            None => {
-                let mut mapping_idx = 0;
-                for (selected, input) in row_selection.iter().zip(inputs.values_iter()) {
-                    if !selected {
-                        continue;
-                    }
-                    let target = &mut target_states[mapping[mapping_idx]];
-                    target.update(input)?;
-                    mapping_idx += 1;
                 }
             }
         }

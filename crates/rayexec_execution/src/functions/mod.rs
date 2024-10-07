@@ -10,7 +10,6 @@ use std::{borrow::Borrow, fmt::Display};
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_bullet::{
-    array::Array2,
     datatype::{DataType, DataTypeId},
     executor::physical_type::PhysicalType,
 };
@@ -333,17 +332,6 @@ pub fn unhandled_physical_types_err(
         types,
         scalar.scalar_function().name(),
     ));
-}
-
-pub fn exec_invalid_array_type_err(
-    scalar: &impl PlannedScalarFunction,
-    arr: &Array2,
-) -> RayexecError {
-    RayexecError::new(format!(
-        "Invalid array type: {}, function: {}",
-        arr.datatype(),
-        scalar.scalar_function().name()
-    ))
 }
 
 /// Return an error indicating the input types we got are not ones we can
