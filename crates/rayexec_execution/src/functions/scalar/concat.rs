@@ -1,14 +1,11 @@
-use std::sync::Arc;
-
 use rayexec_bullet::{
-    array::{Array, Array2, Utf8Array, VarlenValuesBuffer},
+    array::Array,
     datatype::{DataType, DataTypeId},
     executor::{
         builder::{ArrayBuilder, GermanVarlenBuffer},
         physical_type::PhysicalUtf8,
         scalar::{BinaryExecutor, UniformExecutor},
     },
-    storage::GermanVarlenStorage,
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
@@ -67,10 +64,6 @@ impl PlannedScalarFunction for StringConcatImpl {
 
     fn return_type(&self) -> DataType {
         DataType::Utf8
-    }
-
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        unimplemented!()
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {

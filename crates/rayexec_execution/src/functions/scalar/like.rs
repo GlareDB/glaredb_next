@@ -1,8 +1,13 @@
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    array::Array2,
+    array::{Array, Array2},
     datatype::{DataType, DataTypeId},
+    executor::{
+        builder::{ArrayBuilder, BooleanBuffer},
+        physical_type::PhysicalUtf8,
+        scalar::{BinaryExecutor, UnaryExecutor},
+    },
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::{
@@ -204,11 +209,11 @@ impl PlannedScalarFunction for LikeImpl {
         DataType::Boolean
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         match self {
-            Self::StartsWith(f) => f.execute2(inputs),
-            Self::EndsWith(f) => f.execute2(inputs),
-            Self::Contains(f) => f.execute2(inputs),
+            Self::StartsWith(f) => f.execute(inputs),
+            Self::EndsWith(f) => f.execute(inputs),
+            Self::Contains(f) => f.execute(inputs),
             Self::Regex() => not_implemented!("like regex exec"),
         }
     }
@@ -276,26 +281,24 @@ impl PlannedScalarFunction for StartsWithImpl {
         DataType::Boolean
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
+        };
+
         match self.constant.as_ref() {
-            Some(constant) => Ok(match inputs[0].as_ref() {
-                Array2::Utf8(arr) => {
-                    primitive_unary_execute_bool!(arr, |s| s.starts_with(constant))
-                }
-                Array2::LargeUtf8(arr) => {
-                    primitive_unary_execute_bool!(arr, |s| s.starts_with(constant))
-                }
-                other => panic!("unexpected array type: {}", other.datatype()),
-            }),
-            None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-                (Array2::Utf8(a), Array2::Utf8(b)) => {
-                    primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
-                }
-                (Array2::LargeUtf8(a), Array2::LargeUtf8(b)) => {
-                    primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
-                }
-                _ => return Err(RayexecError::new("invalid types")),
-            }),
+            Some(constant) => {
+                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                    buf.put(&s.starts_with(constant))
+                })
+            }
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                inputs[0],
+                inputs[1],
+                builder,
+                |s, c, buf| buf.put(&s.starts_with(c)),
+            ),
         }
     }
 }
@@ -362,26 +365,24 @@ impl PlannedScalarFunction for EndsWithImpl {
         DataType::Boolean
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
+        };
+
         match self.constant.as_ref() {
-            Some(constant) => Ok(match inputs[0].as_ref() {
-                Array2::Utf8(arr) => {
-                    primitive_unary_execute_bool!(arr, |s| s.ends_with(constant))
-                }
-                Array2::LargeUtf8(arr) => {
-                    primitive_unary_execute_bool!(arr, |s| s.ends_with(constant))
-                }
-                other => panic!("unexpected array type: {}", other.datatype()),
-            }),
-            None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-                (Array2::Utf8(a), Array2::Utf8(b)) => {
-                    primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
-                }
-                (Array2::LargeUtf8(a), Array2::LargeUtf8(b)) => {
-                    primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
-                }
-                _ => return Err(RayexecError::new("invalid types")),
-            }),
+            Some(constant) => {
+                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                    buf.put(&s.ends_with(constant))
+                })
+            }
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                inputs[0],
+                inputs[1],
+                builder,
+                |s, c, buf| buf.put(&s.ends_with(c)),
+            ),
         }
     }
 }
@@ -448,26 +449,24 @@ impl PlannedScalarFunction for ContainsImpl {
         DataType::Boolean
     }
 
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
+        };
+
         match self.constant.as_ref() {
-            Some(constant) => Ok(match inputs[0].as_ref() {
-                Array2::Utf8(arr) => {
-                    primitive_unary_execute_bool!(arr, |s| s.contains(constant))
-                }
-                Array2::LargeUtf8(arr) => {
-                    primitive_unary_execute_bool!(arr, |s| s.contains(constant))
-                }
-                other => panic!("unexpected array type: {}", other.datatype()),
-            }),
-            None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-                (Array2::Utf8(a), Array2::Utf8(b)) => {
-                    primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
-                }
-                (Array2::LargeUtf8(a), Array2::LargeUtf8(b)) => {
-                    primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
-                }
-                _ => return Err(RayexecError::new("invalid types")),
-            }),
+            Some(constant) => {
+                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                    buf.put(&s.contains(constant))
+                })
+            }
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                inputs[0],
+                inputs[1],
+                builder,
+                |s, c, buf| buf.put(&s.contains(c)),
+            ),
         }
     }
 }

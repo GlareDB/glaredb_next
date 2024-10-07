@@ -493,6 +493,14 @@ impl Array {
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
+            DataType::Date32 => match &self.data {
+                ArrayData::Int32(arr) => ScalarValue::Date32(arr.as_ref().as_ref()[idx]),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Date64 => match &self.data {
+                ArrayData::Int64(arr) => ScalarValue::Date64(arr.as_ref().as_ref()[idx]),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
             DataType::Timestamp(m) => match &self.data {
                 ArrayData::Int64(arr) => ScalarValue::Timestamp(TimestampScalar {
                     unit: m.unit.clone(),
@@ -545,7 +553,8 @@ impl Array {
                 };
                 v.into()
             }
-            other => not_implemented!("get value: {other}"),
+            DataType::Struct(_) => not_implemented!("get value: struct"),
+            DataType::List(_) => not_implemented!("get value: list"),
         })
     }
 

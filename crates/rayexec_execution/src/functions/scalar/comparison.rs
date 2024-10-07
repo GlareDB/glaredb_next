@@ -1,24 +1,21 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::{Array, Array2, BooleanArray, BooleanValuesBuffer};
-use rayexec_bullet::compute::cast::array::{
-    cast_decimal_to_new_precision_and_scale2, decimal_rescale,
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::compute::cast::array::decimal_rescale;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::{
     PhysicalBinary, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64,
     PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32,
     PhysicalU64, PhysicalU8, PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::{BinaryExecutor, BinaryExecutor2};
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_bullet::executor::scalar::BinaryExecutor;
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
+use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 // TODOs:
 //
@@ -424,157 +421,6 @@ fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Array>
     }
 }
 
-fn execute2<O: ComparisonOperation>(left: &Array2, right: &Array2) -> Result<BooleanArray> {
-    let mut buffer = BooleanValuesBuffer::with_capacity(left.len());
-    let validity = match (left, right) {
-        (Array2::Boolean(left), Array2::Boolean(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Int8(left), Array2::Int8(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Int16(left), Array2::Int16(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Int32(left), Array2::Int32(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Int64(left), Array2::Int64(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::UInt8(left), Array2::UInt8(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::UInt16(left), Array2::UInt16(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::UInt32(left), Array2::UInt32(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::UInt64(left), Array2::UInt64(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Float32(left), Array2::Float32(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Float64(left), Array2::Float64(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Decimal64(left), Array2::Decimal64(right)) => {
-            match left.scale().cmp(&right.scale()) {
-                Ordering::Greater => {
-                    let scaled_right = cast_decimal_to_new_precision_and_scale2::<Decimal64Type>(
-                        right,
-                        Decimal64Type::MAX_PRECISION,
-                        left.scale(),
-                    )?;
-
-                    BinaryExecutor2::execute(
-                        left.get_primitive(),
-                        scaled_right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-                Ordering::Less => {
-                    let scaled_left = cast_decimal_to_new_precision_and_scale2::<Decimal64Type>(
-                        left,
-                        Decimal64Type::MAX_PRECISION,
-                        right.scale(),
-                    )?;
-
-                    BinaryExecutor2::execute(
-                        scaled_left.get_primitive(),
-                        right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-                Ordering::Equal => BinaryExecutor2::execute(
-                    left.get_primitive(),
-                    right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?,
-            }
-        }
-        (Array2::Decimal128(left), Array2::Decimal128(right)) => {
-            match left.scale().cmp(&right.scale()) {
-                Ordering::Greater => {
-                    let scaled_right = cast_decimal_to_new_precision_and_scale2::<Decimal128Type>(
-                        right,
-                        Decimal128Type::MAX_PRECISION,
-                        left.scale(),
-                    )?;
-
-                    BinaryExecutor2::execute(
-                        left.get_primitive(),
-                        scaled_right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-
-                Ordering::Less => {
-                    let scaled_left = cast_decimal_to_new_precision_and_scale2::<Decimal128Type>(
-                        left,
-                        Decimal128Type::MAX_PRECISION,
-                        right.scale(),
-                    )?;
-
-                    BinaryExecutor2::execute(
-                        scaled_left.get_primitive(),
-                        right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-
-                Ordering::Equal => BinaryExecutor2::execute(
-                    left.get_primitive(),
-                    right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?,
-            }
-        }
-        (Array2::Timestamp(left), Array2::Timestamp(right)) => {
-            // TODO: Unit check
-            BinaryExecutor2::execute(
-                left.get_primitive(),
-                right.get_primitive(),
-                O::compare,
-                &mut buffer,
-            )?
-        }
-        (Array2::Date32(left), Array2::Date32(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Date64(left), Array2::Date64(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Utf8(left), Array2::Utf8(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::LargeUtf8(left), Array2::LargeUtf8(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::Binary(left), Array2::Binary(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array2::LargeBinary(left), Array2::LargeBinary(right)) => {
-            BinaryExecutor2::execute(left, right, O::compare, &mut buffer)?
-        }
-        (left, right) => not_implemented!(
-            "comparison between {} and {}",
-            left.datatype(),
-            right.datatype()
-        ),
-    };
-
-    Ok(BooleanArray::new(buffer, validity))
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Eq;
 
@@ -639,12 +485,6 @@ impl PlannedScalarFunction for EqImpl {
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         execute::<EqOperation>(inputs[0], inputs[1])
-    }
-
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute2::<EqOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -717,12 +557,6 @@ impl PlannedScalarFunction for NeqImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         execute::<NotEqOperation>(inputs[0], inputs[1])
     }
-
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute2::<NotEqOperation>(left, right).map(Array2::Boolean)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -789,12 +623,6 @@ impl PlannedScalarFunction for LtImpl {
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         execute::<LtOperation>(inputs[0], inputs[1])
-    }
-
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute2::<LtOperation>(left, right).map(Array2::Boolean)
     }
 }
 
@@ -863,12 +691,6 @@ impl PlannedScalarFunction for LtEqImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         execute::<LtEqOperation>(inputs[0], inputs[1])
     }
-
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute2::<LtEqOperation>(left, right).map(Array2::Boolean)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -936,12 +758,6 @@ impl PlannedScalarFunction for GtImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         execute::<GtOperation>(inputs[0], inputs[1])
     }
-
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute2::<GtOperation>(left, right).map(Array2::Boolean)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1008,12 +824,6 @@ impl PlannedScalarFunction for GtEqImpl {
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         execute::<GtEqOperation>(inputs[0], inputs[1])
-    }
-
-    fn execute2(&self, arrays: &[&Arc<Array2>]) -> Result<Array2> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute2::<GtEqOperation>(left, right).map(Array2::Boolean)
     }
 }
 

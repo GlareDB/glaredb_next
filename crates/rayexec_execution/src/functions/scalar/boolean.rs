@@ -6,11 +6,10 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalBool;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
-use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
-use rayexec_error::{RayexecError, Result};
+use rayexec_bullet::storage::BooleanStorage;
+use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;
@@ -59,10 +58,6 @@ impl PlannedScalarFunction for AndImpl {
 
     fn return_type(&self) -> DataType {
         DataType::Boolean
-    }
-
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        unimplemented!()
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
@@ -151,10 +146,6 @@ impl PlannedScalarFunction for OrImpl {
 
     fn return_type(&self) -> DataType {
         DataType::Boolean
-    }
-
-    fn execute2(&self, inputs: &[&Arc<Array2>]) -> Result<Array2> {
-        unimplemented!()
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
