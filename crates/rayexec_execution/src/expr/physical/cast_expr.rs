@@ -1,15 +1,9 @@
-use std::sync::Arc;
 use std::{borrow::Cow, fmt};
 
 use rayexec_bullet::array::Array;
 use rayexec_bullet::{
-    array::Array2,
     batch::Batch,
-    bitmap::Bitmap,
-    compute::cast::{
-        array::{cast_array, cast_array2},
-        behavior::CastFailBehavior,
-    },
+    compute::cast::{array::cast_array, behavior::CastFailBehavior},
     datatype::DataType,
 };
 use rayexec_error::{OptionExt, Result};

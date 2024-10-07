@@ -4,8 +4,8 @@ use crate::functions::{
 };
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::{Array, Array2};
-use rayexec_bullet::compute::cast::array::{cast_decimal_to_float, cast_decimal_to_float2};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::compute::cast::array::cast_decimal_to_float;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
@@ -14,13 +14,11 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
 };
 use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Div;
@@ -328,6 +326,29 @@ impl PlannedScalarFunction for DivImpl {
                     |a, b, buf| buf.put(&(a / b)),
                 )
             }
+            (PhysicalType::Float32, PhysicalType::Float32) => {
+                BinaryExecutor::execute::<PhysicalF32, PhysicalF32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+            (PhysicalType::Float64, PhysicalType::Float64) => {
+                BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a / b)),
+                )
+            }
+
             (a, b) => return Err(unhandled_physical_types_err(self, [a, b])),
         }
     }

@@ -59,7 +59,7 @@ impl SystemFunctionImpl for ListDatabasesImpl {
             datasources.put(
                 idx,
                 info.map(|i| i.datasource)
-                    .unwrap_or("defualt".to_string())
+                    .unwrap_or("default".to_string())
                     .as_str(),
             );
         }

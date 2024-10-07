@@ -294,6 +294,28 @@ impl PlannedScalarFunction for MulImpl {
                     |a, b, buf| buf.put(&(a * b)),
                 )
             }
+            (PhysicalType::Float32, PhysicalType::Float32) => {
+                BinaryExecutor::execute::<PhysicalF32, PhysicalF32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a * b)),
+                )
+            }
+            (PhysicalType::Float64, PhysicalType::Float64) => {
+                BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a * b)),
+                )
+            }
             (PhysicalType::Interval, PhysicalType::Int32) => {
                 BinaryExecutor::execute::<PhysicalInterval, PhysicalI32, _, _>(
                     a,

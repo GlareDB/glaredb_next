@@ -23,7 +23,7 @@ use super::{
     IpcConfig,
 };
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
-use rayexec_error::{not_implemented, OptionExt, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 
 pub fn ipc_to_batch(
     batch: IpcRecordBatch,
@@ -210,6 +210,12 @@ fn encode_array(
     buffers: &mut Vec<IpcBuffer>,
     variadic_counts: &mut Vec<i64>,
 ) -> Result<()> {
+    if array.has_selection() {
+        return Err(RayexecError::new(
+            "Array needs to be unselected before being IPC-encoded",
+        ));
+    }
+
     // TODO: These encoding methods aren't entirely IPC compliant. We'll need to
     // optionally compress the buffers, include the compressed length, and
     // ensure they're padded out to 8 bytes.

@@ -18,7 +18,7 @@ use crate::compute::cast::format::{
 };
 use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::selection::SelectionVector;
-use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
+use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage, UntypedNullStorage};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
@@ -169,7 +169,7 @@ impl<'a> ScalarValue<'a> {
 
     pub fn as_array(&self, n: usize) -> Result<Array> {
         let data: ArrayData = match self {
-            Self::Null => not_implemented!("NULL scalar to array"), // TODO: Probably typed null
+            Self::Null => UntypedNullStorage(1).into(),
             Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
             Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
