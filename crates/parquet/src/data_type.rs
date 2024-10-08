@@ -24,6 +24,7 @@ use std::{fmt, mem};
 
 use bytes::Bytes;
 use half::f16;
+use private::ParquetValueType;
 
 use crate::basic::Type;
 use crate::column::page::{PageReader, PageWriter};
@@ -598,8 +599,10 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
-    use super::{ParquetError, Result, SliceAsBytes};
+    use super::{ByteArray, ParquetError, Result, SliceAsBytes};
     use crate::basic::Type;
+    use crate::column::reader::values_buffer::ValuesBuffer;
+    use crate::data_type::FixedLenByteArray;
     use crate::encodings::decoding::PlainDecoderDetails;
     use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
 
@@ -635,7 +638,10 @@ pub(crate) mod private {
         fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
 
         /// Decode the value from a given buffer for a higher level decoder
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize>;
+        fn decode<B>(buffer: &mut B, decoder: &mut PlainDecoderDetails) -> Result<usize>
+        where
+            B: ValuesBuffer<Self>,
+            Self: Sized;
 
         fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
 
@@ -691,10 +697,16 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode<B: ValuesBuffer<Self>>(
+            buffer: &mut B,
+            decoder: &mut PlainDecoderDetails,
+        ) -> Result<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+
+            let buffer = buffer.as_slice_mut();
             let values_read = bit_reader.read_batch(&mut buffer[..num_values], 1);
+
             decoder.num_values -= values_read;
             Ok(values_read)
         }
@@ -749,7 +761,7 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+                fn decode<B: ValuesBuffer<Self>>(buffer: &mut B, decoder: &mut PlainDecoderDetails) -> Result<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = std::cmp::min(buffer.len(), decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
@@ -758,6 +770,8 @@ pub(crate) mod private {
                     if bytes_left < bytes_to_decode {
                         return Err(eof_err!("Not enough bytes to decode"));
                     }
+
+                    let buffer = buffer.as_slice_mut();
 
                     // SAFETY: Raw types should be as per the standard rust bit-vectors
                     unsafe {
@@ -838,7 +852,10 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode<B: ValuesBuffer<Self>>(
+            buffer: &mut B,
+            decoder: &mut PlainDecoderDetails,
+        ) -> Result<usize> {
             // TODO - Remove the duplication between this and the general slice method
             let data = decoder
                 .data
@@ -855,6 +872,8 @@ pub(crate) mod private {
             let data_range = data.slice(decoder.start..decoder.start + bytes_to_decode);
             let bytes: &[u8] = &data_range;
             decoder.start += bytes_to_decode;
+
+            let buffer = buffer.as_slice_mut();
 
             let mut pos = 0; // position in byte array
             for item in buffer.iter_mut().take(num_values) {
@@ -925,13 +944,17 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode<B: ValuesBuffer<Self>>(
+            buffer: &mut B,
+            decoder: &mut PlainDecoderDetails,
+        ) -> Result<usize> {
             let data = decoder
                 .data
                 .as_mut()
                 .expect("set_data should have been called");
             let num_values = std::cmp::min(buffer.len(), decoder.num_values);
-            for val_array in buffer.iter_mut().take(num_values) {
+
+            for idx in 0..num_values {
                 let len: usize =
                     read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
                 decoder.start += std::mem::size_of::<u32>();
@@ -940,11 +963,16 @@ pub(crate) mod private {
                     return Err(eof_err!("Not enough bytes to decode"));
                 }
 
-                let val: &mut Self = val_array.as_mut_any().downcast_mut().unwrap();
+                // TODO: Remove need to wrap. Also remove Bytes in general.
+                let val = ByteArray {
+                    data: Some(data.slice(decoder.start..decoder.start + len)),
+                };
 
-                val.set_data(data.slice(decoder.start..decoder.start + len));
+                buffer.put_value(idx, &val);
+
                 decoder.start += len;
             }
+
             decoder.num_values -= num_values;
 
             Ok(num_values)
@@ -1007,7 +1035,10 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode<B: ValuesBuffer<Self>>(
+            buffer: &mut B,
+            decoder: &mut PlainDecoderDetails,
+        ) -> Result<usize> {
             assert!(decoder.type_length > 0);
 
             let data = decoder
@@ -1016,16 +1047,23 @@ pub(crate) mod private {
                 .expect("set_data should have been called");
             let num_values = std::cmp::min(buffer.len(), decoder.num_values);
 
-            for item in buffer.iter_mut().take(num_values) {
+            for idx in 0..num_values {
                 let len = decoder.type_length as usize;
 
                 if data.len() < decoder.start + len {
                     return Err(eof_err!("Not enough bytes to decode"));
                 }
 
-                item.set_data(data.slice(decoder.start..decoder.start + len));
+                // TODO: Remove need to wrap. Also remove Bytes in general.
+                let val = FixedLenByteArray(ByteArray {
+                    data: Some(data.slice(decoder.start..decoder.start + len)),
+                });
+
+                buffer.put_value(idx, &val);
+
                 decoder.start += len;
             }
+
             decoder.num_values -= num_values;
 
             Ok(num_values)
@@ -1069,6 +1107,20 @@ pub(crate) mod private {
         }
     }
 }
+
+/// Marker trait for indicating if a parquet value type is a fixed length
+/// primitive.
+///
+/// This lets us add efficient slice methods to `ValuesBuffer` implementations
+/// since they'll typically be backed by just a vec/slice.
+pub(crate) trait FixedLenPrimitiveValue: ParquetValueType {}
+
+impl FixedLenPrimitiveValue for bool {}
+impl FixedLenPrimitiveValue for i32 {}
+impl FixedLenPrimitiveValue for i64 {}
+impl FixedLenPrimitiveValue for f32 {}
+impl FixedLenPrimitiveValue for f64 {}
+impl FixedLenPrimitiveValue for Int96 {} // :/
 
 /// Contains the Parquet physical type information as well as the Rust primitive type
 /// presentation.
