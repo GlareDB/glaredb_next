@@ -74,7 +74,7 @@ impl UniformExecutor {
                 }
 
                 output_buffer.idx = idx;
-                op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+                op(op_inputs.as_slice(), &mut output_buffer);
             }
 
             out_validity = Some(out_validity_builder);
@@ -93,7 +93,7 @@ impl UniformExecutor {
                 }
 
                 output_buffer.idx = idx;
-                op(op_inputs.as_slice().try_into().unwrap(), &mut output_buffer);
+                op(op_inputs.as_slice(), &mut output_buffer);
             }
         }
 

@@ -32,6 +32,10 @@ impl SharedHeapStorage {
         self.blobs.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn data_size_bytes(&self) -> usize {
         self.blobs.iter().map(|b| b.len()).sum()
     }

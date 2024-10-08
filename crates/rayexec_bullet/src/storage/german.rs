@@ -58,7 +58,7 @@ impl UnionedGermanMetadata {
         }
     }
 
-    pub fn len(&self) -> i32 {
+    pub fn data_len(&self) -> i32 {
         // SAFETY: `len` field is in the same place in both variants.
         unsafe { self.small.len }
     }
@@ -136,6 +136,10 @@ impl GermanVarlenStorage {
         self.metadata.as_ref().len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn try_push(&mut self, value: &[u8]) -> Result<()> {
         let metadata = self.metadata.try_as_vec_mut()?;
         let data = self.data.try_as_vec_mut()?;
@@ -198,7 +202,7 @@ impl GermanVarlenStorage {
     }
 
     pub fn data_size_bytes(&self) -> usize {
-        self.metadata.iter().map(|m| m.len() as usize).sum()
+        self.metadata.iter().map(|m| m.data_len() as usize).sum()
     }
 
     pub fn as_german_storage_slice(&self) -> GermanVarlenStorageSlice {

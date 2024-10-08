@@ -32,7 +32,7 @@ pub struct OutputBuffer<B> {
     pub(crate) buffer: B,
 }
 
-impl<'a, B> OutputBuffer<B>
+impl<B> OutputBuffer<B>
 where
     B: ArrayDataBuffer,
 {
@@ -47,6 +47,10 @@ pub trait ArrayDataBuffer {
 
     /// Length of the buffer.
     fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     /// Put a value at `idx`. Guaranteed to be in bounds according to `len`.
     fn put(&mut self, idx: usize, val: &Self::Type);

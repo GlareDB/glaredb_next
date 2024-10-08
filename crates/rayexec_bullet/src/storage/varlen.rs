@@ -8,6 +8,11 @@ pub trait OffsetIndex: Debug + Clone + Copy + PartialEq + Eq {
 
     fn get(start: Self, end: Self, slice: &[u8]) -> Option<&[u8]>;
 
+    /// Unsafely slice a byte slice.
+    ///
+    /// # Safety
+    ///
+    /// UB if attempting to get a slice outside of `slice`.
     unsafe fn get_unchecked(start: Self, end: Self, slice: &[u8]) -> &[u8];
 
     fn from_usize(v: usize) -> Self;
@@ -87,6 +92,10 @@ impl<O: OffsetIndex> ContiguousVarlenStorage<O> {
 
     pub fn len(&self) -> usize {
         self.offsets.as_ref().len() - 1
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn iter(&self) -> ContiguousVarlenIter<'_, O> {

@@ -119,6 +119,17 @@ impl<T> PrimitiveStorage<T> {
         self.as_ref().len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Tries to reinterpret cast T to U where both types have the same size
+    /// storage.
+    ///
+    /// # Safety
+    ///
+    /// This should only be used for trivial casts where possible under/overflow
+    /// isn't a concern (e.g. i64 -> u64).
     pub unsafe fn try_reintepret_cast<U>(&self) -> Result<&PrimitiveStorage<U>> {
         if std::mem::size_of::<T>() != std::mem::size_of::<U>() {
             return Err(RayexecError::new(
@@ -126,7 +137,10 @@ impl<T> PrimitiveStorage<T> {
             ));
         }
 
-        Ok(std::mem::transmute(self))
+        Ok(std::mem::transmute::<
+            &PrimitiveStorage<T>,
+            &PrimitiveStorage<U>,
+        >(self))
     }
 
     /// Iterate over the primitive values.

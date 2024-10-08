@@ -33,5 +33,10 @@ pub trait AddressableStorage: Debug {
 
     fn get(&self, idx: usize) -> Option<Self::T>;
 
+    /// Unsafely get a value at an index.
+    ///
+    /// # Safety
+    ///
+    /// Maybe UB if `idx` is out of bounds.
     unsafe fn get_unchecked(&self, idx: usize) -> Self::T;
 }

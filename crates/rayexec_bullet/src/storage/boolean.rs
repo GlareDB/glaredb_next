@@ -10,6 +10,10 @@ impl BooleanStorage {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn as_boolean_storage_ref(&self) -> BooleanStorageRef {
         BooleanStorageRef(&self.0)
     }

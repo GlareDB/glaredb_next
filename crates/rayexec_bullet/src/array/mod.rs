@@ -757,6 +757,10 @@ impl ArrayData {
             },
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl From<UntypedNullStorage> for ArrayData {
@@ -863,7 +867,6 @@ impl From<GermanVarlenStorage> for ArrayData {
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
 
