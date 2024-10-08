@@ -650,6 +650,16 @@ impl Array {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 }),
+            ScalarValue::Date32(v) => UnaryExecutor::value_at_unchecked::<PhysicalI32>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Date64(v) => UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
             ScalarValue::Interval(v) => {
                 UnaryExecutor::value_at_unchecked::<PhysicalInterval>(self, row).map(|arr_val| {
                     match arr_val {
