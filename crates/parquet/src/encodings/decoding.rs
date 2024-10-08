@@ -17,13 +17,15 @@
 
 //! Contains all supported decoders for Parquet.
 
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::{cmp, mem};
+
 use bytes::Bytes;
 use num::traits::WrappingAdd;
 use num::FromPrimitive;
-use std::{cmp, fmt::Debug, marker::PhantomData, mem};
 
 use super::rle::RleDecoder;
-
 use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
@@ -722,7 +724,7 @@ where
 
             let batch_read = self
                 .bit_reader
-                .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
+                .read_batch(&mut buffer[read..read + batch_to_read], bit_width);
 
             if batch_read != batch_to_read {
                 return Err(general_err!(
@@ -793,7 +795,7 @@ where
 
             let skip_count = self
                 .bit_reader
-                .get_batch(&mut skip_buffer[0..mini_block_to_skip], bit_width);
+                .read_batch(&mut skip_buffer[0..mini_block_to_skip], bit_width);
 
             if skip_count != mini_block_to_skip {
                 return Err(general_err!(
@@ -1097,12 +1099,12 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::encoding::*, *};
-
     use std::f32::consts::PI as PI_f32;
     use std::f64::consts::PI as PI_f64;
     use std::sync::Arc;
 
+    use super::super::encoding::*;
+    use super::*;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::test_common::rand_gen::RandGen;
 

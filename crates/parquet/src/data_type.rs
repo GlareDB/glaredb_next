@@ -694,7 +694,7 @@ pub(crate) mod private {
         fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(buffer.len(), decoder.num_values);
-            let values_read = bit_reader.get_batch(&mut buffer[..num_values], 1);
+            let values_read = bit_reader.read_batch(&mut buffer[..num_values], 1);
             decoder.num_values -= values_read;
             Ok(values_read)
         }

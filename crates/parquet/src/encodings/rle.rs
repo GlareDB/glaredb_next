@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{cmp, mem::size_of};
+use std::cmp;
+use std::mem::size_of;
 
 use bytes::Bytes;
 
 use crate::errors::{ParquetError, Result};
-use crate::util::bit_util::from_le_slice;
-use crate::util::bit_util::{self, BitReader, BitWriter, FromBytes};
+use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
 /// Rle/Bit-Packing Hybrid Encoding
 /// The grammar for this encoding looks like the following (copied verbatim
@@ -385,7 +385,7 @@ impl RleDecoder {
                     cmp::min(buffer.len() - values_read, self.bit_packed_left as usize);
                 let bit_reader = self.bit_reader.as_mut().expect("bit_reader should be set");
 
-                num_values = bit_reader.get_batch::<T>(
+                num_values = bit_reader.read_batch::<T>(
                     &mut buffer[values_read..values_read + num_values],
                     self.bit_width as usize,
                 );
@@ -471,7 +471,7 @@ impl RleDecoder {
                     }
 
                     let num_values = bit_reader
-                        .get_batch::<i32>(&mut index_buf[..to_read], self.bit_width as usize);
+                        .read_batch::<i32>(&mut index_buf[..to_read], self.bit_width as usize);
                     if num_values == 0 {
                         // Handle writers which truncate the final block
                         self.bit_packed_left = 0;
@@ -522,10 +522,11 @@ impl RleDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rand::distributions::Standard;
+    use rand::{self, thread_rng, Rng, SeedableRng};
 
+    use super::*;
     use crate::util::bit_util::ceil;
-    use rand::{self, distributions::Standard, thread_rng, Rng, SeedableRng};
 
     const MAX_WIDTH: usize = 32;
 

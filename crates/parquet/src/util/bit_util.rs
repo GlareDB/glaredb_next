@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{cmp, mem::size_of};
+use std::cmp;
+use std::mem::size_of;
 
 use bytes::Bytes;
 
@@ -430,8 +431,7 @@ impl BitReader {
     ///
     /// This function panics if
     /// - `num_bits` is larger than the bit-capacity of `T`
-    ///
-    pub fn get_batch<T: FromBytes>(&mut self, batch: &mut [T], num_bits: usize) -> usize {
+    pub fn read_batch<T: FromBytes>(&mut self, batch: &mut [T], num_bits: usize) -> usize {
         assert!(num_bits <= size_of::<T>() * 8);
 
         let mut values_to_read = batch.len();
@@ -675,11 +675,12 @@ impl From<Vec<u8>> for BitReader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::util::test_common::rand_gen::random_numbers;
-    use rand::distributions::{Distribution, Standard};
     use std::fmt::Debug;
+
+    use rand::distributions::{Distribution, Standard};
+
+    use super::*;
+    use crate::util::test_common::rand_gen::random_numbers;
 
     #[test]
     fn test_ceil() {
@@ -996,7 +997,7 @@ mod tests {
         let buf = writer.consume();
         let mut reader = BitReader::from(buf);
         let mut batch = vec![T::default(); values.len()];
-        let values_read = reader.get_batch::<T>(&mut batch, num_bits);
+        let values_read = reader.read_batch::<T>(&mut batch, num_bits);
         assert_eq!(values_read, values.len());
         for i in 0..batch.len() {
             assert_eq!(
@@ -1121,7 +1122,7 @@ mod tests {
 
         // Create a non-zeroed output buffer
         let mut output = [u64::MAX; 32];
-        reader.get_batch(&mut output, 1);
+        reader.read_batch(&mut output, 1);
 
         for v in output {
             // Values should be read correctly

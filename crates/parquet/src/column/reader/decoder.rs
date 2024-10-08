@@ -196,7 +196,7 @@ impl LevelDecoder {
     fn read(&mut self, out: &mut [i16]) -> Result<usize> {
         match self {
             Self::Packed(reader, bit_width) => {
-                Ok(reader.get_batch::<i16>(out, *bit_width as usize))
+                Ok(reader.read_batch::<i16>(out, *bit_width as usize))
             }
             Self::Rle(reader) => Ok(reader.get_batch(out)?),
         }

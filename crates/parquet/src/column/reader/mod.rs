@@ -18,6 +18,7 @@
 //! Contains column reader API.
 
 pub mod decoder;
+pub mod values_buffer;
 
 use bytes::Bytes;
 
