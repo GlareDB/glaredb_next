@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use rayexec_error::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -10,7 +12,7 @@ use crate::execution::intermediate::{
     PipelineSource,
 };
 use crate::explain::explainable::Explainable;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_explain::ExplainFormat;
 use crate::logical::operator::LogicalOperator;
 
@@ -36,7 +38,13 @@ impl<'a> ExplainFormatter<'a> {
     }
 
     pub fn format_logical_plan(&self, root: &LogicalOperator) -> Result<String> {
-        let node = ExplainNode::walk_logical_plan(self.bind_context, root, self.config);
+        let mut visisted_materializations = HashSet::new();
+        let node = ExplainNode::walk_logical_plan(
+            self.bind_context,
+            root,
+            &mut visisted_materializations,
+            self.config,
+        );
         self.format(&node)
     }
 
@@ -195,6 +203,7 @@ impl ExplainNode {
     fn walk_logical_plan(
         bind_context: &BindContext,
         plan: &LogicalOperator,
+        visited_materializations: &mut HashSet<MaterializationRef>,
         config: ExplainConfig,
     ) -> ExplainNode {
         let (entry, children) = match plan {
@@ -230,35 +239,42 @@ impl ExplainNode {
                 // materialization from bind context.
                 let entry = n.explain_entry(config);
 
-                let children = match bind_context.get_materialization(n.node.mat) {
-                    Ok(mat) => vec![Self::walk_logical_plan(bind_context, &mat.plan, config)],
-                    Err(e) => {
-                        error!(%e, "failed to get materialization from bind context");
-                        Vec::new()
+                // Only show materializations once.
+                let children = if !visited_materializations.contains(&n.node.mat) {
+                    match bind_context.get_materialization(n.node.mat) {
+                        Ok(mat) => vec![Self::walk_logical_plan(
+                            bind_context,
+                            &mat.plan,
+                            visited_materializations,
+                            config,
+                        )],
+                        Err(e) => {
+                            error!(%e, "failed to get materialization from bind context");
+                            Vec::new()
+                        }
                     }
+                } else {
+                    Vec::new()
                 };
+
+                visited_materializations.insert(n.node.mat);
 
                 return ExplainNode { entry, children };
             }
             LogicalOperator::MagicMaterializationScan(n) => {
-                // TODO: Do we actually want too show the children?
+                // Note that we're not shoing children for these scans as
+                // they're already represented elsewhere in the explain.
                 let entry = n.explain_entry(config);
-
-                let children = match bind_context.get_materialization(n.node.mat) {
-                    Ok(mat) => vec![Self::walk_logical_plan(bind_context, &mat.plan, config)],
-                    Err(e) => {
-                        error!(%e, "failed to get materialization from bind context");
-                        Vec::new()
-                    }
+                return ExplainNode {
+                    entry,
+                    children: Vec::new(),
                 };
-
-                return ExplainNode { entry, children };
             }
         };
 
         let children = children
             .iter()
-            .map(|c| Self::walk_logical_plan(bind_context, c, config))
+            .map(|c| Self::walk_logical_plan(bind_context, c, visited_materializations, config))
             .collect();
 
         ExplainNode { entry, children }
