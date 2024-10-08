@@ -2,4 +2,4 @@
 
 set -xeuo pipefail
 
-cargo fmt
+cargo +nightly fmt
