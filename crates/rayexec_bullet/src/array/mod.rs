@@ -670,7 +670,7 @@ impl Array {
             }
             ScalarValue::Utf8(v) => UnaryExecutor::value_at_unchecked::<PhysicalUtf8>(self, row)
                 .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == v.as_ref(),
+                    Some(arr_val) => arr_val == *v,
                     None => false,
                 }),
             ScalarValue::Binary(v) => {
