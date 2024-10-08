@@ -392,8 +392,11 @@ impl JoinTree {
                 //
                 // Arbitrarily cross join two of them, and push back the filter
                 // to try again.
-                let mut left = std::mem::take(&mut self.nodes[node_indices[0]]);
-                let mut right = std::mem::take(&mut self.nodes[node_indices[1]]);
+                let left = std::mem::take(&mut self.nodes[node_indices[0]]);
+                let right = std::mem::take(&mut self.nodes[node_indices[1]]);
+
+                // Swap if needed.
+                let [mut left, mut right] = Self::maybe_swap_using_stats([left, right]);
 
                 // Build up left side of join.
                 let mut left_plan = left.plan.take().expect("plan to be some");
