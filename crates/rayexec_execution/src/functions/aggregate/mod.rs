@@ -12,9 +12,7 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{
     AggregateState, RowToStateMapping, StateCombiner, StateFinalizer, UnaryNonNullUpdater,
 };
-use rayexec_bullet::executor::builder::{
-    ArrayBuilder, BooleanBuffer, PrimitiveBuffer,
-};
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalStorage;
 use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
@@ -287,6 +285,7 @@ where
     }
 }
 
+/// Helper function for using with `DefaultGroupedStates`.
 pub fn unary_update<State, Storage, Output>(
     arrays: &[&Array],
     mapping: &[RowToStateMapping],

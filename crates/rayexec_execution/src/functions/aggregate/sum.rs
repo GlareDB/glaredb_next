@@ -1,4 +1,7 @@
-use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
+use super::{
+    primitive_finalize, unary_update, AggregateFunction, DefaultGroupedStates, GroupedStates,
+    PlannedAggregateFunction,
+};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use num_traits::CheckedAdd;
 use rayexec_bullet::{
@@ -186,28 +189,11 @@ impl SumInt64Impl {
 pub struct SumFloat64Impl;
 
 impl SumFloat64Impl {
-    fn update(
-        arrays: &[&Array],
-        mapping: &[RowToStateMapping],
-        states: &mut [SumStateAdd<f64>],
-    ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalF64, _, _, _>(
-            arrays[0],
-            mapping.iter().copied(),
-            states,
-        )
-    }
-
-    fn finalize(states: vec::Drain<SumStateAdd<f64>>) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Float64,
-            buffer: PrimitiveBuffer::<f64>::with_len(states.len()),
-        };
-        StateFinalizer::finalize(states, builder)
-    }
-
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(
+            unary_update::<SumStateAdd<f64>, PhysicalF64, f64>,
+            move |states| primitive_finalize(DataType::Float64, states),
+        ))
     }
 }
 
@@ -218,34 +204,12 @@ pub struct SumDecimal64Impl {
 }
 
 impl SumDecimal64Impl {
-    fn update(
-        arrays: &[&Array],
-        mapping: &[RowToStateMapping],
-        states: &mut [SumStateCheckedAdd<i64>],
-    ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
-            arrays[0],
-            mapping.iter().copied(),
-            states,
-        )
-    }
-
-    fn finalize(&self, states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
-                precision: self.precision,
-                scale: self.scale,
-            }),
-            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
-        };
-        StateFinalizer::finalize(states, builder)
-    }
-
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let this = *self;
-        Box::new(DefaultGroupedStates::new(Self::update, move |states| {
-            this.finalize(states)
-        }))
+        let datatype = DataType::Decimal64(DecimalTypeMeta::new(self.precision, self.scale));
+        Box::new(DefaultGroupedStates::new(
+            unary_update::<SumStateCheckedAdd<i64>, PhysicalI64, i64>,
+            move |states| primitive_finalize(datatype.clone(), states),
+        ))
     }
 }
 
@@ -256,34 +220,12 @@ pub struct SumDecimal128Impl {
 }
 
 impl SumDecimal128Impl {
-    fn update(
-        arrays: &[&Array],
-        mapping: &[RowToStateMapping],
-        states: &mut [SumStateCheckedAdd<i128>],
-    ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalI128, _, _, _>(
-            arrays[0],
-            mapping.iter().copied(),
-            states,
-        )
-    }
-
-    fn finalize(&self, states: vec::Drain<SumStateCheckedAdd<i128>>) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Decimal128(DecimalTypeMeta {
-                precision: self.precision,
-                scale: self.scale,
-            }),
-            buffer: PrimitiveBuffer::<i128>::with_len(states.len()),
-        };
-        StateFinalizer::finalize(states, builder)
-    }
-
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let this = *self;
-        Box::new(DefaultGroupedStates::new(Self::update, move |states| {
-            this.finalize(states)
-        }))
+        let datatype = DataType::Decimal128(DecimalTypeMeta::new(self.precision, self.scale));
+        Box::new(DefaultGroupedStates::new(
+            unary_update::<SumStateCheckedAdd<i128>, PhysicalI128, i128>,
+            move |states| primitive_finalize(datatype.clone(), states),
+        ))
     }
 }
 
