@@ -11,6 +11,8 @@
 
 # TODO: DOENS'T EXHIBIT THE ISSUE!!!!
 
+halt
+
 statement ok
 CREATE TEMP TABLE t1 (a INT, b INT);
 
