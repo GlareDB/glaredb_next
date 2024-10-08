@@ -13,7 +13,7 @@ use crate::compute::cast::format::{
 };
 use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::selection::SelectionVector;
-use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage, UntypedNullStorage};
+use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};

@@ -305,7 +305,7 @@ fn encode_primitive_values<T>(
 
 #[cfg(test)]
 mod tests {
-    use crate::field::Field;
+    use crate::{datatype::DecimalTypeMeta, field::Field};
 
     use super::*;
 
@@ -346,21 +346,18 @@ mod tests {
         roundtrip(schema, batch);
     }
 
-    // #[test]
-    // fn decimal128_roundtrip() {
-    //     let batch = Batch::try_new2([Array2::Decimal128(Decimal128Array::new(
-    //         4,
-    //         2,
-    //         PrimitiveArray::from_iter([1000, 1200, 1250]),
-    //     ))])
-    //     .unwrap();
+    #[test]
+    fn decimal128_roundtrip() {
+        let datatype = DataType::Decimal128(DecimalTypeMeta::new(4, 2));
+        let arr = Array::new_with_array_data(
+            datatype.clone(),
+            PrimitiveStorage::from(vec![1000_i128, 1200, 1250]),
+        );
 
-    //     let schema = Schema::new([Field::new(
-    //         "f1",
-    //         DataType::Decimal128(DecimalTypeMeta::new(4, 2)),
-    //         true,
-    //     )]);
+        let batch = Batch::try_new([arr]).unwrap();
 
-    //     roundtrip(schema, batch)
-    // }
+        let schema = Schema::new([Field::new("f1", datatype, true)]);
+
+        roundtrip(schema, batch)
+    }
 }

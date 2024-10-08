@@ -7,7 +7,7 @@ use rayexec_bullet::{
     executor::scalar::{interleave, SelectExecutor},
     selection::SelectionVector,
 };
-use rayexec_error::{not_implemented, Result};
+use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
 
