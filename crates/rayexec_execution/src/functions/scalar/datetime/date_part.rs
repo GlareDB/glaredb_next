@@ -1,4 +1,3 @@
-
 use rayexec_bullet::{
     array::Array,
     compute::date::{self, extract_date_part},
@@ -15,7 +14,8 @@ use crate::{
         scalar::{PlannedScalarFunction, ScalarFunction},
         FunctionInfo, Signature,
     },
-    logical::{binder::bind_context::BindContext, consteval::ConstEval},
+    logical::binder::bind_context::BindContext,
+    optimizer::expr_rewrite::{const_fold::ConstFold, ExpressionRewriteRule},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,9 +70,8 @@ impl ScalarFunction for DatePart {
         plan_check_num_args(self, &datatypes, 2)?;
 
         // Requires first argument to be constant (for now)
-        let part = ConstEval::default()
-            .fold(inputs[0].clone())?
-            .try_unwrap_constant()?
+        let part = ConstFold::rewrite(bind_context, inputs[0].clone())?
+            .try_into_scalar()?
             .try_into_string()?;
 
         let part = part.parse::<ast::DatePart>()?;

@@ -1,4 +1,3 @@
-
 use rayexec_bullet::{
     array::Array,
     datatype::{DataType, DataTypeId},
@@ -18,7 +17,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     expr::Expression,
     functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature},
-    logical::{binder::bind_context::BindContext, consteval::ConstEval},
+    logical::binder::bind_context::BindContext,
+    optimizer::expr_rewrite::{const_fold::ConstFold, ExpressionRewriteRule},
 };
 
 use super::{comparison::EqImpl, PlannedScalarFunction, ScalarFunction};
@@ -101,9 +101,8 @@ impl ScalarFunction for Like {
         }
 
         if inputs[1].is_constant() {
-            let pattern = ConstEval::default()
-                .fold(inputs[1].clone())?
-                .try_unwrap_constant()?
+            let pattern = ConstFold::rewrite(bind_context, inputs[1].clone())?
+                .try_into_scalar()?
                 .try_into_string()?;
 
             let escape_char = b'\\'; // TODO: Possible to get from the user at some point.
