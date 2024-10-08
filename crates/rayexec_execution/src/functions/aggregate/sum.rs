@@ -285,233 +285,310 @@ impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use rayexec_bullet::array::{Array, Array2, Int64Array};
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::{array::Array, scalar::ScalarValue};
 
-//     use super::*;
+    use super::*;
 
-//     #[test]
-//     fn sum_i64_single_group_two_partitions() {
-//         // Single group, two partitions, 'SELECT SUM(a) FROM table'
+    #[test]
+    fn sum_i64_single_group_two_partitions() {
+        // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-//         let partition_1_vals = &Array::from_iter([1, 2, 3]);
-//         let partition_2_vals = &Array::from_iter([4, 5, 6]);
+        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
 
-//         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
-//         let mut states_1 = specialized.new_grouped_state();
-//         let mut states_2 = specialized.new_grouped_state();
+        let mut states_1 = specialized.new_grouped_state();
+        let mut states_2 = specialized.new_grouped_state();
 
-//         let idx_1 = states_1.new_group();
-//         assert_eq!(0, idx_1);
+        let idx_1 = states_1.new_group();
+        assert_eq!(0, idx_1);
 
-//         let idx_2 = states_2.new_group();
-//         assert_eq!(0, idx_2);
+        let idx_2 = states_2.new_group();
+        assert_eq!(0, idx_2);
 
-//         // All inputs map to the same group (no GROUP BY clause)
-//         let mapping_1 = vec![0; partition_1_vals.logical_len()];
-//         let mapping_2 = vec![0; partition_2_vals.logical_len()];
+        // All inputs map to the same group (no GROUP BY clause)
+        let mapping_1: Vec<_> = (0..partition_1_vals.logical_len())
+            .map(|row| RowToStateMapping {
+                from_row: row,
+                to_state: 0,
+            })
+            .collect();
+        let mapping_2: Vec<_> = (0..partition_2_vals.logical_len())
+            .map(|row| RowToStateMapping {
+                from_row: row,
+                to_state: 0,
+            })
+            .collect();
 
-//         states_1
-//             .update_states(
-//                 &Bitmap::new_with_all_true(3),
-//                 &[partition_1_vals],
-//                 &mapping_1,
-//             )
-//             .unwrap();
-//         states_2
-//             .update_states(
-//                 &Bitmap::new_with_all_true(3),
-//                 &[partition_2_vals],
-//                 &mapping_2,
-//             )
-//             .unwrap();
+        states_1
+            .update_states(&[partition_1_vals], &mapping_1)
+            .unwrap();
+        states_2
+            .update_states(&[partition_2_vals], &mapping_2)
+            .unwrap();
 
-//         // Combine states.
-//         //
-//         // Both partitions hold a single state (representing a single group),
-//         // and those states map to each other.
-//         let combine_mapping = vec![0];
-//         states_1.try_combine(states_2, &combine_mapping).unwrap();
+        // Combine states.
+        //
+        // Both partitions hold a single state (representing a single group),
+        // and those states map to each other.
+        let combine_mapping = vec![0];
+        states_1.try_combine(states_2, &combine_mapping).unwrap();
 
-//         // Get final output.
-//         let out = states_1.drain_finalize_n(100).unwrap();
-//         let expected = Array2::Int64(Int64Array::from_iter([Some(21)]));
-//         assert_eq!(expected, out.unwrap());
-//     }
+        // Get final output.
+        let out = states_1.drain_next(100).unwrap().unwrap();
 
-//     #[test]
-//     fn sum_i64_two_groups_two_partitions() {
-//         // Two groups, two partitions, 'SELECT SUM(col2) FROM table GROUP BY col1'
-//         //
-//         // | col1 | col2 |
-//         // |------|------|
-//         // | 'a'  | 1    |
-//         // | 'a'  | 2    |
-//         // | 'b'  | 3    |
-//         // | 'b'  | 4    |
-//         // | 'b'  | 5    |
-//         // | 'a'  | 6    |
-//         //
-//         // Partition values and mappings represent the positions of the above
-//         // table. The actual grouping values are stored in the operator, and
-//         // operator is what computes the mappings.
-//         let partition_1_vals = &Array2::Int64(Int64Array::from_iter([1, 2, 3]));
-//         let partition_2_vals = &Array2::Int64(Int64Array::from_iter([4, 5, 6]));
+        assert_eq!(1, out.logical_len());
+        assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
+    }
 
-//         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+    #[test]
+    fn sum_i64_two_groups_two_partitions() {
+        // Two groups, two partitions, 'SELECT SUM(col2) FROM table GROUP BY col1'
+        //
+        // | col1 | col2 |
+        // |------|------|
+        // | 'a'  | 1    |
+        // | 'a'  | 2    |
+        // | 'b'  | 3    |
+        // | 'b'  | 4    |
+        // | 'b'  | 5    |
+        // | 'a'  | 6    |
+        //
+        // Partition values and mappings represent the positions of the above
+        // table. The actual grouping values are stored in the operator, and
+        // operator is what computes the mappings.
+        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
 
-//         let mut states_1 = specialized.new_grouped_state();
-//         let mut states_2 = specialized.new_grouped_state();
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
-//         // Both partitions are operating on two groups ('a' and 'b').
-//         states_1.new_group();
-//         states_1.new_group();
+        let mut states_1 = specialized.new_grouped_state();
+        let mut states_2 = specialized.new_grouped_state();
 
-//         states_2.new_group();
-//         states_2.new_group();
+        // Both partitions are operating on two groups ('a' and 'b').
+        states_1.new_group();
+        states_1.new_group();
 
-//         // Mapping corresponding to the above table. Group 'a' == 0 and group
-//         // 'b' == 1.
-//         let mapping_1 = vec![0, 0, 1];
-//         let mapping_2 = vec![1, 1, 0];
+        states_2.new_group();
+        states_2.new_group();
 
-//         states_1
-//             .update_states(
-//                 &Bitmap::new_with_all_true(3),
-//                 &[partition_1_vals],
-//                 &mapping_1,
-//             )
-//             .unwrap();
-//         states_2
-//             .update_states(
-//                 &Bitmap::new_with_all_true(3),
-//                 &[partition_2_vals],
-//                 &mapping_2,
-//             )
-//             .unwrap();
+        // Mapping corresponding to the above table. Group 'a' == 0 and group
+        // 'b' == 1.
+        let mapping_1 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+        ];
+        let mapping_2 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 0,
+            },
+        ];
 
-//         // Combine states.
-//         //
-//         // The above `mapping_1` and `mapping_2` vectors indices that the state
-//         // for group 'a' is state 0 in each partition, and group 'b' is state 1
-//         // in each.
-//         //
-//         // The mapping here indicates the the 0th state for both partitions
-//         // should be combined, and the 1st state for both partitions should be
-//         // combined.
-//         let combine_mapping = vec![0, 1];
-//         states_1.try_combine(states_2, &combine_mapping).unwrap();
+        states_1
+            .update_states(&[partition_1_vals], &mapping_1)
+            .unwrap();
+        states_2
+            .update_states(&[partition_2_vals], &mapping_2)
+            .unwrap();
 
-//         // Get final output.
-//         let out = states_1.drain_finalize_n(100).unwrap();
-//         let expected = Array2::Int64(Int64Array::from_iter([Some(9), Some(12)]));
-//         assert_eq!(expected, out.unwrap());
-//     }
+        // Combine states.
+        //
+        // The above `mapping_1` and `mapping_2` vectors indices that the state
+        // for group 'a' is state 0 in each partition, and group 'b' is state 1
+        // in each.
+        //
+        // The mapping here indicates the the 0th state for both partitions
+        // should be combined, and the 1st state for both partitions should be
+        // combined.
+        let combine_mapping = vec![0, 1];
+        states_1.try_combine(states_2, &combine_mapping).unwrap();
 
-//     #[test]
-//     fn sum_i64_three_groups_two_partitions_with_unseen_group() {
-//         // Three groups, two partitions, 'SELECT SUM(col2) FROM table GROUP BY col1'
-//         //
-//         // This test represents a case where we're merging two aggregate hash
-//         // maps, where the map we're merging into has seen more groups than the
-//         // one that's being consumed. The implementation of the hash aggregate
-//         // operator ensures either this is the case, or that both hash maps have
-//         // seen the same number of groups.
-//         //
-//         // | col1 | col2 |
-//         // |------|------|
-//         // | 'x'  | 1    |
-//         // | 'x'  | 2    |
-//         // | 'y'  | 3    |
-//         // | 'z'  | 4    |
-//         // | 'x'  | 5    |
-//         // | 'z'  | 6    |
-//         // | 'z'  | 7    |
-//         // | 'z'  | 8    |
-//         //
-//         // Partition values and mappings represent the positions of the above
-//         // table. The actual grouping values are stored in the operator, and
-//         // operator is what computes the mappings.
-//         let partition_1_vals = &Array2::Int64(Int64Array::from_iter([1, 2, 3, 4]));
-//         let partition_2_vals = &Array2::Int64(Int64Array::from_iter([5, 6, 7, 8]));
+        // Get final output.
+        let out = states_1.drain_next(100).unwrap().unwrap();
 
-//         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+        assert_eq!(2, out.logical_len());
+        assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::Int64(12), out.logical_value(1).unwrap());
+    }
 
-//         let mut states_1 = specialized.new_grouped_state();
-//         let mut states_2 = specialized.new_grouped_state();
+    #[test]
+    fn sum_i64_three_groups_two_partitions_with_unseen_group() {
+        // Three groups, two partitions, 'SELECT SUM(col2) FROM table GROUP BY col1'
+        //
+        // This test represents a case where we're merging two aggregate hash
+        // maps, where the map we're merging into has seen more groups than the
+        // one that's being consumed. The implementation of the hash aggregate
+        // operator ensures either this is the case, or that both hash maps have
+        // seen the same number of groups.
+        //
+        // | col1 | col2 |
+        // |------|------|
+        // | 'x'  | 1    |
+        // | 'x'  | 2    |
+        // | 'y'  | 3    |
+        // | 'z'  | 4    |
+        // | 'x'  | 5    |
+        // | 'z'  | 6    |
+        // | 'z'  | 7    |
+        // | 'z'  | 8    |
+        //
+        // Partition values and mappings represent the positions of the above
+        // table. The actual grouping values are stored in the operator, and
+        // operator is what computes the mappings.
+        let partition_1_vals = &Array::from_iter::<[i64; 4]>([1, 2, 3, 4]);
+        let partition_2_vals = &Array::from_iter::<[i64; 4]>([5, 6, 7, 8]);
 
-//         // Partition 1 sees groups 'x', 'y', and 'z'.
-//         states_1.new_group();
-//         states_1.new_group();
-//         states_1.new_group();
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
-//         // Partition 2 see groups 'x' and 'z' (no 'y').
-//         states_2.new_group();
-//         states_2.new_group();
+        let mut states_1 = specialized.new_grouped_state();
+        let mut states_2 = specialized.new_grouped_state();
 
-//         // For partitions 1: 'x' == 0, 'y' == 1, 'z' == 2
-//         let mapping_1 = vec![0, 0, 1, 2];
-//         // For partitions 2: 'x' == 0, 'z' == 1
-//         let mapping_2 = vec![0, 1, 1, 1];
+        // Partition 1 sees groups 'x', 'y', and 'z'.
+        states_1.new_group();
+        states_1.new_group();
+        states_1.new_group();
 
-//         states_1
-//             .update_states(
-//                 &Bitmap::new_with_all_true(4),
-//                 &[partition_1_vals],
-//                 &mapping_1,
-//             )
-//             .unwrap();
-//         states_2
-//             .update_states(
-//                 &Bitmap::new_with_all_true(4),
-//                 &[partition_2_vals],
-//                 &mapping_2,
-//             )
-//             .unwrap();
+        // Partition 2 see groups 'x' and 'z' (no 'y').
+        states_2.new_group();
+        states_2.new_group();
 
-//         // Combine states.
-//         //
-//         // States for 'x' both at the same position.
-//         //
-//         // States for 'y' at different positions, partition_2_state[1] => partition_1_state[2]
-//         let combine_mapping = vec![0, 2];
-//         states_1.try_combine(states_2, &combine_mapping).unwrap();
+        // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
+        let mapping_1 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 3,
+                to_state: 2,
+            },
+        ];
+        // For partition 2: 'x' == 0, 'z' == 1
+        let mapping_2 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 3,
+                to_state: 1,
+            },
+        ];
 
-//         // Get final output.
-//         let out = states_1.drain_finalize_n(100).unwrap();
-//         let expected = Array2::Int64(Int64Array::from_iter([Some(8), Some(3), Some(25)]));
-//         assert_eq!(expected, out.unwrap());
-//     }
+        states_1
+            .update_states(&[partition_1_vals], &mapping_1)
+            .unwrap();
+        states_2
+            .update_states(&[partition_2_vals], &mapping_2)
+            .unwrap();
 
-//     #[test]
-//     fn sum_i64_drain_multiple() {
-//         // Three groups, single partition, test that drain can be called
-//         // multiple times until states are exhausted.
-//         let vals = &Array2::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
+        // Combine states.
+        //
+        // States for 'x' both at the same position.
+        //
+        // States for 'y' at different positions, partition_2_state[1] => partition_1_state[2]
+        let combine_mapping = vec![0, 2];
+        states_1.try_combine(states_2, &combine_mapping).unwrap();
 
-//         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
-//         let mut states = specialized.new_grouped_state();
+        // Get final output.
+        let out = states_1.drain_next(100).unwrap().unwrap();
 
-//         states.new_group();
-//         states.new_group();
-//         states.new_group();
+        assert_eq!(3, out.logical_len());
+        assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::Int64(3), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::Int64(25), out.logical_value(2).unwrap());
+    }
 
-//         let mapping = vec![0, 0, 1, 1, 2, 2];
-//         states
-//             .update_states(&Bitmap::new_with_all_true(6), &[vals], &mapping)
-//             .unwrap();
+    #[test]
+    fn sum_i64_drain_multiple() {
+        // Three groups, single partition, test that drain can be called
+        // multiple times until states are exhausted.
+        let vals = &Array::from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]);
 
-//         let expected_1 = Array2::Int64(Int64Array::from_iter([Some(3), Some(7)]));
-//         let out_1 = states.drain_finalize_n(2).unwrap();
-//         assert_eq!(Some(expected_1), out_1);
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+        let mut states = specialized.new_grouped_state();
 
-//         let expected_2 = Array2::Int64(Int64Array::from_iter([Some(11)]));
-//         let out_2 = states.drain_finalize_n(2).unwrap();
-//         assert_eq!(Some(expected_2), out_2);
+        states.new_group();
+        states.new_group();
+        states.new_group();
 
-//         let out_3 = states.drain_finalize_n(2).unwrap();
-//         assert_eq!(None, out_3);
-//     }
-// }
+        let mapping = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 3,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 4,
+                to_state: 2,
+            },
+            RowToStateMapping {
+                from_row: 5,
+                to_state: 2,
+            },
+        ];
+
+        states.update_states(&[vals], &mapping).unwrap();
+
+        let out_1 = states.drain_next(2).unwrap().unwrap();
+        assert_eq!(2, out_1.logical_len());
+        assert_eq!(ScalarValue::Int64(3), out_1.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::Int64(7), out_1.logical_value(1).unwrap());
+
+        let out_2 = states.drain_next(2).unwrap().unwrap();
+        assert_eq!(1, out_2.logical_len());
+        assert_eq!(ScalarValue::Int64(11), out_2.logical_value(0).unwrap());
+
+        let out_3 = states.drain_next(2).unwrap();
+        assert_eq!(None, out_3);
+    }
+}
