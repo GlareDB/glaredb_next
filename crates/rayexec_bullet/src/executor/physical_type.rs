@@ -153,7 +153,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalUntypedNull {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::UntypedNull(s) => Ok(*s),
-            _ => return Err(RayexecError::new("invalid storage")),
+            _ => Err(RayexecError::new("invalid storage")),
         }
     }
 }
@@ -166,7 +166,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalBool {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Boolean(storage) => Ok(storage.as_boolean_storage_ref()),
-            _ => return Err(RayexecError::new("invalid storage, expected boolean")),
+            _ => Err(RayexecError::new("invalid storage, expected boolean")),
         }
     }
 }
@@ -179,7 +179,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI8 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Int8(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected int8")),
+            _ => Err(RayexecError::new("invalid storage, expected int8")),
         }
     }
 }
@@ -192,7 +192,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI16 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Int16(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected int16")),
+            _ => Err(RayexecError::new("invalid storage, expected int16")),
         }
     }
 }
@@ -205,7 +205,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI32 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Int32(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected int32")),
+            _ => Err(RayexecError::new("invalid storage, expected int32")),
         }
     }
 }
@@ -218,7 +218,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI64 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Int64(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected int64")),
+            _ => Err(RayexecError::new("invalid storage, expected int64")),
         }
     }
 }
@@ -231,7 +231,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI128 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Int128(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected int128")),
+            _ => Err(RayexecError::new("invalid storage, expected int128")),
         }
     }
 }
@@ -244,7 +244,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU8 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::UInt8(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected u8")),
+            _ => Err(RayexecError::new("invalid storage, expected u8")),
         }
     }
 }
@@ -257,7 +257,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU16 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::UInt16(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected u16")),
+            _ => Err(RayexecError::new("invalid storage, expected u16")),
         }
     }
 }
@@ -270,7 +270,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU32 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::UInt32(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected u32")),
+            _ => Err(RayexecError::new("invalid storage, expected u32")),
         }
     }
 }
@@ -283,7 +283,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU64 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::UInt64(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected u64")),
+            _ => Err(RayexecError::new("invalid storage, expected u64")),
         }
     }
 }
@@ -296,7 +296,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU128 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::UInt128(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected u128")),
+            _ => Err(RayexecError::new("invalid storage, expected u128")),
         }
     }
 }
@@ -309,7 +309,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalF32 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Float32(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected f32")),
+            _ => Err(RayexecError::new("invalid storage, expected f32")),
         }
     }
 }
@@ -322,7 +322,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalF64 {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Float64(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected f64")),
+            _ => Err(RayexecError::new("invalid storage, expected f64")),
         }
     }
 }
@@ -335,7 +335,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalInterval {
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
         match data {
             ArrayData::Interval(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => return Err(RayexecError::new("invalid storage, expected interval")),
+            _ => Err(RayexecError::new("invalid storage, expected interval")),
         }
     }
 }
@@ -359,7 +359,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalBinary {
                 )),
                 BinaryData::German(b) => Ok(BinaryDataStorage::German(b.as_german_storage_slice())),
             },
-            _ => return Err(RayexecError::new("invalid storage, expected binary")),
+            _ => Err(RayexecError::new("invalid storage, expected binary")),
         }
     }
 }
@@ -385,7 +385,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalUtf8 {
                     Ok(BinaryDataStorage::German(b.as_german_storage_slice()).into())
                 }
             },
-            _ => return Err(RayexecError::new("invalid storage")),
+            _ => Err(RayexecError::new("invalid storage")),
         }
     }
 }

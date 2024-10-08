@@ -227,7 +227,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             //
                             // I think we'll want to do a similar thing for inserts so that
                             // we can implement them as "just" async functions.
-                            Ok(PollPush::Pending(Batch::empty().into()))
+                            Ok(PollPush::Pending(Batch::empty()))
                         }
                     }
                 }

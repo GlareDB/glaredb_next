@@ -162,7 +162,7 @@ impl<'a, O: OffsetIndex> AddressableStorage for ContiguousVarlenStorageSlice<'a,
         let start = self.offsets.get(idx)?;
         let end = self.offsets.get(idx + 1)?;
 
-        O::get(*start, *end, self.data.as_ref())
+        O::get(*start, *end, self.data)
     }
 
     #[inline]
@@ -170,6 +170,6 @@ impl<'a, O: OffsetIndex> AddressableStorage for ContiguousVarlenStorageSlice<'a,
         let start = self.offsets.get_unchecked(idx);
         let end = self.offsets.get_unchecked(idx + 1);
 
-        O::get_unchecked(*start, *end, self.data.as_ref())
+        O::get_unchecked(*start, *end, self.data)
     }
 }

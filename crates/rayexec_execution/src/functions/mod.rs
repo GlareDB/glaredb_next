@@ -327,11 +327,11 @@ pub fn unhandled_physical_types_err(
     types: impl IntoIterator<Item = PhysicalType>,
 ) -> RayexecError {
     let types: Vec<_> = types.into_iter().collect();
-    return RayexecError::new(format!(
+    RayexecError::new(format!(
         "Unhandled physical types: {:?}, function: {}",
         types,
         scalar.scalar_function().name(),
-    ));
+    ))
 }
 
 /// Return an error indicating the input types we got are not ones we can

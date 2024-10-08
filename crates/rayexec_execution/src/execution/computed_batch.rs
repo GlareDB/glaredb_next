@@ -66,6 +66,6 @@ impl ComputedBatches {
 
 impl From<Batch> for ComputedBatches {
     fn from(value: Batch) -> Self {
-        Self::Single(value.into())
+        Self::Single(value)
     }
 }

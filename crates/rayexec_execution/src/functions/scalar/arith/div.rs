@@ -349,7 +349,7 @@ impl PlannedScalarFunction for DivImpl {
                 )
             }
 
-            (a, b) => return Err(unhandled_physical_types_err(self, [a, b])),
+            (a, b) => Err(unhandled_physical_types_err(self, [a, b])),
         }
     }
 }

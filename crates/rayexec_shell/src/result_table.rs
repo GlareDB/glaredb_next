@@ -159,7 +159,7 @@ impl MaterializedResultTable {
             .column(col)
             .ok_or_else(|| RayexecError::new(format!("Column out of range: {}", col)))?;
 
-        cell_fn(&arr, row)
+        cell_fn(arr, row)
     }
 
     pub fn column_by_name(&self, name: &str) -> Result<MaterializedColumn> {

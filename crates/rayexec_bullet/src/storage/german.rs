@@ -254,7 +254,7 @@ impl<'a> AddressableStorage for GermanVarlenStorageSlice<'a> {
                 Some(&inline[..(*len as usize)])
             }
             GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => {
-                Some(&self.data.as_ref()[(*offset as usize)..((offset + len) as usize)])
+                Some(&self.data[(*offset as usize)..((offset + len) as usize)])
             }
         }
     }

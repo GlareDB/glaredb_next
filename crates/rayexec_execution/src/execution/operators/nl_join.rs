@@ -381,17 +381,15 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 let computed = state.buffered.take();
                 if computed.has_batches() {
                     Ok(PollPull::Computed(computed))
+                } else if state.input_finished {
+                    Ok(PollPull::Exhausted)
                 } else {
-                    if state.input_finished {
-                        Ok(PollPull::Exhausted)
-                    } else {
-                        // We just gotta wait for more input.
-                        if let Some(waker) = state.push_waker.take() {
-                            waker.wake();
-                        }
-                        state.pull_waker = Some(cx.waker().clone());
-                        Ok(PollPull::Pending)
+                    // We just gotta wait for more input.
+                    if let Some(waker) = state.push_waker.take() {
+                        waker.wake();
                     }
+                    state.pull_waker = Some(cx.waker().clone());
+                    Ok(PollPull::Pending)
                 }
             }
             PartitionState::NestedLoopJoinBuild(_) => {

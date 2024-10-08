@@ -32,7 +32,7 @@ pub enum Selection {
 impl AsRef<SelectionVector> for Selection {
     fn as_ref(&self) -> &SelectionVector {
         match self {
-            Selection::Owned(v) => &v,
+            Selection::Owned(v) => v,
             Self::Shared(v) => v.as_ref(),
         }
     }
@@ -393,7 +393,7 @@ impl Array {
                             datatype: self.datatype.clone(),
                             buffer: GermanVarlenBuffer::<str>::with_len(self.logical_len()),
                         },
-                        |v, buf| buf.put(&v),
+                        |v, buf| buf.put(v),
                     )
                 } else {
                     UnaryExecutor::execute::<PhysicalBinary, _, _>(
@@ -402,7 +402,7 @@ impl Array {
                             datatype: self.datatype.clone(),
                             buffer: GermanVarlenBuffer::<[u8]>::with_len(self.logical_len()),
                         },
-                        |v, buf| buf.put(&v),
+                        |v, buf| buf.put(v),
                     )
                 }
             }
@@ -496,7 +496,7 @@ impl Array {
             },
             DataType::Timestamp(m) => match &self.data {
                 ArrayData::Int64(arr) => ScalarValue::Timestamp(TimestampScalar {
-                    unit: m.unit.clone(),
+                    unit: m.unit,
                     value: arr.as_ref().as_ref()[idx],
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
@@ -519,7 +519,6 @@ impl Array {
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
-                        .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     _other => return Err(array_not_valid_for_type_err(&self.datatype)),
                 };
@@ -540,7 +539,6 @@ impl Array {
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
-                        .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     _other => return Err(array_not_valid_for_type_err(&self.datatype)),
                 };
@@ -612,7 +610,7 @@ impl FromIterator<String> for Array {
         let mut german = GermanVarlenStorage::with_metadata_capacity(lower);
 
         for s in iter {
-            german.try_push(s.as_str().as_bytes()).unwrap();
+            german.try_push(s.as_bytes()).unwrap();
         }
 
         Array {

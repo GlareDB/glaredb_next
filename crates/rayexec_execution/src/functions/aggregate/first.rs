@@ -82,7 +82,7 @@ impl PlannedAggregateFunction for FirstImpl {
         match self.datatype.physical_type().expect("to get physical type") {
             PhysicalType::UntypedNull => Box::new(DefaultGroupedStates::new(
                 unary_update::<FirstState<UntypedNull>, PhysicalUntypedNull, UntypedNull>,
-                move |states| untyped_null_finalize(states),
+                untyped_null_finalize,
             )),
             PhysicalType::Boolean => Box::new(DefaultGroupedStates::new(
                 unary_update::<FirstState<bool>, PhysicalBool, bool>,

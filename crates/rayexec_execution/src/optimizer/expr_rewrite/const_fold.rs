@@ -80,7 +80,7 @@ mod tests {
     fn fold_string_to_float_cast() {
         let expr = cast(lit("3.1"), DataType::Float64);
 
-        let expected = lit(3.1 as f64);
+        let expected = lit(3.1_f64);
 
         let bind_context = BindContext::new();
         let got = ConstFold::rewrite(&bind_context, expr).unwrap();

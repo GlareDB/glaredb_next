@@ -34,7 +34,7 @@ use super::{
     },
 };
 
-pub fn cast_array<'a>(arr: &'a Array, to: DataType, behavior: CastFailBehavior) -> Result<Array> {
+pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Result<Array> {
     if arr.datatype() == &to {
         // TODO: Cow?
         return Ok(arr.clone());
@@ -510,7 +510,7 @@ pub fn cast_from_utf8(
             cast_parse_primitive(arr, datatype, behavior, IntervalParser::default())
         }
         other => {
-            return Err(RayexecError::new(format!(
+            Err(RayexecError::new(format!(
                 "Unable to cast utf8 array to {other}"
             )))
         }
@@ -579,7 +579,7 @@ pub fn cast_to_utf8(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
             ),
         },
         other => {
-            return Err(RayexecError::new(format!(
+            Err(RayexecError::new(format!(
                 "Unable to cast {other} array to utf8"
             )))
         }

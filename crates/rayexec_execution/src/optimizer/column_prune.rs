@@ -104,15 +104,12 @@ impl ColumnPrune {
         bind_context: &mut BindContext,
         plan: &mut LogicalOperator,
     ) -> Result<()> {
-        match plan {
-            LogicalOperator::MaterializationScan(scan) => {
-                // TODO: Lotsa caching with the table refs for these.
-                let materialization = bind_context.get_materialization_mut(scan.node.mat)?;
-                let table_refs = materialization.plan.get_output_table_refs();
-                materialization.table_refs = table_refs.clone();
-                scan.node.table_refs = table_refs;
-            }
-            _ => (),
+        if let LogicalOperator::MaterializationScan(scan) = plan {
+            // TODO: Lotsa caching with the table refs for these.
+            let materialization = bind_context.get_materialization_mut(scan.node.mat)?;
+            let table_refs = materialization.plan.get_output_table_refs();
+            materialization.table_refs = table_refs.clone();
+            scan.node.table_refs = table_refs;
         }
 
         plan.for_each_expr_mut(&mut |expr| {

@@ -19,7 +19,7 @@ pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
 pub struct HashExecutor;
 
 impl HashExecutor {
-    pub fn hash<'a, 'b>(arrays: &[&'a Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
+    pub fn hash<'b>(arrays: &[&Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
         for (idx, array) in arrays.iter().enumerate() {
             let combine_hash = idx > 0;
 
