@@ -24,14 +24,15 @@ use std::{fmt, mem};
 
 use bytes::Bytes;
 use half::f16;
-use private::ParquetValueType;
 
 use crate::basic::Type;
 use crate::column::page::{PageReader, PageWriter};
+use crate::column::reader::values_buffer::ValuesBuffer;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
+use crate::encodings::decoding::PlainDecoderDetails;
 use crate::errors::{ParquetError, Result};
-use crate::util::bit_util::FromBytes;
+use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter, FromBytes};
 
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
 /// The type only takes 12 bytes, without extra padding.
@@ -596,146 +597,136 @@ impl AsBytes for str {
     }
 }
 
-pub(crate) mod private {
-    use bytes::Bytes;
+/// Sealed trait to start to remove specialisation from implementations
+///
+/// This is done to force the associated value type to be unimplementable outside of this
+/// crate, and thus hint to the type system (and end user) traits are public for the contract
+/// and not for extension.
+pub trait ParquetValueType:
+    PartialEq
+    + std::fmt::Debug
+    + std::fmt::Display
+    + Default
+    + Clone
+    + AsBytes
+    + FromBytes
+    + SliceAsBytes
+    + PartialOrd
+    + Send
+    + crate::encodings::decoding::GetDecoder
+    + crate::file::statistics::private::MakeStatistics
+{
+    const PHYSICAL_TYPE: Type;
 
-    use super::{ByteArray, ParquetError, Result, SliceAsBytes};
-    use crate::basic::Type;
-    use crate::column::reader::values_buffer::ValuesBuffer;
-    use crate::data_type::FixedLenByteArray;
-    use crate::encodings::decoding::PlainDecoderDetails;
-    use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
+    /// Encode the value directly from a higher level encoder
+    fn encode<W: std::io::Write>(
+        values: &[Self],
+        writer: &mut W,
+        bit_writer: &mut BitWriter,
+    ) -> Result<()>;
 
-    /// Sealed trait to start to remove specialisation from implementations
+    /// Establish the data that will be decoded in a buffer
+    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
+
+    /// Decode the value from a given buffer for a higher level decoder
+    fn decode<B>(buffer: &mut B, decoder: &mut PlainDecoderDetails) -> Result<usize>
+    where
+        B: ValuesBuffer<Self>,
+        Self: Sized;
+
+    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
+
+    /// Return the encoded size for a type
+    fn dict_encoding_size(&self) -> (usize, usize) {
+        (std::mem::size_of::<Self>(), 1)
+    }
+
+    /// Return the value as i64 if possible
     ///
-    /// This is done to force the associated value type to be unimplementable outside of this
-    /// crate, and thus hint to the type system (and end user) traits are public for the contract
-    /// and not for extension.
-    pub trait ParquetValueType:
-        PartialEq
-        + std::fmt::Debug
-        + std::fmt::Display
-        + Default
-        + Clone
-        + super::AsBytes
-        + super::FromBytes
-        + SliceAsBytes
-        + PartialOrd
-        + Send
-        + crate::encodings::decoding::GetDecoder
-        + crate::file::statistics::private::MakeStatistics
-    {
-        const PHYSICAL_TYPE: Type;
-
-        /// Encode the value directly from a higher level encoder
-        fn encode<W: std::io::Write>(
-            values: &[Self],
-            writer: &mut W,
-            bit_writer: &mut BitWriter,
-        ) -> Result<()>;
-
-        /// Establish the data that will be decoded in a buffer
-        fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
-
-        /// Decode the value from a given buffer for a higher level decoder
-        fn decode<B>(buffer: &mut B, decoder: &mut PlainDecoderDetails) -> Result<usize>
-        where
-            B: ValuesBuffer<Self>,
-            Self: Sized;
-
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
-
-        /// Return the encoded size for a type
-        fn dict_encoding_size(&self) -> (usize, usize) {
-            (std::mem::size_of::<Self>(), 1)
-        }
-
-        /// Return the value as i64 if possible
-        ///
-        /// This is essentially the same as `std::convert::TryInto<i64>` but can't be
-        /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_i64(&self) -> Result<i64> {
-            Err(general_err!("Type cannot be converted to i64"))
-        }
-
-        /// Return the value as u64 if possible
-        ///
-        /// This is essentially the same as `std::convert::TryInto<u64>` but can't be
-        /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_u64(&self) -> Result<u64> {
-            self.as_i64()
-                .map_err(|_| general_err!("Type cannot be converted to u64"))
-                .map(|x| x as u64)
-        }
-
-        /// Return the value as an Any to allow for downcasts without transmutation
-        fn as_any(&self) -> &dyn std::any::Any;
-
-        /// Return the value as an mutable Any to allow for downcasts without transmutation
-        fn as_mut_any(&mut self) -> &mut dyn std::any::Any;
+    /// This is essentially the same as `std::convert::TryInto<i64>` but can't be
+    /// implemented for `f32` and `f64`, types that would fail orphan rules
+    fn as_i64(&self) -> Result<i64> {
+        Err(general_err!("Type cannot be converted to i64"))
     }
 
-    impl ParquetValueType for bool {
-        const PHYSICAL_TYPE: Type = Type::BOOLEAN;
-
-        #[inline]
-        fn encode<W: std::io::Write>(
-            values: &[Self],
-            _: &mut W,
-            bit_writer: &mut BitWriter,
-        ) -> Result<()> {
-            for value in values {
-                bit_writer.put_value(*value as u64, 1)
-            }
-            Ok(())
-        }
-
-        #[inline]
-        fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
-            decoder.bit_reader.replace(BitReader::new(data));
-            decoder.num_values = num_values;
-        }
-
-        #[inline]
-        fn decode<B: ValuesBuffer<Self>>(
-            buffer: &mut B,
-            decoder: &mut PlainDecoderDetails,
-        ) -> Result<usize> {
-            let bit_reader = decoder.bit_reader.as_mut().unwrap();
-            let num_values = std::cmp::min(buffer.len(), decoder.num_values);
-
-            let buffer = buffer.as_slice_mut();
-            let values_read = bit_reader.read_batch(&mut buffer[..num_values], 1);
-
-            decoder.num_values -= values_read;
-            Ok(values_read)
-        }
-
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
-            let bit_reader = decoder.bit_reader.as_mut().unwrap();
-            let num_values = std::cmp::min(num_values, decoder.num_values);
-            let values_read = bit_reader.skip(num_values, 1);
-            decoder.num_values -= values_read;
-            Ok(values_read)
-        }
-
-        #[inline]
-        fn as_i64(&self) -> Result<i64> {
-            Ok(*self as i64)
-        }
-
-        #[inline]
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        #[inline]
-        fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
+    /// Return the value as u64 if possible
+    ///
+    /// This is essentially the same as `std::convert::TryInto<u64>` but can't be
+    /// implemented for `f32` and `f64`, types that would fail orphan rules
+    fn as_u64(&self) -> Result<u64> {
+        self.as_i64()
+            .map_err(|_| general_err!("Type cannot be converted to u64"))
+            .map(|x| x as u64)
     }
 
-    macro_rules! impl_from_raw {
+    /// Return the value as an Any to allow for downcasts without transmutation
+    fn as_any(&self) -> &dyn std::any::Any;
+
+    /// Return the value as an mutable Any to allow for downcasts without transmutation
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any;
+}
+
+impl ParquetValueType for bool {
+    const PHYSICAL_TYPE: Type = Type::BOOLEAN;
+
+    #[inline]
+    fn encode<W: std::io::Write>(
+        values: &[Self],
+        _: &mut W,
+        bit_writer: &mut BitWriter,
+    ) -> Result<()> {
+        for value in values {
+            bit_writer.put_value(*value as u64, 1)
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+        decoder.bit_reader.replace(BitReader::new(data));
+        decoder.num_values = num_values;
+    }
+
+    #[inline]
+    fn decode<B: ValuesBuffer<Self>>(
+        buffer: &mut B,
+        decoder: &mut PlainDecoderDetails,
+    ) -> Result<usize> {
+        let bit_reader = decoder.bit_reader.as_mut().unwrap();
+        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+
+        let buffer = buffer.as_slice_mut();
+        let values_read = bit_reader.read_batch(&mut buffer[..num_values], 1);
+
+        decoder.num_values -= values_read;
+        Ok(values_read)
+    }
+
+    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        let bit_reader = decoder.bit_reader.as_mut().unwrap();
+        let num_values = std::cmp::min(num_values, decoder.num_values);
+        let values_read = bit_reader.skip(num_values, 1);
+        decoder.num_values -= values_read;
+        Ok(values_read)
+    }
+
+    #[inline]
+    fn as_i64(&self) -> Result<i64> {
+        Ok(*self as i64)
+    }
+
+    #[inline]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    #[inline]
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+macro_rules! impl_from_raw {
         ($ty: ty, $physical_ty: expr, $self: ident => $as_i64: block) => {
             impl ParquetValueType for $ty {
                 const PHYSICAL_TYPE: Type = $physical_ty;
@@ -821,290 +812,277 @@ pub(crate) mod private {
         }
     }
 
-    impl_from_raw!(i32, Type::INT32, self => { Ok(*self as i64) });
-    impl_from_raw!(i64, Type::INT64, self => { Ok(*self) });
-    impl_from_raw!(f32, Type::FLOAT, self => { Err(general_err!("Type cannot be converted to i64")) });
-    impl_from_raw!(f64, Type::DOUBLE, self => { Err(general_err!("Type cannot be converted to i64")) });
+impl_from_raw!(i32, Type::INT32, self => { Ok(*self as i64) });
+impl_from_raw!(i64, Type::INT64, self => { Ok(*self) });
+impl_from_raw!(f32, Type::FLOAT, self => { Err(general_err!("Type cannot be converted to i64")) });
+impl_from_raw!(f64, Type::DOUBLE, self => { Err(general_err!("Type cannot be converted to i64")) });
 
-    impl ParquetValueType for super::Int96 {
-        const PHYSICAL_TYPE: Type = Type::INT96;
+impl ParquetValueType for Int96 {
+    const PHYSICAL_TYPE: Type = Type::INT96;
 
-        #[inline]
-        fn encode<W: std::io::Write>(
-            values: &[Self],
-            writer: &mut W,
-            _: &mut BitWriter,
-        ) -> Result<()> {
-            for value in values {
-                let raw = unsafe {
-                    std::slice::from_raw_parts(value.data() as *const [u32] as *const u8, 12)
-                };
-                writer.write_all(raw)?;
-            }
-            Ok(())
+    #[inline]
+    fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> Result<()> {
+        for value in values {
+            let raw = unsafe {
+                std::slice::from_raw_parts(value.data() as *const [u32] as *const u8, 12)
+            };
+            writer.write_all(raw)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+        decoder.data.replace(data);
+        decoder.start = 0;
+        decoder.num_values = num_values;
+    }
+
+    #[inline]
+    fn decode<B: ValuesBuffer<Self>>(
+        buffer: &mut B,
+        decoder: &mut PlainDecoderDetails,
+    ) -> Result<usize> {
+        // TODO - Remove the duplication between this and the general slice method
+        let data = decoder
+            .data
+            .as_ref()
+            .expect("set_data should have been called");
+        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+        let bytes_left = data.len() - decoder.start;
+        let bytes_to_decode = 12 * num_values;
+
+        if bytes_left < bytes_to_decode {
+            return Err(eof_err!("Not enough bytes to decode"));
         }
 
-        #[inline]
-        fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
-            decoder.data.replace(data);
-            decoder.start = 0;
-            decoder.num_values = num_values;
+        let data_range = data.slice(decoder.start..decoder.start + bytes_to_decode);
+        let bytes: &[u8] = &data_range;
+        decoder.start += bytes_to_decode;
+
+        let buffer = buffer.as_slice_mut();
+
+        let mut pos = 0; // position in byte array
+        for item in buffer.iter_mut().take(num_values) {
+            let elem0 = u32::from_le_bytes(bytes[pos..pos + 4].try_into().unwrap());
+            let elem1 = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap());
+            let elem2 = u32::from_le_bytes(bytes[pos + 8..pos + 12].try_into().unwrap());
+
+            item.set_data(elem0, elem1, elem2);
+            pos += 12;
         }
+        decoder.num_values -= num_values;
 
-        #[inline]
-        fn decode<B: ValuesBuffer<Self>>(
-            buffer: &mut B,
-            decoder: &mut PlainDecoderDetails,
-        ) -> Result<usize> {
-            // TODO - Remove the duplication between this and the general slice method
-            let data = decoder
-                .data
-                .as_ref()
-                .expect("set_data should have been called");
-            let num_values = std::cmp::min(buffer.len(), decoder.num_values);
-            let bytes_left = data.len() - decoder.start;
-            let bytes_to_decode = 12 * num_values;
+        Ok(num_values)
+    }
 
-            if bytes_left < bytes_to_decode {
+    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        let data = decoder
+            .data
+            .as_ref()
+            .expect("set_data should have been called");
+        let num_values = std::cmp::min(num_values, decoder.num_values);
+        let bytes_left = data.len() - decoder.start;
+        let bytes_to_skip = 12 * num_values;
+
+        if bytes_left < bytes_to_skip {
+            return Err(eof_err!("Not enough bytes to skip"));
+        }
+        decoder.start += bytes_to_skip;
+        decoder.num_values -= num_values;
+
+        Ok(num_values)
+    }
+
+    #[inline]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    #[inline]
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+impl ParquetValueType for ByteArray {
+    const PHYSICAL_TYPE: Type = Type::BYTE_ARRAY;
+
+    #[inline]
+    fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> Result<()> {
+        for value in values {
+            let len: u32 = value.len().try_into().unwrap();
+            writer.write_all(&len.to_ne_bytes())?;
+            let raw = value.data();
+            writer.write_all(raw)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+        decoder.data.replace(data);
+        decoder.start = 0;
+        decoder.num_values = num_values;
+    }
+
+    #[inline]
+    fn decode<B: ValuesBuffer<Self>>(
+        buffer: &mut B,
+        decoder: &mut PlainDecoderDetails,
+    ) -> Result<usize> {
+        let data = decoder
+            .data
+            .as_mut()
+            .expect("set_data should have been called");
+        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+
+        for idx in 0..num_values {
+            let len: usize =
+                read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
+            decoder.start += std::mem::size_of::<u32>();
+
+            if data.len() < decoder.start + len {
                 return Err(eof_err!("Not enough bytes to decode"));
             }
 
-            let data_range = data.slice(decoder.start..decoder.start + bytes_to_decode);
-            let bytes: &[u8] = &data_range;
-            decoder.start += bytes_to_decode;
+            // TODO: Remove need to wrap. Also remove Bytes in general.
+            let val = ByteArray {
+                data: Some(data.slice(decoder.start..decoder.start + len)),
+            };
 
-            let buffer = buffer.as_slice_mut();
+            buffer.put_value(idx, &val);
 
-            let mut pos = 0; // position in byte array
-            for item in buffer.iter_mut().take(num_values) {
-                let elem0 = u32::from_le_bytes(bytes[pos..pos + 4].try_into().unwrap());
-                let elem1 = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap());
-                let elem2 = u32::from_le_bytes(bytes[pos + 8..pos + 12].try_into().unwrap());
-
-                item.set_data(elem0, elem1, elem2);
-                pos += 12;
-            }
-            decoder.num_values -= num_values;
-
-            Ok(num_values)
+            decoder.start += len;
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
-            let data = decoder
-                .data
-                .as_ref()
-                .expect("set_data should have been called");
-            let num_values = std::cmp::min(num_values, decoder.num_values);
-            let bytes_left = data.len() - decoder.start;
-            let bytes_to_skip = 12 * num_values;
+        decoder.num_values -= num_values;
 
-            if bytes_left < bytes_to_skip {
+        Ok(num_values)
+    }
+
+    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        let data = decoder
+            .data
+            .as_mut()
+            .expect("set_data should have been called");
+        let num_values = num_values.min(decoder.num_values);
+
+        for _ in 0..num_values {
+            let len: usize =
+                read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
+            decoder.start += std::mem::size_of::<u32>() + len;
+        }
+        decoder.num_values -= num_values;
+
+        Ok(num_values)
+    }
+
+    #[inline]
+    fn dict_encoding_size(&self) -> (usize, usize) {
+        (std::mem::size_of::<u32>(), self.len())
+    }
+
+    #[inline]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    #[inline]
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+impl ParquetValueType for FixedLenByteArray {
+    const PHYSICAL_TYPE: Type = Type::FIXED_LEN_BYTE_ARRAY;
+
+    #[inline]
+    fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> Result<()> {
+        for value in values {
+            let raw = value.data();
+            writer.write_all(raw)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+        decoder.data.replace(data);
+        decoder.start = 0;
+        decoder.num_values = num_values;
+    }
+
+    #[inline]
+    fn decode<B: ValuesBuffer<Self>>(
+        buffer: &mut B,
+        decoder: &mut PlainDecoderDetails,
+    ) -> Result<usize> {
+        assert!(decoder.type_length > 0);
+
+        let data = decoder
+            .data
+            .as_mut()
+            .expect("set_data should have been called");
+        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+
+        for idx in 0..num_values {
+            let len = decoder.type_length as usize;
+
+            if data.len() < decoder.start + len {
+                return Err(eof_err!("Not enough bytes to decode"));
+            }
+
+            // TODO: Remove need to wrap. Also remove Bytes in general.
+            let val = FixedLenByteArray(ByteArray {
+                data: Some(data.slice(decoder.start..decoder.start + len)),
+            });
+
+            buffer.put_value(idx, &val);
+
+            decoder.start += len;
+        }
+
+        decoder.num_values -= num_values;
+
+        Ok(num_values)
+    }
+
+    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        assert!(decoder.type_length > 0);
+
+        let data = decoder
+            .data
+            .as_mut()
+            .expect("set_data should have been called");
+        let num_values = std::cmp::min(num_values, decoder.num_values);
+        for _ in 0..num_values {
+            let len = decoder.type_length as usize;
+
+            if data.len() < decoder.start + len {
                 return Err(eof_err!("Not enough bytes to skip"));
             }
-            decoder.start += bytes_to_skip;
-            decoder.num_values -= num_values;
 
-            Ok(num_values)
+            decoder.start += len;
         }
+        decoder.num_values -= num_values;
 
-        #[inline]
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        #[inline]
-        fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
+        Ok(num_values)
     }
 
-    impl ParquetValueType for super::ByteArray {
-        const PHYSICAL_TYPE: Type = Type::BYTE_ARRAY;
-
-        #[inline]
-        fn encode<W: std::io::Write>(
-            values: &[Self],
-            writer: &mut W,
-            _: &mut BitWriter,
-        ) -> Result<()> {
-            for value in values {
-                let len: u32 = value.len().try_into().unwrap();
-                writer.write_all(&len.to_ne_bytes())?;
-                let raw = value.data();
-                writer.write_all(raw)?;
-            }
-            Ok(())
-        }
-
-        #[inline]
-        fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
-            decoder.data.replace(data);
-            decoder.start = 0;
-            decoder.num_values = num_values;
-        }
-
-        #[inline]
-        fn decode<B: ValuesBuffer<Self>>(
-            buffer: &mut B,
-            decoder: &mut PlainDecoderDetails,
-        ) -> Result<usize> {
-            let data = decoder
-                .data
-                .as_mut()
-                .expect("set_data should have been called");
-            let num_values = std::cmp::min(buffer.len(), decoder.num_values);
-
-            for idx in 0..num_values {
-                let len: usize =
-                    read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
-                decoder.start += std::mem::size_of::<u32>();
-
-                if data.len() < decoder.start + len {
-                    return Err(eof_err!("Not enough bytes to decode"));
-                }
-
-                // TODO: Remove need to wrap. Also remove Bytes in general.
-                let val = ByteArray {
-                    data: Some(data.slice(decoder.start..decoder.start + len)),
-                };
-
-                buffer.put_value(idx, &val);
-
-                decoder.start += len;
-            }
-
-            decoder.num_values -= num_values;
-
-            Ok(num_values)
-        }
-
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
-            let data = decoder
-                .data
-                .as_mut()
-                .expect("set_data should have been called");
-            let num_values = num_values.min(decoder.num_values);
-
-            for _ in 0..num_values {
-                let len: usize =
-                    read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
-                decoder.start += std::mem::size_of::<u32>() + len;
-            }
-            decoder.num_values -= num_values;
-
-            Ok(num_values)
-        }
-
-        #[inline]
-        fn dict_encoding_size(&self) -> (usize, usize) {
-            (std::mem::size_of::<u32>(), self.len())
-        }
-
-        #[inline]
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        #[inline]
-        fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
+    #[inline]
+    fn dict_encoding_size(&self) -> (usize, usize) {
+        (std::mem::size_of::<u32>(), self.len())
     }
 
-    impl ParquetValueType for super::FixedLenByteArray {
-        const PHYSICAL_TYPE: Type = Type::FIXED_LEN_BYTE_ARRAY;
+    #[inline]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 
-        #[inline]
-        fn encode<W: std::io::Write>(
-            values: &[Self],
-            writer: &mut W,
-            _: &mut BitWriter,
-        ) -> Result<()> {
-            for value in values {
-                let raw = value.data();
-                writer.write_all(raw)?;
-            }
-            Ok(())
-        }
-
-        #[inline]
-        fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
-            decoder.data.replace(data);
-            decoder.start = 0;
-            decoder.num_values = num_values;
-        }
-
-        #[inline]
-        fn decode<B: ValuesBuffer<Self>>(
-            buffer: &mut B,
-            decoder: &mut PlainDecoderDetails,
-        ) -> Result<usize> {
-            assert!(decoder.type_length > 0);
-
-            let data = decoder
-                .data
-                .as_mut()
-                .expect("set_data should have been called");
-            let num_values = std::cmp::min(buffer.len(), decoder.num_values);
-
-            for idx in 0..num_values {
-                let len = decoder.type_length as usize;
-
-                if data.len() < decoder.start + len {
-                    return Err(eof_err!("Not enough bytes to decode"));
-                }
-
-                // TODO: Remove need to wrap. Also remove Bytes in general.
-                let val = FixedLenByteArray(ByteArray {
-                    data: Some(data.slice(decoder.start..decoder.start + len)),
-                });
-
-                buffer.put_value(idx, &val);
-
-                decoder.start += len;
-            }
-
-            decoder.num_values -= num_values;
-
-            Ok(num_values)
-        }
-
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
-            assert!(decoder.type_length > 0);
-
-            let data = decoder
-                .data
-                .as_mut()
-                .expect("set_data should have been called");
-            let num_values = std::cmp::min(num_values, decoder.num_values);
-            for _ in 0..num_values {
-                let len = decoder.type_length as usize;
-
-                if data.len() < decoder.start + len {
-                    return Err(eof_err!("Not enough bytes to skip"));
-                }
-
-                decoder.start += len;
-            }
-            decoder.num_values -= num_values;
-
-            Ok(num_values)
-        }
-
-        #[inline]
-        fn dict_encoding_size(&self) -> (usize, usize) {
-            (std::mem::size_of::<u32>(), self.len())
-        }
-
-        #[inline]
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        #[inline]
-        fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
+    #[inline]
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -1125,11 +1103,11 @@ impl FixedLenPrimitiveValue for Int96 {} // :/
 /// Contains the Parquet physical type information as well as the Rust primitive type
 /// presentation.
 pub trait DataType: 'static + Send + fmt::Debug {
-    type T: private::ParquetValueType;
+    type T: ParquetValueType;
 
     /// Returns Parquet physical type.
     fn get_physical_type() -> Type {
-        <Self::T as private::ParquetValueType>::PHYSICAL_TYPE
+        <Self::T as ParquetValueType>::PHYSICAL_TYPE
     }
 
     /// Returns size in bytes for Rust representation of the physical type.
