@@ -25,14 +25,14 @@ impl LogicalNode for Node<LogicalSetVar> {
         Vec::new()
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&Expression) -> Result<()>,
     {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {
@@ -62,14 +62,14 @@ impl LogicalNode for Node<LogicalResetVar> {
         Vec::new()
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&Expression) -> Result<()>,
     {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {
@@ -93,14 +93,14 @@ impl LogicalNode for Node<LogicalShowVar> {
         Vec::new()
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&Expression) -> Result<()>,
     {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {

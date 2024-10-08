@@ -142,7 +142,8 @@ impl DatabaseProtoConv for PhysicalTableFunction {
         })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        // TODO: https://github.com/GlareDB/rayexec/issues/278
         unimplemented!()
         // Ok(Self {
         //     function: DatabaseProtoConv::from_proto_ctx(

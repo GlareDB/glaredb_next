@@ -33,10 +33,6 @@ impl LeftOuterJoinTracker {
         LeftOuterJoinTracker { bitmaps }
     }
 
-    pub fn num_batches(&self) -> usize {
-        self.bitmaps.len()
-    }
-
     pub fn merge_from(&mut self, other: &LeftOuterJoinTracker) {
         debug_assert_eq!(self.bitmaps.len(), other.bitmaps.len());
 
@@ -63,7 +59,8 @@ pub struct LeftOuterJoinDrainState {
     tracker: LeftOuterJoinTracker,
     /// All batches from the left side.
     batches: Vec<Batch>,
-    left_types: Vec<DataType>,
+    /// Types for the right side of the join. Used to create the (typed) null
+    /// columns for left rows that weren't visited.
     right_types: Vec<DataType>,
     /// Current batch we're draining.
     batch_idx: usize,
@@ -73,13 +70,11 @@ impl LeftOuterJoinDrainState {
     pub fn new(
         tracker: LeftOuterJoinTracker,
         batches: Vec<Batch>,
-        left_types: Vec<DataType>,
         right_types: Vec<DataType>,
     ) -> Self {
         LeftOuterJoinDrainState {
             tracker,
             batches,
-            left_types,
             right_types,
             batch_idx: 0,
         }

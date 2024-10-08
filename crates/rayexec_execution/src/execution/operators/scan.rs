@@ -160,10 +160,10 @@ impl DatabaseProtoConv for PhysicalScan {
         })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        // TODO: https://github.com/GlareDB/rayexec/issues/278
         unimplemented!()
         // Ok(Self {
-
         //     catalog: proto.catalog,
         //     schema: proto.schema,
         //     table: Arc::new(DatabaseProtoConv::from_proto_ctx(

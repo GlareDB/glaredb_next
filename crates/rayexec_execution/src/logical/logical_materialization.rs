@@ -37,14 +37,14 @@ impl LogicalNode for Node<LogicalMaterializationScan> {
         self.node.table_refs.clone()
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&Expression) -> Result<()>,
     {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {

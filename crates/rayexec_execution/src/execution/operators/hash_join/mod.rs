@@ -450,7 +450,6 @@ impl ExecutableOperator for PhysicalHashJoin {
                                 .unwrap()
                                 .collected_batches()
                                 .to_vec(),
-                            self.left_types.clone(),
                             self.right_types.clone(),
                         ))
                     }
