@@ -74,7 +74,8 @@ pub enum DatePart {
 /// The results should be decimal representing the part extracted, and should
 /// use the Decimal64 default precision and scale.
 pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
-    match arr.datatype() {
+    let datatype = arr.datatype();
+    match datatype {
         DataType::Date32 => match part {
             DatePart::Microseconds => date32_extract_with_fn(arr, extract_microseconds),
             DatePart::Milliseconds => date32_extract_with_fn(arr, extract_milliseconds),
@@ -86,7 +87,7 @@ pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
             DatePart::Month => date32_extract_with_fn(arr, extract_month),
             DatePart::Quarter => date32_extract_with_fn(arr, extract_quarter),
             DatePart::Year => date32_extract_with_fn(arr, extract_year),
-            other => not_implemented!("Extract {other:?} from Date32"),
+            other => not_implemented!("Extract {other:?} from {datatype}"),
         },
         DataType::Date64 => match part {
             DatePart::Microseconds => date64_extract_with_fn(arr, extract_microseconds),
@@ -99,7 +100,7 @@ pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
             DatePart::Month => date64_extract_with_fn(arr, extract_month),
             DatePart::Quarter => date64_extract_with_fn(arr, extract_quarter),
             DatePart::Year => date64_extract_with_fn(arr, extract_year),
-            other => not_implemented!("Extract {other:?} from Date64"),
+            other => not_implemented!("Extract {other:?} from {datatype}"),
         },
         DataType::Timestamp(m) => match part {
             DatePart::Microseconds => timestamp_extract_with_fn(m.unit, arr, extract_microseconds),
@@ -114,7 +115,7 @@ pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
             DatePart::Month => timestamp_extract_with_fn(m.unit, arr, extract_month),
             DatePart::Quarter => timestamp_extract_with_fn(m.unit, arr, extract_quarter),
             DatePart::Year => timestamp_extract_with_fn(m.unit, arr, extract_year),
-            other => not_implemented!("Extract {other:?} from Timestamp"),
+            other => not_implemented!("Extract {other:?} from {datatype}"),
         },
         other => Err(RayexecError::new(format!(
             "Unable to extract date part for array with data type {other}"
