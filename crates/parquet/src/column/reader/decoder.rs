@@ -19,9 +19,10 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 
+use super::values_buffer::ValuesBuffer;
 use crate::basic::Encoding;
 use crate::data_type::DataType;
-use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
+use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder, WrappedDecoder};
 use crate::encodings::rle::RleDecoder;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
@@ -42,7 +43,7 @@ pub struct ColumnValueDecoder<T: DataType> {
     current_encoding: Option<Encoding>,
 
     // Cache of decoders for existing encodings
-    decoders: HashMap<Encoding, Box<dyn Decoder<T>>>,
+    decoders: HashMap<Encoding, WrappedDecoder<T>>,
 }
 
 impl<T: DataType> ColumnValueDecoder<T> {
@@ -76,8 +77,8 @@ impl<T: DataType> ColumnValueDecoder<T> {
             dictionary.set_data(buf, num_values as usize)?;
 
             let mut decoder = DictDecoder::new();
-            decoder.set_dict(Box::new(dictionary))?;
-            self.decoders.insert(encoding, Box::new(decoder));
+            decoder.set_dict(dictionary)?;
+            self.decoders.insert(encoding, decoder.into());
             Ok(())
         } else {
             Err(nyi_err!(
@@ -136,7 +137,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
     /// # Panics
     ///
     /// Implementations may panic if `range` overlaps with already written data
-    pub fn read(&mut self, out: &mut Vec<T::T>, num_values: usize) -> Result<usize> {
+    pub fn read<B: ValuesBuffer<T>>(&mut self, out: &mut B, num_values: usize) -> Result<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");
@@ -147,10 +148,10 @@ impl<T: DataType> ColumnValueDecoder<T> {
             .unwrap_or_else(|| panic!("decoder for encoding {encoding} should be set"));
 
         // TODO: Push vec into decoder (#5177)
-        let start = out.len();
-        out.resize(start + num_values, T::T::default());
+        // let start = out.len();
+        // out.resize(start + num_values, T::T::default());
         let read = current_decoder.read(&mut out[start..])?;
-        out.truncate(start + read);
+        // out.truncate(start + read);
         Ok(read)
     }
 

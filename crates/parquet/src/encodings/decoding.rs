@@ -21,12 +21,14 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::{cmp, mem};
 
+use byte_stream_split_decoder::ByteStreamSplitDecoder;
 use bytes::Bytes;
 use num::traits::WrappingAdd;
 use num::FromPrimitive;
 
 use super::rle::RleDecoder;
 use crate::basic::*;
+use crate::column::reader::values_buffer::ValuesBuffer;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::errors::{ParquetError, Result};
@@ -35,28 +37,107 @@ use crate::util::bit_util::{self, BitReader};
 
 mod byte_stream_split_decoder;
 
-pub(crate) mod private {
-    use super::*;
+/// All possible decoders we support.
+#[derive(Debug)]
+pub enum WrappedDecoder<T: DataType> {
+    Plain(PlainDecoder<T>),
+    Rle(RleValueDecoder<T>),
+    DeltaBitPacked(DeltaBitPackDecoder<T>),
+    DeltaByteArray(DeltaByteArrayDecoder<T>),
+    DeltaLengthByteArray(DeltaLengthByteArrayDecoder<T>),
+    ByteStreamSplit(ByteStreamSplitDecoder<T>),
+    Dict(DictDecoder<T>),
+}
 
-    /// A trait that allows getting a [`Decoder`] implementation for a [`DataType`] with
-    /// the corresponding [`ParquetValueType`]. This is necessary to support
-    /// [`Decoder`] implementations that may not be applicable for all [`DataType`]
-    /// and by extension all [`ParquetValueType`]
-    pub trait GetDecoder {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            get_decoder_default(descr, encoding)
-        }
+impl<T> Decoder<T> for WrappedDecoder<T>
+where
+    T: DataType,
+{
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
+        unimplemented!()
     }
 
-    fn get_decoder_default<T: DataType>(
+    fn read<B: ValuesBuffer<T>>(&mut self, buffer: &mut B) -> Result<usize> {
+        unimplemented!()
+    }
+
+    fn read_spaced<B: ValuesBuffer<T>>(
+        &mut self,
+        buffer: &mut B,
+        null_count: usize,
+        valid_bits: &[u8],
+    ) -> Result<usize> {
+        unimplemented!()
+    }
+
+    fn values_left(&self) -> usize {
+        unimplemented!()
+    }
+
+    fn encoding(&self) -> Encoding {
+        unimplemented!()
+    }
+
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
+        unimplemented!()
+    }
+}
+
+impl<T: DataType> From<PlainDecoder<T>> for WrappedDecoder<T> {
+    fn from(value: PlainDecoder<T>) -> Self {
+        WrappedDecoder::Plain(value)
+    }
+}
+
+impl<T: DataType> From<RleValueDecoder<T>> for WrappedDecoder<T> {
+    fn from(value: RleValueDecoder<T>) -> Self {
+        WrappedDecoder::Rle(value)
+    }
+}
+
+impl<T: DataType> From<DeltaBitPackDecoder<T>> for WrappedDecoder<T> {
+    fn from(value: DeltaBitPackDecoder<T>) -> Self {
+        WrappedDecoder::DeltaBitPacked(value)
+    }
+}
+
+impl<T: DataType> From<DeltaByteArrayDecoder<T>> for WrappedDecoder<T> {
+    fn from(value: DeltaByteArrayDecoder<T>) -> Self {
+        WrappedDecoder::DeltaByteArray(value)
+    }
+}
+
+impl<T: DataType> From<DeltaLengthByteArrayDecoder<T>> for WrappedDecoder<T> {
+    fn from(value: DeltaLengthByteArrayDecoder<T>) -> Self {
+        WrappedDecoder::DeltaLengthByteArray(value)
+    }
+}
+
+impl<T: DataType> From<ByteStreamSplitDecoder<T>> for WrappedDecoder<T> {
+    fn from(value: ByteStreamSplitDecoder<T>) -> Self {
+        WrappedDecoder::ByteStreamSplit(value)
+    }
+}
+
+impl<T: DataType> From<DictDecoder<T>> for WrappedDecoder<T> {
+    fn from(value: DictDecoder<T>) -> Self {
+        WrappedDecoder::Dict(value)
+    }
+}
+
+/// A trait that allows getting a `Decoder` implementation for a `DataType` with
+/// the corresponding `ParquetValueType`.
+///
+/// This is necessary to support [`Decoder`] implementations that may not be
+/// applicable for all [`DataType`] and by extension all [`ParquetValueType`]
+pub(crate) trait GetDecoder {
+    /// Default implementation provides a fallback "plain" decoder.
+    fn get_decoder<T: DataType<T = Self>>(
         descr: ColumnDescPtr,
         encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
+    ) -> Result<WrappedDecoder<T>> {
         match encoding {
-            Encoding::PLAIN => Ok(Box::new(PlainDecoder::new(descr.type_length()))),
+            Encoding::PLAIN => Ok(PlainDecoder::new(descr.type_length()).into()),
             Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => Err(general_err!(
                 "Cannot initialize this encoding through this function"
             )),
@@ -70,99 +151,98 @@ pub(crate) mod private {
             e => Err(nyi_err!("Encoding {} is not supported", e)),
         }
     }
-
-    impl GetDecoder for bool {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            match encoding {
-                Encoding::RLE => Ok(Box::new(RleValueDecoder::new())),
-                _ => get_decoder_default(descr, encoding),
-            }
-        }
-    }
-
-    impl GetDecoder for i32 {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            match encoding {
-                Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
-                _ => get_decoder_default(descr, encoding),
-            }
-        }
-    }
-
-    impl GetDecoder for i64 {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            match encoding {
-                Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
-                _ => get_decoder_default(descr, encoding),
-            }
-        }
-    }
-
-    impl GetDecoder for f32 {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            match encoding {
-                Encoding::BYTE_STREAM_SPLIT => Ok(Box::new(
-                    byte_stream_split_decoder::ByteStreamSplitDecoder::new(),
-                )),
-                _ => get_decoder_default(descr, encoding),
-            }
-        }
-    }
-    impl GetDecoder for f64 {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            match encoding {
-                Encoding::BYTE_STREAM_SPLIT => Ok(Box::new(
-                    byte_stream_split_decoder::ByteStreamSplitDecoder::new(),
-                )),
-                _ => get_decoder_default(descr, encoding),
-            }
-        }
-    }
-
-    impl GetDecoder for ByteArray {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            match encoding {
-                Encoding::DELTA_BYTE_ARRAY => Ok(Box::new(DeltaByteArrayDecoder::new())),
-                Encoding::DELTA_LENGTH_BYTE_ARRAY => {
-                    Ok(Box::new(DeltaLengthByteArrayDecoder::new()))
-                }
-                _ => get_decoder_default(descr, encoding),
-            }
-        }
-    }
-
-    impl GetDecoder for FixedLenByteArray {
-        fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
-            encoding: Encoding,
-        ) -> Result<Box<dyn Decoder<T>>> {
-            match encoding {
-                Encoding::DELTA_BYTE_ARRAY => Ok(Box::new(DeltaByteArrayDecoder::new())),
-                _ => get_decoder_default(descr, encoding),
-            }
-        }
-    }
-
-    impl GetDecoder for Int96 {}
 }
+
+impl GetDecoder for bool {
+    fn get_decoder<T: DataType<T = Self>>(
+        descr: ColumnDescPtr,
+        encoding: Encoding,
+    ) -> Result<WrappedDecoder<T>> {
+        match encoding {
+            Encoding::RLE => Ok(RleValueDecoder::new().into()),
+            _ => GetDecoder::get_decoder(descr, encoding),
+        }
+    }
+}
+
+impl GetDecoder for i32 {
+    fn get_decoder<T: DataType<T = Self>>(
+        descr: ColumnDescPtr,
+        encoding: Encoding,
+    ) -> Result<WrappedDecoder<T>> {
+        match encoding {
+            Encoding::DELTA_BINARY_PACKED => Ok(DeltaBitPackDecoder::new().into()),
+            _ => GetDecoder::get_decoder(descr, encoding),
+        }
+    }
+}
+
+impl GetDecoder for i64 {
+    fn get_decoder<T: DataType<T = Self>>(
+        descr: ColumnDescPtr,
+        encoding: Encoding,
+    ) -> Result<WrappedDecoder<T>> {
+        match encoding {
+            Encoding::DELTA_BINARY_PACKED => Ok(DeltaBitPackDecoder::new().into()),
+            _ => GetDecoder::get_decoder(descr, encoding),
+        }
+    }
+}
+
+impl GetDecoder for f32 {
+    fn get_decoder<T: DataType<T = Self>>(
+        descr: ColumnDescPtr,
+        encoding: Encoding,
+    ) -> Result<WrappedDecoder<T>> {
+        match encoding {
+            Encoding::BYTE_STREAM_SPLIT => {
+                Ok(byte_stream_split_decoder::ByteStreamSplitDecoder::new().into())
+            }
+            _ => GetDecoder::get_decoder(descr, encoding),
+        }
+    }
+}
+
+impl GetDecoder for f64 {
+    fn get_decoder<T: DataType<T = Self>>(
+        descr: ColumnDescPtr,
+        encoding: Encoding,
+    ) -> Result<WrappedDecoder<T>> {
+        match encoding {
+            Encoding::BYTE_STREAM_SPLIT => {
+                Ok(byte_stream_split_decoder::ByteStreamSplitDecoder::new().into())
+            }
+            _ => GetDecoder::get_decoder(descr, encoding),
+        }
+    }
+}
+
+impl GetDecoder for ByteArray {
+    fn get_decoder<T: DataType<T = Self>>(
+        descr: ColumnDescPtr,
+        encoding: Encoding,
+    ) -> Result<WrappedDecoder<T>> {
+        match encoding {
+            Encoding::DELTA_BYTE_ARRAY => Ok(DeltaByteArrayDecoder::new().into()),
+            Encoding::DELTA_LENGTH_BYTE_ARRAY => Ok(DeltaLengthByteArrayDecoder::new().into()),
+            _ => GetDecoder::get_decoder(descr, encoding),
+        }
+    }
+}
+
+impl GetDecoder for FixedLenByteArray {
+    fn get_decoder<T: DataType<T = Self>>(
+        descr: ColumnDescPtr,
+        encoding: Encoding,
+    ) -> Result<WrappedDecoder<T>> {
+        match encoding {
+            Encoding::DELTA_BYTE_ARRAY => Ok(DeltaByteArrayDecoder::new().into()),
+            _ => GetDecoder::get_decoder(descr, encoding),
+        }
+    }
+}
+
+impl GetDecoder for Int96 {}
 
 // ----------------------------------------------------------------------
 // Decoders
@@ -179,7 +259,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// Returns the actual number of values decoded, which should be equal to
     /// `buffer.len()` unless the remaining number of values is less than
     /// `buffer.len()`.
-    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize>;
+    fn read<B: ValuesBuffer<T>>(&mut self, buffer: &mut B) -> Result<usize>;
 
     /// Consume values from this decoder and write the results to `buffer`, leaving
     /// "spaces" for null values.
@@ -193,9 +273,9 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// # Panics
     ///
     /// Panics if `null_count` is greater than `buffer.len()`.
-    fn read_spaced(
+    fn read_spaced<B: ValuesBuffer<T>>(
         &mut self,
-        buffer: &mut [T::T],
+        buffer: &mut B,
         null_count: usize,
         valid_bits: &[u8],
     ) -> Result<usize> {
@@ -244,8 +324,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
 pub fn get_decoder<T: DataType>(
     descr: ColumnDescPtr,
     encoding: Encoding,
-) -> Result<Box<dyn Decoder<T>>> {
-    use self::private::GetDecoder;
+) -> Result<WrappedDecoder<T>> {
     T::T::get_decoder(descr, encoding)
 }
 
@@ -368,7 +447,7 @@ impl<T: DataType> DictDecoder<T> {
     }
 
     /// Decodes and sets values for dictionary using `decoder` decoder.
-    pub fn set_dict(&mut self, mut decoder: Box<dyn Decoder<T>>) -> Result<()> {
+    pub fn set_dict(&mut self, mut decoder: impl Decoder<T>) -> Result<()> {
         let num_values = decoder.values_left();
         self.dictionary.resize(num_values, T::T::default());
         let _ = decoder.read(&mut self.dictionary)?;

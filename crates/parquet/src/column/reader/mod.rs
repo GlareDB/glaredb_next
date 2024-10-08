@@ -21,6 +21,7 @@ pub mod decoder;
 pub mod values_buffer;
 
 use bytes::Bytes;
+use values_buffer::ValuesBuffer;
 
 use super::page::{Page, PageReader};
 use crate::basic::*;
@@ -149,13 +150,7 @@ where
             rep_level_decoder,
         )
     }
-}
 
-impl<T, P> GenericColumnReader<T, P>
-where
-    T: DataType,
-    P: PageReader,
-{
     pub(crate) fn new_with_decoders(
         descr: ColumnDescPtr,
         page_reader: P,
@@ -189,12 +184,12 @@ where
     ///
     /// `values` will be contiguously populated with the non-null values. Note that if the column
     /// is not required, this may be less than either `max_records` or the number of levels read
-    pub fn read_records(
+    pub fn read_records<B: ValuesBuffer<T>>(
         &mut self,
         max_records: usize,
         mut def_levels: Option<&mut Vec<i16>>,
         mut rep_levels: Option<&mut Vec<i16>>,
-        values: &mut Vec<T::T>,
+        values: &mut B,
     ) -> Result<(usize, usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
