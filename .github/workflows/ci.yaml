@@ -22,7 +22,7 @@ jobs:
         run:  |
           rustup toolchain install nightly
           rustup component add rustfmt --toolchain nightly
-          cargo fmt --check
+          cargo +nightly fmt --check
 
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings
