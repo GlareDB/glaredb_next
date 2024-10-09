@@ -163,7 +163,7 @@ impl GetDecoder for Int96 {}
 // Decoders
 
 /// A Parquet decoder for the data type `T`.
-pub trait Decoder<T: DataType>: Send + Debug {
+pub trait Decoder<T: ValueDecoder>: Send + Debug {
     /// Sets the data to decode to be `data`, which should contain `num_values` of values
     /// to decode.
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()>;
@@ -174,7 +174,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// Returns the actual number of values decoded, which should be equal to
     /// `buffer.len()` unless the remaining number of values is less than
     /// `buffer.len()`.
-    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize>;
+    fn read(&mut self, buffer: &mut T::DecodeBuffer) -> Result<usize>;
 
     /// Consume values from this decoder and write the results to `buffer`, leaving
     /// "spaces" for null values.
@@ -190,7 +190,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// Panics if `null_count` is greater than `buffer.len()`.
     fn read_spaced(
         &mut self,
-        buffer: &mut [T::T],
+        buffer: &mut T::DecodeBuffer,
         null_count: usize,
         valid_bits: &[u8],
     ) -> Result<usize> {

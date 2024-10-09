@@ -604,6 +604,73 @@ impl AsBytes for str {
     }
 }
 
+/// Marker trait for indicating if a parquet value type is a fixed length
+/// primitive.
+///
+/// This lets us add efficient slice methods to `ValuesBuffer` implementations
+/// since they'll typically be backed by just a vec/slice.
+pub trait FixedLenPrimitiveValue: ParquetValueType {}
+
+impl FixedLenPrimitiveValue for bool {}
+impl FixedLenPrimitiveValue for i32 {}
+impl FixedLenPrimitiveValue for i64 {}
+impl FixedLenPrimitiveValue for f32 {}
+impl FixedLenPrimitiveValue for f64 {}
+impl FixedLenPrimitiveValue for Int96 {} // :/
+
+/// Marker trait for indicating if a parquet value is varlan.
+pub trait VarlenPrimitiveValue: ParquetValueType {}
+
+impl VarlenPrimitiveValue for ByteArray {}
+/// Fixed len byte arrays are considered varlen in this context since the length
+/// is determined at runtime.
+impl VarlenPrimitiveValue for FixedLenByteArray {}
+
+pub trait DecodeBuffer {
+    fn len(&self) -> usize;
+    fn swap(&mut self, a: usize, b: usize);
+}
+
+impl<T> DecodeBuffer for [T] {
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn swap(&mut self, a: usize, b: usize) {
+        self.swap(a, b)
+    }
+}
+
+pub trait ValueDecoder {
+    type DataType: DataType;
+    type DecodeBuffer: DecodeBuffer + ?Sized;
+
+    /// Establish the data that will be decoded in a buffer
+    fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
+
+    /// Decode the value from a given buffer for a higher level decoder
+    fn decode2(buffer: &mut Self::DecodeBuffer, decoder: &mut PlainDecoderDetails)
+        -> Result<usize>;
+}
+
+impl<T> ValueDecoder for T
+where
+    T: DataType,
+{
+    type DataType = T;
+    type DecodeBuffer = [T::T];
+
+    fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+        <T::T as ParquetValueType>::set_data(decoder, data, num_values)
+    }
+
+    fn decode2(
+        buffer: &mut Self::DecodeBuffer,
+        decoder: &mut PlainDecoderDetails,
+    ) -> Result<usize> {
+        <T::T as ParquetValueType>::decode(buffer, decoder)
+    }
+}
 
 /// Sealed trait to start to remove specialisation from implementations
 ///
