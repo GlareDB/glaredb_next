@@ -550,9 +550,9 @@ impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
     }
 
     #[inline]
-    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
-        let num_values = cmp::min(buffer.len(), self.values_left);
-        let values_read = self.decoder.get_batch(&mut buffer[..num_values])?;
+    fn read<B: ValuesBuffer<T::T>>(&mut self, buffer: &mut B) -> Result<usize> {
+        let num_values = cmp::min(buffer.remaining_len(), self.values_left);
+        let values_read = self.decoder.get_batch(buffer)?;
         self.values_left -= values_read;
         Ok(values_read)
     }
@@ -776,14 +776,14 @@ where
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read<B: ValuesBuffer<T::T>>(&mut self, buffer: &mut B) -> Result<usize> {
         assert!(self.initialized, "Bit reader is not initialized");
-        if buffer.is_empty() {
+        if buffer.remaining_len() == 0 {
             return Ok(0);
         }
 
         let mut read = 0;
-        let to_read = buffer.len().min(self.values_left);
+        let to_read = buffer.remaining_len().min(self.values_left);
 
         if let Some(value) = self.first_value.take() {
             self.last_value = value;

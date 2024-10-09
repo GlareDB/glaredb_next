@@ -368,36 +368,43 @@ impl RleDecoder {
     }
 
     #[inline(never)]
-    pub fn get_batch<T: FromBytes>(&mut self, buffer: &mut [T]) -> Result<usize> {
+    pub fn get_batch<T, B>(&mut self, buffer: &mut B) -> Result<usize>
+    where
+        T: FromBytes + ParquetValueType,
+        B: ValuesBuffer<T>,
+    {
         assert!(size_of::<T>() <= 8);
 
+        let remaining_space = buffer.remaining_len();
         let mut values_read = 0;
-        while values_read < buffer.len() {
+
+        while values_read < remaining_space {
             if self.rle_left > 0 {
-                let num_values = cmp::min(buffer.len() - values_read, self.rle_left as usize);
+                let num_values = cmp::min(buffer.remaining_len(), self.rle_left as usize);
                 for i in 0..num_values {
                     let repeated_value =
                         from_le_slice(&self.current_value.as_mut().unwrap().to_ne_bytes());
-                    buffer[values_read + i] = repeated_value;
+                    buffer.push_value(&repeated_value);
                 }
                 self.rle_left -= num_values as u32;
                 values_read += num_values;
             } else if self.bit_packed_left > 0 {
-                let mut num_values =
-                    cmp::min(buffer.len() - values_read, self.bit_packed_left as usize);
-                let bit_reader = self.bit_reader.as_mut().expect("bit_reader should be set");
+                nyi_err!("TODO IMPLEMENT ME")
+                // let mut num_values =
+                //     cmp::min(buffer.len() - values_read, self.bit_packed_left as usize);
+                // let bit_reader = self.bit_reader.as_mut().expect("bit_reader should be set");
 
-                num_values = bit_reader.read_batch::<T>(
-                    &mut buffer[values_read..values_read + num_values],
-                    self.bit_width as usize,
-                );
-                if num_values == 0 {
-                    // Handle writers which truncate the final block
-                    self.bit_packed_left = 0;
-                    continue;
-                }
-                self.bit_packed_left -= num_values as u32;
-                values_read += num_values;
+                // num_values = bit_reader.read_batch::<T>(
+                //     &mut buffer[values_read..values_read + num_values],
+                //     self.bit_width as usize,
+                // );
+                // if num_values == 0 {
+                //     // Handle writers which truncate the final block
+                //     self.bit_packed_left = 0;
+                //     continue;
+                // }
+                // self.bit_packed_left -= num_values as u32;
+                // values_read += num_values;
             } else if !self.reload() {
                 break;
             }

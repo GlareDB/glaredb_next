@@ -137,6 +137,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
     /// # Panics
     ///
     /// Implementations may panic if `range` overlaps with already written data
+    // TODO: Remove `num_values`?
     pub fn read<B: ValuesBuffer<T::T>>(&mut self, out: &mut B, num_values: usize) -> Result<usize> {
         let encoding = self
             .current_encoding
@@ -151,7 +152,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
         // let start = out.len();
         // out.resize(start + num_values, T::T::default());
 
-        let read = current_decoder.read(&mut out[start..])?;
+        let read = current_decoder.read(out)?;
 
         // out.truncate(start + read);
         Ok(read)

@@ -184,7 +184,7 @@ where
     ///
     /// `values` will be contiguously populated with the non-null values. Note that if the column
     /// is not required, this may be less than either `max_records` or the number of levels read
-    pub fn read_records<B: ValuesBuffer<T>>(
+    pub fn read_records<B: ValuesBuffer<T::T>>(
         &mut self,
         max_records: usize,
         mut def_levels: Option<&mut Vec<i16>>,

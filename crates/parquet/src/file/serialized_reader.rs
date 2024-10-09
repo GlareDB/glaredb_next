@@ -758,8 +758,7 @@ mod tests {
     use super::*;
     use crate::basic::{self, ColumnOrder};
     use crate::column::reader::ColumnReader;
-    use crate::data_type::private::ParquetValueType;
-    use crate::data_type::{AsBytes, FixedLenByteArrayType};
+    use crate::data_type::{AsBytes, FixedLenByteArrayType, ParquetValueType};
     use crate::file::page_index::index::{Index, NativeIndex};
     use crate::file::page_index::index_reader::{read_columns_indexes, read_pages_locations};
     use crate::file::writer::SerializedFileWriter;
