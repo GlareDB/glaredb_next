@@ -17,16 +17,17 @@
 
 //! Contains all supported decoders for Parquet.
 
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::{cmp, mem};
+
 use bytes::Bytes;
 use num::traits::WrappingAdd;
 use num::FromPrimitive;
-use std::{cmp, fmt::Debug, marker::PhantomData, mem};
 
 use super::rle::RleDecoder;
-
 use crate::basic::*;
-use crate::data_type::private::ParquetValueType;
-use crate::data_type::*;
+use crate::data_type::{ParquetValueType, *};
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
@@ -1097,12 +1098,12 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::encoding::*, *};
-
     use std::f32::consts::PI as PI_f32;
     use std::f64::consts::PI as PI_f64;
     use std::sync::Arc;
 
+    use super::super::encoding::*;
+    use super::*;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::test_common::rand_gen::RandGen;
 

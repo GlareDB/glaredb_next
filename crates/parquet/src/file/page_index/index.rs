@@ -20,8 +20,7 @@
 use std::fmt::Debug;
 
 use crate::basic::Type;
-use crate::data_type::private::ParquetValueType;
-use crate::data_type::{ByteArray, FixedLenByteArray, Int96};
+use crate::data_type::{ByteArray, FixedLenByteArray, Int96, ParquetValueType};
 use crate::errors::ParquetError;
 use crate::format::{BoundaryOrder, ColumnIndex};
 use crate::util::bit_util::from_le_slice;

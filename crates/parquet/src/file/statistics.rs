@@ -43,8 +43,7 @@
 use std::fmt;
 
 use crate::basic::Type;
-use crate::data_type::private::ParquetValueType;
-use crate::data_type::*;
+use crate::data_type::{ParquetValueType, *};
 use crate::errors::{ParquetError, Result};
 use crate::format::Statistics as TStatistics;
 use crate::util::bit_util::from_le_slice;

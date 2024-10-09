@@ -28,8 +28,7 @@ use crate::column::writer::{
     update_max,
     update_min,
 };
-use crate::data_type::private::ParquetValueType;
-use crate::data_type::DataType;
+use crate::data_type::{DataType, ParquetValueType};
 use crate::encodings::encoding::{get_encoder, DictEncoder, Encoder};
 use crate::errors::{ParquetError, Result};
 use crate::file::properties::{EnabledStatistics, WriterProperties};

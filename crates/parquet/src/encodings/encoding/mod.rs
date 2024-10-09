@@ -17,17 +17,17 @@
 
 //! Contains all supported encoders for Parquet.
 
-use std::{cmp, marker::PhantomData};
-
-use crate::basic::*;
-use crate::data_type::private::ParquetValueType;
-use crate::data_type::*;
-use crate::encodings::rle::RleEncoder;
-use crate::errors::{ParquetError, Result};
-use crate::util::bit_util::{num_required_bits, BitWriter};
+use std::cmp;
+use std::marker::PhantomData;
 
 use bytes::Bytes;
 pub use dict_encoder::DictEncoder;
+
+use crate::basic::*;
+use crate::data_type::{ParquetValueType, *};
+use crate::encodings::rle::RleEncoder;
+use crate::errors::{ParquetError, Result};
+use crate::util::bit_util::{num_required_bits, BitWriter};
 
 mod byte_stream_split_encoder;
 mod dict_encoder;
@@ -721,10 +721,9 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::sync::Arc;
 
+    use super::*;
     use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::bit_util;
