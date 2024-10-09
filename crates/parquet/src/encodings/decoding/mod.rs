@@ -240,8 +240,7 @@ pub fn get_decoder<T: ValueDecoder>(
     descr: ColumnDescPtr,
     encoding: Encoding,
 ) -> Result<Box<dyn Decoder<T>>> {
-    unimplemented!()
-    // T::T::get_decoder(descr, encoding)
+    T::ValueType::get_decoder(descr, encoding)
 }
 
 // ----------------------------------------------------------------------
