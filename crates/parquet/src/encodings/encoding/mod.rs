@@ -920,7 +920,7 @@ mod tests {
     fn test_byte_stream_split_example_f32() {
         // Test data from https://github.com/apache/parquet-format/blob/2a481fe1aad64ff770e21734533bb7ef5a057dac/Encodings.md#byte-stream-split-byte_stream_split--9
         let mut encoder = create_test_encoder::<FloatType>(Encoding::BYTE_STREAM_SPLIT);
-        let mut decoder = create_test_decoder::<FloatType>(0, Encoding::BYTE_STREAM_SPLIT);
+        let mut decoder = create_test_decoder::<f32>(0, Encoding::BYTE_STREAM_SPLIT);
 
         let input = vec![
             f32::from_le_bytes([0xAA, 0xBB, 0xCC, 0xDD]),
@@ -949,7 +949,7 @@ mod tests {
     #[test]
     fn test_issue_47() {
         let mut encoder = create_test_encoder::<ByteArrayType>(Encoding::DELTA_BYTE_ARRAY);
-        let mut decoder = create_test_decoder::<ByteArrayType>(0, Encoding::DELTA_BYTE_ARRAY);
+        let mut decoder = create_test_decoder::<ByteArray>(0, Encoding::DELTA_BYTE_ARRAY);
 
         let input = vec![
             ByteArray::from("aa"),
@@ -999,7 +999,7 @@ mod tests {
     impl<T: DataType + RandGen<T>> EncodingTester<T> for T {
         fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
             let mut encoder = create_test_encoder::<T>(enc);
-            let mut decoder = create_test_decoder::<T>(type_length, enc);
+            let mut decoder = create_test_decoder::<T::T>(type_length, enc);
             let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
             let mut result_data = vec![T::T::default(); total];
 
@@ -1054,8 +1054,8 @@ mod tests {
             encoder.put(&values[..])?;
 
             let mut data = encoder.flush_buffer()?;
-            let mut decoder = create_test_dict_decoder::<T>();
-            let mut dict_decoder = PlainDecoder::<T>::new(type_length);
+            let mut decoder = create_test_dict_decoder::<T::T>();
+            let mut dict_decoder = PlainDecoder::<T::T>::new(type_length);
             dict_decoder.set_data(encoder.write_dict()?, encoder.num_entries())?;
             decoder.set_dict(Box::new(dict_decoder))?;
             let mut result_data = vec![T::T::default(); total];
@@ -1071,7 +1071,7 @@ mod tests {
             encoder.put(&values[..])?;
             data = encoder.flush_buffer()?;
 
-            let mut dict_decoder = PlainDecoder::<T>::new(type_length);
+            let mut dict_decoder = PlainDecoder::<T::T>::new(type_length);
             dict_decoder.set_data(encoder.write_dict()?, encoder.num_entries())?;
             decoder.set_dict(Box::new(dict_decoder))?;
             decoder.set_data(data, total)?;
@@ -1084,11 +1084,11 @@ mod tests {
         }
     }
 
-    fn put_and_get<T: DataType>(
-        encoder: &mut Box<dyn Encoder<T>>,
+    fn put_and_get<T: ValueDecoder, D: DataType<T = T::ValueType>>(
+        encoder: &mut Box<dyn Encoder<D>>,
         decoder: &mut Box<dyn Decoder<T>>,
-        input: &[T::T],
-        output: &mut [T::T],
+        input: &[T::ValueType],
+        output: &mut [T::ValueType],
     ) -> Result<usize> {
         encoder.put(input)?;
         let data = encoder.flush_buffer()?;
@@ -1127,7 +1127,7 @@ mod tests {
         get_encoder(enc).unwrap()
     }
 
-    fn create_test_decoder<T: DataType>(type_len: i32, enc: Encoding) -> Box<dyn Decoder<T>> {
+    fn create_test_decoder<T: ValueDecoder>(type_len: i32, enc: Encoding) -> Box<dyn Decoder<T>> {
         let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
         get_decoder(desc, enc).unwrap()
     }
@@ -1137,7 +1137,7 @@ mod tests {
         DictEncoder::<T>::new(desc)
     }
 
-    fn create_test_dict_decoder<T: DataType>() -> DictDecoder<T> {
+    fn create_test_dict_decoder<T: ValueDecoder>() -> DictDecoder<T> {
         DictDecoder::<T>::new()
     }
 }

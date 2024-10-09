@@ -641,9 +641,14 @@ impl<T> DecodeBuffer for [T] {
     }
 }
 
-pub trait ValueDecoder: Send + fmt::Debug + 'static {
+pub trait ValueDecoder: Sized + Send + fmt::Debug + 'static {
     type ValueType: ParquetValueType;
     type DecodeBuffer: DecodeBuffer + ?Sized;
+
+    // TODO: Remove
+    fn get_physical_type() -> Type {
+        Self::ValueType::PHYSICAL_TYPE
+    }
 
     /// Establish the data that will be decoded in a buffer
     fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
@@ -673,6 +678,39 @@ where
         <T as ParquetValueType>::skip(decoder, num_values)
     }
 }
+
+// TODO: REMOVE (at some point). Currently just a workaround to get the
+// `get_column_reader` and `get_typed_column_reader` functions working. Those
+// are just for tests.
+pub(crate) trait TypedColumnReader: ValueDecoder {
+    fn get_typed_reader<P: PageReader>(
+        column_reader: ColumnReader<P>,
+    ) -> Option<GenericColumnReader<Self, P>>;
+}
+
+macro_rules! impl_typed_column_reader {
+    ($ty:ty, $variant:ident) => {
+        impl TypedColumnReader for $ty {
+            fn get_typed_reader<P: PageReader>(
+                column_reader: ColumnReader<P>,
+            ) -> Option<GenericColumnReader<Self, P>> {
+                match column_reader {
+                    ColumnReader::$variant(reader) => Some(reader),
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+impl_typed_column_reader!(bool, BoolColumnReader);
+impl_typed_column_reader!(i32, Int32ColumnReader);
+impl_typed_column_reader!(i64, Int64ColumnReader);
+impl_typed_column_reader!(Int96, Int96ColumnReader);
+impl_typed_column_reader!(f32, FloatColumnReader);
+impl_typed_column_reader!(f64, DoubleColumnReader);
+impl_typed_column_reader!(ByteArray, ByteArrayColumnReader);
+impl_typed_column_reader!(FixedLenByteArray, FixedLenByteArrayColumnReader);
 
 /// Sealed trait to start to remove specialisation from implementations
 ///

@@ -1764,14 +1764,14 @@ mod tests {
 
             let mut out = Vec::with_capacity(4);
             let c1 = row_group.get_column_reader(0).unwrap();
-            let mut c1 = get_typed_column_reader::<Int32Type, _>(c1);
+            let mut c1 = get_typed_column_reader::<i32, _>(c1);
             c1.read_records(4, None, None, &mut out).unwrap();
             assert_eq!(out, column_data[0]);
 
             out.clear();
 
             let c2 = row_group.get_column_reader(1).unwrap();
-            let mut c2 = get_typed_column_reader::<Int32Type, _>(c2);
+            let mut c2 = get_typed_column_reader::<i32, _>(c2);
             c2.read_records(4, None, None, &mut out).unwrap();
             assert_eq!(out, column_data[1]);
         };

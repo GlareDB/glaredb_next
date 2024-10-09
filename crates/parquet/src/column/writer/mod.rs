@@ -3165,7 +3165,8 @@ mod tests {
         max_def_level: i16,
         max_rep_level: i16,
     ) where
-        T::T: PartialOrd + SampleUniform + Copy,
+        T::T: PartialOrd + SampleUniform + Copy + TypedColumnReader,
+        <<T as DataType>::T as ValueDecoder>::ValueType: PartialEq<<T as DataType>::T>, // TODO: Remove
     {
         let mut num_values: usize = 0;
 
@@ -3204,7 +3205,10 @@ mod tests {
         values: &[T::T],
         def_levels: Option<&[i16]>,
         rep_levels: Option<&[i16]>,
-    ) {
+    ) where
+        T::T: TypedColumnReader,
+        <<T as DataType>::T as ValueDecoder>::ValueType: PartialEq<<T as DataType>::T>, // TODO: Remove
+    {
         let mut file = tempfile::tempfile().unwrap();
         let mut write = TrackedWrite::new(&mut file);
         let page_writer = SerializedPageWriter::new(&mut write);
@@ -3342,10 +3346,13 @@ mod tests {
         page_reader: P,
         max_def_level: i16,
         max_rep_level: i16,
-    ) -> GenericColumnReader<T, P> {
+    ) -> GenericColumnReader<T::T, P>
+    where
+        T::T: TypedColumnReader,
+    {
         let descr = Arc::new(get_test_column_descr::<T>(max_def_level, max_rep_level));
         let column_reader = get_column_reader(descr, page_reader);
-        get_typed_column_reader::<T, _>(column_reader)
+        get_typed_column_reader::<T::T, _>(column_reader)
     }
 
     /// Returns descriptor for primitive column.

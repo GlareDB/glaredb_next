@@ -77,8 +77,8 @@ impl<T: ValueDecoder> Decoder<T> for ByteStreamSplitDecoder<T> {
         let buffer = &mut buffer[..num_values];
 
         // SAFETY: f32 and f64 has no constraints on their internal representation, so we can modify it as we want
-        let raw_out_bytes = unsafe { <T as DataType>::T::slice_as_bytes_mut(buffer) };
-        let type_size = T::get_type_size();
+        let raw_out_bytes = unsafe { T::ValueType::slice_as_bytes_mut(buffer) };
+        let type_size = std::mem::size_of::<T::ValueType>(); // TODO: Move to ParquetValueType
         let stride = self.encoded_bytes.len() / type_size;
         match type_size {
             4 => join_streams_const::<4>(

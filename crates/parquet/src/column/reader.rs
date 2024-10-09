@@ -35,7 +35,7 @@ use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
 /// Column reader for a Parquet type.
-pub enum ColumnReader<P: PageReader> {
+pub(crate) enum ColumnReader<P: PageReader> {
     BoolColumnReader(GenericColumnReader<bool, P>),
     Int32ColumnReader(GenericColumnReader<i32, P>),
     Int64ColumnReader(GenericColumnReader<i64, P>),
@@ -48,7 +48,7 @@ pub enum ColumnReader<P: PageReader> {
 
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
 /// column reader will read from pages in `col_page_reader`.
-pub fn get_column_reader<P: PageReader>(
+pub(crate) fn get_column_reader<P: PageReader>(
     col_descr: ColumnDescPtr,
     col_page_reader: P,
 ) -> ColumnReader<P> {
@@ -85,23 +85,15 @@ pub fn get_column_reader<P: PageReader>(
 /// non-generic type to a generic column reader type `ColumnReaderImpl`.
 ///
 /// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub fn get_typed_column_reader<T: ValueDecoder, P: PageReader>(
+pub(crate) fn get_typed_column_reader<T: ValueDecoder + TypedColumnReader, P: PageReader>(
     col_reader: ColumnReader<P>,
-) -> GenericColumnReader<T::ValueType, P> {
-    match (T::ValueType::PHYSICAL_TYPE, col_reader) {
-        (Type::BOOLEAN, ColumnReader::BoolColumnReader(reader)) => reader,
-        (Type::INT32, ColumnReader::Int32ColumnReader(reader)) => reader,
-        (Type::INT64, ColumnReader::Int64ColumnReader(reader)) => reader,
-        (Type::INT96, ColumnReader::Int96ColumnReader(reader)) => reader,
-        (Type::FLOAT, ColumnReader::FloatColumnReader(reader)) => reader,
-        (Type::DOUBLE, ColumnReader::DoubleColumnReader(reader)) => reader,
-        (Type::BYTE_ARRAY, ColumnReader::ByteArrayColumnReader(reader)) => reader,
-        (Type::FIXED_LEN_BYTE_ARRAY, ColumnReader::FixedLenByteArrayColumnReader(reader)) => reader,
-        (other, _) => panic!(
+) -> GenericColumnReader<T, P> {
+    T::get_typed_reader(col_reader).unwrap_or_else(|| {
+        panic!(
             "Failed to convert column reader into a typed column reader for `{}` type",
             T::ValueType::PHYSICAL_TYPE,
-        ),
-    }
+        )
+    })
 }
 
 /// Reads data for a given column chunk, using the provided decoders:
@@ -567,6 +559,7 @@ fn parse_v1_level(
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
+    use std::marker::PhantomData;
     use std::sync::Arc;
 
     use rand::distributions::uniform::SampleUniform;
@@ -589,6 +582,7 @@ mod tests {
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
             test_internal!(
                 $test_func,
+                i32,
                 Int32Type,
                 get_test_int32_type,
                 $func,
@@ -606,6 +600,7 @@ mod tests {
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
             test_internal!(
                 $test_func,
+                i64,
                 Int64Type,
                 get_test_int64_type,
                 $func,
@@ -621,7 +616,7 @@ mod tests {
     }
 
     macro_rules! test_internal {
-        ($test_func:ident, $ty:ident, $pty:ident, $func:ident, $def_level:expr,
+        ($test_func:ident, $ty:ident, $datatype:ident, $pty:ident, $func:ident, $def_level:expr,
      $rep_level:expr, $num_pages:expr, $num_levels:expr, $batch_size:expr,
      $min:expr, $max:expr) => {
             #[test]
@@ -632,7 +627,7 @@ mod tests {
                     $rep_level,
                     ColumnPath::new(Vec::new()),
                 ));
-                let mut tester = ColumnReaderTester::<$ty>::new();
+                let mut tester = ColumnReaderTester::<$ty, $datatype>::new();
                 tester.$func(desc, $num_pages, $num_levels, $batch_size, $min, $max);
             }
         };
@@ -1005,7 +1000,7 @@ mod tests {
         let num_levels = 4;
         let batch_size = 5;
 
-        let mut tester = ColumnReaderTester::<Int32Type>::new();
+        let mut tester = ColumnReaderTester::<i32, Int32Type>::new();
         tester.test_read_batch(
             desc,
             Encoding::RLE_DICTIONARY,
@@ -1096,7 +1091,7 @@ mod tests {
             ColumnPath::new(Vec::new()),
         ));
 
-        let mut tester = ColumnReaderTester::<Int32Type>::new();
+        let mut tester = ColumnReaderTester::<i32, Int32Type>::new();
         tester.test_read_batch(
             desc,
             Encoding::RLE_DICTIONARY,
@@ -1109,24 +1104,27 @@ mod tests {
         );
     }
 
-    struct ColumnReaderTester<T: DataType>
+    // TODO: Remove datatype, needed for encoding test pages.
+    struct ColumnReaderTester<T: ValueDecoder, D: DataType<T = T::ValueType>>
     where
-        T::T: PartialOrd + SampleUniform + Copy,
+        T::ValueType: PartialOrd + SampleUniform + Copy,
     {
         rep_levels: Vec<i16>,
         def_levels: Vec<i16>,
-        values: Vec<T::T>,
+        values: Vec<T::ValueType>,
+        _datatype: PhantomData<D>,
     }
 
-    impl<T: DataType> ColumnReaderTester<T>
+    impl<T: ValueDecoder + TypedColumnReader, D: DataType<T = T::ValueType>> ColumnReaderTester<T, D>
     where
-        T::T: PartialOrd + SampleUniform + Copy,
+        T::ValueType: PartialOrd + SampleUniform + Copy,
     {
         pub fn new() -> Self {
             Self {
                 rep_levels: Vec::new(),
                 def_levels: Vec::new(),
                 values: Vec::new(),
+                _datatype: PhantomData,
             }
         }
 
@@ -1137,8 +1135,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::T,
-            max: T::T,
+            min: T::ValueType,
+            max: T::ValueType,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1159,8 +1157,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::T,
-            max: T::T,
+            min: T::ValueType,
+            max: T::ValueType,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1181,8 +1179,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::T,
-            max: T::T,
+            min: T::ValueType,
+            max: T::ValueType,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1203,8 +1201,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::T,
-            max: T::T,
+            min: T::ValueType,
+            max: T::ValueType,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1228,8 +1226,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::T,
-            max: T::T,
+            min: T::ValueType,
+            max: T::ValueType,
             use_v2: bool,
         ) {
             self.test_read_batch(
@@ -1247,12 +1245,12 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::T,
-            max: T::T,
+            min: T::ValueType,
+            max: T::ValueType,
             use_v2: bool,
         ) {
             let mut pages = VecDeque::new();
-            make_pages::<T>(
+            make_pages::<D>(
                 desc.clone(),
                 encoding,
                 num_pages,
