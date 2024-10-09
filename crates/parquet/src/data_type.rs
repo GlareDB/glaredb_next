@@ -463,14 +463,22 @@ pub trait AsBytes {
 }
 
 /// Converts an slice of a data type to a slice of bytes.
+///
+/// This is used for copying the byte values directly into some output buffer,
+/// where transmute the output buffer to bytes.
+///
+/// Note that we don't go the other way (bytes -> [Self]) since bytes isn't
+/// guaranteed to be aligned at any point.
 pub trait SliceAsBytes: Sized {
     /// Returns slice of bytes for a slice of this data type.
     fn slice_as_bytes(self_: &[Self]) -> &[u8];
+
     /// Return the internal representation as a mutable slice
     ///
     /// # Safety
-    /// If modified you are _required_ to ensure the internal representation
-    /// is valid and correct for the actual raw data
+    ///
+    /// If modified you are _required_ to ensure the internal representation is
+    /// valid and correct for the actual raw data
     unsafe fn slice_as_bytes_mut(self_: &mut [Self]) -> &mut [u8];
 }
 
