@@ -11,12 +11,13 @@ use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
     BoolType,
-    DataType as ParquetDataType,
     DoubleType,
     FloatType,
     Int32Type,
     Int64Type,
+    Int96,
     Int96Type,
+    ValueDecoder,
 };
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
@@ -56,35 +57,33 @@ where
     P: PageReader + 'static,
 {
     match (&datatype, physical) {
-        (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<BoolType, P>::new(
+        (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<bool, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+        (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
+        (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Timestamp(_), PhysicalType::INT64) => {
-            Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
-                batch_size, datatype, desc,
-            )))
-        }
+        (DataType::Timestamp(_), PhysicalType::INT64) => Ok(Box::new(
+            PrimitiveArrayReader::<i64, P>::new(batch_size, datatype, desc),
+        )),
         (DataType::Timestamp(_), PhysicalType::INT96) => {
-            Ok(Box::new(PrimitiveArrayReader::<Int96Type, P>::new(
+            Ok(Box::new(PrimitiveArrayReader::<Int96, P>::new(
                 batch_size, datatype, desc,
             )))
         }
-        (DataType::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<FloatType, P>::new(
+        (DataType::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<f32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
+        (DataType::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<f64, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+        (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
+        (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
             batch_size, datatype, desc,
         ))),
         (DataType::Utf8, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
@@ -352,7 +351,7 @@ impl Length for InMemoryColumnChunk {
 }
 
 #[derive(Debug)]
-pub struct ValuesReader<T: ParquetDataType, P: PageReader> {
+pub struct ValuesReader<T: ValueDecoder, P: PageReader> {
     desc: ColumnDescPtr,
     reader: Option<GenericColumnReader<T, P>>,
 
@@ -362,7 +361,7 @@ pub struct ValuesReader<T: ParquetDataType, P: PageReader> {
 
 impl<T, P> ValuesReader<T, P>
 where
-    T: ParquetDataType,
+    T: ValueDecoder,
     P: PageReader,
 {
     pub fn new(desc: ColumnDescPtr) -> Self {
@@ -392,7 +391,11 @@ where
         Ok(())
     }
 
-    pub fn read_records(&mut self, num_records: usize, values: &mut Vec<T::T>) -> Result<usize> {
+    pub fn read_records(
+        &mut self,
+        num_records: usize,
+        values: &mut Vec<T::ValueType>,
+    ) -> Result<usize> {
         let reader = match &mut self.reader {
             Some(reader) => reader,
             None => return Err(RayexecError::new("Expected reader to be Some")),
@@ -414,7 +417,7 @@ where
             if values_read < levels_read {
                 // TODO: Need to revisit how we handle definition
                 // levels/repetition levels and nulls.
-                values.resize(levels_read, T::T::default());
+                values.resize(levels_read, T::ValueType::default());
             }
 
             num_read += records_read;

@@ -13,7 +13,7 @@ use super::{def_levels_into_bitmap, ArrayBuilder, ValuesReader};
 #[derive(Debug)]
 pub struct VarlenArrayReader<P: PageReader> {
     datatype: DataType,
-    values_reader: ValuesReader<ByteArrayType, P>,
+    values_reader: ValuesReader<ByteArray, P>,
     // TODO: Change varlen decoding to not use this type and instead write into
     // a contiguous buffer that we can construct array data out of.
     values_buffer: Vec<ByteArray>,

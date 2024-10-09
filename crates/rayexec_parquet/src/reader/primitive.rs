@@ -1,6 +1,6 @@
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
-use parquet::data_type::{DataType as ParquetDataType, Int96};
+use parquet::data_type::{DataType as ParquetDataType, Int96, ValueDecoder};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::bitmap::Bitmap;
@@ -10,18 +10,18 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};
 
-pub struct PrimitiveArrayReader<T: ParquetDataType, P: PageReader> {
+pub struct PrimitiveArrayReader<T: ValueDecoder, P: PageReader> {
     batch_size: usize,
     datatype: DataType,
     values_reader: ValuesReader<T, P>,
-    values_buffer: Vec<T::T>,
+    values_buffer: Vec<T::ValueType>,
 }
 
 impl<T, P> PrimitiveArrayReader<T, P>
 where
-    T: ParquetDataType,
+    T: ValueDecoder,
     P: PageReader,
-    Vec<T::T>: IntoArray,
+    Vec<T::ValueType>: IntoArray,
 {
     pub fn new(batch_size: usize, datatype: DataType, desc: ColumnDescPtr) -> Self {
         PrimitiveArrayReader {
@@ -58,9 +58,9 @@ where
 
 impl<T, P> ArrayBuilder<P> for PrimitiveArrayReader<T, P>
 where
-    T: ParquetDataType,
+    T: ValueDecoder,
     P: PageReader,
-    Vec<T::T>: IntoArray,
+    Vec<T::ValueType>: IntoArray,
 {
     fn build(&mut self) -> Result<Array> {
         self.take_array()
