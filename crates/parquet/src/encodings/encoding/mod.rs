@@ -17,17 +17,17 @@
 
 //! Contains all supported encoders for Parquet.
 
-use std::{cmp, marker::PhantomData};
-
-use crate::basic::*;
-use crate::data_type::private::ParquetValueType;
-use crate::data_type::*;
-use crate::encodings::rle::RleEncoder;
-use crate::errors::{ParquetError, Result};
-use crate::util::bit_util::{num_required_bits, BitWriter};
+use std::cmp;
+use std::marker::PhantomData;
 
 use bytes::Bytes;
 pub use dict_encoder::DictEncoder;
+
+use crate::basic::*;
+use crate::data_type::{ParquetValueType, *};
+use crate::encodings::rle::RleEncoder;
+use crate::errors::{ParquetError, Result};
+use crate::util::bit_util::{num_required_bits, BitWriter};
 
 mod byte_stream_split_encoder;
 mod dict_encoder;
@@ -721,11 +721,16 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::sync::Arc;
 
-    use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
+    use super::*;
+    use crate::encodings::decoding::{
+        get_decoder,
+        Decoder,
+        DictDecoder,
+        PlainDecoder,
+        WrappedDecoder,
+    };
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::bit_util;
     use crate::util::test_common::rand_gen::{random_bytes, RandGen};
@@ -1087,7 +1092,7 @@ mod tests {
 
     fn put_and_get<T: DataType>(
         encoder: &mut Box<dyn Encoder<T>>,
-        decoder: &mut Box<dyn Decoder<T>>,
+        decoder: &mut WrappedDecoder<T>,
         input: &[T::T],
         output: &mut [T::T],
     ) -> Result<usize> {
@@ -1128,7 +1133,7 @@ mod tests {
         get_encoder(enc).unwrap()
     }
 
-    fn create_test_decoder<T: DataType>(type_len: i32, enc: Encoding) -> Box<dyn Decoder<T>> {
+    fn create_test_decoder<T: DataType>(type_len: i32, enc: Encoding) -> Box<WrappedDecoder<T>> {
         let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
         get_decoder(desc, enc).unwrap()
     }

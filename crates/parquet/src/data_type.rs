@@ -701,7 +701,7 @@ impl ParquetValueType for bool {
         decoder: &mut PlainDecoderDetails,
     ) -> Result<usize> {
         let bit_reader = decoder.bit_reader.as_mut().unwrap();
-        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+        let num_values = std::cmp::min(buffer.remaining_len(), decoder.num_values);
 
         let buffer = buffer.as_slice_mut();
         let values_read = bit_reader.read_batch(&mut buffer[..num_values], 1);
@@ -762,7 +762,7 @@ macro_rules! impl_from_raw {
                 #[inline]
                 fn decode<B: ValuesBuffer<Self>>(buffer: &mut B, decoder: &mut PlainDecoderDetails) -> Result<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
-                    let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+                    let num_values = std::cmp::min(buffer.remaining_len(), decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
                     let bytes_to_decode = std::mem::size_of::<Self>() * num_values;
 
@@ -770,15 +770,16 @@ macro_rules! impl_from_raw {
                         return Err(eof_err!("Not enough bytes to decode"));
                     }
 
-                    let buffer = buffer.as_slice_mut();
+                    // Raw bytes containing our data.
+                    let bytes = &data[decoder.start..decoder.start+bytes_to_decode];
 
-                    // SAFETY: Raw types should be as per the standard rust bit-vectors
+                    // SAFETY: We checked that the buffer can hold `num_values`
+                    // values above. It's on the implementation to ensure
+                    // continued safety.
                     unsafe {
-                        let raw_buffer = &mut Self::slice_as_bytes_mut(buffer)[..bytes_to_decode];
-                        raw_buffer.copy_from_slice(data.slice(
-                            decoder.start..decoder.start + bytes_to_decode
-                        ).as_ref());
-                    };
+                        buffer.push_many_from_raw_bytes(bytes, num_values)
+                    }
+
                     decoder.start += bytes_to_decode;
                     decoder.num_values -= num_values;
 
@@ -856,7 +857,7 @@ impl ParquetValueType for Int96 {
             .data
             .as_ref()
             .expect("set_data should have been called");
-        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
+        let num_values = std::cmp::min(buffer.remaining_len(), decoder.num_values);
         let bytes_left = data.len() - decoder.start;
         let bytes_to_decode = 12 * num_values;
 
@@ -864,21 +865,12 @@ impl ParquetValueType for Int96 {
             return Err(eof_err!("Not enough bytes to decode"));
         }
 
-        let data_range = data.slice(decoder.start..decoder.start + bytes_to_decode);
-        let bytes: &[u8] = &data_range;
+        let data_range = &data[decoder.start..decoder.start + bytes_to_decode];
+
+        // SAFETY: We checked buffer can hold `num_values` above.
+        unsafe { buffer.push_many_from_raw_bytes(data_range, num_values) }
+
         decoder.start += bytes_to_decode;
-
-        let buffer = buffer.as_slice_mut();
-
-        let mut pos = 0; // position in byte array
-        for item in buffer.iter_mut().take(num_values) {
-            let elem0 = u32::from_le_bytes(bytes[pos..pos + 4].try_into().unwrap());
-            let elem1 = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap());
-            let elem2 = u32::from_le_bytes(bytes[pos + 8..pos + 12].try_into().unwrap());
-
-            item.set_data(elem0, elem1, elem2);
-            pos += 12;
-        }
         decoder.num_values -= num_values;
 
         Ok(num_values)
@@ -943,9 +935,13 @@ impl ParquetValueType for ByteArray {
             .data
             .as_mut()
             .expect("set_data should have been called");
-        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
 
-        for idx in 0..num_values {
+        // TODO: Probably over allocates.
+        buffer.reserve_varlen_capacity(data.len());
+
+        let num_values = std::cmp::min(buffer.remaining_len(), decoder.num_values);
+
+        for _ in 0..num_values {
             let len: usize =
                 read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
             decoder.start += std::mem::size_of::<u32>();
@@ -959,7 +955,7 @@ impl ParquetValueType for ByteArray {
                 data: Some(data.slice(decoder.start..decoder.start + len)),
             };
 
-            buffer.put_value(idx, &val);
+            buffer.push_varlen_value(&val);
 
             decoder.start += len;
         }
@@ -1032,11 +1028,14 @@ impl ParquetValueType for FixedLenByteArray {
             .data
             .as_mut()
             .expect("set_data should have been called");
-        let num_values = std::cmp::min(buffer.len(), decoder.num_values);
 
-        for idx in 0..num_values {
-            let len = decoder.type_length as usize;
+        let num_values = std::cmp::min(buffer.remaining_len(), decoder.num_values);
+        let len = decoder.type_length as usize;
 
+        // TODO: Probably over allocates.
+        buffer.reserve_varlen_capacity(len * num_values);
+
+        for _ in 0..num_values {
             if data.len() < decoder.start + len {
                 return Err(eof_err!("Not enough bytes to decode"));
             }
@@ -1046,7 +1045,7 @@ impl ParquetValueType for FixedLenByteArray {
                 data: Some(data.slice(decoder.start..decoder.start + len)),
             });
 
-            buffer.put_value(idx, &val);
+            buffer.push_varlen_value(&val);
 
             decoder.start += len;
         }

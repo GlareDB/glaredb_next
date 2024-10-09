@@ -1,16 +1,8 @@
-use super::{DataType, FixedLenPrimitiveValue, ParquetValueType};
+use super::{DataType, FixedLenPrimitiveValue, ParquetValueType, VarlenPrimitiveValue};
 
 pub trait ValuesBuffer<T: ParquetValueType> {
-    /// Return the total number of items in the buffer, including slots that
-    /// haven't been pushed to yet.
-    fn total_len(&self) -> usize {
-        unimplemented!()
-    }
-
-    /// Return the number of items that have been pushed to this buffer.
-    ///
-    /// Does not included slots that haven't been pushed to yet.
-    fn filled_len(&self) -> usize {
+    /// Remaining number of values this buffer can hold.
+    fn remaining_len(&self) -> usize {
         unimplemented!()
     }
 
@@ -18,7 +10,13 @@ pub trait ValuesBuffer<T: ParquetValueType> {
         unimplemented!()
     }
 
-    unsafe fn fill_from_raw_bytes(&mut self, bytes: &[u8], num_values: usize)
+    /// Push many additional values from the raw bytes representation.
+    ///
+    /// `num_values` is guaranteed to be less than or equal to `remaining_len`.
+    ///
+    /// `bytes` represents a slice of `T` holding `num_values` values. `bytes`
+    /// has no alignment guarantees.
+    unsafe fn push_many_from_raw_bytes(&mut self, bytes: &[u8], num_values: usize)
     where
         T: FixedLenPrimitiveValue,
     {
@@ -33,7 +31,17 @@ pub trait ValuesBuffer<T: ParquetValueType> {
         unimplemented!()
     }
 
-    fn put_value(&mut self, idx: usize, val: &T) {
+    fn reserve_varlen_capacity(&mut self, capacity: usize)
+    where
+        T: VarlenPrimitiveValue,
+    {
+        unimplemented!()
+    }
+
+    fn push_varlen_value(&mut self, val: &T)
+    where
+        T: VarlenPrimitiveValue,
+    {
         unimplemented!()
     }
 }
@@ -47,7 +55,7 @@ impl<T> ValuesBuffer<T> for PrimitiveValuesBuffer<T>
 where
     T: FixedLenPrimitiveValue,
 {
-    unsafe fn fill_from_raw_bytes(&mut self, bytes: &[u8], num_values: usize)
+    unsafe fn push_many_from_raw_bytes(&mut self, bytes: &[u8], num_values: usize)
     where
         T: FixedLenPrimitiveValue,
     {
