@@ -621,7 +621,7 @@ pub trait ParquetValueType:
     + SliceAsBytes
     + PartialOrd
     + Send
-    + crate::encodings::decoding::private::GetDecoder
+    + crate::encodings::decoding::GetDecoder
     + crate::file::statistics::private::MakeStatistics
 {
     const PHYSICAL_TYPE: Type;
