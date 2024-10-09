@@ -44,7 +44,13 @@ pub trait ValuesBuffer<T: ParquetValueType> {
     {
         unimplemented!()
     }
+
+    fn push_value(&mut self, val: &T) {
+        unimplemented!()
+    }
 }
+
+impl<T> ValuesBuffer<T> for Vec<T> where T: ParquetValueType {}
 
 pub struct PrimitiveValuesBuffer<T: FixedLenPrimitiveValue> {
     fill_start: usize,

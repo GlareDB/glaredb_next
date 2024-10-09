@@ -20,6 +20,8 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
+use crate::column::reader::values_buffer::ValuesBuffer;
+use crate::data_type::ParquetValueType;
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
@@ -434,16 +436,16 @@ impl RleDecoder {
     }
 
     #[inline(never)]
-    pub fn get_batch_with_dict<T>(
+    pub fn get_batch_with_dict<T, B: ValuesBuffer<T>>(
         &mut self,
         dict: &[T],
-        buffer: &mut [T],
+        buffer: &mut B,
         max_values: usize,
     ) -> Result<usize>
     where
-        T: Default + Clone,
+        T: ParquetValueType + Default + Clone,
     {
-        assert!(buffer.len() >= max_values);
+        assert!(buffer.remaining_len() >= max_values);
 
         let mut values_read = 0;
         while values_read < max_values {
@@ -452,8 +454,8 @@ impl RleDecoder {
             if self.rle_left > 0 {
                 let num_values = cmp::min(max_values - values_read, self.rle_left as usize);
                 let dict_idx = self.current_value.unwrap() as usize;
-                for i in 0..num_values {
-                    buffer[values_read + i].clone_from(&dict[dict_idx]);
+                for _i in 0..num_values {
+                    buffer.push_value(&dict[dict_idx]);
                 }
                 self.rle_left -= num_values as u32;
                 values_read += num_values;
@@ -478,7 +480,7 @@ impl RleDecoder {
                         break;
                     }
                     for i in 0..num_values {
-                        buffer[values_read + i].clone_from(&dict[index_buf[i] as usize])
+                        buffer.push_value(&dict[index_buf[i] as usize]);
                     }
                     self.bit_packed_left -= num_values as u32;
                     values_read += num_values;

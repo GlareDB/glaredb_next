@@ -29,8 +29,7 @@ use num::FromPrimitive;
 use super::rle::RleDecoder;
 use crate::basic::*;
 use crate::column::reader::values_buffer::ValuesBuffer;
-use crate::data_type::private::ParquetValueType;
-use crate::data_type::*;
+use crate::data_type::{ParquetValueType, *};
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
@@ -57,11 +56,11 @@ where
         unimplemented!()
     }
 
-    fn read<B: ValuesBuffer<T>>(&mut self, buffer: &mut B) -> Result<usize> {
+    fn read<B: ValuesBuffer<T::T>>(&mut self, buffer: &mut B) -> Result<usize> {
         unimplemented!()
     }
 
-    fn read_spaced<B: ValuesBuffer<T>>(
+    fn read_spaced<B: ValuesBuffer<T::T>>(
         &mut self,
         buffer: &mut B,
         null_count: usize,
@@ -259,7 +258,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// Returns the actual number of values decoded, which should be equal to
     /// `buffer.len()` unless the remaining number of values is less than
     /// `buffer.len()`.
-    fn read<B: ValuesBuffer<T>>(&mut self, buffer: &mut B) -> Result<usize>;
+    fn read<B: ValuesBuffer<T::T>>(&mut self, buffer: &mut B) -> Result<usize>;
 
     /// Consume values from this decoder and write the results to `buffer`, leaving
     /// "spaces" for null values.
@@ -273,20 +272,20 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// # Panics
     ///
     /// Panics if `null_count` is greater than `buffer.len()`.
-    fn read_spaced<B: ValuesBuffer<T>>(
+    fn read_spaced<B: ValuesBuffer<T::T>>(
         &mut self,
         buffer: &mut B,
         null_count: usize,
         valid_bits: &[u8],
     ) -> Result<usize> {
-        assert!(buffer.len() >= null_count);
+        assert!(buffer.remaining_len() >= null_count);
 
         // TODO: check validity of the input arguments?
         if null_count == 0 {
             return self.read(buffer);
         }
 
-        let num_values = buffer.len();
+        let num_values = buffer.remaining_len();
         let values_to_read = num_values - null_count;
         let values_read = self.read(buffer)?;
         if values_read != values_to_read {
@@ -397,7 +396,7 @@ impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     }
 
     #[inline]
-    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read<B: ValuesBuffer<T::T>>(&mut self, buffer: &mut B) -> Result<usize> {
         T::T::decode(buffer, &mut self.inner)
     }
 
@@ -467,12 +466,12 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read<B: ValuesBuffer<T::T>>(&mut self, buffer: &mut B) -> Result<usize> {
         assert!(self.rle_decoder.is_some());
         assert!(self.has_dictionary, "Must call set_dict() first!");
 
         let rle = self.rle_decoder.as_mut().unwrap();
-        let num_values = cmp::min(buffer.len(), self.num_values);
+        let num_values = cmp::min(buffer.remaining_len(), self.num_values);
         rle.get_batch_with_dict(&self.dictionary[..], buffer, num_values)
     }
 

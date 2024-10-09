@@ -137,7 +137,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
     /// # Panics
     ///
     /// Implementations may panic if `range` overlaps with already written data
-    pub fn read<B: ValuesBuffer<T>>(&mut self, out: &mut B, num_values: usize) -> Result<usize> {
+    pub fn read<B: ValuesBuffer<T::T>>(&mut self, out: &mut B, num_values: usize) -> Result<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");
