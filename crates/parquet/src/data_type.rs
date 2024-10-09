@@ -641,7 +641,7 @@ impl<T> DecodeBuffer for [T] {
     }
 }
 
-pub trait ValueDecoder {
+pub trait ValueDecoder: Send + fmt::Debug {
     type DataType: DataType;
     type DecodeBuffer: DecodeBuffer + ?Sized;
 
@@ -651,6 +651,8 @@ pub trait ValueDecoder {
     /// Decode the value from a given buffer for a higher level decoder
     fn decode2(buffer: &mut Self::DecodeBuffer, decoder: &mut PlainDecoderDetails)
         -> Result<usize>;
+
+    fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
 }
 
 impl<T> ValueDecoder for T
@@ -669,6 +671,10 @@ where
         decoder: &mut PlainDecoderDetails,
     ) -> Result<usize> {
         <T::T as ParquetValueType>::decode(buffer, decoder)
+    }
+
+    fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        <T::T as ParquetValueType>::skip(decoder, num_values)
     }
 }
 

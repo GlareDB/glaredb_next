@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 
+use super::ValueDecoder;
 use crate::basic::Encoding;
 use crate::data_type::DataType;
 use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
@@ -37,7 +38,7 @@ pub trait ColumnLevelDecoder {
 
 /// Decodes value data.
 #[derive(Debug)]
-pub struct ColumnValueDecoder<T: DataType> {
+pub struct ColumnValueDecoder<T: ValueDecoder> {
     descr: ColumnDescPtr,
     current_encoding: Option<Encoding>,
 

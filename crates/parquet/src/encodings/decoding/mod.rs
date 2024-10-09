@@ -269,7 +269,7 @@ pub struct PlainDecoderDetails {
 /// Floating point types are encoded in IEEE.
 /// See [`PlainEncoder`](crate::encoding::PlainEncoder) for more information.
 #[derive(Debug)]
-pub struct PlainDecoder<T: DataType> {
+pub struct PlainDecoder<T: ValueDecoder> {
     // The binary details needed for decoding
     inner: PlainDecoderDetails,
 
@@ -278,7 +278,7 @@ pub struct PlainDecoder<T: DataType> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: DataType> PlainDecoder<T> {
+impl<T: ValueDecoder> PlainDecoder<T> {
     /// Creates new plain decoder.
     pub fn new(type_length: i32) -> Self {
         PlainDecoder {
@@ -294,10 +294,10 @@ impl<T: DataType> PlainDecoder<T> {
     }
 }
 
-impl<T: DataType> Decoder<T> for PlainDecoder<T> {
+impl<T: ValueDecoder> Decoder<T> for PlainDecoder<T> {
     #[inline]
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
-        T::T::set_data(&mut self.inner, data, num_values);
+        T::set_data2(&mut self.inner, data, num_values);
         Ok(())
     }
 
@@ -312,13 +312,13 @@ impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     }
 
     #[inline]
-    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
-        T::T::decode(buffer, &mut self.inner)
+    fn read(&mut self, buffer: &mut T::DecodeBuffer) -> Result<usize> {
+        T::decode2(buffer, &mut self.inner)
     }
 
     #[inline]
     fn skip(&mut self, num_values: usize) -> Result<usize> {
-        T::T::skip(&mut self.inner, num_values)
+        T::skip2(&mut self.inner, num_values)
     }
 }
 
