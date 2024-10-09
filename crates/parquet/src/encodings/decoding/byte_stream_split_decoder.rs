@@ -19,21 +19,20 @@ use std::marker::PhantomData;
 
 use bytes::Bytes;
 
+use super::{Decoder, ValueDecoder};
 use crate::basic::Encoding;
 use crate::data_type::{DataType, SliceAsBytes};
 use crate::errors::{ParquetError, Result};
 
-use super::Decoder;
-
 #[derive(Debug)]
-pub struct ByteStreamSplitDecoder<T: DataType> {
+pub struct ByteStreamSplitDecoder<T: ValueDecoder> {
     _phantom: PhantomData<T>,
     encoded_bytes: Bytes,
     total_num_values: usize,
     values_decoded: usize,
 }
 
-impl<T: DataType> ByteStreamSplitDecoder<T> {
+impl<T: ValueDecoder> ByteStreamSplitDecoder<T> {
     pub(crate) fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -63,7 +62,7 @@ fn join_streams_const<const TYPE_SIZE: usize>(
     }
 }
 
-impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
+impl<T: ValueDecoder> Decoder<T> for ByteStreamSplitDecoder<T> {
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         self.encoded_bytes = data;
         self.total_num_values = num_values;
@@ -72,7 +71,7 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [<T as DataType>::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [T::ValueType]) -> Result<usize> {
         let total_remaining_values = self.values_left();
         let num_values = buffer.len().min(total_remaining_values);
         let buffer = &mut buffer[..num_values];

@@ -36,14 +36,14 @@ use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
 /// Column reader for a Parquet type.
 pub enum ColumnReader<P: PageReader> {
-    BoolColumnReader(GenericColumnReader<BoolType, P>),
-    Int32ColumnReader(GenericColumnReader<Int32Type, P>),
-    Int64ColumnReader(GenericColumnReader<Int64Type, P>),
-    Int96ColumnReader(GenericColumnReader<Int96Type, P>),
-    FloatColumnReader(GenericColumnReader<FloatType, P>),
-    DoubleColumnReader(GenericColumnReader<DoubleType, P>),
-    ByteArrayColumnReader(GenericColumnReader<ByteArrayType, P>),
-    FixedLenByteArrayColumnReader(GenericColumnReader<FixedLenByteArrayType, P>),
+    BoolColumnReader(GenericColumnReader<bool, P>),
+    Int32ColumnReader(GenericColumnReader<i32, P>),
+    Int64ColumnReader(GenericColumnReader<i64, P>),
+    Int96ColumnReader(GenericColumnReader<Int96, P>),
+    FloatColumnReader(GenericColumnReader<f32, P>),
+    DoubleColumnReader(GenericColumnReader<f64, P>),
+    ByteArrayColumnReader(GenericColumnReader<ByteArray, P>),
+    FixedLenByteArrayColumnReader(GenericColumnReader<FixedLenByteArray, P>),
 }
 
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
@@ -85,22 +85,30 @@ pub fn get_column_reader<P: PageReader>(
 /// non-generic type to a generic column reader type `ColumnReaderImpl`.
 ///
 /// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub fn get_typed_column_reader<T: DataType, P: PageReader>(
+pub fn get_typed_column_reader<T: ValueDecoder, P: PageReader>(
     col_reader: ColumnReader<P>,
-) -> GenericColumnReader<T, P> {
-    T::get_column_reader(col_reader).unwrap_or_else(|| {
-        panic!(
+) -> GenericColumnReader<T::ValueType, P> {
+    match (T::ValueType::PHYSICAL_TYPE, col_reader) {
+        (Type::BOOLEAN, ColumnReader::BoolColumnReader(reader)) => reader,
+        (Type::INT32, ColumnReader::Int32ColumnReader(reader)) => reader,
+        (Type::INT64, ColumnReader::Int64ColumnReader(reader)) => reader,
+        (Type::INT96, ColumnReader::Int96ColumnReader(reader)) => reader,
+        (Type::FLOAT, ColumnReader::FloatColumnReader(reader)) => reader,
+        (Type::DOUBLE, ColumnReader::DoubleColumnReader(reader)) => reader,
+        (Type::BYTE_ARRAY, ColumnReader::ByteArrayColumnReader(reader)) => reader,
+        (Type::FIXED_LEN_BYTE_ARRAY, ColumnReader::FixedLenByteArrayColumnReader(reader)) => reader,
+        (other, _) => panic!(
             "Failed to convert column reader into a typed column reader for `{}` type",
-            T::get_physical_type()
-        )
-    })
+            T::ValueType::PHYSICAL_TYPE,
+        ),
+    }
 }
 
 /// Reads data for a given column chunk, using the provided decoders:
 ///
 /// - T: Parquet data type
 #[derive(Debug)]
-pub struct GenericColumnReader<T: DataType, P: PageReader> {
+pub struct GenericColumnReader<T: ValueDecoder, P: PageReader> {
     descr: ColumnDescPtr,
 
     page_reader: P,
@@ -127,7 +135,7 @@ pub struct GenericColumnReader<T: DataType, P: PageReader> {
 
 impl<T, P> GenericColumnReader<T, P>
 where
-    T: DataType,
+    T: ValueDecoder,
     P: PageReader,
 {
     /// Creates new column reader based on column descriptor and page reader.
@@ -148,13 +156,7 @@ where
             rep_level_decoder,
         )
     }
-}
 
-impl<T, P> GenericColumnReader<T, P>
-where
-    T: DataType,
-    P: PageReader,
-{
     pub(crate) fn new_with_decoders(
         descr: ColumnDescPtr,
         page_reader: P,
@@ -193,7 +195,7 @@ where
         max_records: usize,
         mut def_levels: Option<&mut Vec<i16>>,
         mut rep_levels: Option<&mut Vec<i16>>,
-        values: &mut Vec<T::T>,
+        values: &mut Vec<T::ValueType>,
     ) -> Result<(usize, usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;

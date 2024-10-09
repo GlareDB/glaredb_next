@@ -641,40 +641,36 @@ impl<T> DecodeBuffer for [T] {
     }
 }
 
-pub trait ValueDecoder: Send + fmt::Debug {
-    type DataType: DataType;
+pub trait ValueDecoder: Send + fmt::Debug + 'static {
+    type ValueType: ParquetValueType;
     type DecodeBuffer: DecodeBuffer + ?Sized;
 
     /// Establish the data that will be decoded in a buffer
     fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
 
     /// Decode the value from a given buffer for a higher level decoder
-    fn decode2(buffer: &mut Self::DecodeBuffer, decoder: &mut PlainDecoderDetails)
-        -> Result<usize>;
+    fn decode2(buffer: &mut [Self::ValueType], decoder: &mut PlainDecoderDetails) -> Result<usize>;
 
     fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
 }
 
 impl<T> ValueDecoder for T
 where
-    T: DataType,
+    T: ParquetValueType,
 {
-    type DataType = T;
-    type DecodeBuffer = [T::T];
+    type ValueType = T;
+    type DecodeBuffer = [T];
 
     fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
-        <T::T as ParquetValueType>::set_data(decoder, data, num_values)
+        <T as ParquetValueType>::set_data(decoder, data, num_values)
     }
 
-    fn decode2(
-        buffer: &mut Self::DecodeBuffer,
-        decoder: &mut PlainDecoderDetails,
-    ) -> Result<usize> {
-        <T::T as ParquetValueType>::decode(buffer, decoder)
+    fn decode2(buffer: &mut [Self::ValueType], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        <T as ParquetValueType>::decode(buffer, decoder)
     }
 
     fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
-        <T::T as ParquetValueType>::skip(decoder, num_values)
+        <T as ParquetValueType>::skip(decoder, num_values)
     }
 }
 
@@ -696,6 +692,7 @@ pub trait ParquetValueType:
     + Send
     + crate::encodings::decoding::GetDecoder
     + crate::file::statistics::private::MakeStatistics
+    + 'static
 {
     const PHYSICAL_TYPE: Type;
 
@@ -1147,7 +1144,7 @@ pub trait DataType: 'static + Send + fmt::Debug {
 
     fn get_column_reader<P: PageReader>(
         column_writer: ColumnReader<P>,
-    ) -> Option<GenericColumnReader<Self, P>>
+    ) -> Option<GenericColumnReader<Self::T, P>>
     where
         Self: Sized;
 
@@ -1198,7 +1195,7 @@ macro_rules! make_type {
 
             fn get_column_reader<P: PageReader>(
                 column_reader: ColumnReader<P>,
-            ) -> Option<GenericColumnReader<Self, P>> {
+            ) -> Option<GenericColumnReader<Self::T, P>> {
                 match column_reader {
                     ColumnReader::$reader_ident(w) => Some(w),
                     _ => None,

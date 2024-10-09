@@ -46,7 +46,7 @@ pub struct ColumnValueDecoder<T: ValueDecoder> {
     decoders: HashMap<Encoding, Box<dyn Decoder<T>>>,
 }
 
-impl<T: DataType> ColumnValueDecoder<T> {
+impl<T: ValueDecoder> ColumnValueDecoder<T> {
     /// Create a new decoder for a column.
     pub fn new(descr: &ColumnDescPtr) -> Self {
         Self {
@@ -137,7 +137,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
     /// # Panics
     ///
     /// Implementations may panic if `range` overlaps with already written data
-    pub fn read(&mut self, out: &mut Vec<T::T>, num_values: usize) -> Result<usize> {
+    pub fn read(&mut self, out: &mut Vec<T::ValueType>, num_values: usize) -> Result<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");
@@ -149,7 +149,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
 
         // TODO: Push vec into decoder (#5177)
         let start = out.len();
-        out.resize(start + num_values, T::T::default());
+        out.resize(start + num_values, T::ValueType::default());
         let read = current_decoder.read(&mut out[start..])?;
         out.truncate(start + read);
         Ok(read)
