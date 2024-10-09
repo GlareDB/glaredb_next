@@ -1091,7 +1091,7 @@ impl ParquetValueType for FixedLenByteArray {
 ///
 /// This lets us add efficient slice methods to `ValuesBuffer` implementations
 /// since they'll typically be backed by just a vec/slice.
-pub(crate) trait FixedLenPrimitiveValue: ParquetValueType {}
+pub trait FixedLenPrimitiveValue: ParquetValueType {}
 
 impl FixedLenPrimitiveValue for bool {}
 impl FixedLenPrimitiveValue for i32 {}
@@ -1099,6 +1099,14 @@ impl FixedLenPrimitiveValue for i64 {}
 impl FixedLenPrimitiveValue for f32 {}
 impl FixedLenPrimitiveValue for f64 {}
 impl FixedLenPrimitiveValue for Int96 {} // :/
+
+/// Marker trait for indicating if a parquet value is varlan.
+pub trait VarlenPrimitiveValue: ParquetValueType {}
+
+impl VarlenPrimitiveValue for ByteArray {}
+/// Fixed len byte arrays are considered varlen in this context since the length
+/// is determined at runtime.
+impl VarlenPrimitiveValue for FixedLenByteArray {}
 
 /// Contains the Parquet physical type information as well as the Rust primitive type
 /// presentation.

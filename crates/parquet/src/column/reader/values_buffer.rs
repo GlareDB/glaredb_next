@@ -1,5 +1,4 @@
-use super::private::ParquetValueType;
-use super::{DataType, FixedLenPrimitiveValue};
+use super::{DataType, FixedLenPrimitiveValue, ParquetValueType};
 
 pub trait ValuesBuffer<T: ParquetValueType> {
     fn len(&self) -> usize {
@@ -7,13 +6,6 @@ pub trait ValuesBuffer<T: ParquetValueType> {
     }
 
     fn swap(&mut self, a: usize, b: usize) {
-        unimplemented!()
-    }
-
-    fn as_slice(&self) -> &[T]
-    where
-        T: FixedLenPrimitiveValue,
-    {
         unimplemented!()
     }
 
