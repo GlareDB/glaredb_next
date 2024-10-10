@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 
-use super::ValueDecoder;
+use super::{DecodeBuffer, ValueDecoder};
 use crate::basic::Encoding;
 use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
 use crate::encodings::rle::RleDecoder;
@@ -136,7 +136,7 @@ impl<T: ValueDecoder> ColumnValueDecoder<T> {
     /// # Panics
     ///
     /// Implementations may panic if `range` overlaps with already written data
-    pub fn read(&mut self, out: &mut Vec<T::ValueType>, num_values: usize) -> Result<usize> {
+    pub fn read(&mut self, out: &mut T::DecodeBuffer, num_values: usize) -> Result<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");
@@ -148,9 +148,8 @@ impl<T: ValueDecoder> ColumnValueDecoder<T> {
 
         // TODO: Push vec into decoder (#5177)
         let start = out.len();
-        out.resize(start + num_values, T::ValueType::default());
-        let read = current_decoder.read(0, &mut out[start..])?; // TODO: CHANGE OFFSET TO START
-        out.truncate(start + read);
+        out.grow(num_values);
+        let read = current_decoder.read(start, out)?;
         Ok(read)
     }
 

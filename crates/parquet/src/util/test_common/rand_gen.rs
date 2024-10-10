@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::basic::Encoding;
-use crate::column::page::Page;
-use bytes::Bytes;
-use rand::{
-    distributions::{uniform::SampleUniform, Distribution, Standard},
-    thread_rng, Rng,
-};
 use std::collections::VecDeque;
 
+use bytes::Bytes;
+use rand::distributions::uniform::SampleUniform;
+use rand::distributions::{Distribution, Standard};
+use rand::{thread_rng, Rng};
+
+use crate::basic::Encoding;
+use crate::column::page::Page;
 use crate::data_type::*;
 use crate::encodings::encoding::{DictEncoder, Encoder};
 use crate::schema::types::ColumnDescPtr;
@@ -173,8 +173,7 @@ pub fn make_pages<T: DataType>(
 
         // Generate the current page
 
-        let mut pb =
-            DataPageBuilderImpl::new(desc.clone(), num_values_cur_page as u32, use_v2);
+        let mut pb = DataPageBuilderImpl::new(desc.clone(), num_values_cur_page as u32, use_v2);
         if max_rep_level > 0 {
             pb.add_rep_levels(max_rep_level, &rep_levels[level_range.clone()]);
         }

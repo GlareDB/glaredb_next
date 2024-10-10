@@ -71,38 +71,39 @@ impl<T: ValueDecoder> Decoder<T> for ByteStreamSplitDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
-        let total_remaining_values = self.values_left();
-        let num_values = buffer.len().min(total_remaining_values);
-        let buffer = &mut buffer[..num_values];
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
+        unimplemented!("TODO")
+        // let total_remaining_values = self.values_left();
+        // let num_values = buffer.len().min(total_remaining_values);
+        // let buffer = &mut buffer[..num_values];
 
-        // SAFETY: f32 and f64 has no constraints on their internal representation, so we can modify it as we want
-        let raw_out_bytes = unsafe { T::ValueType::slice_as_bytes_mut(buffer) };
-        let type_size = std::mem::size_of::<T::ValueType>(); // TODO: Move to ParquetValueType
-        let stride = self.encoded_bytes.len() / type_size;
-        match type_size {
-            4 => join_streams_const::<4>(
-                &self.encoded_bytes,
-                raw_out_bytes,
-                stride,
-                self.values_decoded,
-            ),
-            8 => join_streams_const::<8>(
-                &self.encoded_bytes,
-                raw_out_bytes,
-                stride,
-                self.values_decoded,
-            ),
-            _ => {
-                return Err(general_err!(
-                    "byte stream split unsupported for data types of size {} bytes",
-                    type_size
-                ));
-            }
-        }
-        self.values_decoded += num_values;
+        // // SAFETY: f32 and f64 has no constraints on their internal representation, so we can modify it as we want
+        // let raw_out_bytes = unsafe { T::ValueType::slice_as_bytes_mut(buffer) };
+        // let type_size = std::mem::size_of::<T::ValueType>(); // TODO: Move to ParquetValueType
+        // let stride = self.encoded_bytes.len() / type_size;
+        // match type_size {
+        //     4 => join_streams_const::<4>(
+        //         &self.encoded_bytes,
+        //         raw_out_bytes,
+        //         stride,
+        //         self.values_decoded,
+        //     ),
+        //     8 => join_streams_const::<8>(
+        //         &self.encoded_bytes,
+        //         raw_out_bytes,
+        //         stride,
+        //         self.values_decoded,
+        //     ),
+        //     _ => {
+        //         return Err(general_err!(
+        //             "byte stream split unsupported for data types of size {} bytes",
+        //             type_size
+        //         ));
+        //     }
+        // }
+        // self.values_decoded += num_values;
 
-        Ok(num_values)
+        // Ok(num_values)
     }
 
     fn values_left(&self) -> usize {

@@ -85,13 +85,13 @@ pub(crate) fn get_column_reader<P: PageReader>(
 /// non-generic type to a generic column reader type `ColumnReaderImpl`.
 ///
 /// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub(crate) fn get_typed_column_reader<T: ValueDecoder + TypedColumnReader, P: PageReader>(
+pub(crate) fn get_typed_column_reader<T: ParquetValueType + TypedColumnReader, P: PageReader>(
     col_reader: ColumnReader<P>,
 ) -> GenericColumnReader<T, P> {
     T::get_typed_reader(col_reader).unwrap_or_else(|| {
         panic!(
             "Failed to convert column reader into a typed column reader for `{}` type",
-            T::ValueType::PHYSICAL_TYPE,
+            T::PHYSICAL_TYPE,
         )
     })
 }
@@ -187,7 +187,7 @@ where
         max_records: usize,
         mut def_levels: Option<&mut Vec<i16>>,
         mut rep_levels: Option<&mut Vec<i16>>,
-        values: &mut Vec<T::ValueType>,
+        values: &mut T::DecodeBuffer,
     ) -> Result<(usize, usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
@@ -1105,19 +1105,23 @@ mod tests {
     }
 
     // TODO: Remove datatype, needed for encoding test pages.
-    struct ColumnReaderTester<T: ValueDecoder, D: DataType<T = T::ValueType>>
+    struct ColumnReaderTester<T, D: DataType<T = T>>
     where
-        T::ValueType: PartialOrd + SampleUniform + Copy,
+        T: ParquetValueType + PartialOrd + SampleUniform + Copy,
     {
         rep_levels: Vec<i16>,
         def_levels: Vec<i16>,
-        values: Vec<T::ValueType>,
+        values: Vec<T>,
         _datatype: PhantomData<D>,
     }
 
-    impl<T: ValueDecoder + TypedColumnReader, D: DataType<T = T::ValueType>> ColumnReaderTester<T, D>
+    impl<T, D: DataType<T = T>> ColumnReaderTester<T, D>
     where
-        T::ValueType: PartialOrd + SampleUniform + Copy,
+        T: ValueDecoder<DecodeBuffer = Vec<T>>
+            + ParquetValueType
+            + PartialOrd
+            + SampleUniform
+            + Copy,
     {
         pub fn new() -> Self {
             Self {
@@ -1135,8 +1139,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::ValueType,
-            max: T::ValueType,
+            min: T,
+            max: T,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1157,8 +1161,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::ValueType,
-            max: T::ValueType,
+            min: T,
+            max: T,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1179,8 +1183,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::ValueType,
-            max: T::ValueType,
+            min: T,
+            max: T,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1201,8 +1205,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::ValueType,
-            max: T::ValueType,
+            min: T,
+            max: T,
         ) {
             self.test_read_batch_general(
                 desc,
@@ -1226,8 +1230,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::ValueType,
-            max: T::ValueType,
+            min: T,
+            max: T,
             use_v2: bool,
         ) {
             self.test_read_batch(
@@ -1245,8 +1249,8 @@ mod tests {
             num_pages: usize,
             num_levels: usize,
             batch_size: usize,
-            min: T::ValueType,
-            max: T::ValueType,
+            min: T,
+            max: T,
             use_v2: bool,
         ) {
             let mut pages = VecDeque::new();

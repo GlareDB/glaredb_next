@@ -757,6 +757,7 @@ pub trait ParquetValueType:
     + SliceAsBytes
     + PartialOrd
     + Send
+    + TypedColumnReader
     + crate::encodings::decoding::GetDecoder
     + crate::file::statistics::private::MakeStatistics
     + 'static

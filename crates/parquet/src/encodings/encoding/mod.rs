@@ -960,19 +960,23 @@ mod tests {
 
         let mut output = vec![ByteArray::default(); input.len()];
 
-        let mut result = put_and_get(&mut encoder, &mut decoder, &input[..2], &mut output[..2]);
+        let mut output1 = vec![ByteArray::default(); 2];
+        let mut result = put_and_get(&mut encoder, &mut decoder, &input[..2], &mut output1);
         assert!(
             result.is_ok(),
             "first put_and_get() failed with: {}",
             result.unwrap_err()
         );
-        result = put_and_get(&mut encoder, &mut decoder, &input[2..], &mut output[2..]);
+        let mut output2 = vec![ByteArray::default(); 2];
+        result = put_and_get(&mut encoder, &mut decoder, &input[2..], &mut output2);
         assert!(
             result.is_ok(),
             "second put_and_get() failed with: {}",
             result.unwrap_err()
         );
-        assert_eq!(output, input);
+
+        assert_eq!(output1, input[..2]);
+        assert_eq!(output2, input[2..]);
     }
 
     trait EncodingTester<T: DataType> {
@@ -996,7 +1000,10 @@ mod tests {
         fn test_dict_internal(total: usize, type_length: i32) -> Result<()>;
     }
 
-    impl<T: DataType + RandGen<T>> EncodingTester<T> for T {
+    impl<T> EncodingTester<T> for T
+    where
+        T: DataType + RandGen<T>,
+    {
         fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
             let mut encoder = create_test_encoder::<T>(enc);
             let mut decoder = create_test_decoder::<T::T>(type_length, enc);
@@ -1011,7 +1018,7 @@ mod tests {
             decoder.set_data(data, values_written)?;
             let _ = decoder.read_spaced(
                 0,
-                &mut result_data[..],
+                &mut result_data,
                 values.len() - values_written,
                 &valid_bits[..],
             )?;
@@ -1025,24 +1032,15 @@ mod tests {
                 }
             }
 
-            let mut actual_total = put_and_get(
-                &mut encoder,
-                &mut decoder,
-                &values[..],
-                &mut result_data[..],
-            )?;
+            let mut actual_total =
+                put_and_get(&mut encoder, &mut decoder, &values[..], &mut result_data)?;
             assert_eq!(actual_total, total);
             assert_eq!(result_data, values);
 
             // Encode more data after flush and test with decoder
 
             values = <T as RandGen<T>>::gen_vec(type_length, total);
-            actual_total = put_and_get(
-                &mut encoder,
-                &mut decoder,
-                &values[..],
-                &mut result_data[..],
-            )?;
+            actual_total = put_and_get(&mut encoder, &mut decoder, &values[..], &mut result_data)?;
             assert_eq!(actual_total, total);
             assert_eq!(result_data, values);
 
@@ -1089,7 +1087,7 @@ mod tests {
         encoder: &mut Box<dyn Encoder<D>>,
         decoder: &mut Box<dyn Decoder<T>>,
         input: &[T::ValueType],
-        output: &mut [T::ValueType],
+        output: &mut T::DecodeBuffer,
     ) -> Result<usize> {
         encoder.put(input)?;
         let data = encoder.flush_buffer()?;

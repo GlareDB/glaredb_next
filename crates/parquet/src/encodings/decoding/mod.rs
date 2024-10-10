@@ -1157,8 +1157,8 @@ mod tests {
     fn test_plain_decode_int32() {
         let data = [42, 18, 52];
         let data_bytes = Int32Type::to_byte_array(&data[..]);
-        let mut buffer = [0; 3];
-        test_plain_decode::<i32>(Bytes::from(data_bytes), 3, -1, &mut buffer[..], &data[..]);
+        let mut buffer = vec![0; 3];
+        test_plain_decode::<i32>(Bytes::from(data_bytes), 3, -1, &mut buffer, &data[..]);
     }
 
     #[test]
@@ -1180,14 +1180,14 @@ mod tests {
         let data = [42, 18, 52];
         let expected_data = [0, 42, 0, 18, 0, 0, 52, 0];
         let data_bytes = Int32Type::to_byte_array(&data[..]);
-        let mut buffer = [0; 8];
+        let mut buffer = vec![0; 8];
         let num_nulls = 5;
         let valid_bits = [0b01001010];
         test_plain_decode_spaced::<i32>(
             Bytes::from(data_bytes),
             3,
             -1,
-            &mut buffer[..],
+            &mut buffer,
             num_nulls,
             &valid_bits,
             &expected_data[..],
@@ -1198,8 +1198,8 @@ mod tests {
     fn test_plain_decode_int64() {
         let data = [42, 18, 52];
         let data_bytes = Int64Type::to_byte_array(&data[..]);
-        let mut buffer = [0; 3];
-        test_plain_decode::<i64>(Bytes::from(data_bytes), 3, -1, &mut buffer[..], &data[..]);
+        let mut buffer = vec![0; 3];
+        test_plain_decode::<i64>(Bytes::from(data_bytes), 3, -1, &mut buffer, &data[..]);
     }
 
     #[test]
@@ -1220,8 +1220,8 @@ mod tests {
     fn test_plain_decode_float() {
         let data = [PI_f32, 2.414, 12.51];
         let data_bytes = FloatType::to_byte_array(&data[..]);
-        let mut buffer = [0.0; 3];
-        test_plain_decode::<f32>(Bytes::from(data_bytes), 3, -1, &mut buffer[..], &data[..]);
+        let mut buffer = vec![0.0; 3];
+        test_plain_decode::<f32>(Bytes::from(data_bytes), 3, -1, &mut buffer, &data[..]);
     }
 
     #[test]
@@ -1256,8 +1256,8 @@ mod tests {
     fn test_plain_decode_double() {
         let data = [PI_f64, 2.414f64, 12.51f64];
         let data_bytes = DoubleType::to_byte_array(&data[..]);
-        let mut buffer = [0.0f64; 3];
-        test_plain_decode::<f64>(Bytes::from(data_bytes), 3, -1, &mut buffer[..], &data[..]);
+        let mut buffer = vec![0.0f64; 3];
+        test_plain_decode::<f64>(Bytes::from(data_bytes), 3, -1, &mut buffer, &data[..]);
     }
 
     #[test]
@@ -1268,8 +1268,8 @@ mod tests {
         data[2].set_data(10, 20, 30);
         data[3].set_data(40, 50, 60);
         let data_bytes = Int96Type::to_byte_array(&data[..]);
-        let mut buffer = [Int96::new(); 4];
-        test_plain_decode::<Int96>(Bytes::from(data_bytes), 4, -1, &mut buffer[..], &data[..]);
+        let mut buffer = vec![Int96::new(); 4];
+        test_plain_decode::<Int96>(Bytes::from(data_bytes), 4, -1, &mut buffer, &data[..]);
     }
 
     #[test]
@@ -1300,8 +1300,8 @@ mod tests {
             false, true, false, false, true, false, true, true, false, true,
         ];
         let data_bytes = BoolType::to_byte_array(&data[..]);
-        let mut buffer = [false; 10];
-        test_plain_decode::<bool>(Bytes::from(data_bytes), 10, -1, &mut buffer[..], &data[..]);
+        let mut buffer = vec![false; 10];
+        test_plain_decode::<bool>(Bytes::from(data_bytes), 10, -1, &mut buffer, &data[..]);
     }
 
     #[test]
@@ -1329,7 +1329,7 @@ mod tests {
         data[1].set_data(Bytes::from(String::from("parquet")));
         let data_bytes = ByteArrayType::to_byte_array(&data[..]);
         let mut buffer = vec![ByteArray::new(); 2];
-        test_plain_decode::<ByteArray>(Bytes::from(data_bytes), 2, -1, &mut buffer[..], &data[..]);
+        test_plain_decode::<ByteArray>(Bytes::from(data_bytes), 2, -1, &mut buffer, &data[..]);
     }
 
     #[test]
@@ -1362,7 +1362,7 @@ mod tests {
             Bytes::from(data_bytes),
             3,
             4,
-            &mut buffer[..],
+            &mut buffer,
             &data[..],
         );
     }
@@ -1387,13 +1387,15 @@ mod tests {
         test_plain_skip::<FixedLenByteArray>(Bytes::from(data_bytes), 3, 6, 4, &[]);
     }
 
-    fn test_plain_decode<T: ValueDecoder>(
+    fn test_plain_decode<T>(
         data: Bytes,
         num_values: usize,
         type_length: i32,
-        buffer: &mut [T::ValueType],
-        expected: &[T::ValueType],
-    ) {
+        buffer: &mut Vec<T>,
+        expected: &[T],
+    ) where
+        T: ValueDecoder<DecodeBuffer = Vec<T>> + ParquetValueType,
+    {
         let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
         let result = decoder.set_data(data, num_values);
         assert!(result.is_ok());
@@ -1403,13 +1405,15 @@ mod tests {
         assert_eq!(buffer, expected);
     }
 
-    fn test_plain_skip<T: ValueDecoder>(
+    fn test_plain_skip<T>(
         data: Bytes,
         num_values: usize,
         skip: usize,
         type_length: i32,
-        expected: &[T::ValueType],
-    ) {
+        expected: &[T],
+    ) where
+        T: ValueDecoder<DecodeBuffer = Vec<T>> + ParquetValueType,
+    {
         let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
         let result = decoder.set_data(data, num_values);
         assert!(result.is_ok());
@@ -1418,14 +1422,14 @@ mod tests {
         if skip >= num_values {
             assert_eq!(skipped, num_values);
 
-            let mut buffer = vec![T::ValueType::default(); 1];
+            let mut buffer = vec![T::default(); 1];
             let remaining = decoder
                 .read(0, &mut buffer)
                 .expect("getting remaining values");
             assert_eq!(remaining, 0);
         } else {
             assert_eq!(skipped, skip);
-            let mut buffer = vec![T::ValueType::default(); num_values - skip];
+            let mut buffer = vec![T::default(); num_values - skip];
             let remaining = decoder
                 .read(0, &mut buffer)
                 .expect("getting remaining values");
@@ -1435,15 +1439,17 @@ mod tests {
         }
     }
 
-    fn test_plain_decode_spaced<T: ValueDecoder>(
+    fn test_plain_decode_spaced<T>(
         data: Bytes,
         num_values: usize,
         type_length: i32,
-        buffer: &mut [T::ValueType],
+        buffer: &mut Vec<T>,
         num_nulls: usize,
         valid_bits: &[u8],
-        expected: &[T::ValueType],
-    ) {
+        expected: &[T],
+    ) where
+        T: ValueDecoder<DecodeBuffer = Vec<T>> + ParquetValueType,
+    {
         let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
         let result = decoder.set_data(data, num_values);
         assert!(result.is_ok());
@@ -1862,7 +1868,7 @@ mod tests {
         let mut result_num_values = 0;
         while decoder.values_left() > 0 {
             result_num_values += decoder
-                .read(0, &mut result[result_num_values..]) // TODO: CHANGE OFFSET
+                .read(result_num_values, &mut result) // TODO: CHANGE OFFSET
                 .expect("ok to decode");
         }
         assert_eq!(result_num_values, expected.len());
@@ -1870,14 +1876,14 @@ mod tests {
     }
 
     // TODO: Update encoder to not need datatype.
-    fn test_skip<D, T>(data: Vec<T::ValueType>, encoding: Encoding, skip: usize)
+    fn test_skip<D, T>(data: Vec<T>, encoding: Encoding, skip: usize)
     where
-        T: ValueDecoder,
-        D: DataType<T = T::ValueType>,
+        T: ParquetValueType,
+        D: DataType<T = T>,
     {
         // Type length should not really matter for encode/decode test,
         // otherwise change it based on type
-        let col_descr = create_test_col_desc_ptr(-1, T::ValueType::PHYSICAL_TYPE);
+        let col_descr = create_test_col_desc_ptr(-1, T::PHYSICAL_TYPE);
 
         // Encode data
         let mut encoder = get_encoder::<D>(encoding).expect("get encoder");
@@ -1902,7 +1908,7 @@ mod tests {
             let remaining = data.len() - skip;
 
             let expected = &data[skip..];
-            let mut buffer = vec![T::ValueType::default(); remaining];
+            let mut buffer = vec![T::default(); remaining];
             let fetched = decoder.read(0, &mut buffer).expect("ok to decode");
             assert_eq!(remaining, fetched);
             assert_eq!(&buffer, expected);
