@@ -114,7 +114,7 @@ pub trait Decoder<T: ValueDecoder>: Send + Debug {
 // PLAIN Decoding
 
 #[derive(Debug, Default)]
-pub struct PlainDecoderDetails {
+pub struct PlainDecoderState {
     // The remaining number of values in the byte array
     pub(crate) num_values: usize,
 
@@ -138,7 +138,7 @@ pub struct PlainDecoderDetails {
 #[derive(Debug)]
 pub struct PlainDecoder<T: ValueDecoder> {
     // The binary details needed for decoding
-    inner: PlainDecoderDetails,
+    state: PlainDecoderState,
 
     // To allow `T` in the generic parameter for this struct. This doesn't take any
     // space.
@@ -149,7 +149,7 @@ impl<T: ValueDecoder> PlainDecoder<T> {
     /// Creates new plain decoder.
     pub fn new(type_length: i32) -> Self {
         PlainDecoder {
-            inner: PlainDecoderDetails {
+            state: PlainDecoderState {
                 type_length,
                 num_values: 0,
                 start: 0,
@@ -164,13 +164,13 @@ impl<T: ValueDecoder> PlainDecoder<T> {
 impl<T: ValueDecoder> Decoder<T> for PlainDecoder<T> {
     #[inline]
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
-        T::set_data2(&mut self.inner, data, num_values);
+        T::set_data2(&mut self.state, data, num_values);
         Ok(())
     }
 
     #[inline]
     fn values_left(&self) -> usize {
-        self.inner.num_values
+        self.state.num_values
     }
 
     #[inline]
@@ -180,12 +180,12 @@ impl<T: ValueDecoder> Decoder<T> for PlainDecoder<T> {
 
     #[inline]
     fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
-        T::decode2(offset, buffer, &mut self.inner)
+        T::decode2(offset, buffer, &mut self.state)
     }
 
     #[inline]
     fn skip(&mut self, num_values: usize) -> Result<usize> {
-        T::skip2(&mut self.inner, num_values)
+        T::skip2(&mut self.state, num_values)
     }
 }
 

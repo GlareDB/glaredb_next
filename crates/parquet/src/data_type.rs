@@ -30,7 +30,7 @@ use crate::column::page::{PageReader, PageWriter};
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
 use crate::encodings::decoding::get_decoder::GetDecoder;
-use crate::encodings::decoding::PlainDecoderDetails;
+use crate::encodings::decoding::PlainDecoderState;
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter, FromBytes};
 
@@ -689,16 +689,16 @@ pub trait ValueDecoder: Sized + Send + fmt::Debug + 'static {
     }
 
     /// Establish the data that will be decoded in a buffer
-    fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
+    fn set_data2(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize);
 
     /// Decode the value from a given buffer for a higher level decoder
     fn decode2(
         offset: usize,
         buffer: &mut Self::DecodeBuffer,
-        decoder: &mut PlainDecoderDetails,
+        decoder: &mut PlainDecoderState,
     ) -> Result<usize>;
 
-    fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
+    fn skip2(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize>;
 }
 
 /// Implements the value decoder for base parquet types.
@@ -810,12 +810,12 @@ pub trait ParquetValueType:
     ) -> Result<()>;
 
     /// Establish the data that will be decoded in a buffer
-    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
+    fn set_data(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize);
 
     /// Decode the value from a given buffer for a higher level decoder
-    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize>;
+    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderState) -> Result<usize>;
 
-    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
+    fn skip(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize>;
 
     /// Return the encoded size for a type
     fn dict_encoding_size(&self) -> (usize, usize) {
@@ -863,13 +863,13 @@ impl ParquetValueType for bool {
     }
 
     #[inline]
-    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+    fn set_data(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize) {
         decoder.bit_reader.replace(BitReader::new(data));
         decoder.num_values = num_values;
     }
 
     #[inline]
-    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderState) -> Result<usize> {
         let bit_reader = decoder.bit_reader.as_mut().unwrap();
         let num_values = std::cmp::min(buffer.len(), decoder.num_values);
         let values_read = bit_reader.get_batch(&mut buffer[..num_values], 1);
@@ -877,7 +877,7 @@ impl ParquetValueType for bool {
         Ok(values_read)
     }
 
-    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+    fn skip(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize> {
         let bit_reader = decoder.bit_reader.as_mut().unwrap();
         let num_values = std::cmp::min(num_values, decoder.num_values);
         let values_read = bit_reader.skip(num_values, 1);
@@ -1005,14 +1005,14 @@ impl ParquetValueType for Int96 {
     }
 
     #[inline]
-    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+    fn set_data(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize) {
         decoder.data.replace(data);
         decoder.start = 0;
         decoder.num_values = num_values;
     }
 
     #[inline]
-    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderState) -> Result<usize> {
         // TODO - Remove the duplication between this and the general slice method
         let data = decoder
             .data
@@ -1044,7 +1044,7 @@ impl ParquetValueType for Int96 {
         Ok(num_values)
     }
 
-    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+    fn skip(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize> {
         let data = decoder
             .data
             .as_ref()
@@ -1088,14 +1088,14 @@ impl ParquetValueType for ByteArray {
     }
 
     #[inline]
-    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+    fn set_data(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize) {
         decoder.data.replace(data);
         decoder.start = 0;
         decoder.num_values = num_values;
     }
 
     #[inline]
-    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderState) -> Result<usize> {
         let data = decoder
             .data
             .as_mut()
@@ -1120,7 +1120,7 @@ impl ParquetValueType for ByteArray {
         Ok(num_values)
     }
 
-    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+    fn skip(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize> {
         let data = decoder
             .data
             .as_mut()
@@ -1166,14 +1166,14 @@ impl ParquetValueType for FixedLenByteArray {
     }
 
     #[inline]
-    fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+    fn set_data(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize) {
         decoder.data.replace(data);
         decoder.start = 0;
         decoder.num_values = num_values;
     }
 
     #[inline]
-    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+    fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderState) -> Result<usize> {
         assert!(decoder.type_length > 0);
 
         let data = decoder
@@ -1197,7 +1197,7 @@ impl ParquetValueType for FixedLenByteArray {
         Ok(num_values)
     }
 
-    fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+    fn skip(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize> {
         assert!(decoder.type_length > 0);
 
         let data = decoder
