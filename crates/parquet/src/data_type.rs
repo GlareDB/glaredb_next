@@ -626,24 +626,44 @@ impl VarlenPrimitiveValue for ByteArray {}
 /// is determined at runtime.
 impl VarlenPrimitiveValue for FixedLenByteArray {}
 
-pub trait DecodeBuffer {
+pub trait DecodeBuffer: Sized + Send + Default + fmt::Debug {
+    fn with_len(len: usize) -> Self;
+
     fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn swap(&mut self, a: usize, b: usize);
+
+    fn grow(&mut self, additional: usize);
 }
 
-impl<T> DecodeBuffer for [T] {
+impl<T> DecodeBuffer for Vec<T>
+where
+    T: Send + Clone + Default + fmt::Debug,
+{
+    fn with_len(len: usize) -> Self {
+        vec![T::default(); len]
+    }
+
     fn len(&self) -> usize {
         self.len()
     }
 
     fn swap(&mut self, a: usize, b: usize) {
-        self.swap(a, b)
+        self.as_mut_slice().swap(a, b)
+    }
+
+    fn grow(&mut self, additional: usize) {
+        self.resize(additional + self.len(), T::default());
     }
 }
 
 pub trait ValueDecoder: Sized + Send + fmt::Debug + 'static {
     type ValueType: ParquetValueType;
-    type DecodeBuffer: DecodeBuffer + ?Sized;
+    type DecodeBuffer: DecodeBuffer;
 
     // TODO: Remove
     fn get_physical_type() -> Type {
@@ -654,7 +674,11 @@ pub trait ValueDecoder: Sized + Send + fmt::Debug + 'static {
     fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
 
     /// Decode the value from a given buffer for a higher level decoder
-    fn decode2(buffer: &mut [Self::ValueType], decoder: &mut PlainDecoderDetails) -> Result<usize>;
+    fn decode2(
+        offset: usize,
+        buffer: &mut Self::DecodeBuffer,
+        decoder: &mut PlainDecoderDetails,
+    ) -> Result<usize>;
 
     fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
 }
@@ -664,14 +688,19 @@ where
     T: ParquetValueType,
 {
     type ValueType = T;
-    type DecodeBuffer = [T];
+    type DecodeBuffer = Vec<T>;
 
     fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
         <T as ParquetValueType>::set_data(decoder, data, num_values)
     }
 
-    fn decode2(buffer: &mut [Self::ValueType], decoder: &mut PlainDecoderDetails) -> Result<usize> {
-        <T as ParquetValueType>::decode(buffer, decoder)
+    fn decode2(
+        offset: usize,
+        buffer: &mut Self::DecodeBuffer,
+        decoder: &mut PlainDecoderDetails,
+    ) -> Result<usize> {
+        let buf = &mut buffer[offset..];
+        <T as ParquetValueType>::decode(buf, decoder)
     }
 
     fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {

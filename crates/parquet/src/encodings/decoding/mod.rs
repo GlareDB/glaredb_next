@@ -174,7 +174,7 @@ pub trait Decoder<T: ValueDecoder>: Send + Debug {
     /// Returns the actual number of values decoded, which should be equal to
     /// `buffer.len()` unless the remaining number of values is less than
     /// `buffer.len()`.
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize>;
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize>;
 
     /// Consume values from this decoder and write the results to `buffer`, leaving
     /// "spaces" for null values.
@@ -191,7 +191,7 @@ pub trait Decoder<T: ValueDecoder>: Send + Debug {
     fn read_spaced(
         &mut self,
         offset: usize,
-        buffer: &mut [T::ValueType],
+        buffer: &mut T::DecodeBuffer,
         null_count: usize,
         valid_bits: &[u8],
     ) -> Result<usize> {
@@ -313,8 +313,8 @@ impl<T: ValueDecoder> Decoder<T> for PlainDecoder<T> {
     }
 
     #[inline]
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
-        T::decode2(buffer, &mut self.inner)
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
+        T::decode2(offset, buffer, &mut self.inner)
     }
 
     #[inline]
@@ -333,7 +333,7 @@ impl<T: ValueDecoder> Decoder<T> for PlainDecoder<T> {
 #[derive(Debug)]
 pub struct DictDecoder<T: ValueDecoder> {
     // The dictionary, which maps ids to the values
-    dictionary: Vec<T::ValueType>,
+    dictionary: T::DecodeBuffer,
 
     // Whether `dictionary` has been initialized
     has_dictionary: bool,
@@ -355,7 +355,7 @@ impl<T: ValueDecoder> DictDecoder<T> {
     /// Creates new dictionary decoder.
     pub fn new() -> Self {
         Self {
-            dictionary: vec![],
+            dictionary: T::DecodeBuffer::default(),
             has_dictionary: false,
             rle_decoder: None,
             num_values: 0,
@@ -365,7 +365,7 @@ impl<T: ValueDecoder> DictDecoder<T> {
     /// Decodes and sets values for dictionary using `decoder` decoder.
     pub fn set_dict(&mut self, mut decoder: Box<dyn Decoder<T>>) -> Result<()> {
         let num_values = decoder.values_left();
-        self.dictionary.resize(num_values, T::ValueType::default());
+        self.dictionary.grow(num_values);
         let _ = decoder.read(0, &mut self.dictionary)?;
         self.has_dictionary = true;
         Ok(())
@@ -383,13 +383,14 @@ impl<T: ValueDecoder> Decoder<T> for DictDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
         assert!(self.rle_decoder.is_some());
         assert!(self.has_dictionary, "Must call set_dict() first!");
 
         let rle = self.rle_decoder.as_mut().unwrap();
         let num_values = cmp::min(buffer.len(), self.num_values);
-        rle.get_batch_with_dict(&self.dictionary[..], buffer, num_values)
+        // rle.get_batch_with_dict(&self.dictionary[..], buffer, num_values)
+        unimplemented!("TODO")
     }
 
     /// Number of values left in this decoder stream
@@ -467,11 +468,12 @@ impl<T: ValueDecoder> Decoder<T> for RleValueDecoder<T> {
     }
 
     #[inline]
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
-        let num_values = cmp::min(buffer.len(), self.values_left);
-        let values_read = self.decoder.get_batch(&mut buffer[..num_values])?;
-        self.values_left -= values_read;
-        Ok(values_read)
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
+        unimplemented!("TODO")
+        // let num_values = cmp::min(buffer.len(), self.values_left);
+        // let values_read = self.decoder.get_batch(&mut buffer[..num_values])?;
+        // self.values_left -= values_read;
+        // Ok(values_read)
     }
 
     #[inline]
@@ -695,61 +697,62 @@ where
         Ok(())
     }
 
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
         assert!(self.initialized, "Bit reader is not initialized");
         if buffer.is_empty() {
             return Ok(0);
         }
 
-        let mut read = 0;
-        let to_read = buffer.len().min(self.values_left);
+        unimplemented!("TODO")
+        // let mut read = 0;
+        // let to_read = buffer.len().min(self.values_left);
 
-        if let Some(value) = self.first_value.take() {
-            self.last_value = value;
-            buffer[0] = value;
-            read += 1;
-            self.values_left -= 1;
-        }
+        // if let Some(value) = self.first_value.take() {
+        //     self.last_value = value;
+        //     buffer[0] = value;
+        //     read += 1;
+        //     self.values_left -= 1;
+        // }
 
-        while read != to_read {
-            if self.mini_block_remaining == 0 {
-                self.next_mini_block()?;
-            }
+        // while read != to_read {
+        //     if self.mini_block_remaining == 0 {
+        //         self.next_mini_block()?;
+        //     }
 
-            let bit_width = self.mini_block_bit_widths[self.mini_block_idx] as usize;
-            let batch_to_read = self.mini_block_remaining.min(to_read - read);
+        //     let bit_width = self.mini_block_bit_widths[self.mini_block_idx] as usize;
+        //     let batch_to_read = self.mini_block_remaining.min(to_read - read);
 
-            let batch_read = self
-                .bit_reader
-                .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
+        //     let batch_read = self
+        //         .bit_reader
+        //         .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
 
-            if batch_read != batch_to_read {
-                return Err(general_err!(
-                    "Expected to read {} values from miniblock got {}",
-                    batch_to_read,
-                    batch_read
-                ));
-            }
+        //     if batch_read != batch_to_read {
+        //         return Err(general_err!(
+        //             "Expected to read {} values from miniblock got {}",
+        //             batch_to_read,
+        //             batch_read
+        //         ));
+        //     }
 
-            // At this point we have read the deltas to `buffer` we now need to offset
-            // these to get back to the original values that were encoded
-            for v in &mut buffer[read..read + batch_read] {
-                // It is OK for deltas to contain "overflowed" values after encoding,
-                // e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to "overflow" again and
-                // restore original value.
-                *v = v
-                    .wrapping_add(&self.min_delta)
-                    .wrapping_add(&self.last_value);
+        //     // At this point we have read the deltas to `buffer` we now need to offset
+        //     // these to get back to the original values that were encoded
+        //     for v in &mut buffer[read..read + batch_read] {
+        //         // It is OK for deltas to contain "overflowed" values after encoding,
+        //         // e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to "overflow" again and
+        //         // restore original value.
+        //         *v = v
+        //             .wrapping_add(&self.min_delta)
+        //             .wrapping_add(&self.last_value);
 
-                self.last_value = *v;
-            }
+        //         self.last_value = *v;
+        //     }
 
-            read += batch_read;
-            self.mini_block_remaining -= batch_read;
-            self.values_left -= batch_read;
-        }
+        //     read += batch_read;
+        //     self.mini_block_remaining -= batch_read;
+        //     self.values_left -= batch_read;
+        // }
 
-        Ok(to_read)
+        // Ok(to_read)
     }
 
     fn values_left(&self) -> usize {
@@ -877,7 +880,7 @@ impl<T: ValueDecoder> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 len_decoder.set_data(data.clone(), num_values)?;
                 let num_lengths = len_decoder.values_left();
                 self.lengths.resize(num_lengths, 0);
-                len_decoder.read(0, &mut self.lengths[..])?;
+                len_decoder.read(0, &mut self.lengths)?;
 
                 self.data = Some(data.slice(len_decoder.get_offset()..));
                 self.offset = 0;
@@ -891,7 +894,7 @@ impl<T: ValueDecoder> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
         }
     }
 
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
         match T::ValueType::PHYSICAL_TYPE {
             Type::BYTE_ARRAY => {
                 assert!(self.data.is_some());
@@ -899,20 +902,21 @@ impl<T: ValueDecoder> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 let data = self.data.as_ref().unwrap();
                 let num_values = cmp::min(buffer.len(), self.num_values);
 
-                for item in buffer.iter_mut().take(num_values) {
-                    let len = self.lengths[self.current_idx] as usize;
+                unimplemented!("TODO")
+                // for item in buffer.iter_mut().take(num_values) {
+                //     let len = self.lengths[self.current_idx] as usize;
 
-                    item.as_mut_any()
-                        .downcast_mut::<ByteArray>()
-                        .unwrap()
-                        .set_data(data.slice(self.offset..self.offset + len));
+                //     item.as_mut_any()
+                //         .downcast_mut::<ByteArray>()
+                //         .unwrap()
+                //         .set_data(data.slice(self.offset..self.offset + len));
 
-                    self.offset += len;
-                    self.current_idx += 1;
-                }
+                //     self.offset += len;
+                //     self.current_idx += 1;
+                // }
 
-                self.num_values -= num_values;
-                Ok(num_values)
+                // self.num_values -= num_values;
+                // Ok(num_values)
             }
             _ => Err(general_err!(
                 "DeltaLengthByteArrayDecoder only support ByteArrayType"
@@ -1011,7 +1015,7 @@ impl<T: ValueDecoder> Decoder<T> for DeltaByteArrayDecoder<T> {
                 prefix_len_decoder.set_data(data.clone(), num_values)?;
                 let num_prefixes = prefix_len_decoder.values_left();
                 self.prefix_lengths.resize(num_prefixes, 0);
-                prefix_len_decoder.read(0, &mut self.prefix_lengths[..])?;
+                prefix_len_decoder.read(0, &mut self.prefix_lengths)?;
 
                 let mut suffix_decoder = DeltaLengthByteArrayDecoder::new();
                 suffix_decoder
@@ -1028,48 +1032,49 @@ impl<T: ValueDecoder> Decoder<T> for DeltaByteArrayDecoder<T> {
         }
     }
 
-    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
+    fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
         match T::ValueType::PHYSICAL_TYPE {
             ty @ Type::BYTE_ARRAY | ty @ Type::FIXED_LEN_BYTE_ARRAY => {
                 let num_values = cmp::min(buffer.len(), self.num_values);
                 let mut v: [ByteArray; 1] = [ByteArray::new(); 1];
-                for item in buffer.iter_mut().take(num_values) {
-                    // Process suffix
-                    // TODO: this is awkward - maybe we should add a non-vectorized API?
-                    let suffix_decoder = self
-                        .suffix_decoder
-                        .as_mut()
-                        .expect("decoder not initialized");
-                    suffix_decoder.read(0, &mut v[..])?;
-                    let suffix = v[0].data();
+                unimplemented!("TODO");
+                // for item in buffer.iter_mut().take(num_values) {
+                //     // Process suffix
+                //     // TODO: this is awkward - maybe we should add a non-vectorized API?
+                //     let suffix_decoder = self
+                //         .suffix_decoder
+                //         .as_mut()
+                //         .expect("decoder not initialized");
+                //     suffix_decoder.read(0, &mut v[..])?;
+                //     let suffix = v[0].data();
 
-                    // Extract current prefix length, can be 0
-                    let prefix_len = self.prefix_lengths[self.current_idx] as usize;
+                //     // Extract current prefix length, can be 0
+                //     let prefix_len = self.prefix_lengths[self.current_idx] as usize;
 
-                    // Concatenate prefix with suffix
-                    let mut result = Vec::new();
-                    result.extend_from_slice(&self.previous_value[0..prefix_len]);
-                    result.extend_from_slice(suffix);
+                //     // Concatenate prefix with suffix
+                //     let mut result = Vec::new();
+                //     result.extend_from_slice(&self.previous_value[0..prefix_len]);
+                //     result.extend_from_slice(suffix);
 
-                    let data = Bytes::from(result.clone());
+                //     let data = Bytes::from(result.clone());
 
-                    match ty {
-                        Type::BYTE_ARRAY => item
-                            .as_mut_any()
-                            .downcast_mut::<ByteArray>()
-                            .unwrap()
-                            .set_data(data),
-                        Type::FIXED_LEN_BYTE_ARRAY => item
-                            .as_mut_any()
-                            .downcast_mut::<FixedLenByteArray>()
-                            .unwrap()
-                            .set_data(data),
-                        _ => unreachable!(),
-                    };
+                //     match ty {
+                //         Type::BYTE_ARRAY => item
+                //             .as_mut_any()
+                //             .downcast_mut::<ByteArray>()
+                //             .unwrap()
+                //             .set_data(data),
+                //         Type::FIXED_LEN_BYTE_ARRAY => item
+                //             .as_mut_any()
+                //             .downcast_mut::<FixedLenByteArray>()
+                //             .unwrap()
+                //             .set_data(data),
+                //         _ => unreachable!(),
+                //     };
 
-                    self.previous_value = result;
-                    self.current_idx += 1;
-                }
+                //     self.previous_value = result;
+                //     self.current_idx += 1;
+                // }
 
                 self.num_values -= num_values;
                 Ok(num_values)
@@ -1089,7 +1094,7 @@ impl<T: ValueDecoder> Decoder<T> for DeltaByteArrayDecoder<T> {
     }
 
     fn skip(&mut self, num_values: usize) -> Result<usize> {
-        let mut buffer = vec![T::ValueType::default(); num_values];
+        let mut buffer = T::DecodeBuffer::with_len(num_values);
         self.read(0, &mut buffer)
     }
 }
