@@ -32,7 +32,6 @@ use super::rle::RleDecoder;
 use crate::basic::*;
 use crate::data_type::{ParquetValueType, *};
 use crate::errors::{ParquetError, Result};
-use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
 
 mod byte_stream_split_decoder;
@@ -46,12 +45,12 @@ pub trait Decoder<T: ValueDecoder>: Send + Debug {
     /// to decode.
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()>;
 
-    /// Consumes values from this decoder and write the results to `buffer`. This will try
-    /// to fill up `buffer`.
+    /// Consumes values from this decoder and write the results to `buffer`.
+    /// This will try to fill up `buffer` starting at `offset`.
     ///
     /// Returns the actual number of values decoded, which should be equal to
-    /// `buffer.len()` unless the remaining number of values is less than
-    /// `buffer.len()`.
+    /// `buffer.len() - offset` unless the remaining number of values is less
+    /// than `buffer.len() - offset`.
     fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize>;
 
     /// Consume values from this decoder and write the results to `buffer`, leaving
@@ -760,7 +759,11 @@ impl<T: ValueDecoder> DeltaLengthByteArrayDecoder<T> {
     }
 }
 
-impl<T: ValueDecoder> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
+impl<T> Decoder<T> for DeltaLengthByteArrayDecoder<T>
+where
+    T: ValueDecoder,
+    T::DecodeBuffer: DecodeBuffer<Value = ByteArray>, // TODO: AsRef<[u8]>
+{
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         match T::ValueType::PHYSICAL_TYPE {
             Type::BYTE_ARRAY => {
@@ -788,23 +791,20 @@ impl<T: ValueDecoder> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 assert!(self.data.is_some());
 
                 let data = self.data.as_ref().unwrap();
-                let num_values = cmp::min(buffer.len(), self.num_values);
+                let num_values = cmp::min(buffer.len() - offset, self.num_values);
 
-                unimplemented!("TODO")
-                // for item in buffer.iter_mut().take(num_values) {
-                //     let len = self.lengths[self.current_idx] as usize;
+                for idx in offset..offset + num_values {
+                    let len = self.lengths[self.current_idx] as usize;
 
-                //     item.as_mut_any()
-                //         .downcast_mut::<ByteArray>()
-                //         .unwrap()
-                //         .set_data(data.slice(self.offset..self.offset + len));
+                    buffer.put_value(idx, &data.slice(self.offset..self.offset + len).into());
 
-                //     self.offset += len;
-                //     self.current_idx += 1;
-                // }
+                    self.offset += len;
+                    self.current_idx += 1;
+                }
 
-                // self.num_values -= num_values;
-                // Ok(num_values)
+                self.num_values -= num_values;
+
+                Ok(num_values)
             }
             _ => Err(general_err!(
                 "DeltaLengthByteArrayDecoder only support ByteArrayType"
@@ -895,7 +895,10 @@ impl<T: ValueDecoder> DeltaByteArrayDecoder<T> {
     }
 }
 
-impl<T: ValueDecoder> Decoder<T> for DeltaByteArrayDecoder<T> {
+impl<T> Decoder<T> for DeltaByteArrayDecoder<T>
+where
+    T: ValueDecoder,
+{
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         match T::ValueType::PHYSICAL_TYPE {
             Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY => {
