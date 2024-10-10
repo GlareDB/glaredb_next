@@ -137,11 +137,8 @@ pub struct PlainDecoderState {
 /// See [`PlainEncoder`](crate::encoding::PlainEncoder) for more information.
 #[derive(Debug)]
 pub struct PlainDecoder<T: ValueDecoder> {
-    // The binary details needed for decoding
+    /// The binary details needed for decoding
     state: PlainDecoderState,
-
-    // To allow `T` in the generic parameter for this struct. This doesn't take any
-    // space.
     _phantom: PhantomData<T>,
 }
 

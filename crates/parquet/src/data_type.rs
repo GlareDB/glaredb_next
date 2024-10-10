@@ -718,20 +718,20 @@ macro_rules! impl_value_decoder {
             type ValueType = $ty;
             type DecodeBuffer = Vec<$ty>;
 
-            fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+            fn set_data2(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize) {
                 <$ty as ParquetValueType>::set_data(decoder, data, num_values)
             }
 
             fn decode2(
                 offset: usize,
                 buffer: &mut Self::DecodeBuffer,
-                decoder: &mut PlainDecoderDetails,
+                decoder: &mut PlainDecoderState,
             ) -> Result<usize> {
                 let buf = &mut buffer[offset..];
                 <$ty as ParquetValueType>::decode(buf, decoder)
             }
 
-            fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+            fn skip2(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize> {
                 <$ty as ParquetValueType>::skip(decoder, num_values)
             }
         }
@@ -920,14 +920,14 @@ macro_rules! impl_from_raw {
                 }
 
                 #[inline]
-                fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+                fn set_data(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize) {
                     decoder.data.replace(data);
                     decoder.start = 0;
                     decoder.num_values = num_values;
                 }
 
                 #[inline]
-                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderState) -> Result<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = std::cmp::min(buffer.len(), decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
@@ -951,7 +951,7 @@ macro_rules! impl_from_raw {
                 }
 
                 #[inline]
-                fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+                fn skip(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = num_values.min(decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
