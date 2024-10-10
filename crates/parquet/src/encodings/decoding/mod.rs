@@ -350,8 +350,8 @@ where
 
     #[inline]
     fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
-        // unimplemented!("TODO")
-        let num_values = cmp::min(buffer.len(), self.values_left);
+        // TODO: ADD TEST FOR THIS
+        let num_values = cmp::min(buffer.len() - offset, self.values_left);
 
         let buf = &mut buffer[offset..num_values + offset];
 
@@ -412,6 +412,7 @@ pub struct DeltaBitPackDecoder<T: ValueDecoder> {
 impl<T: ValueDecoder> Default for DeltaBitPackDecoder<T>
 where
     T::ValueType: Default + FromPrimitive + WrappingAdd + Copy,
+    T::DecodeBuffer: DerefMut<Target = [T::ValueType]>,
 {
     fn default() -> Self {
         Self::new()
@@ -421,6 +422,7 @@ where
 impl<T: ValueDecoder> DeltaBitPackDecoder<T>
 where
     T::ValueType: Default + FromPrimitive + WrappingAdd + Copy,
+    T::DecodeBuffer: DerefMut<Target = [T::ValueType]>,
 {
     /// Creates new delta bit packed decoder.
     pub fn new() -> Self {
@@ -511,6 +513,7 @@ where
 impl<T: ValueDecoder> Decoder<T> for DeltaBitPackDecoder<T>
 where
     T::ValueType: Default + FromPrimitive + WrappingAdd + Copy,
+    T::DecodeBuffer: DerefMut<Target = [T::ValueType]>,
 {
     // # of total values is derived from encoding
     #[inline]
@@ -582,61 +585,62 @@ where
     }
 
     fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
+        let buffer = &mut buffer[offset..];
+
         assert!(self.initialized, "Bit reader is not initialized");
         if buffer.is_empty() {
             return Ok(0);
         }
 
-        unimplemented!("TODO")
-        // let mut read = 0;
-        // let to_read = buffer.len().min(self.values_left);
+        let mut read = 0;
+        let to_read = std::cmp::min(buffer.len(), self.values_left); // TODO: ADD TEST FOR THIS
 
-        // if let Some(value) = self.first_value.take() {
-        //     self.last_value = value;
-        //     buffer[0] = value;
-        //     read += 1;
-        //     self.values_left -= 1;
-        // }
+        if let Some(value) = self.first_value.take() {
+            self.last_value = value;
+            buffer[0] = value;
+            read += 1;
+            self.values_left -= 1;
+        }
 
-        // while read != to_read {
-        //     if self.mini_block_remaining == 0 {
-        //         self.next_mini_block()?;
-        //     }
+        while read != to_read {
+            if self.mini_block_remaining == 0 {
+                self.next_mini_block()?;
+            }
 
-        //     let bit_width = self.mini_block_bit_widths[self.mini_block_idx] as usize;
-        //     let batch_to_read = self.mini_block_remaining.min(to_read - read);
+            let bit_width = self.mini_block_bit_widths[self.mini_block_idx] as usize;
+            let batch_to_read = self.mini_block_remaining.min(to_read - read);
 
-        //     let batch_read = self
-        //         .bit_reader
-        //         .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
+            let batch_read = self
+                .bit_reader
+                .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
 
-        //     if batch_read != batch_to_read {
-        //         return Err(general_err!(
-        //             "Expected to read {} values from miniblock got {}",
-        //             batch_to_read,
-        //             batch_read
-        //         ));
-        //     }
+            if batch_read != batch_to_read {
+                return Err(general_err!(
+                    "Expected to read {} values from miniblock got {}",
+                    batch_to_read,
+                    batch_read
+                ));
+            }
 
-        //     // At this point we have read the deltas to `buffer` we now need to offset
-        //     // these to get back to the original values that were encoded
-        //     for v in &mut buffer[read..read + batch_read] {
-        //         // It is OK for deltas to contain "overflowed" values after encoding,
-        //         // e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to "overflow" again and
-        //         // restore original value.
-        //         *v = v
-        //             .wrapping_add(&self.min_delta)
-        //             .wrapping_add(&self.last_value);
+            // At this point we have read the deltas to `buffer` we now need to offset
+            // these to get back to the original values that were encoded
+            for v in &mut buffer[read..read + batch_read] {
+                // It is OK for deltas to contain "overflowed" values after encoding,
+                // e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to "overflow" again and
+                // restore original value.
+                *v = v
+                    .wrapping_add(&self.min_delta)
+                    .wrapping_add(&self.last_value);
 
-        //         self.last_value = *v;
-        //     }
+                self.last_value = *v;
+            }
 
-        //     read += batch_read;
-        //     self.mini_block_remaining -= batch_read;
-        //     self.values_left -= batch_read;
-        // }
+            read += batch_read;
+            self.mini_block_remaining -= batch_read;
+            self.values_left -= batch_read;
+        }
 
-        // Ok(to_read)
+        Ok(to_read)
     }
 
     fn values_left(&self) -> usize {
