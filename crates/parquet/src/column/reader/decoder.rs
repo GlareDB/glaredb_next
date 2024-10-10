@@ -21,7 +21,6 @@ use bytes::Bytes;
 
 use super::ValueDecoder;
 use crate::basic::Encoding;
-use crate::data_type::DataType;
 use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
 use crate::encodings::rle::RleDecoder;
 use crate::errors::{ParquetError, Result};
@@ -150,7 +149,7 @@ impl<T: ValueDecoder> ColumnValueDecoder<T> {
         // TODO: Push vec into decoder (#5177)
         let start = out.len();
         out.resize(start + num_values, T::ValueType::default());
-        let read = current_decoder.read(&mut out[start..])?;
+        let read = current_decoder.read(0, &mut out[start..])?; // TODO: CHANGE OFFSET TO START
         out.truncate(start + read);
         Ok(read)
     }

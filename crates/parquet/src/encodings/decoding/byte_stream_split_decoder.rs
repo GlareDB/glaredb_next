@@ -71,7 +71,7 @@ impl<T: ValueDecoder> Decoder<T> for ByteStreamSplitDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [T::ValueType]) -> Result<usize> {
+    fn read(&mut self, offset: usize, buffer: &mut [T::ValueType]) -> Result<usize> {
         let total_remaining_values = self.values_left();
         let num_values = buffer.len().min(total_remaining_values);
         let buffer = &mut buffer[..num_values];

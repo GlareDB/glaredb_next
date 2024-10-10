@@ -940,7 +940,7 @@ mod tests {
 
         let mut decoded = vec![0.0; input.len()];
         decoder.set_data(encoded, input.len()).unwrap();
-        decoder.read(&mut decoded).unwrap();
+        decoder.read(0, &mut decoded).unwrap();
 
         assert_eq!(decoded, input);
     }
@@ -1010,6 +1010,7 @@ mod tests {
             let data = encoder.flush_buffer()?;
             decoder.set_data(data, values_written)?;
             let _ = decoder.read_spaced(
+                0,
                 &mut result_data[..],
                 values.len() - values_written,
                 &valid_bits[..],
@@ -1060,7 +1061,7 @@ mod tests {
             decoder.set_dict(Box::new(dict_decoder))?;
             let mut result_data = vec![T::T::default(); total];
             decoder.set_data(data, total)?;
-            let mut actual_total = decoder.read(&mut result_data)?;
+            let mut actual_total = decoder.read(0, &mut result_data)?;
 
             assert_eq!(actual_total, total);
             assert_eq!(result_data, values);
@@ -1075,7 +1076,7 @@ mod tests {
             dict_decoder.set_data(encoder.write_dict()?, encoder.num_entries())?;
             decoder.set_dict(Box::new(dict_decoder))?;
             decoder.set_data(data, total)?;
-            actual_total = decoder.read(&mut result_data)?;
+            actual_total = decoder.read(0, &mut result_data)?;
 
             assert_eq!(actual_total, total);
             assert_eq!(result_data, values);
@@ -1093,7 +1094,7 @@ mod tests {
         encoder.put(input)?;
         let data = encoder.flush_buffer()?;
         decoder.set_data(data, input.len())?;
-        decoder.read(output)
+        decoder.read(0, output)
     }
 
     fn create_and_check_encoder<T: DataType>(encoding: Encoding, err: Option<ParquetError>) {
