@@ -422,7 +422,7 @@ impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
 
         // Define values to encode, initialize state
         let mut idx = if self.total_values == 0 {
-            self.first_value = self.as_i64(values, 0);
+            self.first_value = DeltaBitPackEncoderConversion::as_i64(self, values, 0);
             self.current_value = self.first_value;
             1
         } else {
@@ -433,7 +433,7 @@ impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
 
         // Write block
         while idx < values.len() {
-            let value = self.as_i64(values, idx);
+            let value = DeltaBitPackEncoderConversion::as_i64(self, values, idx);
             self.deltas[self.values_in_block] = self.subtract(value, self.current_value);
             self.current_value = value;
             idx += 1;
