@@ -683,30 +683,51 @@ pub trait ValueDecoder: Sized + Send + fmt::Debug + 'static {
     fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
 }
 
-impl<T> ValueDecoder for T
-where
-    T: ParquetValueType,
-{
-    type ValueType = T;
-    type DecodeBuffer = Vec<T>;
+/// Implements the value decoder for base parquet types.
+///
+/// The decode buffer will be `Vec<T>` where `T` is the type.
+///
+/// This provides good decoding defaults for primitives. Varlen types are less
+/// efficient here, and so custom `ValueDecoder` implementations should be used
+/// for maximum perf if needed.
+///
+/// Note that this implements directly on the type instead of on `T:
+/// ParquetValue` as I (Sean) could not figure out how to slice into the buffer
+/// even when it was set to `Vec<T>`. It was a weird type error.
+macro_rules! impl_value_decoder {
+    ($ty:ty) => {
+        impl ValueDecoder for $ty {
+            type ValueType = $ty;
+            type DecodeBuffer = Vec<$ty>;
 
-    fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
-        <T as ParquetValueType>::set_data(decoder, data, num_values)
-    }
+            fn set_data2(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize) {
+                <$ty as ParquetValueType>::set_data(decoder, data, num_values)
+            }
 
-    fn decode2(
-        offset: usize,
-        buffer: &mut Self::DecodeBuffer,
-        decoder: &mut PlainDecoderDetails,
-    ) -> Result<usize> {
-        let buf = &mut buffer[offset..];
-        <T as ParquetValueType>::decode(buf, decoder)
-    }
+            fn decode2(
+                offset: usize,
+                buffer: &mut Self::DecodeBuffer,
+                decoder: &mut PlainDecoderDetails,
+            ) -> Result<usize> {
+                let buf = &mut buffer[offset..];
+                <$ty as ParquetValueType>::decode(buf, decoder)
+            }
 
-    fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
-        <T as ParquetValueType>::skip(decoder, num_values)
-    }
+            fn skip2(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+                <$ty as ParquetValueType>::skip(decoder, num_values)
+            }
+        }
+    };
 }
+
+impl_value_decoder!(bool);
+impl_value_decoder!(i32);
+impl_value_decoder!(i64);
+impl_value_decoder!(Int96);
+impl_value_decoder!(f32);
+impl_value_decoder!(f64);
+impl_value_decoder!(ByteArray);
+impl_value_decoder!(FixedLenByteArray);
 
 // TODO: REMOVE (at some point). Currently just a workaround to get the
 // `get_column_reader` and `get_typed_column_reader` functions working. Those

@@ -3165,7 +3165,11 @@ mod tests {
         max_def_level: i16,
         max_rep_level: i16,
     ) where
-        T::T: PartialOrd + SampleUniform + Copy + TypedColumnReader,
+        T::T: PartialOrd
+            + SampleUniform
+            + Copy
+            + TypedColumnReader
+            + ValueDecoder<DecodeBuffer = Vec<T::T>>,
         <<T as DataType>::T as ValueDecoder>::ValueType: PartialEq<<T as DataType>::T>, // TODO: Remove
     {
         let mut num_values: usize = 0;
@@ -3206,7 +3210,7 @@ mod tests {
         def_levels: Option<&[i16]>,
         rep_levels: Option<&[i16]>,
     ) where
-        T::T: TypedColumnReader,
+        T::T: TypedColumnReader + ValueDecoder<DecodeBuffer = Vec<T::T>>,
         <<T as DataType>::T as ValueDecoder>::ValueType: PartialEq<<T as DataType>::T>, // TODO: Remove
     {
         let mut file = tempfile::tempfile().unwrap();

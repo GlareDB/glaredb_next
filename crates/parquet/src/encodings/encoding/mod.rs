@@ -1003,6 +1003,7 @@ mod tests {
     impl<T> EncodingTester<T> for T
     where
         T: DataType + RandGen<T>,
+        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
     {
         fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
             let mut encoder = create_test_encoder::<T>(enc);
@@ -1083,12 +1084,16 @@ mod tests {
         }
     }
 
-    fn put_and_get<T: ValueDecoder, D: DataType<T = T::ValueType>>(
+    fn put_and_get<T, D>(
         encoder: &mut Box<dyn Encoder<D>>,
         decoder: &mut Box<dyn Decoder<T>>,
-        input: &[T::ValueType],
+        input: &[T],
         output: &mut T::DecodeBuffer,
-    ) -> Result<usize> {
+    ) -> Result<usize>
+    where
+        T: ValueDecoder<DecodeBuffer = Vec<T>>,
+        D: DataType<T = T>,
+    {
         encoder.put(input)?;
         let data = encoder.flush_buffer()?;
         decoder.set_data(data, input.len())?;

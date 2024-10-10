@@ -1822,15 +1822,27 @@ mod tests {
         );
     }
 
-    fn test_rle_value_decode<T: DataType>(data: Vec<Vec<T::T>>) {
+    fn test_rle_value_decode<T>(data: Vec<Vec<T::T>>)
+    where
+        T: DataType,
+        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+    {
         test_encode_decode::<T>(data, Encoding::RLE);
     }
 
-    fn test_delta_bit_packed_decode<T: DataType>(data: Vec<Vec<T::T>>) {
+    fn test_delta_bit_packed_decode<T>(data: Vec<Vec<T::T>>)
+    where
+        T: DataType,
+        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+    {
         test_encode_decode::<T>(data, Encoding::DELTA_BINARY_PACKED);
     }
 
-    fn test_byte_stream_split_decode<T: DataType>(data: Vec<Vec<T::T>>) {
+    fn test_byte_stream_split_decode<T>(data: Vec<Vec<T::T>>)
+    where
+        T: DataType,
+        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+    {
         test_encode_decode::<T>(data, Encoding::BYTE_STREAM_SPLIT);
     }
 
@@ -1842,7 +1854,11 @@ mod tests {
     // For example,
     //   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}
     //   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}
-    fn test_encode_decode<T: DataType>(data: Vec<Vec<T::T>>, encoding: Encoding) {
+    fn test_encode_decode<T>(data: Vec<Vec<T::T>>, encoding: Encoding)
+    where
+        T: DataType,
+        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+    {
         // Type length should not really matter for encode/decode test,
         // otherwise change it based on type
         let col_descr = create_test_col_desc_ptr(-1, T::get_physical_type());
@@ -1878,7 +1894,7 @@ mod tests {
     // TODO: Update encoder to not need datatype.
     fn test_skip<D, T>(data: Vec<T>, encoding: Encoding, skip: usize)
     where
-        T: ParquetValueType,
+        T: ValueDecoder<DecodeBuffer = Vec<T>> + ParquetValueType,
         D: DataType<T = T>,
     {
         // Type length should not really matter for encode/decode test,
