@@ -11,6 +11,7 @@ use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
     BoolType,
+    DecodeBuffer,
     DoubleType,
     FloatType,
     Int32Type,
@@ -394,7 +395,7 @@ where
     pub fn read_records(
         &mut self,
         num_records: usize,
-        values: &mut Vec<T::ValueType>,
+        values: &mut T::DecodeBuffer,
     ) -> Result<usize> {
         let reader = match &mut self.reader {
             Some(reader) => reader,
@@ -417,7 +418,7 @@ where
             if values_read < levels_read {
                 // TODO: Need to revisit how we handle definition
                 // levels/repetition levels and nulls.
-                values.resize(levels_read, T::ValueType::default());
+                values.grow(levels_read);
             }
 
             num_read += records_read;

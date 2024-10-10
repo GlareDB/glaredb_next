@@ -1,6 +1,6 @@
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
-use parquet::data_type::{DataType as ParquetDataType, Int96, ValueDecoder};
+use parquet::data_type::{Int96, ValueDecoder};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::bitmap::Bitmap;
@@ -58,7 +58,7 @@ where
 
 impl<T, P> ArrayBuilder<P> for PrimitiveArrayReader<T, P>
 where
-    T: ValueDecoder,
+    T: ValueDecoder<DecodeBuffer = Vec<<T as ValueDecoder>::ValueType>>,
     P: PageReader,
     Vec<T::ValueType>: IntoArray,
 {
