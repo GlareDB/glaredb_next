@@ -724,7 +724,8 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
+    use crate::encodings::decoding::get_decoder::{get_decoder, GetDecoder};
+    use crate::encodings::decoding::{Decoder, DictDecoder, PlainDecoder};
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::bit_util;
     use crate::util::test_common::rand_gen::{random_bytes, RandGen};
@@ -1003,7 +1004,7 @@ mod tests {
     impl<T> EncodingTester<T> for T
     where
         T: DataType + RandGen<T>,
-        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>> + GetDecoder,
     {
         fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
             let mut encoder = create_test_encoder::<T>(enc);
@@ -1131,7 +1132,10 @@ mod tests {
         get_encoder(enc).unwrap()
     }
 
-    fn create_test_decoder<T: ValueDecoder>(type_len: i32, enc: Encoding) -> Box<dyn Decoder<T>> {
+    fn create_test_decoder<T: ValueDecoder + GetDecoder>(
+        type_len: i32,
+        enc: Encoding,
+    ) -> Box<dyn Decoder<T>> {
         let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
         get_decoder(desc, enc).unwrap()
     }

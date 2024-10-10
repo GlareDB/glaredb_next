@@ -21,7 +21,8 @@ use bytes::Bytes;
 
 use super::{DecodeBuffer, ValueDecoder};
 use crate::basic::Encoding;
-use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
+use crate::encodings::decoding::get_decoder::{get_decoder, GetDecoder};
+use crate::encodings::decoding::{Decoder, DictDecoder, PlainDecoder};
 use crate::encodings::rle::RleDecoder;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
@@ -37,7 +38,10 @@ pub trait ColumnLevelDecoder {
 
 /// Decodes value data.
 #[derive(Debug)]
-pub struct ColumnValueDecoder<T: ValueDecoder> {
+pub struct ColumnValueDecoder<T>
+where
+    T: ValueDecoder + GetDecoder,
+{
     descr: ColumnDescPtr,
     current_encoding: Option<Encoding>,
 
@@ -45,7 +49,10 @@ pub struct ColumnValueDecoder<T: ValueDecoder> {
     decoders: HashMap<Encoding, Box<dyn Decoder<T>>>,
 }
 
-impl<T: ValueDecoder> ColumnValueDecoder<T> {
+impl<T> ColumnValueDecoder<T>
+where
+    T: ValueDecoder + GetDecoder,
+{
     /// Create a new decoder for a column.
     pub fn new(descr: &ColumnDescPtr) -> Self {
         Self {
@@ -146,7 +153,6 @@ impl<T: ValueDecoder> ColumnValueDecoder<T> {
             .get_mut(&encoding)
             .unwrap_or_else(|| panic!("decoder for encoding {encoding} should be set"));
 
-        // TODO: Push vec into decoder (#5177)
         let start = out.len();
         out.grow(num_values);
         let read = current_decoder.read(start, out)?;
@@ -195,6 +201,7 @@ impl LevelDecoder {
     fn read(&mut self, out: &mut [i16]) -> Result<usize> {
         match self {
             Self::Packed(reader, bit_width) => {
+                // TODO: OFFSET
                 Ok(reader.get_batch::<i16>(out, *bit_width as usize))
             }
             Self::Rle(reader) => Ok(reader.get_batch(out)?),

@@ -30,6 +30,7 @@ use crate::column::reader::decoder::{
     RepetitionLevelDecoder,
 };
 use crate::data_type::*;
+use crate::encodings::decoding::get_decoder::GetDecoder;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
@@ -85,9 +86,13 @@ pub(crate) fn get_column_reader<P: PageReader>(
 /// non-generic type to a generic column reader type `ColumnReaderImpl`.
 ///
 /// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub(crate) fn get_typed_column_reader<T: ParquetValueType + TypedColumnReader, P: PageReader>(
+pub(crate) fn get_typed_column_reader<T, P>(
     col_reader: ColumnReader<P>,
-) -> GenericColumnReader<T, P> {
+) -> GenericColumnReader<T, P>
+where
+    T: ParquetValueType + TypedColumnReader + GetDecoder,
+    P: PageReader,
+{
     T::get_typed_reader(col_reader).unwrap_or_else(|| {
         panic!(
             "Failed to convert column reader into a typed column reader for `{}` type",
@@ -100,7 +105,11 @@ pub(crate) fn get_typed_column_reader<T: ParquetValueType + TypedColumnReader, P
 ///
 /// - T: Parquet data type
 #[derive(Debug)]
-pub struct GenericColumnReader<T: ValueDecoder, P: PageReader> {
+pub struct GenericColumnReader<T, P>
+where
+    T: ValueDecoder + GetDecoder,
+    P: PageReader,
+{
     descr: ColumnDescPtr,
 
     page_reader: P,
@@ -127,7 +136,7 @@ pub struct GenericColumnReader<T: ValueDecoder, P: PageReader> {
 
 impl<T, P> GenericColumnReader<T, P>
 where
-    T: ValueDecoder,
+    T: ValueDecoder + GetDecoder,
     P: PageReader,
 {
     /// Creates new column reader based on column descriptor and page reader.
@@ -1118,6 +1127,7 @@ mod tests {
     impl<T, D: DataType<T = T>> ColumnReaderTester<T, D>
     where
         T: ValueDecoder<DecodeBuffer = Vec<T>>
+            + GetDecoder
             + ParquetValueType
             + PartialOrd
             + SampleUniform

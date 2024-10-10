@@ -17,8 +17,11 @@
 
 //! Contains all supported decoders for Parquet.
 
+pub mod get_decoder;
+
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::ops::DerefMut;
 use std::{cmp, mem};
 
 use bytes::Bytes;
@@ -33,131 +36,6 @@ use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
 
 mod byte_stream_split_decoder;
-
-/// A trait that allows getting a [`Decoder`] implementation for a
-/// [`DataType`] with the corresponding [`ParquetValueType`].
-///
-/// This is necessary to support [`Decoder`] implementations that may not be
-/// applicable for all [`DataType`] and by extension all
-/// [`ParquetValueType`]
-pub trait GetDecoder {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        get_decoder_default(descr, encoding)
-    }
-}
-
-fn get_decoder_default<T: ValueDecoder>(
-    descr: ColumnDescPtr,
-    encoding: Encoding,
-) -> Result<Box<dyn Decoder<T>>> {
-    match encoding {
-        Encoding::PLAIN => Ok(Box::new(PlainDecoder::new(descr.type_length()))),
-        Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => Err(general_err!(
-            "Cannot initialize this encoding through this function"
-        )),
-        Encoding::RLE
-        | Encoding::DELTA_BINARY_PACKED
-        | Encoding::DELTA_BYTE_ARRAY
-        | Encoding::DELTA_LENGTH_BYTE_ARRAY => Err(general_err!(
-            "Encoding {} is not supported for type",
-            encoding
-        )),
-        e => Err(nyi_err!("Encoding {} is not supported", e)),
-    }
-}
-
-impl GetDecoder for bool {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        match encoding {
-            Encoding::RLE => Ok(Box::new(RleValueDecoder::new())),
-            _ => get_decoder_default(descr, encoding),
-        }
-    }
-}
-
-impl GetDecoder for i32 {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        match encoding {
-            Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
-            _ => get_decoder_default(descr, encoding),
-        }
-    }
-}
-
-impl GetDecoder for i64 {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        match encoding {
-            Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
-            _ => get_decoder_default(descr, encoding),
-        }
-    }
-}
-
-impl GetDecoder for f32 {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        match encoding {
-            Encoding::BYTE_STREAM_SPLIT => Ok(Box::new(
-                byte_stream_split_decoder::ByteStreamSplitDecoder::new(),
-            )),
-            _ => get_decoder_default(descr, encoding),
-        }
-    }
-}
-impl GetDecoder for f64 {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        match encoding {
-            Encoding::BYTE_STREAM_SPLIT => Ok(Box::new(
-                byte_stream_split_decoder::ByteStreamSplitDecoder::new(),
-            )),
-            _ => get_decoder_default(descr, encoding),
-        }
-    }
-}
-
-impl GetDecoder for ByteArray {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        match encoding {
-            Encoding::DELTA_BYTE_ARRAY => Ok(Box::new(DeltaByteArrayDecoder::new())),
-            Encoding::DELTA_LENGTH_BYTE_ARRAY => Ok(Box::new(DeltaLengthByteArrayDecoder::new())),
-            _ => get_decoder_default(descr, encoding),
-        }
-    }
-}
-
-impl GetDecoder for FixedLenByteArray {
-    fn get_decoder<T: ValueDecoder<ValueType = Self>>(
-        descr: ColumnDescPtr,
-        encoding: Encoding,
-    ) -> Result<Box<dyn Decoder<T>>> {
-        match encoding {
-            Encoding::DELTA_BYTE_ARRAY => Ok(Box::new(DeltaByteArrayDecoder::new())),
-            _ => get_decoder_default(descr, encoding),
-        }
-    }
-}
-
-impl GetDecoder for Int96 {}
 
 // ----------------------------------------------------------------------
 // Decoders
@@ -231,17 +109,6 @@ pub trait Decoder<T: ValueDecoder>: Send + Debug {
 
     /// Skip the specified number of values in this decoder stream.
     fn skip(&mut self, num_values: usize) -> Result<usize>;
-}
-
-/// Gets a decoder for the column descriptor `descr` and encoding type `encoding`.
-///
-/// NOTE: the primitive type in `descr` MUST match the data type `T`, otherwise
-/// disastrous consequence could occur.
-pub fn get_decoder<T: ValueDecoder>(
-    descr: ColumnDescPtr,
-    encoding: Encoding,
-) -> Result<Box<dyn Decoder<T>>> {
-    T::ValueType::get_decoder(descr, encoding)
 }
 
 // ----------------------------------------------------------------------
@@ -388,7 +255,7 @@ impl<T: ValueDecoder> Decoder<T> for DictDecoder<T> {
         assert!(self.has_dictionary, "Must call set_dict() first!");
 
         let rle = self.rle_decoder.as_mut().unwrap();
-        let num_values = cmp::min(buffer.len(), self.num_values);
+        let num_values = cmp::min(buffer.len() - offset, self.num_values);
         rle.get_batch_with_dict(&self.dictionary, offset, buffer, num_values)
     }
 
@@ -424,13 +291,23 @@ pub struct RleValueDecoder<T: ValueDecoder> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: ValueDecoder> Default for RleValueDecoder<T> {
+impl<T> Default for RleValueDecoder<T>
+where
+    T: ValueDecoder,
+    T::ValueType: Copy,
+    T::DecodeBuffer: DerefMut<Target = [<T as ValueDecoder>::ValueType]>,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: ValueDecoder> RleValueDecoder<T> {
+impl<T> RleValueDecoder<T>
+where
+    T: ValueDecoder,
+    T::ValueType: Copy,
+    T::DecodeBuffer: DerefMut<Target = [<T as ValueDecoder>::ValueType]>,
+{
     pub fn new() -> Self {
         Self {
             values_left: 0,
@@ -440,7 +317,12 @@ impl<T: ValueDecoder> RleValueDecoder<T> {
     }
 }
 
-impl<T: ValueDecoder> Decoder<T> for RleValueDecoder<T> {
+impl<T> Decoder<T> for RleValueDecoder<T>
+where
+    T: ValueDecoder,
+    T::ValueType: Copy,
+    T::DecodeBuffer: DerefMut<Target = [<T as ValueDecoder>::ValueType]>,
+{
     #[inline]
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         // Only support RLE value reader for boolean values with bit width of 1.
@@ -468,11 +350,14 @@ impl<T: ValueDecoder> Decoder<T> for RleValueDecoder<T> {
 
     #[inline]
     fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
-        unimplemented!("TODO")
-        // let num_values = cmp::min(buffer.len(), self.values_left);
-        // let values_read = self.decoder.get_batch(&mut buffer[..num_values])?;
-        // self.values_left -= values_read;
-        // Ok(values_read)
+        // unimplemented!("TODO")
+        let num_values = cmp::min(buffer.len(), self.values_left);
+
+        let buf = &mut buffer[offset..num_values + offset];
+
+        let values_read = self.decoder.get_batch(buf)?;
+        self.values_left -= values_read;
+        Ok(values_read)
     }
 
     #[inline]
@@ -1104,7 +989,10 @@ mod tests {
     use std::f64::consts::PI as PI_f64;
     use std::sync::Arc;
 
+    use get_decoder::GetDecoder;
+
     use super::super::encoding::*;
+    use super::get_decoder::get_decoder;
     use super::*;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::test_common::rand_gen::RandGen;
@@ -1930,7 +1818,10 @@ mod tests {
         }
     }
 
-    fn create_and_check_decoder<T: ValueDecoder>(encoding: Encoding, err: Option<ParquetError>) {
+    fn create_and_check_decoder<T>(encoding: Encoding, err: Option<ParquetError>)
+    where
+        T: ValueDecoder + GetDecoder,
+    {
         let descr = create_test_col_desc_ptr(-1, T::ValueType::PHYSICAL_TYPE);
         let decoder = get_decoder::<T>(descr, encoding);
         match err {

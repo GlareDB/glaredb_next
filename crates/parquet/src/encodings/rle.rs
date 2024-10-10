@@ -446,7 +446,12 @@ impl RleDecoder {
         B1: DecodeBuffer<Value = B2::Value>,
         B2: DecodeBuffer,
     {
-        assert!(buffer.len() - offset >= max_values);
+        assert!(
+            buffer.len() - offset >= max_values,
+            "available: {}, values: {}",
+            buffer.len() - offset,
+            max_values
+        );
 
         let mut values_read = 0;
         while values_read < max_values {

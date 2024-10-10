@@ -29,6 +29,7 @@ use crate::basic::Type;
 use crate::column::page::{PageReader, PageWriter};
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
+use crate::encodings::decoding::get_decoder::GetDecoder;
 use crate::encodings::decoding::PlainDecoderDetails;
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter, FromBytes};
@@ -749,7 +750,7 @@ impl_value_decoder!(FixedLenByteArray);
 // TODO: REMOVE (at some point). Currently just a workaround to get the
 // `get_column_reader` and `get_typed_column_reader` functions working. Those
 // are just for tests.
-pub(crate) trait TypedColumnReader: ValueDecoder {
+pub(crate) trait TypedColumnReader: ValueDecoder + GetDecoder {
     fn get_typed_reader<P: PageReader>(
         column_reader: ColumnReader<P>,
     ) -> Option<GenericColumnReader<Self, P>>;
@@ -796,7 +797,6 @@ pub trait ParquetValueType:
     + PartialOrd
     + Send
     + TypedColumnReader
-    + crate::encodings::decoding::GetDecoder
     + crate::file::statistics::private::MakeStatistics
     + 'static
 {
