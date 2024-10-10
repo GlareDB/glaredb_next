@@ -627,6 +627,9 @@ impl VarlenPrimitiveValue for ByteArray {}
 impl VarlenPrimitiveValue for FixedLenByteArray {}
 
 pub trait DecodeBuffer: Sized + Send + Default + fmt::Debug {
+    /// Value type stored in the buffer.
+    type Value;
+
     fn with_len(len: usize) -> Self;
 
     fn len(&self) -> usize;
@@ -638,12 +641,18 @@ pub trait DecodeBuffer: Sized + Send + Default + fmt::Debug {
     fn swap(&mut self, a: usize, b: usize);
 
     fn grow(&mut self, additional: usize);
+
+    fn put_value(&mut self, idx: usize, val: &Self::Value);
+
+    fn get_value(&self, idx: usize) -> &Self::Value;
 }
 
 impl<T> DecodeBuffer for Vec<T>
 where
     T: Send + Clone + Default + fmt::Debug,
 {
+    type Value = T;
+
     fn with_len(len: usize) -> Self {
         vec![T::default(); len]
     }
@@ -658,6 +667,14 @@ where
 
     fn grow(&mut self, additional: usize) {
         self.resize(additional + self.len(), T::default());
+    }
+
+    fn put_value(&mut self, idx: usize, val: &Self::Value) {
+        self[idx] = val.clone();
+    }
+
+    fn get_value(&self, idx: usize) -> &Self::Value {
+        &self[idx]
     }
 }
 

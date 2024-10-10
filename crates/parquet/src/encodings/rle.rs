@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{cmp, mem::size_of};
+use std::cmp;
+use std::mem::size_of;
 
 use bytes::Bytes;
 
+use crate::data_type::DecodeBuffer;
 use crate::errors::{ParquetError, Result};
-use crate::util::bit_util::from_le_slice;
-use crate::util::bit_util::{self, BitReader, BitWriter, FromBytes};
+use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
 /// Rle/Bit-Packing Hybrid Encoding
 /// The grammar for this encoding looks like the following (copied verbatim
@@ -434,16 +435,18 @@ impl RleDecoder {
     }
 
     #[inline(never)]
-    pub fn get_batch_with_dict<T>(
+    pub fn get_batch_with_dict<B1, B2>(
         &mut self,
-        dict: &[T],
-        buffer: &mut [T],
+        dict: &B1,
+        offset: usize,
+        buffer: &mut B2,
         max_values: usize,
     ) -> Result<usize>
     where
-        T: Default + Clone,
+        B1: DecodeBuffer<Value = B2::Value>,
+        B2: DecodeBuffer,
     {
-        assert!(buffer.len() >= max_values);
+        assert!(buffer.len() - offset >= max_values);
 
         let mut values_read = 0;
         while values_read < max_values {
@@ -453,7 +456,7 @@ impl RleDecoder {
                 let num_values = cmp::min(max_values - values_read, self.rle_left as usize);
                 let dict_idx = self.current_value.unwrap() as usize;
                 for i in 0..num_values {
-                    buffer[values_read + i].clone_from(&dict[dict_idx]);
+                    buffer.put_value(values_read + i + offset, dict.get_value(dict_idx));
                 }
                 self.rle_left -= num_values as u32;
                 values_read += num_values;
@@ -478,7 +481,10 @@ impl RleDecoder {
                         break;
                     }
                     for i in 0..num_values {
-                        buffer[values_read + i].clone_from(&dict[index_buf[i] as usize])
+                        buffer.put_value(
+                            values_read + i + offset,
+                            dict.get_value(index_buf[i] as usize),
+                        );
                     }
                     self.bit_packed_left -= num_values as u32;
                     values_read += num_values;
@@ -522,10 +528,11 @@ impl RleDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rand::distributions::Standard;
+    use rand::{self, thread_rng, Rng, SeedableRng};
 
+    use super::*;
     use crate::util::bit_util::ceil;
-    use rand::{self, distributions::Standard, thread_rng, Rng, SeedableRng};
 
     const MAX_WIDTH: usize = 32;
 
@@ -674,7 +681,7 @@ mod tests {
         decoder.set_data(data.into());
         let mut buffer = vec![0; 12];
         let expected = vec![10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30, 30];
-        let result = decoder.get_batch_with_dict::<i32>(&dict, &mut buffer, 12);
+        let result = decoder.get_batch_with_dict(&dict, 0, &mut buffer, 12);
         assert!(result.is_ok());
         assert_eq!(buffer, expected);
 
@@ -689,8 +696,7 @@ mod tests {
         let expected = vec![
             "ddd", "eee", "fff", "ddd", "eee", "fff", "ddd", "eee", "fff", "eee", "fff", "fff",
         ];
-        let result =
-            decoder.get_batch_with_dict::<&str>(dict.as_slice(), buffer.as_mut_slice(), 12);
+        let result = decoder.get_batch_with_dict(&dict, 0, &mut buffer, 12);
         assert!(result.is_ok());
         assert_eq!(buffer, expected);
     }
@@ -708,7 +714,7 @@ mod tests {
         let skipped = decoder.skip(2).expect("skipping two values");
         assert_eq!(skipped, 2);
         let remainder = decoder
-            .get_batch_with_dict::<i32>(&dict, &mut buffer, 10)
+            .get_batch_with_dict(&dict, 0, &mut buffer, 10)
             .expect("getting remainder");
         assert_eq!(remainder, 10);
         assert_eq!(buffer, expected);
@@ -725,7 +731,7 @@ mod tests {
         let skipped = decoder.skip(4).expect("skipping four values");
         assert_eq!(skipped, 4);
         let remainder = decoder
-            .get_batch_with_dict::<&str>(dict.as_slice(), buffer.as_mut_slice(), 8)
+            .get_batch_with_dict(&dict, 0, &mut buffer, 8)
             .expect("getting remainder");
         assert_eq!(remainder, 8);
         assert_eq!(buffer, expected);
@@ -881,7 +887,7 @@ mod tests {
         let dict: Vec<u16> = (0..256).collect();
         let mut output = vec![0_u16; 100];
         let read = decoder
-            .get_batch_with_dict(&dict, &mut output, 100)
+            .get_batch_with_dict(&dict, 0, &mut output, 100)
             .unwrap();
 
         assert_eq!(read, 20);
@@ -951,7 +957,7 @@ mod tests {
 
         decoder.set_data(buffer);
         let r = decoder
-            .get_batch_with_dict(&[0, 23], &mut decoded, num_values)
+            .get_batch_with_dict(&vec![0, 23], 0, &mut decoded, num_values)
             .unwrap();
         assert_eq!(r, num_values);
         assert_eq!(vec![23; num_values], decoded);

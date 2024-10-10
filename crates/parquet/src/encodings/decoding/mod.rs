@@ -389,8 +389,7 @@ impl<T: ValueDecoder> Decoder<T> for DictDecoder<T> {
 
         let rle = self.rle_decoder.as_mut().unwrap();
         let num_values = cmp::min(buffer.len(), self.num_values);
-        // rle.get_batch_with_dict(&self.dictionary[..], buffer, num_values)?;
-        unimplemented!("TODO")
+        rle.get_batch_with_dict(&self.dictionary, offset, buffer, num_values)
     }
 
     /// Number of values left in this decoder stream
