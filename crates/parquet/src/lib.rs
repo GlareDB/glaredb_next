@@ -110,6 +110,7 @@ pub mod errors;
 pub mod basic;
 
 pub mod value_decoder;
+pub mod value_encoder;
 
 /// Automatically generated code for reading parquet thrift definition.
 // see parquet/CONTRIBUTING.md for instructions on regenerating
