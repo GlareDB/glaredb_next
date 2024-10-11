@@ -133,7 +133,7 @@ impl_value_decoder!(FixedLenByteArray);
 // TODO: REMOVE (at some point). Currently just a workaround to get the
 // `get_column_reader` and `get_typed_column_reader` functions working. Those
 // are just for tests.
-pub(crate) trait TypedColumnReader: ValueDecoder + GetDecoder {
+pub trait TypedColumnReader: ValueDecoder + GetDecoder {
     fn get_typed_reader<P: PageReader>(
         column_reader: ColumnReader<P>,
     ) -> Option<GenericColumnReader<Self, P>>;

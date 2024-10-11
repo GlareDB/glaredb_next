@@ -43,7 +43,7 @@ use crate::format as parquet;
 use crate::format::{ColumnIndex, OffsetIndex, RowGroup};
 use crate::schema::types::{self, ColumnDescPtr, SchemaDescPtr, SchemaDescriptor, TypePtr};
 use crate::thrift::TSerializable;
-use crate::value_encoder::ValueEncoder;
+use crate::value_encoder::{TypedColumnWriter, ValueEncoder};
 
 /// A wrapper around a [`Write`] that keeps track of the number of bytes that
 /// have been written.
@@ -705,7 +705,8 @@ impl<'a, P: PageWriter> SerializedColumnWriter<'a, P> {
     }
 
     /// Returns a reference to a typed [`GenericColumnWriter`]
-    pub fn typed<T: ValueEncoder>(&mut self) -> &mut GenericColumnWriter<T, P> {
+    // TODO: Remove `TypedColumnWriter`
+    pub fn typed<T: ValueEncoder + TypedColumnWriter>(&mut self) -> &mut GenericColumnWriter<T, P> {
         get_typed_column_writer_mut(&mut self.inner)
     }
 

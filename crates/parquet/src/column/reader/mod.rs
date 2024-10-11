@@ -37,7 +37,7 @@ use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 use crate::value_decoder::{TypedColumnReader, ValueDecoder};
 
 /// Column reader for a Parquet type.
-pub(crate) enum ColumnReader<P: PageReader> {
+pub enum ColumnReader<P: PageReader> {
     BoolColumnReader(GenericColumnReader<bool, P>),
     Int32ColumnReader(GenericColumnReader<i32, P>),
     Int64ColumnReader(GenericColumnReader<i64, P>),

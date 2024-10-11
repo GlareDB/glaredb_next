@@ -41,7 +41,7 @@ use crate::file::properties::{
 use crate::file::statistics::{Statistics, ValueStatistics};
 use crate::format::{BoundaryOrder, ColumnIndex, OffsetIndex};
 use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
-use crate::value_encoder::ValueEncoder;
+use crate::value_encoder::{TypedColumnWriter, ValueEncoder};
 
 pub(crate) mod encoder;
 
@@ -71,11 +71,6 @@ impl<P: PageWriter> ColumnWriter<P> {
             Self::FixedLenByteArrayColumnWriter(w) => w.close(),
         }
     }
-}
-
-pub enum Level {
-    Page,
-    Column,
 }
 
 /// Gets a specific column writer corresponding to column descriptor `descr`.
@@ -116,29 +111,27 @@ pub fn get_column_writer<P: PageWriter>(
 /// non-generic type to a generic column writer type `GenericColumnWriter`.
 ///
 /// Panics if actual enum value for `col_writer` does not match the type `T`.
-pub fn get_typed_column_writer<T: ValueEncoder, P: PageWriter>(
+pub fn get_typed_column_writer<T: ValueEncoder + TypedColumnWriter, P: PageWriter>(
     col_writer: ColumnWriter<P>,
 ) -> GenericColumnWriter<T, P> {
-    unimplemented!()
-    // T::get_column_writer(col_writer).unwrap_or_else(|| {
-    //     panic!(
-    //         "Failed to convert column writer into a typed column writer for `{}` type",
-    //         T::get_physical_type()
-    //     )
-    // })
+    T::get_typed_writer(col_writer).unwrap_or_else(|| {
+        panic!(
+            "Failed to convert column writer into a typed column writer for `{}` type",
+            T::get_physical_type()
+        )
+    })
 }
 
 /// Similar to `get_typed_column_writer` but returns a reference.
-pub fn get_typed_column_writer_mut<T: ValueEncoder, P: PageWriter>(
+pub fn get_typed_column_writer_mut<T: ValueEncoder + TypedColumnWriter, P: PageWriter>(
     col_writer: &mut ColumnWriter<P>,
 ) -> &mut GenericColumnWriter<T, P> {
-    unimplemented!()
-    // T::get_column_writer_mut(col_writer).unwrap_or_else(|| {
-    //     panic!(
-    //         "Failed to convert column writer into a typed column writer for `{}` type",
-    //         T::get_physical_type()
-    //     )
-    // })
+    T::get_typed_writer_mut(col_writer).unwrap_or_else(|| {
+        panic!(
+            "Failed to convert column writer into a typed column writer for `{}` type",
+            T::get_physical_type()
+        )
+    })
 }
 
 /// Metadata returned by [`GenericColumnWriter::close`]
@@ -3119,7 +3112,7 @@ mod tests {
         assert!(!stats.has_min_max_set());
     }
 
-    fn write_multiple_pages<T: ValueEncoder>(
+    fn write_multiple_pages<T: ValueEncoder + TypedColumnWriter>(
         column_descr: &Arc<ColumnDescriptor>,
         pages: &[&[Option<T::ValueType>]],
     ) -> Result<ColumnCloseResult> {
@@ -3161,7 +3154,8 @@ mod tests {
             + SampleUniform
             + Copy
             + GetDecoder
-            + TypedColumnReader,
+            + TypedColumnReader
+            + TypedColumnWriter,
     {
         let mut num_values: usize = 0;
 
@@ -3205,7 +3199,8 @@ mod tests {
             + ValueEncoder<ValueType = T>
             + PartialEq
             + GetDecoder
-            + TypedColumnReader,
+            + TypedColumnReader
+            + TypedColumnWriter,
     {
         let mut file = tempfile::tempfile().unwrap();
         let mut write = TrackedWrite::new(&mut file);
@@ -3297,7 +3292,7 @@ mod tests {
 
     /// Performs write of provided values and returns column metadata of those values.
     /// Used to test encoding support for column writer.
-    fn column_write_and_get_metadata<T: ValueEncoder>(
+    fn column_write_and_get_metadata<T: ValueEncoder + TypedColumnWriter>(
         props: WriterProperties,
         values: &[T::ValueType],
     ) -> ColumnChunkMetaData {
@@ -3311,7 +3306,7 @@ mod tests {
     // Function to use in tests for EncodingWriteSupport. This checks that dictionary
     // offset and encodings to make sure that column writer uses provided by trait
     // encodings.
-    fn check_encoding_write_support<T: ValueEncoder>(
+    fn check_encoding_write_support<T: ValueEncoder + TypedColumnWriter>(
         version: WriterVersion,
         dict_enabled: bool,
         data: &[T::ValueType],
@@ -3328,7 +3323,7 @@ mod tests {
     }
 
     /// Returns column writer.
-    fn get_test_column_writer<T: ValueEncoder, P: PageWriter>(
+    fn get_test_column_writer<T: ValueEncoder + TypedColumnWriter, P: PageWriter>(
         page_writer: P,
         max_def_level: i16,
         max_rep_level: i16,
@@ -3403,7 +3398,7 @@ mod tests {
     /// Write data into parquet using [`get_test_page_writer`] and [`get_test_column_writer`] and returns generated statistics.
     fn statistics_roundtrip<T>(values: &[T]) -> Statistics
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>> + ValueEncoder<ValueType = T>,
+        T: ValueDecoder<DecodeBuffer = Vec<T>> + ValueEncoder<ValueType = T> + TypedColumnWriter,
     {
         let page_writer = get_test_page_writer();
         let props = Default::default();
@@ -3426,7 +3421,7 @@ mod tests {
         props: WriterPropertiesPtr,
     ) -> GenericColumnWriter<T, P>
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>> + ValueEncoder<ValueType = T>,
+        T: ValueDecoder<DecodeBuffer = Vec<T>> + ValueEncoder<ValueType = T> + TypedColumnWriter,
     {
         let descr = Arc::new(get_test_decimals_column_descr::<T>(
             max_def_level,
@@ -3510,7 +3505,10 @@ mod tests {
     }
 
     /// Returns column writer for UINT32 Column provided as ConvertedType only
-    fn get_test_unsigned_int_given_as_converted_column_writer<T: ValueEncoder, P: PageWriter>(
+    fn get_test_unsigned_int_given_as_converted_column_writer<
+        T: ValueEncoder + TypedColumnWriter,
+        P: PageWriter,
+    >(
         page_writer: P,
         max_def_level: i16,
         max_rep_level: i16,

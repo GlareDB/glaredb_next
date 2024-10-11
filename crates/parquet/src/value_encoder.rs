@@ -1,6 +1,8 @@
 use core::fmt;
 
 use crate::basic::Type;
+use crate::column::page::PageWriter;
+use crate::column::writer::{ColumnWriter, GenericColumnWriter};
 use crate::data_type::{ByteArray, FixedLenByteArray, Int96, ParquetValueType};
 use crate::errors::Result;
 use crate::util::bit_util::BitWriter;
@@ -56,6 +58,46 @@ impl_value_encoder!(f64);
 impl_value_encoder!(ByteArray);
 impl_value_encoder!(FixedLenByteArray);
 
-// pub(crate) trait TypedColumnWriter: ValueEncoder {
-//     fn get
-// }
+// TODO: Try to remove this as well.
+pub trait TypedColumnWriter: ValueEncoder {
+    fn get_typed_writer<P: PageWriter>(
+        column_writer: ColumnWriter<P>,
+    ) -> Option<GenericColumnWriter<Self, P>>;
+
+    fn get_typed_writer_mut<P: PageWriter>(
+        column_writer: &mut ColumnWriter<P>,
+    ) -> Option<&mut GenericColumnWriter<Self, P>>;
+}
+
+macro_rules! impl_typed_column_writer {
+    ($ty:ty, $variant:ident) => {
+        impl TypedColumnWriter for $ty {
+            fn get_typed_writer<P: PageWriter>(
+                column_writer: ColumnWriter<P>,
+            ) -> Option<GenericColumnWriter<Self, P>> {
+                match column_writer {
+                    ColumnWriter::$variant(writer) => Some(writer),
+                    _ => None,
+                }
+            }
+
+            fn get_typed_writer_mut<P: PageWriter>(
+                column_writer: &mut ColumnWriter<P>,
+            ) -> Option<&mut GenericColumnWriter<Self, P>> {
+                match column_writer {
+                    ColumnWriter::$variant(writer) => Some(writer),
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+impl_typed_column_writer!(bool, BoolColumnWriter);
+impl_typed_column_writer!(i32, Int32ColumnWriter);
+impl_typed_column_writer!(i64, Int64ColumnWriter);
+impl_typed_column_writer!(Int96, Int96ColumnWriter);
+impl_typed_column_writer!(f32, FloatColumnWriter);
+impl_typed_column_writer!(f64, DoubleColumnWriter);
+impl_typed_column_writer!(ByteArray, ByteArrayColumnWriter);
+impl_typed_column_writer!(FixedLenByteArray, FixedLenByteArrayColumnWriter);
