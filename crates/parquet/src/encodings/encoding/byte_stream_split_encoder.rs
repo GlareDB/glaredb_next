@@ -30,7 +30,7 @@ pub struct ByteStreamSplitEncoder<T> {
     _p: PhantomData<T>,
 }
 
-impl<T: DataType> ByteStreamSplitEncoder<T> {
+impl<T: ValueEncoder> ByteStreamSplitEncoder<T> {
     pub(crate) fn new() -> Self {
         Self {
             buffer: Vec::new(),

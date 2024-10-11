@@ -77,24 +77,23 @@ pub trait Encoder<T: ValueEncoder>: Send {
 /// Gets a encoder for the particular data type `T` and encoding `encoding`. Memory usage
 /// for the encoder instance is tracked by `mem_tracker`.
 pub fn get_encoder<T: ValueEncoder>(encoding: Encoding) -> Result<Box<dyn Encoder<T>>> {
-    unimplemented!()
-    // let encoder: Box<dyn Encoder<T>> = match encoding {
-    //     Encoding::PLAIN => Box::new(PlainEncoder::new()),
-    //     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
-    //         return Err(general_err!(
-    //             "Cannot initialize this encoding through this function"
-    //         ));
-    //     }
-    //     Encoding::RLE => Box::new(RleValueEncoder::new()),
-    //     Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackEncoder::new()),
-    //     Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayEncoder::new()),
-    //     Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayEncoder::new()),
-    //     Encoding::BYTE_STREAM_SPLIT => {
-    //         Box::new(byte_stream_split_encoder::ByteStreamSplitEncoder::new())
-    //     }
-    //     e => return Err(nyi_err!("Encoding {} is not supported", e)),
-    // };
-    // Ok(encoder)
+    let encoder: Box<dyn Encoder<T>> = match encoding {
+        Encoding::PLAIN => Box::new(PlainEncoder::new()),
+        Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
+            return Err(general_err!(
+                "Cannot initialize this encoding through this function"
+            ));
+        }
+        Encoding::RLE => Box::new(RleValueEncoder::new()),
+        Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackEncoder::new()),
+        Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayEncoder::new()),
+        Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayEncoder::new()),
+        Encoding::BYTE_STREAM_SPLIT => {
+            Box::new(byte_stream_split_encoder::ByteStreamSplitEncoder::new())
+        }
+        e => return Err(nyi_err!("Encoding {} is not supported", e)),
+    };
+    Ok(encoder)
 }
 
 // ----------------------------------------------------------------------
