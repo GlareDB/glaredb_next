@@ -55,3 +55,7 @@ impl_value_encoder!(f32);
 impl_value_encoder!(f64);
 impl_value_encoder!(ByteArray);
 impl_value_encoder!(FixedLenByteArray);
+
+// pub(crate) trait TypedColumnWriter: ValueEncoder {
+//     fn get
+// }

@@ -129,19 +129,6 @@ pub fn get_typed_column_writer<T: ValueEncoder, P: PageWriter>(
 }
 
 /// Similar to `get_typed_column_writer` but returns a reference.
-pub fn get_typed_column_writer_ref<T: ValueEncoder, P: PageWriter>(
-    col_writer: &ColumnWriter<P>,
-) -> &GenericColumnWriter<T, P> {
-    unimplemented!()
-    // T::get_column_writer_ref(col_writer).unwrap_or_else(|| {
-    //     panic!(
-    //         "Failed to convert column writer into a typed column writer for `{}` type",
-    //         T::get_physical_type()
-    //     )
-    // })
-}
-
-/// Similar to `get_typed_column_writer` but returns a reference.
 pub fn get_typed_column_writer_mut<T: ValueEncoder, P: PageWriter>(
     col_writer: &mut ColumnWriter<P>,
 ) -> &mut GenericColumnWriter<T, P> {
