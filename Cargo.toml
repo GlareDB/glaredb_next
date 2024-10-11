@@ -15,7 +15,7 @@ codegen-units = 1
 [workspace.dependencies]
 ahash = { version = "0.8.11", default-features = false }
 chrono = { version = "0.4.38" }
-futures = "0.3.30"
+futures = "0.3.31"
 hashbrown = "0.14.5"
 once_cell = "1.19.0"
 parking_lot = "0.12"
