@@ -923,46 +923,45 @@ where
     fn read(&mut self, offset: usize, buffer: &mut T::DecodeBuffer) -> Result<usize> {
         match T::ValueType::PHYSICAL_TYPE {
             ty @ Type::BYTE_ARRAY | ty @ Type::FIXED_LEN_BYTE_ARRAY => {
-                let num_values = cmp::min(buffer.len(), self.num_values);
-                let mut v: [ByteArray; 1] = [ByteArray::new(); 1];
-                unimplemented!("TODO");
-                // for item in buffer.iter_mut().take(num_values) {
-                //     // Process suffix
-                //     // TODO: this is awkward - maybe we should add a non-vectorized API?
-                //     let suffix_decoder = self
-                //         .suffix_decoder
-                //         .as_mut()
-                //         .expect("decoder not initialized");
-                //     suffix_decoder.read(0, &mut v[..])?;
-                //     let suffix = v[0].data();
+                let num_values = cmp::min(buffer.len() - offset, self.num_values);
+                let mut v = vec![ByteArray::new()];
 
-                //     // Extract current prefix length, can be 0
-                //     let prefix_len = self.prefix_lengths[self.current_idx] as usize;
+                for idx in offset..offset + num_values {
+                    // Process suffix
+                    // TODO: this is awkward - maybe we should add a non-vectorized API?
+                    let suffix_decoder = self
+                        .suffix_decoder
+                        .as_mut()
+                        .expect("decoder not initialized");
+                    suffix_decoder.read(0, &mut v)?;
+                    let suffix = &v[0].data();
 
-                //     // Concatenate prefix with suffix
-                //     let mut result = Vec::new();
-                //     result.extend_from_slice(&self.previous_value[0..prefix_len]);
-                //     result.extend_from_slice(suffix);
+                    // Extract current prefix length, can be 0
+                    let prefix_len = self.prefix_lengths[self.current_idx] as usize;
 
-                //     let data = Bytes::from(result.clone());
+                    // Concatenate prefix with suffix
+                    let mut result = Vec::with_capacity(prefix_len + suffix.len());
+                    result.extend_from_slice(&self.previous_value[0..prefix_len]);
+                    result.extend_from_slice(suffix);
 
-                //     match ty {
-                //         Type::BYTE_ARRAY => item
-                //             .as_mut_any()
-                //             .downcast_mut::<ByteArray>()
-                //             .unwrap()
-                //             .set_data(data),
-                //         Type::FIXED_LEN_BYTE_ARRAY => item
-                //             .as_mut_any()
-                //             .downcast_mut::<FixedLenByteArray>()
-                //             .unwrap()
-                //             .set_data(data),
-                //         _ => unreachable!(),
-                //     };
+                    let data = Bytes::from(result.clone());
 
-                //     self.previous_value = result;
-                //     self.current_idx += 1;
-                // }
+                    unimplemented!("TODO");
+                    // match ty {
+                    //     Type::BYTE_ARRAY => {
+                    //         buffer.put_value(idx, data.into());
+                    //     }
+                    //     Type::FIXED_LEN_BYTE_ARRAY => item
+                    //         .as_mut_any()
+                    //         .downcast_mut::<FixedLenByteArray>()
+                    //         .unwrap()
+                    //         .set_data(data),
+                    //     _ => unreachable!(),
+                    // };
+
+                    self.previous_value = result;
+                    self.current_idx += 1;
+                }
 
                 self.num_values -= num_values;
                 Ok(num_values)
