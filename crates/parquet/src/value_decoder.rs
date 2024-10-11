@@ -9,28 +9,51 @@ use crate::data_type::{ByteArray, FixedLenByteArray, Int96, ParquetValueType};
 use crate::encodings::decoding::get_decoder::GetDecoder;
 use crate::encodings::decoding::PlainDecoderState;
 use crate::errors::{ParquetError, Result};
+use crate::util::bit_util::read_num_bytes;
 
-pub trait DecodeBuffer: Sized + Send + Default + fmt::Debug {
-    /// Value type stored in the buffer.
-    type Value;
+pub trait DecodeBuffer: Sized + Send + fmt::Debug {
+    /// Value that's passed to and from the buffer.
+    ///
+    /// The internal representation of the items may differ.
+    type Value: ?Sized;
 
+    /// Create a new buffer with `len` items.
+    ///
+    /// This should initialize the buffer with some default values, but
+    /// meaningless values.
     fn with_len(len: usize) -> Self;
 
+    /// Return the length of the buffer.
     fn len(&self) -> usize;
 
+    /// Return if the buffer is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Swap values between two positions in the buffer.
+    ///
+    /// `a` and `b` are both guaranteed to be in bound according to `len`.
     fn swap(&mut self, a: usize, b: usize);
 
+    /// Grow the buffer to hold `additional` items.
+    ///
+    /// This should increase the length of the buffer and initialize the new
+    /// values to some default.
     fn grow(&mut self, additional: usize);
 
+    /// Put a value in the buffer.
+    ///
+    /// `idx` guaranteed to be in bounds according to length.
     fn put_value(&mut self, idx: usize, val: &Self::Value);
 
+    /// Get a value from the buffer.
+    ///
+    /// `idx` guaranteed to be in bounds according to length.
     fn get_value(&self, idx: usize) -> &Self::Value;
 }
 
+/// Default implementation on Vec. Suitable for most primitives.
 impl<T> DecodeBuffer for Vec<T>
 where
     T: Send + Clone + Default + fmt::Debug,
@@ -59,6 +82,65 @@ where
 
     fn get_value(&self, idx: usize) -> &Self::Value {
         &self[idx]
+    }
+}
+
+/// Default decode buffer for byte arrays.
+///
+/// Internally this is just a vec of `Bytes`. This is needed over just the
+/// `Vec<T>` above because we want the delta decoders to be able to pass in
+/// `&[u8]` when storing things in the buffer.
+///
+/// The eventual goal is to remove `Bytes` from most places as it makes buffer
+/// reuse more difficult.
+///
+/// This can be the basis for more efficient implementations for byte array
+/// buffers.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ByteArrayDecodeBuffer {
+    pub(crate) values: Vec<Bytes>,
+}
+
+impl DecodeBuffer for ByteArrayDecodeBuffer {
+    type Value = [u8];
+
+    fn with_len(len: usize) -> Self {
+        ByteArrayDecodeBuffer {
+            values: vec![Bytes::new(); len],
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    fn swap(&mut self, a: usize, b: usize) {
+        self.values.swap(a, b)
+    }
+
+    fn grow(&mut self, additional: usize) {
+        self.values
+            .resize(additional + self.values.len(), Bytes::new());
+    }
+
+    fn put_value(&mut self, idx: usize, val: &Self::Value) {
+        self.values[idx] = Bytes::copy_from_slice(val)
+    }
+
+    fn get_value(&self, idx: usize) -> &Self::Value {
+        &self.values[idx]
+    }
+}
+
+impl From<Vec<Bytes>> for ByteArrayDecodeBuffer {
+    fn from(values: Vec<Bytes>) -> Self {
+        ByteArrayDecodeBuffer { values }
+    }
+}
+
+impl AsRef<[Bytes]> for ByteArrayDecodeBuffer {
+    fn as_ref(&self) -> &[Bytes] {
+        self.values.as_slice()
     }
 }
 
@@ -127,8 +209,64 @@ impl_value_decoder!(i64);
 impl_value_decoder!(Int96);
 impl_value_decoder!(f32);
 impl_value_decoder!(f64);
-impl_value_decoder!(ByteArray);
 impl_value_decoder!(FixedLenByteArray);
+
+impl ValueDecoder for ByteArray {
+    type ValueType = ByteArray;
+    type DecodeBuffer = ByteArrayDecodeBuffer;
+
+    fn set_data2(decoder: &mut PlainDecoderState, data: Bytes, num_values: usize) {
+        decoder.data.replace(data);
+        decoder.start = 0;
+        decoder.num_values = num_values;
+    }
+
+    fn decode2(
+        offset: usize,
+        buffer: &mut Self::DecodeBuffer,
+        decoder: &mut PlainDecoderState,
+    ) -> Result<usize> {
+        let buf = &mut buffer.values[offset..];
+
+        let data = decoder
+            .data
+            .as_mut()
+            .expect("set_data should have been called");
+        let num_values = std::cmp::min(buf.len(), decoder.num_values);
+        for val in buf.iter_mut().take(num_values) {
+            let len: usize =
+                read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
+            decoder.start += std::mem::size_of::<u32>();
+
+            if data.len() < decoder.start + len {
+                return Err(eof_err!("Not enough bytes to decode"));
+            }
+
+            *val = data.slice(decoder.start..decoder.start + len);
+            decoder.start += len;
+        }
+        decoder.num_values -= num_values;
+
+        Ok(num_values)
+    }
+
+    fn skip2(decoder: &mut PlainDecoderState, num_values: usize) -> Result<usize> {
+        let data = decoder
+            .data
+            .as_mut()
+            .expect("set_data should have been called");
+        let num_values = num_values.min(decoder.num_values);
+
+        for _ in 0..num_values {
+            let len: usize =
+                read_num_bytes::<u32>(4, data.slice(decoder.start..).as_ref()) as usize;
+            decoder.start += std::mem::size_of::<u32>() + len;
+        }
+        decoder.num_values -= num_values;
+
+        Ok(num_values)
+    }
+}
 
 // TODO: REMOVE (at some point). Currently just a workaround to get the
 // `get_column_reader` and `get_typed_column_reader` functions working. Those

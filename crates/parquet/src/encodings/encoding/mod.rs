@@ -730,7 +730,7 @@ mod tests {
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::bit_util;
     use crate::util::test_common::rand_gen::{random_bytes, RandGen};
-    use crate::value_decoder::{DecodeBuffer, ValueDecoder};
+    use crate::value_decoder::{ByteArrayDecodeBuffer, DecodeBuffer, ValueDecoder};
 
     const TEST_SET_SIZE: usize = 1024;
 
@@ -965,16 +965,14 @@ mod tests {
             ByteArray::from("aaa"),
         ];
 
-        let mut output = vec![ByteArray::default(); input.len()];
-
-        let mut output1 = vec![ByteArray::default(); 2];
+        let mut output1 = ByteArrayDecodeBuffer::with_len(2);
         let mut result = put_and_get(&mut encoder, &mut decoder, &input[..2], &mut output1);
         assert!(
             result.is_ok(),
             "first put_and_get() failed with: {}",
             result.unwrap_err()
         );
-        let mut output2 = vec![ByteArray::default(); 2];
+        let mut output2 = ByteArrayDecodeBuffer::with_len(2);
         result = put_and_get(&mut encoder, &mut decoder, &input[2..], &mut output2);
         assert!(
             result.is_ok(),
@@ -982,19 +980,16 @@ mod tests {
             result.unwrap_err()
         );
 
-        assert_eq!(output1, input[..2]);
-        assert_eq!(output2, input[2..]);
+        // TODO: Remove when we pass in Bytes (or &[u8]) directly into encoding.
+        let expected: Vec<_> = input.iter().map(|input| input.bytes_data()).collect();
+
+        assert_eq!(output1.as_ref(), &expected[..2]);
+        assert_eq!(output2.as_ref(), &expected[2..]);
     }
 
     trait EncodingTester<T>
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>>
-            + ValueEncoder<ValueType = T>
-            + RandGen
-            + GetDecoder
-            + Default
-            + Clone
-            + PartialEq,
+        T: ValueDecoder + ValueEncoder + RandGen + GetDecoder + Default + Clone + PartialEq,
     {
         fn test(enc: Encoding, total: usize, type_length: i32) {
             let result = match enc {
@@ -1018,7 +1013,7 @@ mod tests {
 
     impl<T> EncodingTester<T> for T
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>>
+        T: ValueDecoder
             + ValueEncoder<ValueType = T>
             + RandGen
             + GetDecoder
@@ -1030,7 +1025,7 @@ mod tests {
             let mut encoder = create_test_encoder::<T>(enc);
             let mut decoder = create_test_decoder::<T>(type_length, enc);
             let mut values = <T as RandGen>::gen_vec(type_length, total);
-            let mut result_data = vec![T::default(); total];
+            let mut result_data = T::DecodeBuffer::with_len(total);
 
             // Test put/get spaced.
             let num_bytes = bit_util::ceil(total as i64, 8);
@@ -1113,7 +1108,7 @@ mod tests {
         output: &mut T::DecodeBuffer,
     ) -> Result<usize>
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>> + ValueEncoder<ValueType = T>,
+        T: ValueDecoder + ValueEncoder<ValueType = T>,
     {
         encoder.put(input)?;
         let data = encoder.flush_buffer()?;

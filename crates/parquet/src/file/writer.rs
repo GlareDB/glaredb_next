@@ -699,11 +699,6 @@ impl<'a, P: PageWriter> SerializedColumnWriter<'a, P> {
         Self { inner, on_close }
     }
 
-    /// Returns a reference to an untyped [`ColumnWriter`]
-    pub fn untyped(&mut self) -> &mut ColumnWriter<P> {
-        &mut self.inner
-    }
-
     /// Returns a reference to a typed [`GenericColumnWriter`]
     // TODO: Remove `TypedColumnWriter`
     pub fn typed<T: ValueEncoder + TypedColumnWriter>(&mut self) -> &mut GenericColumnWriter<T, P> {

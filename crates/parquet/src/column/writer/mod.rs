@@ -2026,7 +2026,7 @@ mod tests {
 
     #[test]
     fn test_bool_statistics() {
-        let stats = statistics_roundtrip::<bool>(&[true, false, false, true]);
+        let stats = generate_statistics::<bool>(&[true, false, false, true]);
         assert!(stats.has_min_max_set());
         // Booleans have an unsigned sort order and so are not compatible
         // with the deprecated `min` and `max` statistics
@@ -2041,7 +2041,7 @@ mod tests {
 
     #[test]
     fn test_int32_statistics() {
-        let stats = statistics_roundtrip::<i32>(&[-1, 3, -2, 2]);
+        let stats = generate_statistics::<i32>(&[-1, 3, -2, 2]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Int32(stats) = stats {
@@ -2054,7 +2054,7 @@ mod tests {
 
     #[test]
     fn test_int64_statistics() {
-        let stats = statistics_roundtrip::<i64>(&[-1, 3, -2, 2]);
+        let stats = generate_statistics::<i64>(&[-1, 3, -2, 2]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Int64(stats) = stats {
@@ -2076,7 +2076,7 @@ mod tests {
         .into_iter()
         .collect::<Vec<Int96>>();
 
-        let stats = statistics_roundtrip::<Int96>(&input);
+        let stats = generate_statistics::<Int96>(&input);
         assert!(stats.has_min_max_set());
         assert!(!stats.is_min_max_backwards_compatible());
         if let Statistics::Int96(stats) = stats {
@@ -2089,7 +2089,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics() {
-        let stats = statistics_roundtrip::<f32>(&[-1.0, 3.0, -2.0, 2.0]);
+        let stats = generate_statistics::<f32>(&[-1.0, 3.0, -2.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2102,7 +2102,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics() {
-        let stats = statistics_roundtrip::<f64>(&[-1.0, 3.0, -2.0, 2.0]);
+        let stats = generate_statistics::<f64>(&[-1.0, 3.0, -2.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2120,7 +2120,7 @@ mod tests {
             .map(|&s| s.into())
             .collect::<Vec<_>>();
 
-        let stats = statistics_roundtrip::<ByteArray>(&input);
+        let stats = generate_statistics::<ByteArray>(&input);
         assert!(!stats.is_min_max_backwards_compatible());
         assert!(stats.has_min_max_set());
         if let Statistics::ByteArray(stats) = stats {
@@ -2138,7 +2138,7 @@ mod tests {
             .map(|&s| ByteArray::from(s).into())
             .collect::<Vec<_>>();
 
-        let stats = statistics_roundtrip::<FixedLenByteArray>(&input);
+        let stats = generate_statistics::<FixedLenByteArray>(&input);
         assert!(stats.has_min_max_set());
         assert!(!stats.is_min_max_backwards_compatible());
         if let Statistics::FixedLenByteArray(stats) = stats {
@@ -2282,7 +2282,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_nan_middle() {
-        let stats = statistics_roundtrip::<f32>(&[1.0, f32::NAN, 2.0]);
+        let stats = generate_statistics::<f32>(&[1.0, f32::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2295,7 +2295,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_nan_start() {
-        let stats = statistics_roundtrip::<f32>(&[f32::NAN, 1.0, 2.0]);
+        let stats = generate_statistics::<f32>(&[f32::NAN, 1.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2308,7 +2308,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_nan_only() {
-        let stats = statistics_roundtrip::<f32>(&[f32::NAN, f32::NAN]);
+        let stats = generate_statistics::<f32>(&[f32::NAN, f32::NAN]);
         assert!(!stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         assert!(matches!(stats, Statistics::Float(_)));
@@ -2316,7 +2316,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_zero_only() {
-        let stats = statistics_roundtrip::<f32>(&[0.0]);
+        let stats = generate_statistics::<f32>(&[0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2331,7 +2331,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_neg_zero_only() {
-        let stats = statistics_roundtrip::<f32>(&[-0.0]);
+        let stats = generate_statistics::<f32>(&[-0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2346,7 +2346,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_zero_min() {
-        let stats = statistics_roundtrip::<f32>(&[0.0, 1.0, f32::NAN, 2.0]);
+        let stats = generate_statistics::<f32>(&[0.0, 1.0, f32::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2360,7 +2360,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_neg_zero_max() {
-        let stats = statistics_roundtrip::<f32>(&[-0.0, -1.0, f32::NAN, -2.0]);
+        let stats = generate_statistics::<f32>(&[-0.0, -1.0, f32::NAN, -2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2374,7 +2374,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_nan_middle() {
-        let stats = statistics_roundtrip::<f64>(&[1.0, f64::NAN, 2.0]);
+        let stats = generate_statistics::<f64>(&[1.0, f64::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2387,7 +2387,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_nan_start() {
-        let stats = statistics_roundtrip::<f64>(&[f64::NAN, 1.0, 2.0]);
+        let stats = generate_statistics::<f64>(&[f64::NAN, 1.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2400,7 +2400,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_nan_only() {
-        let stats = statistics_roundtrip::<f64>(&[f64::NAN, f64::NAN]);
+        let stats = generate_statistics::<f64>(&[f64::NAN, f64::NAN]);
         assert!(!stats.has_min_max_set());
         assert!(matches!(stats, Statistics::Double(_)));
         assert!(stats.is_min_max_backwards_compatible());
@@ -2408,7 +2408,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_zero_only() {
-        let stats = statistics_roundtrip::<f64>(&[0.0]);
+        let stats = generate_statistics::<f64>(&[0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2423,7 +2423,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_neg_zero_only() {
-        let stats = statistics_roundtrip::<f64>(&[-0.0]);
+        let stats = generate_statistics::<f64>(&[-0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2438,7 +2438,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_zero_min() {
-        let stats = statistics_roundtrip::<f64>(&[0.0, 1.0, f64::NAN, 2.0]);
+        let stats = generate_statistics::<f64>(&[0.0, 1.0, f64::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2452,7 +2452,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_neg_zero_max() {
-        let stats = statistics_roundtrip::<f64>(&[-0.0, -1.0, f64::NAN, -2.0]);
+        let stats = generate_statistics::<f64>(&[-0.0, -1.0, f64::NAN, -2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -3395,10 +3395,11 @@ mod tests {
         }
     }
 
-    /// Write data into parquet using [`get_test_page_writer`] and [`get_test_column_writer`] and returns generated statistics.
-    fn statistics_roundtrip<T>(values: &[T]) -> Statistics
+    /// Write data into parquet using `get_test_page_writer` and
+    /// `get_test_column_writer` and returns generated statistics.
+    fn generate_statistics<T>(values: &[T]) -> Statistics
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>> + ValueEncoder<ValueType = T> + TypedColumnWriter,
+        T: ValueDecoder + ValueEncoder<ValueType = T> + TypedColumnWriter,
     {
         let page_writer = get_test_page_writer();
         let props = Default::default();
@@ -3421,7 +3422,7 @@ mod tests {
         props: WriterPropertiesPtr,
     ) -> GenericColumnWriter<T, P>
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>> + ValueEncoder<ValueType = T> + TypedColumnWriter,
+        T: ValueDecoder + ValueEncoder<ValueType = T> + TypedColumnWriter,
     {
         let descr = Arc::new(get_test_decimals_column_descr::<T>(
             max_def_level,
