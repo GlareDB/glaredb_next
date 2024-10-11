@@ -33,6 +33,7 @@ use crate::encodings::encoding::{get_encoder, DictEncoder, Encoder};
 use crate::errors::{ParquetError, Result};
 use crate::file::properties::{EnabledStatistics, WriterProperties};
 use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
+use crate::value_encoder::ValueEncoder;
 
 /// The encoded data for a dictionary page
 pub struct DictionaryPage {
@@ -51,26 +52,30 @@ pub struct DataPageValues<T> {
     pub max_value: Option<T>,
 }
 
-pub struct ColumnValueEncoder<T: DataType> {
+pub struct ColumnValueEncoder<T: ValueEncoder> {
     encoder: Box<dyn Encoder<T>>,
     dict_encoder: Option<DictEncoder<T>>,
     descr: ColumnDescPtr,
     num_values: usize,
     statistics_enabled: EnabledStatistics,
-    min_value: Option<T::T>,
-    max_value: Option<T::T>,
+    min_value: Option<T::ValueType>,
+    max_value: Option<T::ValueType>,
     bloom_filter: Option<Sbbf>,
 }
 
-impl<T: DataType> ColumnValueEncoder<T> {
-    fn min_max(&self, values: &[T::T], value_indices: Option<&[usize]>) -> Option<(T::T, T::T)> {
+impl<T: ValueEncoder> ColumnValueEncoder<T> {
+    fn min_max(
+        &self,
+        values: &[T::ValueType],
+        value_indices: Option<&[usize]>,
+    ) -> Option<(T::ValueType, T::ValueType)> {
         match value_indices {
             Some(indices) => get_min_max(&self.descr, indices.iter().map(|x| &values[*x])),
             None => get_min_max(&self.descr, values.iter()),
         }
     }
 
-    fn write_slice(&mut self, slice: &[T::T]) -> Result<()> {
+    fn write_slice(&mut self, slice: &[T::ValueType]) -> Result<()> {
         if self.statistics_enabled != EnabledStatistics::None
             // INTERVAL has undefined sort order, so don't write min/max stats for it
             && self.descr.converted_type() != ConvertedType::INTERVAL
@@ -95,7 +100,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     }
 }
 
-impl<T: DataType> ColumnValueEncoder<T> {
+impl<T: ValueEncoder> ColumnValueEncoder<T> {
     /// Create a new [`ColumnValueEncoder`]
     pub fn try_new(descr: &ColumnDescPtr, props: &WriterProperties) -> Result<Self> {
         let dict_supported = props.dictionary_enabled(descr.path())
@@ -129,7 +134,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     }
 
     /// Write the corresponding values to this [`ColumnValueEncoder`]
-    pub fn write(&mut self, values: &[T::T], offset: usize, len: usize) -> Result<()> {
+    pub fn write(&mut self, values: &[T::ValueType], offset: usize, len: usize) -> Result<()> {
         self.num_values += len;
 
         let slice = values.get(offset..offset + len).ok_or_else(|| {
@@ -144,7 +149,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     }
 
     /// Write the values at the indexes in `indices` to this [`ColumnValueEncoder`]
-    pub fn write_gather(&mut self, values: &[T::T], indices: &[usize]) -> Result<()> {
+    pub fn write_gather(&mut self, values: &[T::ValueType], indices: &[usize]) -> Result<()> {
         self.num_values += indices.len();
         let slice: Vec<_> = indices.iter().map(|idx| values[*idx].clone()).collect();
         self.write_slice(&slice)
@@ -200,7 +205,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     }
 
     /// Flush the next data page for this column chunk
-    pub fn flush_data_page(&mut self) -> Result<DataPageValues<T::T>> {
+    pub fn flush_data_page(&mut self) -> Result<DataPageValues<T::ValueType>> {
         let (buf, encoding) = match &mut self.dict_encoder {
             Some(encoder) => (encoder.write_indices()?, Encoding::RLE_DICTIONARY),
             _ => (self.encoder.flush_buffer()?, self.encoder.encoding()),

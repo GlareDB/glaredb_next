@@ -1,11 +1,17 @@
 use core::fmt;
 
+use crate::basic::Type;
 use crate::data_type::{ByteArray, FixedLenByteArray, Int96, ParquetValueType};
 use crate::errors::Result;
 use crate::util::bit_util::BitWriter;
 
 pub trait ValueEncoder: Sized + Send + fmt::Debug + 'static {
     type ValueType: ParquetValueType;
+
+    // TODO: Remove
+    fn get_physical_type() -> Type {
+        Self::ValueType::PHYSICAL_TYPE
+    }
 
     fn encode<W>(
         values: &[Self::ValueType],

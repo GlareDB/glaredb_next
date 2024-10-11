@@ -15,23 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::iter::Peekable;
+use std::mem;
+
 use bytes::Bytes;
 
 use crate::basic::Encoding;
-use crate::column::page::Page;
-use crate::column::page::{PageMetadata, PageReader};
-use crate::data_type::DataType;
+use crate::column::page::{Page, PageMetadata, PageReader};
 use crate::encodings::encoding::{get_encoder, Encoder};
 use crate::encodings::levels::LevelEncoder;
 use crate::errors::Result;
 use crate::schema::types::ColumnDescPtr;
-use std::iter::Peekable;
-use std::mem;
+use crate::value_encoder::ValueEncoder;
 
 pub trait DataPageBuilder {
     fn add_rep_levels(&mut self, max_level: i16, rep_levels: &[i16]);
     fn add_def_levels(&mut self, max_level: i16, def_levels: &[i16]);
-    fn add_values<T: DataType>(&mut self, encoding: Encoding, values: &[T::T]);
+    fn add_values<T: ValueEncoder>(&mut self, encoding: Encoding, values: &[T::ValueType]);
     fn add_indices(&mut self, indices: Bytes);
     fn consume(self) -> Page;
 }
@@ -99,7 +99,7 @@ impl DataPageBuilder for DataPageBuilderImpl {
         self.def_levels_byte_len = self.add_levels(max_levels, def_levels);
     }
 
-    fn add_values<T: DataType>(&mut self, encoding: Encoding, values: &[T::T]) {
+    fn add_values<T: ValueEncoder>(&mut self, encoding: Encoding, values: &[T::ValueType]) {
         assert!(
             self.num_values >= values.len() as u32,
             "num_values: {}, values.len(): {}",

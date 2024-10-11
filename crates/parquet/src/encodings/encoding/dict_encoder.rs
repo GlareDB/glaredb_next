@@ -28,19 +28,20 @@ use crate::errors::Result;
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::num_required_bits;
 use crate::util::interner::{Interner, Storage};
+use crate::value_encoder::ValueEncoder;
 
 #[derive(Debug)]
-struct KeyStorage<T: DataType> {
-    uniques: Vec<T::T>,
+struct KeyStorage<T: ValueEncoder> {
+    uniques: Vec<T::ValueType>,
 
     size_in_bytes: usize,
 
     type_length: usize,
 }
 
-impl<T: DataType> Storage for KeyStorage<T> {
+impl<T: ValueEncoder> Storage for KeyStorage<T> {
     type Key = u64;
-    type Value = T::T;
+    type Value = T::ValueType;
 
     fn get(&self, idx: Self::Key) -> &Self::Value {
         &self.uniques[idx as usize]
@@ -72,14 +73,14 @@ impl<T: DataType> Storage for KeyStorage<T> {
 /// Data page format: the bit width used to encode the entry ids stored as 1 byte
 /// (max bit width = 32), followed by the values encoded using RLE/Bit packed described
 /// above (with the given bit width).
-pub struct DictEncoder<T: DataType> {
+pub struct DictEncoder<T: ValueEncoder> {
     interner: Interner<KeyStorage<T>>,
 
     /// The buffered indices
     indices: Vec<u64>,
 }
 
-impl<T: DataType> DictEncoder<T> {
+impl<T: ValueEncoder> DictEncoder<T> {
     /// Creates new dictionary encoder.
     pub fn new(desc: ColumnDescPtr) -> Self {
         let storage = KeyStorage {
@@ -134,7 +135,7 @@ impl<T: DataType> DictEncoder<T> {
         Ok(encoder.consume().into())
     }
 
-    fn put_one(&mut self, value: &T::T) {
+    fn put_one(&mut self, value: &T::ValueType) {
         self.indices.push(self.interner.intern(value));
     }
 
@@ -144,8 +145,8 @@ impl<T: DataType> DictEncoder<T> {
     }
 }
 
-impl<T: DataType> Encoder<T> for DictEncoder<T> {
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+impl<T: ValueEncoder> Encoder<T> for DictEncoder<T> {
+    fn put(&mut self, values: &[T::ValueType]) -> Result<()> {
         self.indices.reserve(values.len());
         for i in values {
             self.put_one(i)

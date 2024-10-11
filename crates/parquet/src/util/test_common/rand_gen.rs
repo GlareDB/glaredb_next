@@ -28,12 +28,13 @@ use crate::data_type::*;
 use crate::encodings::encoding::{DictEncoder, Encoder};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::{DataPageBuilder, DataPageBuilderImpl};
+use crate::value_encoder::ValueEncoder;
 
 /// Random generator of data type `T` values and sequences.
-pub trait RandGen<T: DataType> {
-    fn gen(len: i32) -> T::T;
+pub trait RandGen: Sized {
+    fn gen(len: i32) -> Self;
 
-    fn gen_vec(len: i32, total: usize) -> Vec<T::T> {
+    fn gen_vec(len: i32, total: usize) -> Vec<Self> {
         let mut result = vec![];
         for _ in 0..total {
             result.push(Self::gen(len))
@@ -42,25 +43,25 @@ pub trait RandGen<T: DataType> {
     }
 }
 
-impl RandGen<BoolType> for BoolType {
+impl RandGen for bool {
     fn gen(_: i32) -> bool {
         thread_rng().gen::<bool>()
     }
 }
 
-impl RandGen<Int32Type> for Int32Type {
+impl RandGen for i32 {
     fn gen(_: i32) -> i32 {
         thread_rng().gen::<i32>()
     }
 }
 
-impl RandGen<Int64Type> for Int64Type {
+impl RandGen for i64 {
     fn gen(_: i32) -> i64 {
         thread_rng().gen::<i64>()
     }
 }
 
-impl RandGen<Int96Type> for Int96Type {
+impl RandGen for Int96 {
     fn gen(_: i32) -> Int96 {
         let mut rng = thread_rng();
         let mut result = Int96::new();
@@ -69,19 +70,19 @@ impl RandGen<Int96Type> for Int96Type {
     }
 }
 
-impl RandGen<FloatType> for FloatType {
+impl RandGen for f32 {
     fn gen(_: i32) -> f32 {
         thread_rng().gen::<f32>()
     }
 }
 
-impl RandGen<DoubleType> for DoubleType {
+impl RandGen for f64 {
     fn gen(_: i32) -> f64 {
         thread_rng().gen::<f64>()
     }
 }
 
-impl RandGen<ByteArrayType> for ByteArrayType {
+impl RandGen for ByteArray {
     fn gen(_: i32) -> ByteArray {
         let mut rng = thread_rng();
         let mut result = ByteArray::new();
@@ -95,7 +96,7 @@ impl RandGen<ByteArrayType> for ByteArrayType {
     }
 }
 
-impl RandGen<FixedLenByteArrayType> for FixedLenByteArrayType {
+impl RandGen for FixedLenByteArray {
     fn gen(len: i32) -> FixedLenByteArray {
         assert!(len >= 0);
         let value = random_bytes(len as usize);
@@ -131,20 +132,20 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn make_pages<T: DataType>(
+pub fn make_pages<T: ValueEncoder>(
     desc: ColumnDescPtr,
     encoding: Encoding,
     num_pages: usize,
     levels_per_page: usize,
-    min: T::T,
-    max: T::T,
+    min: T::ValueType,
+    max: T::ValueType,
     def_levels: &mut Vec<i16>,
     rep_levels: &mut Vec<i16>,
-    values: &mut Vec<T::T>,
+    values: &mut Vec<T::ValueType>,
     pages: &mut VecDeque<Page>,
     use_v2: bool,
 ) where
-    T::T: PartialOrd + SampleUniform + Copy,
+    T::ValueType: PartialOrd + SampleUniform + Copy,
 {
     let mut num_values = 0;
     let max_def_level = desc.max_def_level();

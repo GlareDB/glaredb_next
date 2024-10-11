@@ -1000,6 +1000,7 @@ mod tests {
     use super::*;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::test_common::rand_gen::RandGen;
+    use crate::value_encoder::ValueEncoder;
 
     #[test]
     fn test_get_decoders() {
@@ -1354,7 +1355,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "RleValueEncoder only supports BoolType")]
     fn test_rle_value_encode_int32_not_supported() {
-        let mut encoder = RleValueEncoder::<Int32Type>::new();
+        let mut encoder = RleValueEncoder::<i32>::new();
         encoder.put(&[1, 2, 3, 4]).unwrap();
     }
 
@@ -1369,11 +1370,11 @@ mod tests {
     fn test_rle_value_decode_bool_decode() {
         // Test multiple 'put' calls on the same encoder
         let data = vec![
-            BoolType::gen_vec(-1, 256),
-            BoolType::gen_vec(-1, 257),
-            BoolType::gen_vec(-1, 126),
+            bool::gen_vec(-1, 256),
+            bool::gen_vec(-1, 257),
+            bool::gen_vec(-1, 126),
         ];
-        test_rle_value_decode::<BoolType>(data);
+        test_rle_value_decode::<bool>(data);
     }
 
     #[test]
@@ -1396,7 +1397,7 @@ mod tests {
     #[test]
     fn test_delta_bit_packed_int32_empty() {
         let data = vec![vec![0; 0]];
-        test_delta_bit_packed_decode::<Int32Type>(data);
+        test_delta_bit_packed_decode::<i32>(data);
     }
 
     #[test]
@@ -1405,7 +1406,7 @@ mod tests {
             1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5,
             6, 7, 8,
         ];
-        test_delta_bit_packed_decode::<Int32Type>(vec![block_data]);
+        test_delta_bit_packed_decode::<i32>(vec![block_data]);
     }
 
     #[test]
@@ -1414,21 +1415,21 @@ mod tests {
             1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5,
             6, 7, 8,
         ];
-        test_skip::<Int32Type, i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 10);
-        test_skip::<Int32Type, i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
+        test_skip::<i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 10);
+        test_skip::<i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
     }
 
     #[test]
     fn test_delta_bit_packed_int32_uneven() {
         let block_data = vec![1, -2, 3, -4, 5, 6, 7, 8, 9, 10, 11];
-        test_delta_bit_packed_decode::<Int32Type>(vec![block_data]);
+        test_delta_bit_packed_decode::<i32>(vec![block_data]);
     }
 
     #[test]
     fn test_skip_delta_bit_packed_int32_uneven() {
         let block_data = vec![1, -2, 3, -4, 5, 6, 7, 8, 9, 10, 11];
-        test_skip::<Int32Type, i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
-        test_skip::<Int32Type, i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
+        test_skip::<i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
+        test_skip::<i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
     }
 
     #[test]
@@ -1436,13 +1437,13 @@ mod tests {
         let block_data = vec![
             127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
         ];
-        test_delta_bit_packed_decode::<Int32Type>(vec![block_data]);
+        test_delta_bit_packed_decode::<i32>(vec![block_data]);
 
         let block_data = vec![
             -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127,
             -127, -127,
         ];
-        test_delta_bit_packed_decode::<Int32Type>(vec![block_data]);
+        test_delta_bit_packed_decode::<i32>(vec![block_data]);
     }
 
     #[test]
@@ -1450,15 +1451,15 @@ mod tests {
         let block_data = vec![
             127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
         ];
-        test_skip::<Int32Type, i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
-        test_skip::<Int32Type, i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
+        test_skip::<i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
+        test_skip::<i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
 
         let block_data = vec![
             -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127, -127,
             -127, -127,
         ];
-        test_skip::<Int32Type, i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
-        test_skip::<Int32Type, i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
+        test_skip::<i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
+        test_skip::<i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
     }
 
     #[test]
@@ -1473,7 +1474,7 @@ mod tests {
             i32::MIN,
             i32::MAX,
         ];
-        test_delta_bit_packed_decode::<Int32Type>(vec![block_data]);
+        test_delta_bit_packed_decode::<i32>(vec![block_data]);
     }
 
     #[test]
@@ -1488,42 +1489,38 @@ mod tests {
             i32::MIN,
             i32::MAX,
         ];
-        test_skip::<Int32Type, i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
-        test_skip::<Int32Type, i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
+        test_skip::<i32>(block_data.clone(), Encoding::DELTA_BINARY_PACKED, 5);
+        test_skip::<i32>(block_data, Encoding::DELTA_BINARY_PACKED, 100);
     }
 
     #[test]
     fn test_delta_bit_packed_int32_multiple_blocks() {
         // Test multiple 'put' calls on the same encoder
         let data = vec![
-            Int32Type::gen_vec(-1, 64),
-            Int32Type::gen_vec(-1, 128),
-            Int32Type::gen_vec(-1, 64),
+            i32::gen_vec(-1, 64),
+            i32::gen_vec(-1, 128),
+            i32::gen_vec(-1, 64),
         ];
-        test_delta_bit_packed_decode::<Int32Type>(data);
+        test_delta_bit_packed_decode::<i32>(data);
     }
 
     #[test]
     fn test_delta_bit_packed_int32_data_across_blocks() {
         // Test multiple 'put' calls on the same encoder
-        let data = vec![Int32Type::gen_vec(-1, 256), Int32Type::gen_vec(-1, 257)];
-        test_delta_bit_packed_decode::<Int32Type>(data);
+        let data = vec![i32::gen_vec(-1, 256), i32::gen_vec(-1, 257)];
+        test_delta_bit_packed_decode::<i32>(data);
     }
 
     #[test]
     fn test_delta_bit_packed_int32_with_empty_blocks() {
-        let data = vec![
-            Int32Type::gen_vec(-1, 128),
-            vec![0; 0],
-            Int32Type::gen_vec(-1, 64),
-        ];
-        test_delta_bit_packed_decode::<Int32Type>(data);
+        let data = vec![i32::gen_vec(-1, 128), vec![0; 0], i32::gen_vec(-1, 64)];
+        test_delta_bit_packed_decode::<i32>(data);
     }
 
     #[test]
     fn test_delta_bit_packed_int64_empty() {
         let data = vec![vec![0; 0]];
-        test_delta_bit_packed_decode::<Int64Type>(data);
+        test_delta_bit_packed_decode::<i64>(data);
     }
 
     #[test]
@@ -1538,18 +1535,18 @@ mod tests {
             i64::min_value(),
             i64::max_value(),
         ];
-        test_delta_bit_packed_decode::<Int64Type>(vec![block_data]);
+        test_delta_bit_packed_decode::<i64>(vec![block_data]);
     }
 
     #[test]
     fn test_delta_bit_packed_int64_multiple_blocks() {
         // Test multiple 'put' calls on the same encoder
         let data = vec![
-            Int64Type::gen_vec(-1, 64),
-            Int64Type::gen_vec(-1, 128),
-            Int64Type::gen_vec(-1, 64),
+            i64::gen_vec(-1, 64),
+            i64::gen_vec(-1, 128),
+            i64::gen_vec(-1, 64),
         ];
-        test_delta_bit_packed_decode::<Int64Type>(data);
+        test_delta_bit_packed_decode::<i64>(data);
     }
 
     #[test]
@@ -1690,7 +1687,7 @@ mod tests {
             ],
             vec![f32::from_le_bytes([0xA3, 0xB4, 0xC5, 0xD6])],
         ];
-        test_byte_stream_split_decode::<FloatType>(data);
+        test_byte_stream_split_decode::<f32>(data);
     }
 
     #[test]
@@ -1699,60 +1696,77 @@ mod tests {
             f64::from_le_bytes([0, 1, 2, 3, 4, 5, 6, 7]),
             f64::from_le_bytes([8, 9, 10, 11, 12, 13, 14, 15]),
         ]];
-        test_byte_stream_split_decode::<DoubleType>(data);
+        test_byte_stream_split_decode::<f64>(data);
     }
 
     #[test]
     fn test_skip_byte_stream_split() {
         let block_data = vec![0.3, 0.4, 0.1, 4.10];
-        test_skip::<FloatType, f32>(block_data.clone(), Encoding::BYTE_STREAM_SPLIT, 2);
-        test_skip::<DoubleType, f64>(
+        test_skip::<f32>(block_data.clone(), Encoding::BYTE_STREAM_SPLIT, 2);
+        test_skip::<f64>(
             block_data.into_iter().map(|x| x as f64).collect(),
             Encoding::BYTE_STREAM_SPLIT,
             100,
         );
     }
 
-    fn test_rle_value_decode<T>(data: Vec<Vec<T::T>>)
+    fn test_rle_value_decode<T>(data: Vec<Vec<T>>)
     where
-        T: DataType,
-        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+        T: ValueDecoder<DecodeBuffer = Vec<T>>
+            + ValueEncoder<ValueType = T>
+            + Default
+            + Clone
+            + PartialEq
+            + GetDecoder,
     {
         test_encode_decode::<T>(data, Encoding::RLE);
     }
 
-    fn test_delta_bit_packed_decode<T>(data: Vec<Vec<T::T>>)
+    fn test_delta_bit_packed_decode<T>(data: Vec<Vec<T>>)
     where
-        T: DataType,
-        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+        T: ValueDecoder<DecodeBuffer = Vec<T>>
+            + ValueEncoder<ValueType = T>
+            + Default
+            + Clone
+            + PartialEq
+            + GetDecoder,
     {
         test_encode_decode::<T>(data, Encoding::DELTA_BINARY_PACKED);
     }
 
-    fn test_byte_stream_split_decode<T>(data: Vec<Vec<T::T>>)
+    fn test_byte_stream_split_decode<T>(data: Vec<Vec<T>>)
     where
-        T: DataType,
-        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+        T: ValueDecoder<DecodeBuffer = Vec<T>>
+            + ValueEncoder<ValueType = T>
+            + Default
+            + Clone
+            + PartialEq
+            + GetDecoder,
     {
         test_encode_decode::<T>(data, Encoding::BYTE_STREAM_SPLIT);
     }
 
     fn test_delta_byte_array_decode(data: Vec<Vec<ByteArray>>) {
-        test_encode_decode::<ByteArrayType>(data, Encoding::DELTA_BYTE_ARRAY);
+        test_encode_decode::<ByteArray>(data, Encoding::DELTA_BYTE_ARRAY);
     }
 
     // Input data represents vector of data slices to write (test multiple `put()` calls)
     // For example,
     //   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}
     //   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}
-    fn test_encode_decode<T>(data: Vec<Vec<T::T>>, encoding: Encoding)
+    fn test_encode_decode<T>(data: Vec<Vec<T>>, encoding: Encoding)
     where
-        T: DataType,
-        T::T: ValueDecoder<DecodeBuffer = Vec<T::T>>,
+        T: ValueDecoder<DecodeBuffer = Vec<T>>
+            + ValueEncoder<ValueType = T>
+            + Default
+            + Clone
+            + PartialEq
+            + GetDecoder,
     {
         // Type length should not really matter for encode/decode test,
         // otherwise change it based on type
-        let col_descr = create_test_col_desc_ptr(-1, T::get_physical_type());
+        let col_descr =
+            create_test_col_desc_ptr(-1, <T as ValueDecoder>::ValueType::get_physical_type());
 
         // Encode data
         let mut encoder = get_encoder::<T>(encoding).expect("get encoder");
@@ -1763,12 +1777,12 @@ mod tests {
         let bytes = encoder.flush_buffer().expect("ok to flush buffer");
 
         // Flatten expected data as contiguous array of values
-        let expected: Vec<T::T> = data.iter().flat_map(|s| s.clone()).collect();
+        let expected: Vec<T> = data.iter().flat_map(|s| s.clone()).collect();
 
         // Decode data and compare with original
-        let mut decoder = get_decoder::<T::T>(col_descr, encoding).expect("get decoder");
+        let mut decoder = get_decoder::<T>(col_descr, encoding).expect("get decoder");
 
-        let mut result = vec![T::T::default(); expected.len()];
+        let mut result = vec![T::default(); expected.len()];
         decoder
             .set_data(bytes, expected.len())
             .expect("ok to set data");
@@ -1783,17 +1797,22 @@ mod tests {
     }
 
     // TODO: Update encoder to not need datatype.
-    fn test_skip<D, T>(data: Vec<T>, encoding: Encoding, skip: usize)
+    fn test_skip<T>(data: Vec<T>, encoding: Encoding, skip: usize)
     where
-        T: ValueDecoder<DecodeBuffer = Vec<T>> + ParquetValueType,
-        D: DataType<T = T>,
+        T: ValueDecoder<DecodeBuffer = Vec<T>>
+            + ValueEncoder<ValueType = T>
+            + Default
+            + Clone
+            + PartialEq
+            + GetDecoder,
     {
         // Type length should not really matter for encode/decode test,
         // otherwise change it based on type
-        let col_descr = create_test_col_desc_ptr(-1, T::PHYSICAL_TYPE);
+        let col_descr =
+            create_test_col_desc_ptr(-1, <T as ValueDecoder>::ValueType::get_physical_type());
 
         // Encode data
-        let mut encoder = get_encoder::<D>(encoding).expect("get encoder");
+        let mut encoder = get_encoder::<T>(encoding).expect("get encoder");
 
         encoder.put(&data).expect("ok to encode");
 

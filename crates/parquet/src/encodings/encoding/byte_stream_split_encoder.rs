@@ -15,16 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::basic::{Encoding, Type};
-use crate::data_type::DataType;
-use crate::data_type::SliceAsBytes;
-
-use crate::errors::{ParquetError, Result};
-
-use super::Encoder;
+use std::marker::PhantomData;
 
 use bytes::Bytes;
-use std::marker::PhantomData;
+
+use super::Encoder;
+use crate::basic::{Encoding, Type};
+use crate::data_type::{DataType, ParquetValueType, SliceAsBytes};
+use crate::errors::{ParquetError, Result};
+use crate::value_encoder::ValueEncoder;
 
 pub struct ByteStreamSplitEncoder<T> {
     buffer: Vec<u8>,
@@ -53,10 +52,9 @@ fn split_streams_const<const TYPE_SIZE: usize>(src: &[u8], dst: &mut [u8]) {
     }
 }
 
-impl<T: DataType> Encoder<T> for ByteStreamSplitEncoder<T> {
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
-        self.buffer
-            .extend(<T as DataType>::T::slice_as_bytes(values));
+impl<T: ValueEncoder> Encoder<T> for ByteStreamSplitEncoder<T> {
+    fn put(&mut self, values: &[T::ValueType]) -> Result<()> {
+        self.buffer.extend(T::ValueType::slice_as_bytes(values));
         ensure_phys_ty!(
             Type::FLOAT | Type::DOUBLE,
             "ByteStreamSplitEncoder only supports FloatType or DoubleType"
@@ -75,7 +73,7 @@ impl<T: DataType> Encoder<T> for ByteStreamSplitEncoder<T> {
 
     fn flush_buffer(&mut self) -> Result<Bytes> {
         let mut encoded = vec![0; self.buffer.len()];
-        let type_size = T::get_type_size();
+        let type_size = T::ValueType::type_size();
         match type_size {
             4 => split_streams_const::<4>(&self.buffer, &mut encoded),
             8 => split_streams_const::<8>(&self.buffer, &mut encoded),

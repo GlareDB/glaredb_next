@@ -43,6 +43,7 @@ use crate::format as parquet;
 use crate::format::{ColumnIndex, OffsetIndex, RowGroup};
 use crate::schema::types::{self, ColumnDescPtr, SchemaDescPtr, SchemaDescriptor, TypePtr};
 use crate::thrift::TSerializable;
+use crate::value_encoder::ValueEncoder;
 
 /// A wrapper around a [`Write`] that keeps track of the number of bytes that
 /// have been written.
@@ -704,7 +705,7 @@ impl<'a, P: PageWriter> SerializedColumnWriter<'a, P> {
     }
 
     /// Returns a reference to a typed [`GenericColumnWriter`]
-    pub fn typed<T: DataType>(&mut self) -> &mut GenericColumnWriter<T, P> {
+    pub fn typed<T: ValueEncoder>(&mut self) -> &mut GenericColumnWriter<T, P> {
         get_typed_column_writer_mut(&mut self.inner)
     }
 
@@ -889,14 +890,14 @@ mod tests {
 
         let mut col_writer = row_group_writer.next_column().unwrap().unwrap();
         col_writer
-            .typed::<Int32Type>()
+            .typed::<i32>()
             .write_batch(&[1, 2, 3], None, None)
             .unwrap();
         col_writer.close().unwrap();
 
         let mut col_writer = row_group_writer.next_column().unwrap().unwrap();
         col_writer
-            .typed::<Int32Type>()
+            .typed::<i32>()
             .write_batch(&[1, 2], None, None)
             .unwrap();
 
@@ -1659,7 +1660,7 @@ mod tests {
         for _ in 0..3 {
             let mut writer = row_group_writer.next_column().unwrap().unwrap();
             writer
-                .typed::<Int32Type>()
+                .typed::<i32>()
                 .write_batch(&[1, 2, 3], None, None)
                 .unwrap();
             writer.close().unwrap();
@@ -1737,7 +1738,7 @@ mod tests {
 
         // Interleaved writing to the column writers
         for (writer, batch) in column_writers.iter_mut().zip(column_data) {
-            let writer = writer.typed::<Int32Type>();
+            let writer = writer.typed::<i32>();
             writer.write_batch(&batch, None, None).unwrap();
         }
 
@@ -1803,12 +1804,12 @@ mod tests {
 
         let mut row_group_writer = file_writer.next_row_group().unwrap();
         let mut a_writer = row_group_writer.next_column().unwrap().unwrap();
-        let col_writer = a_writer.typed::<Int32Type>();
+        let col_writer = a_writer.typed::<i32>();
         col_writer.write_batch(&[1, 2, 3], None, None).unwrap();
         a_writer.close().unwrap();
 
         let mut b_writer = row_group_writer.next_column().unwrap().unwrap();
-        let col_writer = b_writer.typed::<Int32Type>();
+        let col_writer = b_writer.typed::<i32>();
         col_writer.write_batch(&[4, 5, 6], None, None).unwrap();
         b_writer.close().unwrap();
         row_group_writer.close().unwrap();
