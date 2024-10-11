@@ -10,10 +10,10 @@ use super::{
     Int96,
     PlainDecoder,
     RleValueDecoder,
-    ValueDecoder,
 };
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
+use crate::value_decoder::ValueDecoder;
 
 /// Gets a decoder for the column descriptor `descr` and encoding type `encoding`.
 ///

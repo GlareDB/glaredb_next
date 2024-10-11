@@ -33,6 +33,7 @@ use crate::basic::*;
 use crate::data_type::{ParquetValueType, *};
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::{self, BitReader};
+use crate::value_decoder::{DecodeBuffer, ValueDecoder};
 
 mod byte_stream_split_decoder;
 

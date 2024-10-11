@@ -19,7 +19,6 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 
-use super::{DecodeBuffer, ValueDecoder};
 use crate::basic::Encoding;
 use crate::encodings::decoding::get_decoder::{get_decoder, GetDecoder};
 use crate::encodings::decoding::{Decoder, DictDecoder, PlainDecoder};
@@ -27,6 +26,7 @@ use crate::encodings::rle::RleDecoder;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{num_required_bits, BitReader};
+use crate::value_decoder::{DecodeBuffer, ValueDecoder};
 
 /// Decodes level data
 pub trait ColumnLevelDecoder {

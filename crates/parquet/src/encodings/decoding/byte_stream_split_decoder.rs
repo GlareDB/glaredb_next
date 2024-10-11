@@ -19,10 +19,11 @@ use std::marker::PhantomData;
 
 use bytes::Bytes;
 
-use super::{Decoder, ValueDecoder};
+use super::Decoder;
 use crate::basic::Encoding;
 use crate::data_type::{DataType, SliceAsBytes};
 use crate::errors::{ParquetError, Result};
+use crate::value_decoder::ValueDecoder;
 
 #[derive(Debug)]
 pub struct ByteStreamSplitDecoder<T: ValueDecoder> {

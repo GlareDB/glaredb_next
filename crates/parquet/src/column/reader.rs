@@ -34,6 +34,7 @@ use crate::encodings::decoding::get_decoder::GetDecoder;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
+use crate::value_decoder::{TypedColumnReader, ValueDecoder};
 
 /// Column reader for a Parquet type.
 pub(crate) enum ColumnReader<P: PageReader> {

@@ -729,6 +729,7 @@ mod tests {
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::bit_util;
     use crate::util::test_common::rand_gen::{random_bytes, RandGen};
+    use crate::value_decoder::ValueDecoder;
 
     const TEST_SET_SIZE: usize = 1024;
 

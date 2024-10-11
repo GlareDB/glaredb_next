@@ -20,9 +20,9 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
-use crate::data_type::DecodeBuffer;
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
+use crate::value_decoder::DecodeBuffer;
 
 /// Rle/Bit-Packing Hybrid Encoding
 /// The grammar for this encoding looks like the following (copied verbatim

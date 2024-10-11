@@ -109,6 +109,8 @@ macro_rules! experimental {
 pub mod errors;
 pub mod basic;
 
+pub mod value_decoder;
+
 /// Automatically generated code for reading parquet thrift definition.
 // see parquet/CONTRIBUTING.md for instructions on regenerating
 #[allow(clippy::derivable_impls, clippy::match_single_binding, clippy::doc_lazy_continuation)]
