@@ -1,3 +1,5 @@
+pub mod bitpacked;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Encoding {
     Plain,

@@ -7,6 +7,18 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::compute::util::IntoExtactSizeIterator;
 
+/// Masks for setting individual bits in a byte.
+pub const SET_MASKS: [u8; 8] = [
+    1 << (0 % 8),
+    1 << (1 % 8),
+    1 << (2 % 8),
+    1 << (3 % 8),
+    1 << (4 % 8),
+    1 << (5 % 8),
+    1 << (6 % 8),
+    1 << (7 % 8),
+];
+
 /// An LSB ordered bitmap.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Bitmap {
@@ -110,10 +122,10 @@ impl Bitmap {
     pub fn set_unchecked(&mut self, idx: usize, val: bool) {
         if val {
             // Set bit.
-            self.data[idx / 8] |= 1 << (idx % 8)
+            self.data[idx / 8] |= SET_MASKS[idx]
         } else {
             // Unset bit
-            self.data[idx / 8] &= !(1 << (idx % 8))
+            self.data[idx / 8] &= !(SET_MASKS[idx])
         }
     }
 

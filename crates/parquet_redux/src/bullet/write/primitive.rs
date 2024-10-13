@@ -12,7 +12,7 @@ use crate::page::{DataPage, DataPageHeader, DataPageHeaderV2};
 use crate::types::ParquetPrimitiveType;
 
 /// Plain encodes a primitive array and produces a data page.
-pub fn plain_encode_array_page<'a, S, P>(array: &'a Array) -> Result<DataPage<'static>>
+pub fn plain_encode_primitive_array_page<'a, S, P>(array: &'a Array) -> Result<DataPage<'static>>
 where
     S: PhysicalStorage<'a>,
     P: ParquetPrimitiveType,
@@ -26,7 +26,7 @@ where
 
     // TODO: Could reuse.
     let mut buf = Vec::new();
-    plain_encode_array::<S, P>(array, &mut buf)?;
+    plain_encode_primitive_array::<S, P>(array, &mut buf)?;
 
     Ok(DataPage {
         header: DataPageHeader::V2(DataPageHeaderV2 {
@@ -44,7 +44,7 @@ where
 }
 
 /// Plain encodes a primitive array.
-pub fn plain_encode_array<'a, S, P>(array: &'a Array, buf: &mut Vec<u8>) -> Result<()>
+pub fn plain_encode_primitive_array<'a, S, P>(array: &'a Array, buf: &mut Vec<u8>) -> Result<()>
 where
     S: PhysicalStorage<'a>,
     P: ParquetPrimitiveType,
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn plain_encode_simple_i32() {
         let a = Array::from_iter([2, 3, 4]);
-        let page = plain_encode_array_page::<PhysicalI32, i32>(&a).unwrap();
+        let page = plain_encode_primitive_array_page::<PhysicalI32, i32>(&a).unwrap();
 
         assert_eq!(3, page.header.get_v2().unwrap().num_values);
     }
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn plain_encode_simple_i16_as_i32() {
         let a = Array::from_iter([2_i16, 3, 4]);
-        let page = plain_encode_array_page::<PhysicalI16, i32>(&a).unwrap();
+        let page = plain_encode_primitive_array_page::<PhysicalI16, i32>(&a).unwrap();
 
         assert_eq!(3, page.header.get_v2().unwrap().num_values);
     }
