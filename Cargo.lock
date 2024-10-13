@@ -1668,6 +1668,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "parquet_redux"
+version = "0.0.59"
+dependencies = [
+ "thrift",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
