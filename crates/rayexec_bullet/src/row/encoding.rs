@@ -2,6 +2,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::array::{Array, ArrayData, BinaryData};
 use crate::executor::physical_type::{
+    AsBytes,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF32,
@@ -18,7 +19,6 @@ use crate::executor::physical_type::{
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
-    VarlenType,
 };
 use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::interval::Interval;

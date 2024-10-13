@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::executor::physical_type::{PhysicalStorage, VarlenType};
+use rayexec_bullet::executor::physical_type::{AsBytes, PhysicalStorage};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::{not_implemented, Result};
@@ -12,7 +12,7 @@ use crate::page::{DataPage, DataPageHeader, DataPageHeaderV2};
 pub fn plain_encode_binary_array_page<'a, S>(array: &'a Array) -> Result<DataPage<'static>>
 where
     S: PhysicalStorage<'a>,
-    <S::Storage as AddressableStorage>::T: VarlenType,
+    <S::Storage as AddressableStorage>::T: AsBytes,
 {
     if array.validity().is_some() {
         not_implemented!("Encoding with validity");
@@ -41,7 +41,7 @@ where
 pub fn plain_encode_binary_array<'a, S>(array: &'a Array, buf: &mut Vec<u8>) -> Result<()>
 where
     S: PhysicalStorage<'a>,
-    <S::Storage as AddressableStorage>::T: VarlenType,
+    <S::Storage as AddressableStorage>::T: AsBytes,
 {
     if array.validity().is_some() {
         not_implemented!("Encoding with validity");

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::array::{ArrayData, BinaryData};
@@ -60,25 +60,52 @@ impl PhysicalType {
     }
 }
 
-pub trait VarlenType: Debug + PartialEq + Eq {
-    type Owned: Debug + Default + PartialEq + Eq;
-
+pub trait AsBytes: Debug {
+    /// Convert self to bytes.
     fn as_bytes(&self) -> &[u8];
 }
 
-impl VarlenType for str {
-    type Owned = String;
-
+impl AsBytes for str {
     fn as_bytes(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl VarlenType for [u8] {
-    type Owned = Vec<u8>;
+impl AsBytes for &str {
+    fn as_bytes(&self) -> &[u8] {
+        (*self).as_bytes()
+    }
+}
 
+impl AsBytes for [u8] {
     fn as_bytes(&self) -> &[u8] {
         self
+    }
+}
+
+impl AsBytes for &[u8] {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+/// Trait for specializing the generic varlen buffers and arrays.
+///
+/// Don't implement this for `&str`/`&[u8]` as this acts as both a marker trait
+/// and for validating bytes (for strings) which requires we return a reference.
+pub trait VarlenType: AsBytes + PartialEq + Eq {
+    fn try_from_bytes(bytes: &[u8]) -> Result<&Self>;
+}
+
+impl VarlenType for str {
+    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
+        std::str::from_utf8(bytes).context("Failed to read bytes as utf8")
+    }
+}
+
+impl VarlenType for [u8] {
+    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
+        Ok(bytes)
     }
 }
 

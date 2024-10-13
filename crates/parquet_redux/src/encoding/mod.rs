@@ -1,4 +1,5 @@
 pub mod bitpacked;
+pub mod delta_binary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Encoding {

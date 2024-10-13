@@ -27,9 +27,8 @@ where
         let val = &buf[buf_start..buf_start + len];
         buf_start += len;
 
-        data.put(idx, val);
+        data.put(idx, T::try_from_bytes(val)?);
     }
 
-    unimplemented!()
-    // Ok(data)
+    Ok(data)
 }
