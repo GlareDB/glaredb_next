@@ -1,0 +1,6 @@
+[package]
+name = "parquet_redux"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
