@@ -82,22 +82,6 @@ impl VarlenType for [u8] {
     }
 }
 
-impl VarlenType for &str {
-    type Owned = String;
-
-    fn as_bytes(&self) -> &[u8] {
-        (*self).as_bytes()
-    }
-}
-
-impl VarlenType for &[u8] {
-    type Owned = Vec<u8>;
-
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
 /// Helper trait for getting the underlying data for an array.
 ///
 /// Contains a lifetime to enable tying the returned storage to the provided

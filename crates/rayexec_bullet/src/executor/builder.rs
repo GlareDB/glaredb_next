@@ -53,6 +53,14 @@ pub trait ArrayDataBuffer {
     }
 
     /// Put a value at `idx`. Guaranteed to be in bounds according to `len`.
+    // TODO: This currently accepts `&Self::Type` to more easily handle varlen
+    // data (str/[u8]). At some point, I want to figure out how to make this
+    // accept `Self::Type` and allow `Self::Type = &str`. There's currently a
+    // few lifetime issues around the executors when doing that, specifically
+    // errors about data escaping the lifetime of the closure.
+    //
+    // So the reference is fine for now, even if possibly being slower in the
+    // primitive case.
     fn put(&mut self, idx: usize, val: &Self::Type);
 
     /// Convert the buffer into array data.

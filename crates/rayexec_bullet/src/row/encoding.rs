@@ -234,9 +234,9 @@ impl ComparableRowEncoder {
                     ArrayData::Interval(_) => Self::encode_primitive::<PhysicalInterval>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
+                    ArrayData::Binary(_) => {
+                        Self::encode_varlen(cmp_col, arr, row_idx, data, row_offset)?
+                    }
                 };
             }
 
@@ -291,21 +291,18 @@ impl ComparableRowEncoder {
     /// Encodes a variable length array into `buf` starting at `start`.
     ///
     /// This should return the new offset to write to for the next value.
-    fn encode_varlen<'a, S>(
+    fn encode_varlen<'a>(
         col: &ComparableColumn,
         arr: &'a Array,
         row: usize,
         buf: &mut [u8],
         start: usize,
-    ) -> Result<usize>
-    where
-        S: PhysicalStorage<'a>,
-        <S::Storage as AddressableStorage>::T: ComparableEncode + VarlenType,
-    {
+    ) -> Result<usize> {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at_unchecked::<S>(arr, row)? {
+        // Physical binary is suitable both for binary and str types.
+        match UnaryExecutor::value_at_unchecked::<PhysicalBinary>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
                 let end = start + 1 + val.as_bytes().len();

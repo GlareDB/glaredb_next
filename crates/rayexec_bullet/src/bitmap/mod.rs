@@ -122,10 +122,10 @@ impl Bitmap {
     pub fn set_unchecked(&mut self, idx: usize, val: bool) {
         if val {
             // Set bit.
-            self.data[idx / 8] |= SET_MASKS[idx]
+            self.data[idx / 8] |= SET_MASKS[idx % 8]
         } else {
             // Unset bit
-            self.data[idx / 8] &= !(SET_MASKS[idx])
+            self.data[idx / 8] &= !(SET_MASKS[idx % 8])
         }
     }
 

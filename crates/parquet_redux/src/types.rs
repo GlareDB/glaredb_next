@@ -1,3 +1,4 @@
+use std::array::TryFromSliceError;
 use std::fmt::Debug;
 
 use crate::physical_type::PhysicalType;
@@ -8,7 +9,7 @@ pub struct Int96([u32; 3]);
 
 pub trait ParquetPrimitiveType: Debug + Send + Sync + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
-    type AsBytes: Sized + AsRef<[u8]>;
+    type AsBytes: Sized + AsRef<[u8]> + for<'a> TryFrom<&'a [u8], Error = TryFromSliceError>;
 
     /// Convert self to little endian bytes.
     fn to_le_bytes(&self) -> Self::AsBytes;
