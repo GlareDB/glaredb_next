@@ -1671,6 +1671,9 @@ dependencies = [
 name = "parquet_redux"
 version = "0.0.59"
 dependencies = [
+ "num",
+ "rayexec_bullet",
+ "rayexec_error",
  "thrift",
 ]
 

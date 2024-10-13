@@ -77,8 +77,8 @@ impl UnaryExecutor {
     /// Helper for iterating over all values in an array, taking into account
     /// the array's selection vector and validity mask.
     ///
-    /// `op` is called for each logical entry in the array with the index and
-    /// either Some(val) if the value is valid, or None if it's not.
+    /// `op` is called for each logical entry in the array with the logical
+    /// index and either Some(val) if the value is valid, or None if it's not.
     pub fn for_each<'a, S, Op>(array: &'a Array, mut op: Op) -> Result<()>
     where
         Op: FnMut(usize, Option<<S::Storage as AddressableStorage>::T>),
