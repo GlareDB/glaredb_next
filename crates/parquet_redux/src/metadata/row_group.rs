@@ -1,8 +1,9 @@
 //! Row group metadata.
+use rayexec_error::Result;
 
 use super::column_chunk::ColumnChunkMetadata;
 use super::schema::Schema;
-use crate::thrift_gen::SortingColumn;
+use crate::thrift_gen::{self, SortingColumn};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RowGroupMetadata {
@@ -15,4 +16,10 @@ pub struct RowGroupMetadata {
     pub file_offset: Option<i64>,
     /// Row group ordinal in the file.
     pub ordinal: Option<i16>,
+}
+
+impl RowGroupMetadata {
+    pub fn try_from_thrift(row_groups: thrift_gen::RowGroup) -> Result<Self> {
+        unimplemented!()
+    }
 }

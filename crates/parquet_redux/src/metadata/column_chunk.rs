@@ -1,10 +1,12 @@
 //! Column chunk metadata
+use rayexec_error::Result
 
-use super::column::ColumnDescriptor;
+use super::schema::ColumnDescriptor;
 use crate::compression::CompressionCodec;
 use crate::encoding::Encoding;
 use crate::page::PageEncodingStats;
 use crate::statistics::Statistics;
+use crate::thrift_gen;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnChunkMetadata {
@@ -35,4 +37,10 @@ pub struct ColumnChunkMetadata {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Histogram {
     pub values: Vec<i64>,
+}
+
+impl ColumnChunkMetadata {
+    pub fn try_from_thrift(column_chunk: thrift_gen::ColumnChunk) -> Result<Self> {
+        unimplemented!()
+    }
 }
