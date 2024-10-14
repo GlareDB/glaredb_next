@@ -92,11 +92,8 @@ where
         out.reserve(self.block_size);
 
         // Read the minimum delta
-        println!("BUF: {:?}", self.buf);
         let (min_delta, num_bytes) = decode_zigzag_uleb128(&self.buf)?;
         self.buf = &self.buf[num_bytes..];
-
-        println!("MIN DELTA: {min_delta}");
 
         let min_delta = T::from_i64(min_delta).ok_or_else(|| {
             RayexecError::new(format!(
@@ -121,11 +118,16 @@ where
                 break;
             }
 
+            // Number of values remaining in this mini block.
+            let mut miniblock_remaining_values =
+                std::cmp::min(remaining_values, values_per_miniblock as i64);
+
             let bit_width = bit_width as usize;
 
             // Read bit-packed data for this miniblock
             let byte_count = (bit_width * values_per_miniblock + 7) / 8;
             let packed_data = &self.buf[..byte_count];
+            self.buf = &self.buf[byte_count..];
 
             // Index in out where this miniblock starts.
             let block_start = out.len();
@@ -137,26 +139,26 @@ where
             match std::mem::size_of::<T>() {
                 1 => {
                     let mut buf = T::zero_packed_array();
-                    while remaining_values > 0 {
+                    while miniblock_remaining_values > 0 {
                         T::unpack(packed_data, bit_width, &mut buf);
                         out.extend_from_slice(buf.as_ref());
-                        remaining_values -= 8;
+                        miniblock_remaining_values -= 8;
                     }
                 }
                 2 => {
                     let mut buf = T::zero_packed_array();
-                    while remaining_values > 0 {
+                    while miniblock_remaining_values > 0 {
                         T::unpack(packed_data, bit_width, &mut buf);
                         out.extend_from_slice(buf.as_ref());
-                        remaining_values -= 16;
+                        miniblock_remaining_values -= 16;
                     }
                 }
                 4 => {
                     let mut buf = T::zero_packed_array();
-                    while remaining_values > 0 {
+                    while miniblock_remaining_values > 0 {
                         T::unpack(packed_data, bit_width, &mut buf);
                         out.extend_from_slice(buf.as_ref());
-                        remaining_values -= 32;
+                        miniblock_remaining_values -= 32;
                     }
                 }
                 8 => {
@@ -164,20 +166,26 @@ where
                     // inbounds to the original buffer. We might need to
                     // allocate a buffer if we have <64 values left to read.
                     let mut buf = T::zero_packed_array();
-                    while remaining_values > 0 {
+                    while miniblock_remaining_values > 0 {
                         T::unpack(packed_data, bit_width, &mut buf);
                         out.extend_from_slice(buf.as_ref());
-                        remaining_values -= 64;
+                        miniblock_remaining_values -= 64;
                     }
                 }
                 other => panic!("Invalid type size: {other}"),
             }
 
-            // The above works on fixed sized arrays that we just copy direclty
-            // to `out`. We may end up with more values than we actually want,
-            // so truncate the vec to the correct len to remove those values.
-            println!("REMAINING: {remaining_values}");
-            println!("OUT: {out:?}");
+            // Adjust total remaining values.
+            //
+            // Note that we're not using `miniblock_remaining_values` here since
+            // that's mostly for early stoppage above. We always want to track
+            // the remaining values relative to the size of the mini blocks.
+            remaining_values -= values_per_miniblock as i64;
+
+            // The above unpacking works on fixed sized arrays that we just copy
+            // direclty to `out`. We may end up with more values than we
+            // actually want, so truncate the vec to the correct len to remove
+            // those values.
             if remaining_values < 0 {
                 let new_len = out.len() - remaining_values.abs() as usize;
                 out.truncate(new_len);
@@ -188,6 +196,7 @@ where
             for v in &mut out[block_start..] {
                 *v = v.wrapping_add(&min_delta).wrapping_add(&previous_value);
 
+                // Every delta is relative to the immediately preceding value.
                 previous_value = *v;
             }
         }
@@ -259,5 +268,82 @@ mod tests {
         let expected = [1, 2, 3, 4, 5];
 
         assert_eq!(&expected, &out[..]);
+    }
+
+    #[test]
+    fn case2() {
+        // VALIDATED FROM SPARK==3.1.1
+        // header: [128, 1, 4, 6, 2]
+        // block size: 128, 1 <=u> 128
+        // mini-blocks: 4     <=u> 4
+        // elements: 6        <=u> 6
+        // first_value: 2     <=z> 1
+        // block1: [7, 3, 0, 0, 0]
+        // min_delta: 7       <=z> -4
+        // bit_widths: [3, 0, 0, 0]
+        // values: [
+        //      0b01101101
+        //      0b00001011
+        //      ...
+        // ]                  <=b> [3, 3, 3, 3, 0]
+        let data = &[
+            128, 1, 4, 6, 2, 7, 3, 0, 0, 0, 0b01101101, 0b00001011, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            // these should not be consumed
+            1, 2, 3,
+        ];
+
+        let mut decoder = Decoder::try_new(data).unwrap();
+        let mut out = Vec::new();
+        decoder.decode_values(&mut out).unwrap();
+
+        let expected = vec![1, 2, 3, 4, 5, 1];
+
+        assert_eq!(&expected, &out[..]);
+    }
+
+    #[test]
+    fn multiple_miniblocks() {
+        #[rustfmt::skip]
+        let data = &[
+            // Header: [128, 1, 4, 65, 100]
+            128, 1, // block size <=u> 128
+            4,      // number of mini-blocks <=u> 4
+            65,     // number of elements <=u> 65
+            100,    // first_value <=z> 50
+
+            // Block 1 header: [7, 3, 4, 0, 0]
+            7,            // min_delta <=z> -4
+            3, 4, 255, 0, // bit_widths (255 should not be used as only two miniblocks are needed)
+
+            // 32 3-bit values of 0 for mini-block 1 (12 bytes)
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+
+            // 32 4-bit values of 8 for mini-block 2 (16 bytes)
+            0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88,
+            0x88, 0x88,
+
+            // these should not be consumed
+            1, 2, 3,
+        ];
+
+        #[rustfmt::skip]
+        let expected = [
+            // First value
+            50,
+
+            // Mini-block 1: 32 deltas of -4
+            46, 42, 38, 34, 30, 26, 22, 18, 14, 10, 6, 2, -2, -6, -10, -14, -18, -22, -26, -30, -34,
+            -38, -42, -46, -50, -54, -58, -62, -66, -70, -74, -78,
+
+            // Mini-block 2: 32 deltas of 4
+            -74, -70, -66, -62, -58, -54, -50, -46, -42, -38, -34, -30, -26, -22, -18, -14, -10, -6,
+            -2, 2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50,
+        ];
+
+        let mut decoder = Decoder::try_new(data).unwrap();
+        let mut out = Vec::new();
+        decoder.decode_values(&mut out).unwrap();
+
+        assert_eq!(&expected[..], &out[..]);
     }
 }
