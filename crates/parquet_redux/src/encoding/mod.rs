@@ -1,4 +1,4 @@
-pub mod bitpacked;
+pub mod bitpack;
 pub mod delta_binary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

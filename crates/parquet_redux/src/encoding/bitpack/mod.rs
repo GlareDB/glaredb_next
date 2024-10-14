@@ -1,3 +1,5 @@
+pub mod unpack;
+
 use std::io::Write;
 
 use rayexec_bullet::bitmap::SET_MASKS;

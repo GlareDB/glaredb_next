@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::PhysicalBool;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{not_implemented, Result};
 
-use crate::encoding::bitpacked::bitpack_bools;
+use crate::encoding::bitpack::bitpack_bools;
 use crate::encoding::Encoding;
 use crate::page::{DataPage, DataPageHeader, DataPageHeaderV2};
 
