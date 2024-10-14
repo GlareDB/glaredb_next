@@ -5,6 +5,7 @@ use parquet::data_type::{ByteArray, ByteArrayType, DataType as ParquetDataType};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_bullet::storage::SharedHeapStorage;
 use rayexec_error::{RayexecError, Result};
 
