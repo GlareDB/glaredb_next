@@ -175,21 +175,25 @@ where
                 other => panic!("Invalid type size: {other}"),
             }
 
+            // The above unpacking works on fixed sized arrays that we just copy
+            // direclty to `out`. We may end up with more values than we
+            // actually want, so truncate the vec to the correct len to remove
+            // those values.
+            if miniblock_remaining_values < 0 {
+                let new_len = out.len() - miniblock_remaining_values.abs() as usize;
+                out.truncate(new_len);
+            }
+
             // Adjust total remaining values.
             //
             // Note that we're not using `miniblock_remaining_values` here since
             // that's mostly for early stoppage above. We always want to track
             // the remaining values relative to the size of the mini blocks.
+            //
+            // The next iteration of the loop with exit if < 0. Don't break here
+            // since we're still needing to compute the actual values from the
+            // deltas.
             remaining_values -= values_per_miniblock as i64;
-
-            // The above unpacking works on fixed sized arrays that we just copy
-            // direclty to `out`. We may end up with more values than we
-            // actually want, so truncate the vec to the correct len to remove
-            // those values.
-            if remaining_values < 0 {
-                let new_len = out.len() - remaining_values.abs() as usize;
-                out.truncate(new_len);
-            }
 
             // We stored delta in the output vector, now adjust them
             // according to previous value.
