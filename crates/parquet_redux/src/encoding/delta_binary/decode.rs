@@ -1,4 +1,4 @@
-//! Decoder for delta encoding.
+//! Decoder for delta binary encoding.
 //!
 //! See <https://github.com/apache/parquet-format/blob/master/Encodings.md#delta-encoding-delta_binary_packed--5>
 
@@ -210,6 +210,7 @@ where
         Ok(num_decoded)
     }
 
+    /// Decodes all values from the buffer, placing them in `out`.
     pub fn decode_values(&mut self, out: &mut Vec<T>) -> Result<()> {
         out.push(self.first_value);
         let mut num_decoded = 1;
@@ -225,6 +226,13 @@ where
         }
 
         Ok(())
+    }
+
+    /// Returns the remaining buffer.
+    ///
+    /// This should be called after decoding all values.
+    pub fn into_remaining(self) -> &'a [u8] {
+        self.buf
     }
 }
 
@@ -250,6 +258,7 @@ mod tests {
         decoder.decode_values(&mut out).unwrap();
 
         assert_eq!(&[1], &out[..]);
+        assert!(decoder.into_remaining().is_empty());
     }
 
     #[test]
@@ -272,6 +281,7 @@ mod tests {
         let expected = [1, 2, 3, 4, 5];
 
         assert_eq!(&expected, &out[..]);
+        assert!(decoder.into_remaining().is_empty());
     }
 
     #[test]
@@ -303,6 +313,7 @@ mod tests {
         let expected = vec![1, 2, 3, 4, 5, 1];
 
         assert_eq!(&expected, &out[..]);
+        assert_eq!(&[1, 2, 3], decoder.into_remaining());
     }
 
     #[test]
@@ -349,5 +360,6 @@ mod tests {
         decoder.decode_values(&mut out).unwrap();
 
         assert_eq!(&expected[..], &out[..]);
+        assert_eq!(&[1, 2, 3], decoder.into_remaining());
     }
 }
