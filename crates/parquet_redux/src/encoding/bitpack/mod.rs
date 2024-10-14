@@ -1,40 +1,38 @@
+pub mod boolean;
 pub mod unpack;
 
-use std::io::Write;
+use num::PrimInt;
+use unpack::{unpack32, unpack64};
 
-use rayexec_bullet::bitmap::SET_MASKS;
-use rayexec_error::Result;
+pub trait BitPackable: PrimInt + Default {
+    type PackedArray;
 
-/// LSB encodes bools to a writer.
-pub fn bitpack_bools<W, I>(writer: &mut W, mut iter: I) -> Result<()>
-where
-    W: Write,
-    I: Iterator<Item = bool> + ExactSizeIterator,
-{
-    let len = iter.len();
+    fn zero_packed_array() -> Self::PackedArray;
 
-    let chunks = len / 8;
-    let rem = len % 8;
+    /// Unpacks bitpacked values into `output`.
+    fn unpack(input: &[u8], num_bits: usize, output: &mut Self::PackedArray);
+}
 
-    for _ in 0..chunks {
-        let mut b: u8 = 0;
-        (0..8).for_each(|bit| {
-            if iter.next().unwrap() {
-                b |= SET_MASKS[bit];
-            }
-        });
-        writer.write_all(&[b])?;
+impl BitPackable for u32 {
+    type PackedArray = [u32; 32];
+
+    fn zero_packed_array() -> Self::PackedArray {
+        [0; 32]
     }
 
-    if rem != 0 {
-        let mut b: u8 = 0;
-        iter.enumerate().for_each(|(bit, v)| {
-            if v {
-                b |= SET_MASKS[bit];
-            }
-        });
-        writer.write_all(&[b])?;
+    fn unpack(input: &[u8], num_bits: usize, output: &mut Self::PackedArray) {
+        unpack32(input, output, num_bits)
+    }
+}
+
+impl BitPackable for u64 {
+    type PackedArray = [u64; 64];
+
+    fn zero_packed_array() -> Self::PackedArray {
+        [0; 64]
     }
 
-    Ok(())
+    fn unpack(input: &[u8], num_bits: usize, output: &mut Self::PackedArray) {
+        unpack64(input, output, num_bits)
+    }
 }
