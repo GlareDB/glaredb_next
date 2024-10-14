@@ -1,7 +1,8 @@
 pub mod bullet;
+pub mod compression;
 pub mod encoding;
+pub mod metadata;
 pub mod page;
-pub mod physical_type;
 pub mod statistics;
 pub mod thrift_gen;
 pub mod types;

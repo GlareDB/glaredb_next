@@ -1,12 +1,12 @@
 use num::cast::AsPrimitive;
 use rayexec_error::{RayexecError, Result};
 
-use crate::types::ParquetPrimitiveType;
+use crate::types::ParquetFixedWidthType;
 
 pub fn plain_decode_primitive_data<T, P>(num_values: usize, buf: &[u8]) -> Result<Vec<T>>
 where
     T: Copy + 'static,
-    P: ParquetPrimitiveType + AsPrimitive<T>,
+    P: ParquetFixedWidthType + AsPrimitive<T>,
 {
     let val_size = std::mem::size_of::<P>();
     let min_buf_len = num_values * val_size;

@@ -45,3 +45,19 @@ pub struct DataPage<'a> {
     pub header: DataPageHeader,
     pub buffer: Cow<'a, [u8]>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageType {
+    DataPage,
+    IndexPage,
+    DictionaryPage,
+    DataPageV2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PageEncodingStats {
+    pub page_type: PageType,
+    pub encoding: Encoding,
+    /// Page count that has this encoding.
+    pub count: i32,
+}

@@ -9,13 +9,13 @@ use rayexec_error::{not_implemented, Result};
 
 use crate::encoding::Encoding;
 use crate::page::{DataPage, DataPageHeader, DataPageHeaderV2};
-use crate::types::ParquetPrimitiveType;
+use crate::types::ParquetFixedWidthType;
 
 /// Plain encodes a primitive array and produces a data page.
 pub fn plain_encode_primitive_array_page<'a, S, P>(array: &'a Array) -> Result<DataPage<'static>>
 where
     S: PhysicalStorage<'a>,
-    P: ParquetPrimitiveType,
+    P: ParquetFixedWidthType,
     <S::Storage as AddressableStorage>::T: AsPrimitive<P>,
 {
     if array.validity().is_some() {
@@ -47,14 +47,14 @@ where
 pub fn plain_encode_primitive_array<'a, S, P>(array: &'a Array, buf: &mut Vec<u8>) -> Result<()>
 where
     S: PhysicalStorage<'a>,
-    P: ParquetPrimitiveType,
+    P: ParquetFixedWidthType,
     <S::Storage as AddressableStorage>::T: AsPrimitive<P>,
 {
     if array.validity().is_some() {
         not_implemented!("Encoding with validity");
     }
 
-    buf.reserve(std::mem::size_of::<P::AsBytes>() * array.logical_len());
+    buf.reserve(std::mem::size_of::<P::Bytes>() * array.logical_len());
 
     UnaryExecutor::for_each::<S, _>(array, |_idx, val| {
         if let Some(val) = val {
