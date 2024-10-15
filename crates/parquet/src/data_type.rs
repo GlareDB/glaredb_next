@@ -167,10 +167,10 @@ impl ByteArray {
             .as_ref()
     }
 
-    /// Return the underlying `Bytes`.
+    /// Takes the underlying `Bytes`.
     #[inline]
-    pub fn bytes_data(&self) -> Bytes {
-        self.data.clone().expect("set_data should have been called")
+    pub fn take_bytes(&mut self) -> Option<Bytes> {
+        self.data.take()
     }
 
     /// Return the number of bytes this byte array is taking up.

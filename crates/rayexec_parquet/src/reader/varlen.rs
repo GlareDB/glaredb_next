@@ -46,7 +46,7 @@ where
 
                         for valid in bitmap.iter() {
                             if valid {
-                                values.push(buf_iter.next().expect("buffered value to exist").bytes_data())
+                                values.push(buf_iter.next().expect("buffered value to exist").take_bytes().expect("bytes to be set"))
                             } else {
                                 values.push(Bytes::new())
                             }
@@ -55,7 +55,7 @@ where
                         Array::new_with_validity_and_array_data(self.datatype.clone(),bitmap, SharedHeapStorage::from(values))
                     }
                     None => {
-                        let values: Vec<_> = self.values_buffer.drain(..).map(|b| b.bytes_data()).collect();
+                        let values: Vec<_> = self.values_buffer.drain(..).map(|mut b| b.take_bytes().expect("bytes to be set")).collect();
 
                         Array::new_with_array_data(self.datatype.clone(), SharedHeapStorage::from(values))
                     }
