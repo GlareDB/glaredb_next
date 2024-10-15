@@ -21,17 +21,10 @@ use bytes::Bytes;
 
 use crate::basic::Encoding;
 use crate::data_type::DataType;
-use crate::decoding::byte_stream_split_decoder::ByteStreamSplitDecoder;
-use crate::decoding::{
-    DeltaBitPackDecoder,
-    DeltaByteArrayDecoder,
-    DeltaLengthByteArrayDecoder,
-    RleValueDecoder,
-};
 use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
 use crate::encodings::rle::RleDecoder;
 use crate::errors::{ParquetError, Result};
-use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
+use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{num_required_bits, BitReader};
 
 /// Decodes level data
@@ -40,61 +33,6 @@ pub trait ColumnLevelDecoder {
 
     /// Set data for this [`ColumnLevelDecoder`]
     fn set_data(&mut self, encoding: Encoding, data: Bytes);
-}
-
-/// Holds typed decoders per encoding.
-///
-/// This stores at most one decoder per encoding, and is used in place of a hash
-/// map to remove needing to use boxed traits.
-#[derive(Debug)]
-struct DecoderCache<T: DataType> {
-    /// Decoder for PLAIN
-    plain: Option<PlainDecoder<T>>,
-    /// Decoder for RLE
-    rle_hybrid: Option<RleValueDecoder<T>>,
-    /// Decoder for DELTA_BINARY_PACKED
-    delta_binary: Option<DeltaBitPackDecoder<T>>,
-    /// Decoder for BYTE_STREAM_SPLIT
-    byte_stream_split: Option<ByteStreamSplitDecoder<T>>,
-    /// Decoder for DELTA_BYTE_ARRAY
-    delta_byte: Option<DeltaByteArrayDecoder<T>>,
-    /// Decoder for DELTA_LENGTH_BYTE_ARRAY
-    delta_length_byte: Option<DeltaLengthByteArrayDecoder<T>>,
-}
-
-impl<T: DataType> DecoderCache<T> {
-    fn set_data(
-        &mut self,
-        descr: &ColumnDescriptor,
-        encoding: Encoding,
-        data: Bytes,
-        num_levels: usize,
-        num_values: Option<usize>,
-    ) -> Result<()> {
-        match encoding {
-            Encoding::PLAIN => {
-                let dec = self
-                    .plain
-                    .get_or_insert(PlainDecoder::new(descr.type_length()));
-                dec.set_data(data, num_values.unwrap_or(num_levels))
-            }
-            Encoding::RLE => {
-                let dec = self.rle_hybrid.get_or_insert(RleValueDecoder::new());
-                dec.set_data(data, num_values.unwrap_or(num_levels))
-            }
-            _ => unimplemented!(),
-        }
-    }
-
-    /// Sets the data for a decoder.
-    fn set_data_inner<D: Decoder<T>>(
-        decoder: &mut D,
-        data: Bytes,
-        num_levels: usize,
-        num_values: Option<usize>,
-    ) -> Result<()> {
-        decoder.set_data(data, num_values.unwrap_or(num_levels))
-    }
 }
 
 /// Decodes value data.
