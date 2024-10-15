@@ -3,7 +3,7 @@ use std::fmt;
 use rayexec_error::Result;
 
 use super::{AddressableStorage, PrimitiveStorage};
-use crate::executor::physical_type::{AsBytes, VarlenType};
+use crate::executor::physical_type::AsBytes;
 
 /// Byte length threshold for inlining varlen data in the array's metadata.
 pub(crate) const INLINE_THRESHOLD: i32 = 12;

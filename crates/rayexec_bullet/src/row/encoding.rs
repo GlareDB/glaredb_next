@@ -19,7 +19,6 @@ use crate::executor::physical_type::{
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
-    VarlenType,
 };
 use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::interval::Interval;

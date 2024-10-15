@@ -9,7 +9,7 @@ use bytes::{Buf, Bytes};
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
-use parquet::data_type::{bool, f32, f64, i32, i64, DataType as ParquetDataType, Int96};
+use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
