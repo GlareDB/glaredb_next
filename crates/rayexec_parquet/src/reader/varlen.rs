@@ -39,12 +39,12 @@ where
             (PhysicalType::BYTE_ARRAY, _) => {
                 match def_levels {
                     Some(levels) => {
-                        let bitmap = def_levels_into_bitmap(levels);
+                        let logical_bitmap = def_levels_into_bitmap(levels);
 
                         let mut buf_iter = self.values_buffer.drain(..);
-                        let mut values = Vec::with_capacity(bitmap.len());
+                        let mut values = Vec::with_capacity(logical_bitmap.len());
 
-                        for valid in bitmap.iter() {
+                        for valid in logical_bitmap.iter() {
                             if valid {
                                 values.push(buf_iter.next().expect("buffered value to exist").take_bytes().expect("bytes to be set"))
                             } else {
@@ -52,7 +52,7 @@ where
                             }
                         }
 
-                        Array::new_with_validity_and_array_data(self.datatype.clone(),bitmap, SharedHeapStorage::from(values))
+                        Array::new_with_validity_and_array_data(self.datatype.clone(),logical_bitmap, SharedHeapStorage::from(values))
                     }
                     None => {
                         let values: Vec<_> = self.values_buffer.drain(..).map(|mut b| b.take_bytes().expect("bytes to be set")).collect();

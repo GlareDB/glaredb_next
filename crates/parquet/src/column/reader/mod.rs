@@ -17,15 +17,16 @@
 
 //! Contains column reader API.
 
+pub mod basic;
 pub mod decoder;
 
+use basic::BasicColumnValueDecoder;
 use bytes::Bytes;
 
 use super::page::{Page, PageReader};
 use crate::basic::*;
 use crate::column::reader::decoder::{
     ColumnLevelDecoder,
-    ColumnValueDecoder,
     DefinitionLevelDecoder,
     RepetitionLevelDecoder,
 };
@@ -122,7 +123,7 @@ pub struct GenericColumnReader<T: DataType, P: PageReader> {
     rep_level_decoder: Option<RepetitionLevelDecoder>,
 
     /// The decoder for the values
-    values_decoder: ColumnValueDecoder<T>,
+    values_decoder: BasicColumnValueDecoder<T>,
 }
 
 impl<T, P> GenericColumnReader<T, P>
@@ -132,7 +133,7 @@ where
 {
     /// Creates new column reader based on column descriptor and page reader.
     pub fn new(descr: ColumnDescPtr, page_reader: P) -> Self {
-        let values_decoder = ColumnValueDecoder::new(&descr);
+        let values_decoder = BasicColumnValueDecoder::new(&descr);
 
         let def_level_decoder = (descr.max_def_level() != 0)
             .then(|| DefinitionLevelDecoder::new(descr.max_def_level()));
@@ -158,7 +159,7 @@ where
     pub(crate) fn new_with_decoders(
         descr: ColumnDescPtr,
         page_reader: P,
-        values_decoder: ColumnValueDecoder<T>,
+        values_decoder: BasicColumnValueDecoder<T>,
         def_level_decoder: Option<DefinitionLevelDecoder>,
         rep_level_decoder: Option<RepetitionLevelDecoder>,
     ) -> Self {

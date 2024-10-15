@@ -141,7 +141,7 @@ impl PartialOrd for ByteArray {
 impl ByteArray {
     /// Creates new byte array with no data set.
     #[inline]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         ByteArray { data: None }
     }
 
