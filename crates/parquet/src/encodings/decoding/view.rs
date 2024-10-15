@@ -35,9 +35,17 @@ impl ViewBuffer {
         self.current_idx
     }
 
-    pub fn push(&mut self, data: &[u8]) {
+    pub fn try_push(&mut self, data: &[u8], validate_utf8: bool) -> Result<()> {
+        if validate_utf8 {
+            // We don't care about the output, just that bytes we're storing is
+            // valid utf8.
+            let _ = std::str::from_utf8(data)?;
+        }
+
         self.buffer.put(self.current_idx, data);
         self.current_idx += 1;
+
+        Ok(())
     }
 
     pub fn get(&self, idx: usize) -> Option<&[u8]> {
@@ -48,16 +56,9 @@ impl ViewBuffer {
         self.buffer.get(idx)
     }
 
-    pub fn validate_utf8(&self) -> Result<()> {
-        for val in self.buffer.iter().take(self.current_idx) {
-            let _ = std::str::from_utf8(val)?;
-        }
-        Ok(())
-    }
-
-    pub fn into_array_data(mut self) -> ArrayData {
+    pub fn into_buffer(mut self) -> GermanVarlenBuffer<[u8]> {
         self.buffer.truncate(self.current_idx);
-        self.buffer.into_data()
+        self.buffer
     }
 }
 
@@ -73,9 +74,15 @@ impl ViewDecoder {
         data: Bytes,
         num_levels: usize,
         num_values: Option<usize>,
+        validate_utf8: bool,
     ) -> Result<Self> {
         let decoder = match encoding {
-            Encoding::PLAIN => Self::Plain(PlainViewDecoder::new(data, num_levels, num_values)),
+            Encoding::PLAIN => Self::Plain(PlainViewDecoder::new(
+                data,
+                num_levels,
+                num_values,
+                validate_utf8,
+            )),
             Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
                 Self::Dictionary(DictionaryViewDecoder::new(data, num_levels, num_values))
             }
@@ -136,23 +143,39 @@ pub struct PlainViewDecoder {
     /// This is a maximum as the null count is not always known, e.g. value data
     /// from a v1 data page
     max_remaining_values: usize,
+    /// If we should validate utf8.
+    validate_utf8: bool,
 }
 
 impl PlainViewDecoder {
-    pub fn new(buf: Bytes, num_levels: usize, num_values: Option<usize>) -> Self {
+    pub fn new(
+        buf: Bytes,
+        num_levels: usize,
+        num_values: Option<usize>,
+        validate_utf8: bool,
+    ) -> Self {
         PlainViewDecoder {
             buf,
             offset: 0,
             max_remaining_values: num_values.unwrap_or(num_levels),
+            validate_utf8,
         }
     }
 
     pub fn read(&mut self, buffer: &mut ViewBuffer, num_vals: usize) -> Result<usize> {
         let to_read = usize::min(num_vals, self.max_remaining_values);
 
-        if self.buf.len() - self.offset == 0 {
+        let remaining_bytes = self.buf.len() - self.offset;
+        if remaining_bytes == 0 {
             return Ok(0);
         }
+
+        let estimated_bytes = remaining_bytes
+            .checked_mul(to_read)
+            .map(|x| x / self.max_remaining_values)
+            .unwrap_or_default();
+
+        buffer.buffer.reserve_data(estimated_bytes);
 
         let mut num_read = 0;
         let buf = &self.buf;
@@ -167,7 +190,7 @@ impl PlainViewDecoder {
             let data = &self.buf[self.offset..self.offset + len];
             self.offset += len;
 
-            buffer.push(data);
+            buffer.try_push(data, self.validate_utf8)?;
 
             num_read += 1;
         }
@@ -227,7 +250,10 @@ impl DictionaryViewDecoder {
                 let val = dict
                     .get(key as usize)
                     .ok_or_else(|| general_err!("Missing dictionary value at index {key}"))?;
-                buffer.push(val);
+                // If we're pushing from a dictionary, we don't need to validate
+                // that the bytes are utf8 since that happens when we create the
+                // values in the dictionary.
+                buffer.try_push(val, false)?;
             }
             Ok(())
         })

@@ -165,6 +165,18 @@ where
         }
     }
 
+    /// Return a mutable reference to the metadata vector.
+    ///
+    /// Care must be taken to values inserted or modified continue to represent
+    /// valid (or empty) data.
+    pub fn metadata_mut(&mut self) -> &mut Vec<UnionedGermanMetadata> {
+        &mut self.metadata
+    }
+
+    pub fn reserve_data(&mut self, additional: usize) {
+        self.data.reserve(additional)
+    }
+
     pub fn truncate(&mut self, len: usize) {
         self.metadata.truncate(len)
     }

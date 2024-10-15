@@ -23,7 +23,6 @@ use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Schema;
-use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::FileSource;
@@ -108,6 +107,24 @@ pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
     }))
 }
 
+/// Insert null (meaningless) values into the vec according to the validity
+/// bitmap.
+///
+/// The resulting vec will have its length equal to the bitmap's length.
+pub fn insert_null_values<T>(values: &mut Vec<T>, bitmap: &Bitmap)
+where
+    T: Copy + Default,
+{
+    values.resize(bitmap.len(), T::default());
+
+    for (current_idx, new_idx) in (0..values.len()).rev().zip(bitmap.index_iter().rev()) {
+        if current_idx <= new_idx {
+            break;
+        }
+        values[new_idx] = values[current_idx];
+    }
+}
+
 pub struct AsyncBatchReader<R: FileSource> {
     /// Reader we're reading from.
     reader: R,
@@ -143,6 +160,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         batch_size: usize,
         projections: Projections,
     ) -> Result<Self> {
+        println!("PROJECTIONS: {projections:?}");
         // Create projection bitmap.
         //
         // TODO: This will need to change to accomodate structs in parquet
@@ -282,6 +300,11 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     /// Fetches the column chunks for the current row group.
     async fn fetch_column_chunks(&mut self) -> Result<()> {
         for state in self.column_states.iter_mut() {
+            // We already have data for this.
+            if state.column_chunk.is_some() {
+                continue;
+            }
+
             let col = self
                 .metadata
                 .decoded_metadata

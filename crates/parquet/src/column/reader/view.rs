@@ -1,8 +1,7 @@
 use bytes::Bytes;
-use rayexec_bullet::executor::builder::GermanVarlenBuffer;
 
 use super::decoder::ColumnValueDecoder;
-use super::Encoding;
+use super::{ConvertedType, Encoding};
 use crate::decoding::view::{PlainViewDecoder, ViewBuffer, ViewDecoder};
 use crate::errors::Result;
 use crate::schema::types::ColumnDescPtr;
@@ -18,13 +17,16 @@ pub struct ViewColumnValueDecoder {
     dict: Option<ViewBuffer>,
     /// Current decoder.
     decoder: Option<ViewDecoder>,
+    /// If we should validate utf8.
+    validate_utf8: bool,
 }
 
 impl ViewColumnValueDecoder {
-    pub fn new(_desc: &ColumnDescPtr) -> Self {
+    pub fn new(desc: &ColumnDescPtr) -> Self {
         ViewColumnValueDecoder {
             dict: None,
             decoder: None,
+            validate_utf8: desc.converted_type() == ConvertedType::UTF8,
         }
     }
 }
@@ -54,8 +56,13 @@ impl ColumnValueDecoder for ViewColumnValueDecoder {
         }
 
         let mut dict = ViewBuffer::new(num_values as usize);
-        PlainViewDecoder::new(buf, num_values as usize, Some(num_values as usize))
-            .read(&mut dict, num_values as usize)?;
+        PlainViewDecoder::new(
+            buf,
+            num_values as usize,
+            Some(num_values as usize),
+            self.validate_utf8,
+        )
+        .read(&mut dict, num_values as usize)?;
 
         self.dict = Some(dict);
 
@@ -69,7 +76,13 @@ impl ColumnValueDecoder for ViewColumnValueDecoder {
         num_levels: usize,
         num_values: Option<usize>,
     ) -> Result<()> {
-        self.decoder = Some(ViewDecoder::new(encoding, data, num_levels, num_values)?);
+        self.decoder = Some(ViewDecoder::new(
+            encoding,
+            data,
+            num_levels,
+            num_values,
+            self.validate_utf8,
+        )?);
         Ok(())
     }
 
