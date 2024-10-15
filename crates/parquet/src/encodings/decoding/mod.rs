@@ -17,6 +17,9 @@
 
 //! Contains all supported decoders for Parquet.
 
+pub mod byte_stream_split_decoder;
+pub mod view;
+
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::{cmp, mem};
@@ -32,8 +35,6 @@ use crate::data_type::*;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
-
-pub mod byte_stream_split_decoder;
 
 pub(crate) mod private {
     use super::*;

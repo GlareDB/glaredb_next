@@ -19,6 +19,7 @@
 
 pub mod basic;
 pub mod decoder;
+pub mod view;
 
 use basic::BasicColumnValueDecoder;
 use bytes::Bytes;

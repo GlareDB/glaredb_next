@@ -7,6 +7,9 @@ use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::storage::{
     BooleanStorage,
+    GermanLargeMetadata,
+    GermanMetadata,
+    GermanSmallMetadata,
     GermanVarlenStorage,
     PrimitiveStorage,
     UnionedGermanMetadata,
@@ -146,6 +149,19 @@ where
             metadata: vec![UnionedGermanMetadata::zero(); len],
             data: Vec::with_capacity(data_cap),
             _type: PhantomData,
+        }
+    }
+
+    pub fn get(&self, idx: usize) -> Option<&[u8]> {
+        let metadata = self.metadata.get(idx)?;
+
+        match metadata.as_metadata() {
+            GermanMetadata::Small(GermanSmallMetadata { len, inline }) => {
+                Some(&inline[..(*len as usize)])
+            }
+            GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => {
+                Some(&self.data[(*offset as usize)..((offset + len) as usize)])
+            }
         }
     }
 }
