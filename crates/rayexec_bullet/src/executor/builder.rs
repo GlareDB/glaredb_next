@@ -164,6 +164,18 @@ where
             }
         }
     }
+
+    pub fn truncate(&mut self, len: usize) {
+        self.metadata.truncate(len)
+    }
+
+    pub fn iter(&self) -> GermanVarlenBufferIter {
+        GermanVarlenBufferIter {
+            idx: 0,
+            metadata: &self.metadata,
+            data: &self.data,
+        }
+    }
 }
 
 impl<T> ArrayDataBuffer for GermanVarlenBuffer<T>
@@ -211,5 +223,30 @@ where
         };
 
         ArrayData::Binary(BinaryData::German(Arc::new(storage)))
+    }
+}
+
+#[derive(Debug)]
+pub struct GermanVarlenBufferIter<'a> {
+    idx: usize,
+    metadata: &'a [UnionedGermanMetadata],
+    data: &'a [u8],
+}
+
+impl<'a> Iterator for GermanVarlenBufferIter<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let metadata = self.metadata.get(self.idx)?;
+        self.idx += 1;
+
+        match metadata.as_metadata() {
+            GermanMetadata::Small(GermanSmallMetadata { len, inline }) => {
+                Some(&inline[..(*len as usize)])
+            }
+            GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => {
+                Some(&self.data[(*offset as usize)..((offset + len) as usize)])
+            }
+        }
     }
 }

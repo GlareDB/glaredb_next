@@ -5,20 +5,36 @@
 //! since that's hard to work with.
 
 use bytes::Bytes;
+use rayexec_bullet::array::ArrayData;
 use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 
+use super::Encoding;
 use crate::encodings::rle::RleDecoder;
 use crate::errors::{ParquetError, Result};
 
 #[derive(Debug)]
 pub struct ViewBuffer {
-    /// Currently index we're writing to.
+    /// Current index we're writing to.
+    ///
+    /// This is also the currently "length" of the buffer.
     current_idx: usize,
-    /// The actual buffer, should be initialized to the correct length.
+    /// The actual buffer, should be initialized to the max length we expect to
+    /// read.
     buffer: GermanVarlenBuffer<[u8]>,
 }
 
 impl ViewBuffer {
+    pub fn new(len: usize) -> Self {
+        ViewBuffer {
+            current_idx: 0,
+            buffer: GermanVarlenBuffer::with_len(len),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.current_idx
+    }
+
     pub fn push(&mut self, data: &[u8]) {
         self.buffer.put(self.current_idx, data);
         self.current_idx += 1;
@@ -30,6 +46,83 @@ impl ViewBuffer {
         }
 
         self.buffer.get(idx)
+    }
+
+    pub fn validate_utf8(&self) -> Result<()> {
+        for val in self.buffer.iter().take(self.current_idx) {
+            let _ = std::str::from_utf8(val)?;
+        }
+        Ok(())
+    }
+
+    pub fn into_array_data(mut self) -> ArrayData {
+        self.buffer.truncate(self.current_idx);
+        self.buffer.into_data()
+    }
+}
+
+#[derive(Debug)]
+pub enum ViewDecoder {
+    Plain(PlainViewDecoder),
+    Dictionary(DictionaryViewDecoder),
+}
+
+impl ViewDecoder {
+    pub fn new(
+        encoding: Encoding,
+        data: Bytes,
+        num_levels: usize,
+        num_values: Option<usize>,
+    ) -> Result<Self> {
+        let decoder = match encoding {
+            Encoding::PLAIN => Self::Plain(PlainViewDecoder::new(data, num_levels, num_values)),
+            Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
+                Self::Dictionary(DictionaryViewDecoder::new(data, num_levels, num_values))
+            }
+            // Encoding::DELTA_LENGTH_BYTE_ARRAY => ByteArrayDecoder::DeltaLength(
+            //     ByteArrayDecoderDeltaLength::new(data, validate_utf8)?,
+            // ),
+            // Encoding::DELTA_BYTE_ARRAY => {
+            //     ByteArrayDecoder::DeltaByteArray(ByteArrayDecoderDelta::new(data, validate_utf8)?)
+            // }
+            _ => {
+                return Err(general_err!(
+                    "unsupported encoding for byte array: {}",
+                    encoding
+                ))
+            }
+        };
+
+        Ok(decoder)
+    }
+
+    pub fn read(
+        &mut self,
+        buffer: &mut ViewBuffer,
+        num_values: usize,
+        dict: Option<&ViewBuffer>,
+    ) -> Result<usize> {
+        match self {
+            Self::Plain(d) => d.read(buffer, num_values),
+            Self::Dictionary(d) => {
+                let dict =
+                    dict.ok_or_else(|| general_err!("missing dictionary page for column"))?;
+
+                d.read(buffer, dict, num_values)
+            }
+        }
+    }
+
+    pub fn skip(&mut self, num_values: usize, dict: Option<&ViewBuffer>) -> Result<usize> {
+        match self {
+            Self::Plain(d) => d.skip(num_values),
+            Self::Dictionary(d) => {
+                let dict =
+                    dict.ok_or_else(|| general_err!("missing dictionary page for column"))?;
+
+                d.skip(dict, num_values)
+            }
+        }
     }
 }
 
@@ -46,6 +139,14 @@ pub struct PlainViewDecoder {
 }
 
 impl PlainViewDecoder {
+    pub fn new(buf: Bytes, num_levels: usize, num_values: Option<usize>) -> Self {
+        PlainViewDecoder {
+            buf,
+            offset: 0,
+            max_remaining_values: num_values.unwrap_or(num_levels),
+        }
+    }
+
     pub fn read(&mut self, buffer: &mut ViewBuffer, num_vals: usize) -> Result<usize> {
         let to_read = usize::min(num_vals, self.max_remaining_values);
 
@@ -98,12 +199,19 @@ impl PlainViewDecoder {
     }
 }
 
+/// Decoder for PLAIN_DICTIONARY/RLE_DICTIONARY.
 #[derive(Debug)]
 pub struct DictionaryViewDecoder {
     decoder: DictIndexDecoder,
 }
 
 impl DictionaryViewDecoder {
+    pub fn new(data: Bytes, num_levels: usize, num_values: Option<usize>) -> Self {
+        DictionaryViewDecoder {
+            decoder: DictIndexDecoder::new(data, num_levels, num_values),
+        }
+    }
+
     pub fn read(
         &mut self,
         buffer: &mut ViewBuffer,
@@ -125,7 +233,7 @@ impl DictionaryViewDecoder {
         })
     }
 
-    pub fn skip(&mut self, num_vals: usize) -> Result<usize> {
+    pub fn skip(&mut self, _dict: &ViewBuffer, num_vals: usize) -> Result<usize> {
         self.decoder.skip(num_vals)
     }
 }

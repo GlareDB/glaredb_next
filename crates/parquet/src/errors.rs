@@ -112,7 +112,7 @@ impl From<ParquetError> for io::Error {
 // Convenient macros for different errors
 
 macro_rules! general_err {
-    ($fmt:expr) => (ParquetError::General($fmt.to_owned()));
+    ($fmt:expr) => (crate::errors::ParquetError::General($fmt.to_owned()));
     ($fmt:expr, $($args:expr),*) => (ParquetError::General(format!($fmt, $($args),*)));
     ($e:expr, $fmt:expr) => (ParquetError::General($fmt.to_owned(), $e));
     ($e:ident, $fmt:expr, $($args:tt),*) => (
@@ -121,7 +121,7 @@ macro_rules! general_err {
 
 macro_rules! nyi_err {
     ($fmt:expr) => (ParquetError::NYI($fmt.to_owned()));
-    ($fmt:expr, $($args:expr),*) => (ParquetError::NYI(format!($fmt, $($args),*)));
+    ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::NYI(format!($fmt, $($args),*)));
 }
 
 macro_rules! eof_err {

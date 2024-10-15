@@ -27,6 +27,7 @@ use half::f16;
 
 use crate::basic::Type;
 use crate::column::page::{PageReader, PageWriter};
+use crate::column::reader::basic::BasicColumnValueDecoder;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
 use crate::errors::{ParquetError, Result};
@@ -1085,7 +1086,7 @@ pub trait DataType: 'static + Send + fmt::Debug {
 
     fn get_column_reader<P: PageReader>(
         column_writer: ColumnReader<P>,
-    ) -> Option<GenericColumnReader<Self, P>>
+    ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>>
     where
         Self: Sized;
 
@@ -1133,7 +1134,7 @@ macro_rules! impl_data_type {
 
             fn get_column_reader<P: PageReader>(
                 column_reader: ColumnReader<P>,
-            ) -> Option<GenericColumnReader<Self, P>> {
+            ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>> {
                 match column_reader {
                     ColumnReader::$reader_ident(w) => Some(w),
                     _ => None,
