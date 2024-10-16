@@ -7,10 +7,8 @@ use parquet::data_type::{ByteArray, DataType as ParquetDataType};
 use parquet::decoding::view::ViewBuffer;
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::builder::ArrayDataBuffer;
-use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, insert_null_values, ArrayBuilder, ValuesReader};

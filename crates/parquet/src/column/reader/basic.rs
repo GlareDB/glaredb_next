@@ -6,7 +6,7 @@ use super::decoder::ColumnValueDecoder;
 use crate::basic::Encoding;
 use crate::data_type::DataType;
 use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::schema::types::ColumnDescPtr;
 
 /// Column value decoder that uses a Vec for the buffer to write to.

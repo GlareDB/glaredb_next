@@ -14,7 +14,7 @@ use parquet::column::reader::decoder::{
     RepetitionLevelDecoder,
 };
 use parquet::column::reader::GenericColumnReader;
-use parquet::data_type::{DataType as ParquetDataType, Int96};
+use parquet::data_type::Int96;
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
@@ -160,7 +160,6 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         batch_size: usize,
         projections: Projections,
     ) -> Result<Self> {
-        println!("PROJECTIONS: {projections:?}");
         // Create projection bitmap.
         //
         // TODO: This will need to change to accomodate structs in parquet
