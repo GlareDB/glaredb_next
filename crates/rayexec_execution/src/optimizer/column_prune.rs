@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rayexec_error::Result;
 use tracing::warn;
@@ -7,7 +7,8 @@ use super::OptimizeRule;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef, TableRef};
-use crate::logical::operator::{LogicalNode, LogicalOperator};
+use crate::logical::logical_project::LogicalProject;
+use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 
 #[derive(Debug, Default)]
 pub struct ColumnPrune {
@@ -109,7 +110,7 @@ impl ColumnPrune {
         }
 
         plan.for_each_expr_mut(&mut |expr| {
-            replace_column_references(expr, &self.column_remap);
+            replace_column_reference2(expr, &self.column_remap);
             Ok(())
         })?;
 
@@ -191,7 +192,261 @@ impl ColumnPrune {
     }
 }
 
-fn replace_column_references(expr: &mut Expression, mapping: &HashMap<ColumnExpr, ColumnExpr>) {
+#[derive(Debug, Default)]
+struct PruneState {
+    /// Column references encountered so far.
+    ///
+    /// This get's built up as we go down the plan tree.
+    current_references: HashSet<ColumnExpr>,
+    /// Mapping of old column refs to new expressions that should be used in
+    /// place of the old columns.
+    updated_expressions: HashMap<ColumnExpr, Expression>,
+}
+
+impl PruneState {
+    /// Create a new prune state that's initialized with column expressions
+    /// found in `parent.
+    ///
+    /// This should be used when walking through operators that don't expose
+    /// table refs from child operators (e.g. project).
+    fn new_from_parent(parent: &impl LogicalNode) -> Self {
+        let mut current_references = HashSet::new();
+
+        parent
+            .for_each_expr(&mut |expr| {
+                extract_column_exprs(expr, &mut current_references);
+                Ok(())
+            })
+            .expect("extract to not fail");
+
+        PruneState {
+            current_references,
+            updated_expressions: HashMap::new(),
+        }
+    }
+
+    /// Replaces and outdated column refs in the plan at this node.
+    fn apply_updated_expressions(&self, plan: &mut impl LogicalNode) -> Result<()> {
+        plan.for_each_expr_mut(&mut |expr| {
+            replace_column_reference(expr, &self.updated_expressions);
+            Ok(())
+        })
+    }
+
+    /// Walk the plan.
+    ///
+    /// 1. Collect columns in use on the way down.
+    /// 2. Reach a node we can't push through, replace projects as necessary.
+    /// 3. Replace column references with updated references on the way up.
+    fn walk_plan(
+        &mut self,
+        bind_context: &mut BindContext,
+        plan: &mut LogicalOperator,
+    ) -> Result<()> {
+        // Extract columns reference in this plan.
+        //
+        // Note that this may result in references tracked that we don't care
+        // about, for example when at a 'project' node. We'll be creating a new
+        // state when walking the child of a project, so these extra references
+        // don't matter.
+        //
+        // The alternative could be to do this more selectively, but doesn't
+        // seem worthwhile.
+        plan.for_each_expr(&mut |expr| {
+            extract_column_exprs(expr, &mut self.current_references);
+            Ok(())
+        })?;
+
+        // Handle special node logic.
+        //
+        // This match determines which nodes can have projections pushed down
+        // through, and which can't. The default case assumes we can't push down
+        // projections.
+        match plan {
+            LogicalOperator::Project(project) => {
+                // First try to flatten with child projection.
+                try_flatten_projection(project)?;
+
+                // Now check if we're actually referencing everything in the
+                // projection.
+                let proj_references: HashSet<_> = self
+                    .current_references
+                    .iter()
+                    .filter(|col_expr| col_expr.table_scope == project.node.projection_table)
+                    .copied()
+                    .collect();
+
+                // Only create an updated projection if we're actually pruning
+                // columns.
+                //
+                // If projection references is empty, then we're either at the
+                // root, or something else (idk yet).
+                if proj_references.len() != project.node.projections.len()
+                    && !proj_references.is_empty()
+                {
+                    let mut new_proj_mapping: Vec<(ColumnExpr, Expression)> =
+                        Vec::with_capacity(proj_references.len());
+
+                    for (col_idx, projection) in project.node.projections.iter().enumerate() {
+                        let old_column = ColumnExpr {
+                            table_scope: project.node.projection_table,
+                            column: col_idx,
+                        };
+
+                        if !proj_references.contains(&old_column) {
+                            // Column not used, omit from the new projection
+                            // we're building.
+                            continue;
+                        }
+
+                        new_proj_mapping.push((old_column, projection.clone()));
+                    }
+
+                    // Generate the new table ref.
+                    let table_ref = bind_context.new_ephemeral_table_from_expressions(
+                        "__generated_pruned_projection",
+                        new_proj_mapping.iter().map(|(_, expr)| expr),
+                    )?;
+
+                    // Generate the new projection, inserting updated
+                    // expressions into the state.
+                    let mut new_projections = Vec::with_capacity(new_proj_mapping.len());
+                    for (col_idx, (old_column, projection)) in
+                        new_proj_mapping.into_iter().enumerate()
+                    {
+                        new_projections.push(projection);
+
+                        self.updated_expressions.insert(
+                            old_column,
+                            Expression::Column(ColumnExpr {
+                                table_scope: table_ref,
+                                column: col_idx,
+                            }),
+                        );
+                    }
+
+                    // Update this node.
+                    project.node = LogicalProject {
+                        projections: new_projections,
+                        projection_table: table_ref,
+                    };
+
+                    // Now walk children using new prune state.
+                    let mut child_prune = PruneState::new_from_parent(project);
+                    for child in &mut project.children {
+                        child_prune.walk_plan(bind_context, child)?;
+                    }
+
+                    self.apply_updated_expressions(project)?;
+                }
+            }
+            other => {
+                // For all other plans, we take a conservative approach and not
+                // push projections down through this node, but instead just
+                // start working on the child plan.
+                //
+                // The child prune state is initialized from expressions at this
+                // level.
+
+                let mut child_prune = PruneState::default();
+                other.for_each_expr(&mut |expr| {
+                    extract_column_exprs(expr, &mut child_prune.current_references);
+                    Ok(())
+                })?;
+
+                for child in other.children_mut() {
+                    child_prune.walk_plan(bind_context, child)?;
+                }
+
+                self.apply_updated_expressions(other)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Tries to flatten this projection into a child projection.
+///
+/// If the projection's child is not a projection, nothing it done.
+///
+/// This does not change the table ref of this projection, and all column
+/// references that reference this projection remain valid.
+fn try_flatten_projection(current: &mut Node<LogicalProject>) -> Result<()> {
+    assert_eq!(1, current.children.len());
+
+    if !current.children[0].is_project() {
+        // Not a project, nothing to do.
+        return Ok(());
+    }
+
+    let child_projection = match current.take_one_child_exact()? {
+        LogicalOperator::Project(project) => project,
+        _ => unreachable!("operator has to a project"),
+    };
+
+    // Generate old -> new expression map from the child. We'll walk the parent
+    // expression and just replace the old references.
+    let expr_map: HashMap<ColumnExpr, Expression> = child_projection
+        .node
+        .projections
+        .into_iter()
+        .enumerate()
+        .map(|(col_idx, expr)| {
+            (
+                ColumnExpr {
+                    table_scope: child_projection.node.projection_table,
+                    column: col_idx,
+                },
+                expr,
+            )
+        })
+        .collect();
+
+    current.for_each_expr_mut(&mut |expr| {
+        replace_column_reference(expr, &expr_map);
+        Ok(())
+    })?;
+
+    // Set this projection's children the child projection's children.
+    current.children = child_projection.children;
+
+    Ok(())
+}
+
+/// Replace all column references in the expression map with the associated
+/// expression.
+fn replace_column_reference(expr: &mut Expression, mapping: &HashMap<ColumnExpr, Expression>) {
+    match expr {
+        Expression::Column(col) => {
+            if let Some(replace) = mapping.get(col) {
+                *expr = replace.clone()
+            }
+        }
+        other => other
+            .for_each_child_mut(&mut |child| {
+                replace_column_reference(child, mapping);
+                Ok(())
+            })
+            .expect("replace to not fail"),
+    }
+}
+
+fn extract_column_exprs(expr: &Expression, refs: &mut HashSet<ColumnExpr>) {
+    match expr {
+        Expression::Column(col) => {
+            refs.insert(*col);
+        }
+        other => other
+            .for_each_child(&mut |child| {
+                extract_column_exprs(child, refs);
+                Ok(())
+            })
+            .expect("extract not to fail"),
+    }
+}
+
+fn replace_column_reference2(expr: &mut Expression, mapping: &HashMap<ColumnExpr, ColumnExpr>) {
     match expr {
         Expression::Column(col) => {
             if let Some(replace) = mapping.get(col).copied() {
@@ -200,7 +455,7 @@ fn replace_column_references(expr: &mut Expression, mapping: &HashMap<ColumnExpr
         }
         other => other
             .for_each_child_mut(&mut |child| {
-                replace_column_references(child, mapping);
+                replace_column_reference2(child, mapping);
                 Ok(())
             })
             .expect("replace to not fail"),
