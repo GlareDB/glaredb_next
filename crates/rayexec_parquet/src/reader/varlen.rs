@@ -1,4 +1,3 @@
-
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::view::ViewColumnValueDecoder;
