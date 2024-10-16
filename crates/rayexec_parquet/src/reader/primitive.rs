@@ -36,7 +36,7 @@ where
             batch_size,
             datatype,
             values_reader: ValuesReader::new(desc),
-            values_buffer: Vec::with_capacity(batch_size + 1), // +1 for possible null value.
+            values_buffer: Vec::with_capacity(batch_size),
         }
     }
 
@@ -46,10 +46,8 @@ where
         let _rep_levels = self.values_reader.take_rep_levels();
 
         // Basis of the array.
-        let mut data = std::mem::replace(
-            &mut self.values_buffer,
-            Vec::with_capacity(self.batch_size + 1), // +1 for possible null value.
-        );
+        let mut data =
+            std::mem::replace(&mut self.values_buffer, Vec::with_capacity(self.batch_size));
 
         // Insert nulls as needed.
         let bitmap = match def_levels {
