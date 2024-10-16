@@ -20,7 +20,7 @@ use std::{cmp, mem::size_of};
 use bytes::Bytes;
 
 use crate::data_type::{AsBytes, ByteArray, FixedLenByteArray, Int96};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::util::bit_pack::{unpack16, unpack32, unpack64, unpack8};
 
 #[inline]

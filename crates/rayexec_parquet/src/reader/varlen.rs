@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;

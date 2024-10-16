@@ -21,7 +21,7 @@ use bytes::Bytes;
 
 use crate::basic::Encoding;
 use crate::data_type::{DataType, SliceAsBytes};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 
 use super::Decoder;
 

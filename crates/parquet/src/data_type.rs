@@ -30,7 +30,7 @@ use crate::column::page::{PageReader, PageWriter};
 use crate::column::reader::basic::BasicColumnValueDecoder;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::util::bit_util::FromBytes;
 
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
@@ -599,7 +599,7 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
-    use super::{ParquetError, Result, SliceAsBytes};
+    use super::{Result, SliceAsBytes};
     use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
     use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
