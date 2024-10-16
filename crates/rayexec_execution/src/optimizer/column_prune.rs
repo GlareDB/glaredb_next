@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use tracing::warn;
 
 use super::OptimizeRule;
@@ -11,15 +11,7 @@ use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 
 #[derive(Debug, Default)]
-pub struct ColumnPrune {
-    /// Materializations we've found. Holds a boolean so we don't try to
-    /// recursively collect columns (shouldn't be possible yet).
-    materializations: HashMap<MaterializationRef, bool>,
-    /// All column exprs we've found in the query.
-    column_exprs: HashMap<TableRef, BTreeSet<usize>>,
-    /// Remap of old column expression to new column expression.
-    column_remap: HashMap<ColumnExpr, ColumnExpr>,
-}
+pub struct ColumnPrune {}
 
 impl OptimizeRule for ColumnPrune {
     fn optimize(
@@ -27,173 +19,18 @@ impl OptimizeRule for ColumnPrune {
         bind_context: &mut BindContext,
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
-        // Find all columns we're referencing in the query
-        self.collect_columns(&plan)?;
-
-        // Update materializations hashmap so we don't recurse.
-        for (_, handled) in self.materializations.iter_mut() {
-            *handled = true;
-        }
-
-        // Handle all referenced materializations.
-        let refs: Vec<_> = self.materializations.keys().copied().collect();
-        for &mat_ref in &refs {
-            let materialization = bind_context.get_materialization(mat_ref)?;
-            self.collect_columns(&materialization.plan)?;
-        }
-
-        // Update scans.
-        self.update_scans(bind_context, &mut plan)?;
-        for &mat_ref in &refs {
-            let mut orig = {
-                let materialization = bind_context.get_materialization_mut(mat_ref)?;
-                std::mem::replace(&mut materialization.plan, LogicalOperator::Invalid)
-            };
-            self.update_scans(bind_context, &mut orig)?;
-
-            let materialization = bind_context.get_materialization_mut(mat_ref)?;
-            materialization.plan = orig;
-        }
-
-        // Replace references.
-        self.replace_references(bind_context, &mut plan)?;
-        for &mat_ref in &refs {
-            let mut orig = {
-                let materialization = bind_context.get_materialization_mut(mat_ref)?;
-                std::mem::replace(&mut materialization.plan, LogicalOperator::Invalid)
-            };
-            self.replace_references(bind_context, &mut orig)?;
-
-            let materialization = bind_context.get_materialization_mut(mat_ref)?;
-            materialization.plan = orig;
-        }
-
+        let mut prune_state = PruneState::new(true);
+        prune_state.walk_plan(bind_context, &mut plan)?;
         Ok(plan)
     }
 }
 
-impl ColumnPrune {
-    fn collect_columns(&mut self, plan: &LogicalOperator) -> Result<()> {
-        match plan {
-            LogicalOperator::MaterializationScan(scan) => {
-                if *self.materializations.get(&scan.node.mat).unwrap_or(&false) {
-                    return Ok(());
-                }
-                self.materializations.insert(scan.node.mat, false);
-            }
-            other => {
-                other.for_each_expr(&mut |expr| {
-                    extract_from_expr(expr, &mut self.column_exprs);
-                    Ok(())
-                })?;
-
-                for child in plan.children() {
-                    self.collect_columns(child)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn replace_references(
-        &mut self,
-        bind_context: &mut BindContext,
-        plan: &mut LogicalOperator,
-    ) -> Result<()> {
-        if let LogicalOperator::MaterializationScan(scan) = plan {
-            // TODO: Lotsa caching with the table refs for these.
-            let materialization = bind_context.get_materialization_mut(scan.node.mat)?;
-            let table_refs = materialization.plan.get_output_table_refs();
-            materialization.table_refs = table_refs.clone();
-            scan.node.table_refs = table_refs;
-        }
-
-        plan.for_each_expr_mut(&mut |expr| {
-            replace_column_reference2(expr, &self.column_remap);
-            Ok(())
-        })?;
-
-        for child in plan.children_mut() {
-            self.replace_references(bind_context, child)?;
-        }
-
-        Ok(())
-    }
-
-    fn update_scans(
-        &mut self,
-        bind_context: &mut BindContext,
-        plan: &mut LogicalOperator,
-    ) -> Result<()> {
-        match plan {
-            LogicalOperator::Scan(scan) => {
-                let cols = match self.column_exprs.remove(&scan.node.table_ref) {
-                    Some(cols) => cols,
-                    None => {
-                        // TODO: I think we could just remove the table?
-                        warn!(?scan, "Nothing referencing table");
-                        return Ok(());
-                    }
-                };
-
-                // Check if we're not referencing all columns. If so, we should
-                // prune.
-                let should_prune = scan.node.projection.iter().any(|col| !cols.contains(col));
-                if !should_prune {
-                    return Ok(());
-                }
-
-                // Prune by creating a new table with the pruned names and
-                // types. Create a mapping of original column -> new column.
-
-                let orig = bind_context.get_table(scan.node.table_ref)?;
-
-                let mut pruned_names = Vec::with_capacity(cols.len());
-                let mut pruned_types = Vec::with_capacity(cols.len());
-                for &col_idx in &cols {
-                    pruned_names.push(orig.column_names[col_idx].clone());
-                    pruned_types.push(orig.column_types[col_idx].clone());
-                }
-
-                let new_ref = bind_context
-                    .new_ephemeral_table_with_columns(pruned_types.clone(), pruned_names.clone())?;
-
-                for (new_col, old_col) in cols.iter().copied().enumerate() {
-                    self.column_remap.insert(
-                        ColumnExpr {
-                            table_scope: scan.node.table_ref,
-                            column: old_col,
-                        },
-                        ColumnExpr {
-                            table_scope: new_ref,
-                            column: new_col,
-                        },
-                    );
-                }
-
-                // Update operator.
-                scan.node.did_prune_columns = true;
-                scan.node.types = pruned_types;
-                scan.node.names = pruned_names;
-                scan.node.table_ref = new_ref;
-                scan.node.projection = cols.into_iter().collect();
-
-                Ok(())
-            }
-            other => {
-                for child in other.children_mut() {
-                    self.update_scans(bind_context, child)?;
-                }
-
-                Ok(())
-            }
-        }
-    }
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct PruneState {
+    /// Whether or not all columns are implicitly referenced.
+    ///
+    /// If this is true, then we can't prune any columns.
+    implicit_reference: bool,
     /// Column references encountered so far.
     ///
     /// This get's built up as we go down the plan tree.
@@ -204,12 +41,20 @@ struct PruneState {
 }
 
 impl PruneState {
+    fn new(implicit_reference: bool) -> Self {
+        PruneState {
+            implicit_reference,
+            current_references: HashSet::new(),
+            updated_expressions: HashMap::new(),
+        }
+    }
+
     /// Create a new prune state that's initialized with column expressions
     /// found in `parent.
     ///
     /// This should be used when walking through operators that don't expose
     /// table refs from child operators (e.g. project).
-    fn new_from_parent(parent: &impl LogicalNode) -> Self {
+    fn new_from_parent_node(parent: &impl LogicalNode, implicit_reference: bool) -> Self {
         let mut current_references = HashSet::new();
 
         parent
@@ -220,6 +65,7 @@ impl PruneState {
             .expect("extract to not fail");
 
         PruneState {
+            implicit_reference,
             current_references,
             updated_expressions: HashMap::new(),
         }
@@ -279,9 +125,10 @@ impl PruneState {
                 // Only create an updated projection if we're actually pruning
                 // columns.
                 //
-                // If projection references is empty, then we're either at the
-                // root, or something else (idk yet).
-                if proj_references.len() != project.node.projections.len()
+                // If projection references is empty, then I'm not really sure.
+                // Just skip for now.
+                if !self.implicit_reference
+                    && proj_references.len() != project.node.projections.len()
                     && !proj_references.is_empty()
                 {
                     let mut new_proj_mapping: Vec<(ColumnExpr, Expression)> =
@@ -330,15 +177,124 @@ impl PruneState {
                         projections: new_projections,
                         projection_table: table_ref,
                     };
+                }
 
-                    // Now walk children using new prune state.
-                    let mut child_prune = PruneState::new_from_parent(project);
-                    for child in &mut project.children {
-                        child_prune.walk_plan(bind_context, child)?;
+                // Now walk children using new prune state.
+                let mut child_prune = PruneState::new_from_parent_node(project, false);
+                for child in &mut project.children {
+                    child_prune.walk_plan(bind_context, child)?;
+                }
+                child_prune.apply_updated_expressions(project)?;
+            }
+            LogicalOperator::Scan(scan) => {
+                let mut cols: HashSet<_> = self
+                    .current_references
+                    .iter()
+                    .filter_map(|col_expr| {
+                        if col_expr.table_scope == scan.node.table_ref {
+                            Some(col_expr.column)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                // If we have an empty column list, then we're likely just
+                // checking for the existence of rows. So just always include at
+                // least one to make things easy for us.
+                if cols.is_empty() {
+                    cols.insert(
+                        scan.node
+                            .projection
+                            .first()
+                            .copied()
+                            .ok_or_else(|| RayexecError::new("Scan references no columns"))?,
+                    );
+                }
+
+                // Check if we're not referencing all columns. If so, we should
+                // prune.
+                let should_prune = scan.node.projection.iter().any(|col| !cols.contains(col));
+                if !self.implicit_reference && should_prune {
+                    // Prune by creating a new table with the pruned names and
+                    // types. Create a mapping of original column -> new column.
+                    let orig = bind_context.get_table(scan.node.table_ref)?;
+
+                    // We manually pull out the original column name for the
+                    // sake of a readable EXPLAIN instead of going with
+                    // generated names.
+                    let mut pruned_names = Vec::with_capacity(cols.len());
+                    let mut pruned_types = Vec::with_capacity(cols.len());
+                    for &col_idx in &cols {
+                        pruned_names.push(orig.column_names[col_idx].clone());
+                        pruned_types.push(orig.column_types[col_idx].clone());
                     }
 
-                    self.apply_updated_expressions(project)?;
+                    let new_ref = bind_context.new_ephemeral_table_with_columns(
+                        pruned_types.clone(),
+                        pruned_names.clone(),
+                    )?;
+
+                    for (new_col, old_col) in cols.iter().copied().enumerate() {
+                        self.updated_expressions.insert(
+                            ColumnExpr {
+                                table_scope: scan.node.table_ref,
+                                column: old_col,
+                            },
+                            Expression::Column(ColumnExpr {
+                                table_scope: new_ref,
+                                column: new_col,
+                            }),
+                        );
+                    }
+
+                    // Update operator.
+                    scan.node.did_prune_columns = true;
+                    scan.node.types = pruned_types;
+                    scan.node.names = pruned_names;
+                    scan.node.table_ref = new_ref;
+                    scan.node.projection = cols.into_iter().collect();
                 }
+            }
+            LogicalOperator::Aggregate(agg) => {
+                // Can't push down through aggregate, but we don't need to
+                // assume everything is implicitly referenced for the children.
+                let mut child_prune = PruneState::new_from_parent_node(agg, false);
+                for child in &mut agg.children {
+                    child_prune.walk_plan(bind_context, child)?;
+                }
+                child_prune.apply_updated_expressions(agg)?;
+            }
+            LogicalOperator::Filter(_) => {
+                // Can push through filter.
+                for child in plan.children_mut() {
+                    self.walk_plan(bind_context, child)?;
+                }
+                self.apply_updated_expressions(plan)?;
+            }
+            LogicalOperator::Order(_) => {
+                // Can push through order by.
+                for child in plan.children_mut() {
+                    self.walk_plan(bind_context, child)?;
+                }
+                self.apply_updated_expressions(plan)?;
+            }
+            LogicalOperator::Limit(_) => {
+                // Can push through limit.
+                for child in plan.children_mut() {
+                    self.walk_plan(bind_context, child)?;
+                }
+                self.apply_updated_expressions(plan)?;
+            }
+            LogicalOperator::CrossJoin(_)
+            | LogicalOperator::MagicJoin(_)
+            | LogicalOperator::ComparisonJoin(_)
+            | LogicalOperator::ArbitraryJoin(_) => {
+                // All joins good to push through.
+                for child in plan.children_mut() {
+                    self.walk_plan(bind_context, child)?;
+                }
+                self.apply_updated_expressions(plan)?;
             }
             other => {
                 // For all other plans, we take a conservative approach and not
@@ -348,7 +304,7 @@ impl PruneState {
                 // The child prune state is initialized from expressions at this
                 // level.
 
-                let mut child_prune = PruneState::default();
+                let mut child_prune = PruneState::new(true);
                 other.for_each_expr(&mut |expr| {
                     extract_column_exprs(expr, &mut child_prune.current_references);
                     Ok(())
@@ -358,7 +314,10 @@ impl PruneState {
                     child_prune.walk_plan(bind_context, child)?;
                 }
 
-                self.apply_updated_expressions(other)?;
+                // Note we apply from the child prune state since that's what's
+                // actually holding the updated expressions that this node
+                // should reference.
+                child_prune.apply_updated_expressions(other)?;
             }
         }
 
@@ -366,7 +325,7 @@ impl PruneState {
     }
 }
 
-/// Tries to flatten this projection into a child projection.
+/// Recursively try to flatten this projection into a child projection.
 ///
 /// If the projection's child is not a projection, nothing it done.
 ///
@@ -380,10 +339,13 @@ fn try_flatten_projection(current: &mut Node<LogicalProject>) -> Result<()> {
         return Ok(());
     }
 
-    let child_projection = match current.take_one_child_exact()? {
+    let mut child_projection = match current.take_one_child_exact()? {
         LogicalOperator::Project(project) => project,
         _ => unreachable!("operator has to a project"),
     };
+
+    // Try flattening child project first.
+    try_flatten_projection(&mut child_projection)?;
 
     // Generate old -> new expression map from the child. We'll walk the parent
     // expression and just replace the old references.
@@ -443,40 +405,5 @@ fn extract_column_exprs(expr: &Expression, refs: &mut HashSet<ColumnExpr>) {
                 Ok(())
             })
             .expect("extract not to fail"),
-    }
-}
-
-fn replace_column_reference2(expr: &mut Expression, mapping: &HashMap<ColumnExpr, ColumnExpr>) {
-    match expr {
-        Expression::Column(col) => {
-            if let Some(replace) = mapping.get(col).copied() {
-                *col = replace;
-            }
-        }
-        other => other
-            .for_each_child_mut(&mut |child| {
-                replace_column_reference2(child, mapping);
-                Ok(())
-            })
-            .expect("replace to not fail"),
-    }
-}
-
-fn extract_from_expr(expr: &Expression, extracted: &mut HashMap<TableRef, BTreeSet<usize>>) {
-    match expr {
-        Expression::Column(col) => {
-            extracted
-                .entry(col.table_scope)
-                .and_modify(|cols| {
-                    cols.insert(col.column);
-                })
-                .or_insert([col.column].into());
-        }
-        other => other
-            .for_each_child(&mut |child| {
-                extract_from_expr(child, extracted);
-                Ok(())
-            })
-            .expect("extract to not fail"),
     }
 }
