@@ -187,7 +187,9 @@ impl PruneState {
                 child_prune.apply_updated_expressions(project)?;
             }
             LogicalOperator::Scan(scan) => {
-                let mut cols: HashSet<_> = self
+                // BTree since we make the guarantee projections are ordered in
+                // the scan.
+                let mut cols: BTreeSet<_> = self
                     .current_references
                     .iter()
                     .filter_map(|col_expr| {
