@@ -22,11 +22,11 @@ pub struct ViewColumnValueDecoder {
 }
 
 impl ViewColumnValueDecoder {
-    pub fn new(desc: &ColumnDescPtr) -> Self {
+    pub fn new(description: &ColumnDescPtr) -> Self {
         ViewColumnValueDecoder {
             dict: None,
             decoder: None,
-            validate_utf8: desc.converted_type() == ConvertedType::UTF8,
+            validate_utf8: description.converted_type() == ConvertedType::UTF8,
         }
     }
 }

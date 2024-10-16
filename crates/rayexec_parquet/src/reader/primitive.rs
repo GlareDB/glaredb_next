@@ -93,7 +93,7 @@ where
     }
 
     fn set_page_reader(&mut self, page_reader: P) -> Result<()> {
-        let decoder = BasicColumnValueDecoder::new(&self.values_reader.descr);
+        let decoder = BasicColumnValueDecoder::new(&self.values_reader.description);
         self.values_reader.set_page_reader(decoder, page_reader)
     }
 

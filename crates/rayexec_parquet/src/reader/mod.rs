@@ -371,7 +371,7 @@ impl Length for InMemoryColumnChunk {
 
 #[derive(Debug)]
 pub struct ValuesReader<V: ColumnValueDecoder, P: PageReader> {
-    descr: ColumnDescPtr,
+    description: ColumnDescPtr,
     reader: Option<GenericColumnReader<V, P>>,
 
     def_levels: Option<Vec<i16>>,
@@ -383,20 +383,20 @@ where
     V: ColumnValueDecoder,
     P: PageReader,
 {
-    pub fn new(descr: ColumnDescPtr) -> Self {
-        let def_levels = if descr.max_def_level() > 0 {
+    pub fn new(description: ColumnDescPtr) -> Self {
+        let def_levels = if description.max_def_level() > 0 {
             Some(Vec::new())
         } else {
             None
         };
-        let rep_levels = if descr.max_rep_level() > 0 {
+        let rep_levels = if description.max_rep_level() > 0 {
             Some(Vec::new())
         } else {
             None
         };
 
         Self {
-            descr,
+            description,
             reader: None,
             def_levels,
             rep_levels,
@@ -404,14 +404,14 @@ where
     }
 
     pub fn set_page_reader(&mut self, values_decoder: V, page_reader: P) -> Result<()> {
-        let def_level_decoder = (self.descr.max_def_level() != 0)
-            .then(|| DefinitionLevelDecoder::new(self.descr.max_def_level()));
+        let def_level_decoder = (self.description.max_def_level() != 0)
+            .then(|| DefinitionLevelDecoder::new(self.description.max_def_level()));
 
-        let rep_level_decoder = (self.descr.max_rep_level() != 0)
-            .then(|| RepetitionLevelDecoder::new(self.descr.max_rep_level()));
+        let rep_level_decoder = (self.description.max_rep_level() != 0)
+            .then(|| RepetitionLevelDecoder::new(self.description.max_rep_level()));
 
         let reader = GenericColumnReader::new_with_decoders(
-            self.descr.clone(),
+            self.description.clone(),
             page_reader,
             values_decoder,
             def_level_decoder,

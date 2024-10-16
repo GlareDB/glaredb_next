@@ -15,7 +15,7 @@ use crate::schema::types::ColumnDescPtr;
 /// performance for variable length data.
 #[derive(Debug)]
 pub struct BasicColumnValueDecoder<T: DataType> {
-    descr: ColumnDescPtr,
+    description: ColumnDescPtr,
     /// Current encoding we're reading with.
     ///
     /// Set when we set the page data we're reading.
@@ -26,9 +26,9 @@ pub struct BasicColumnValueDecoder<T: DataType> {
 
 impl<T: DataType> BasicColumnValueDecoder<T> {
     /// Create a new decoder for a column.
-    pub fn new(descr: &ColumnDescPtr) -> Self {
+    pub fn new(description: &ColumnDescPtr) -> Self {
         Self {
-            descr: descr.clone(),
+            description: description.clone(),
             current_encoding: None,
             decoders: Default::default(),
         }
@@ -51,7 +51,7 @@ impl<T: DataType> BasicColumnValueDecoder<T> {
         }
 
         if encoding == Encoding::RLE_DICTIONARY {
-            let mut dictionary = PlainDecoder::<T>::new(self.descr.type_length());
+            let mut dictionary = PlainDecoder::<T>::new(self.description.type_length());
             dictionary.set_data(buf, num_values as usize)?;
 
             let mut decoder = DictDecoder::new();
@@ -99,7 +99,7 @@ impl<T: DataType> BasicColumnValueDecoder<T> {
             match self.decoders.entry(encoding) {
                 Entry::Occupied(e) => e.into_mut(),
                 Entry::Vacant(v) => {
-                    let data_decoder = get_decoder::<T>(self.descr.clone(), encoding)?;
+                    let data_decoder = get_decoder::<T>(self.description.clone(), encoding)?;
                     v.insert(data_decoder)
                 }
             }
@@ -169,7 +169,7 @@ impl<T: DataType> ColumnValueDecoder for BasicColumnValueDecoder<T> {
         }
 
         if encoding == Encoding::RLE_DICTIONARY {
-            let mut dictionary = PlainDecoder::<T>::new(self.descr.type_length());
+            let mut dictionary = PlainDecoder::<T>::new(self.description.type_length());
             dictionary.set_data(buf, num_values as usize)?;
 
             let mut decoder = DictDecoder::new();
@@ -206,7 +206,7 @@ impl<T: DataType> ColumnValueDecoder for BasicColumnValueDecoder<T> {
             match self.decoders.entry(encoding) {
                 Entry::Occupied(e) => e.into_mut(),
                 Entry::Vacant(v) => {
-                    let data_decoder = get_decoder::<T>(self.descr.clone(), encoding)?;
+                    let data_decoder = get_decoder::<T>(self.description.clone(), encoding)?;
                     v.insert(data_decoder)
                 }
             }
