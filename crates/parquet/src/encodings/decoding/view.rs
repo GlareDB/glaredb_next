@@ -30,10 +30,6 @@ impl ViewBuffer {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.current_idx
-    }
-
     pub fn try_push(&mut self, data: &[u8], validate_utf8: bool) -> Result<()> {
         if validate_utf8 {
             // We don't care about the output, just that bytes we're storing is
@@ -210,7 +206,7 @@ impl PlainViewDecoder {
             }
             let len_bytes: [u8; 4] = buf[self.offset..self.offset + 4].try_into().unwrap();
             let len = u32::from_le_bytes(len_bytes) as usize;
-            self.offset += 4 + len as usize;
+            self.offset += 4 + len;
 
             skip += 1;
         }
