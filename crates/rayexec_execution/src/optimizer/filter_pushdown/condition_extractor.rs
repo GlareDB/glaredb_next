@@ -24,6 +24,15 @@ pub struct ExtractedConditions {
     pub right_filter: Vec<Expression>,
 }
 
+impl ExtractedConditions {
+    pub fn extend_from_other(&mut self, conditions: ExtractedConditions) {
+        self.comparisons.extend(conditions.comparisons);
+        self.arbitrary.extend(conditions.arbitrary);
+        self.left_filter.extend(conditions.left_filter);
+        self.right_filter.extend(conditions.right_filter);
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExprJoinSide {
     Left,

@@ -216,6 +216,22 @@ impl Expression {
         Ok(())
     }
 
+    /// Replace this expression using a replacement function.
+    pub fn replace_with<F>(&mut self, replace_fn: F)
+    where
+        F: FnOnce(Expression) -> Expression,
+    {
+        let expr = std::mem::replace(
+            self,
+            Expression::Literal(LiteralExpr {
+                literal: ScalarValue::Null,
+            }),
+        );
+
+        let out = replace_fn(expr);
+        *self = out;
+    }
+
     pub fn contains_subquery(&self) -> bool {
         match self {
             Self::Subquery(_) => true,

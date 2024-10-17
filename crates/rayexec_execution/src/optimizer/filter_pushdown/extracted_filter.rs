@@ -6,7 +6,7 @@ use crate::expr::Expression;
 use crate::logical::binder::bind_context::TableRef;
 
 /// Holds a filtering expression and all table refs the expression references.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractedFilter {
     /// The filter expression.
     pub filter: Expression,
@@ -21,6 +21,10 @@ impl ExtractedFilter {
             filter: expr,
             tables_refs: refs,
         }
+    }
+
+    pub fn into_expression(self) -> Expression {
+        self.filter
     }
 
     /// Tries to return [left, right] table refs for this filter if it can be
