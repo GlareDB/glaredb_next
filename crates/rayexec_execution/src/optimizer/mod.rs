@@ -103,12 +103,12 @@ impl Optimizer {
         // followed by a filter with the comparison not being an equality.
         // Pushing down again gives us the best chance to get equalities into
         // the condition (for now, we can probably work on the join order more).
-        let timer = Timer::<I>::start();
-        let mut rule = FilterPushdown::default();
-        let plan = rule.optimize(bind_context, plan)?;
-        self.profile_data
-            .timings
-            .push(("filter_pushdown_2", timer.stop()));
+        // let timer = Timer::<I>::start();
+        // let mut rule = FilterPushdown::default();
+        // let plan = rule.optimize(bind_context, plan)?;
+        // self.profile_data
+        //     .timings
+        //     .push(("filter_pushdown_2", timer.stop()));
 
         // TODO: Location clustering once the rest is done.
         // let rule = LocationRule {};

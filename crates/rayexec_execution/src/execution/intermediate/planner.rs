@@ -1500,6 +1500,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                             &right_refs,
                             condition,
                         )
+                        .context_fn(|| format!("Failed to plan condition: {condition}"))
                 })
                 .collect::<Result<Vec<_>>>()?;
 

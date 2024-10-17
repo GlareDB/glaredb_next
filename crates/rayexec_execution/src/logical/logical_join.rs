@@ -90,7 +90,7 @@ pub fn inner_join_est_cardinality(left: &Statistics, right: &Statistics) -> Stat
 
     match (left_card, right_card) {
         (Some(left), Some(right)) => {
-            let estimated = usize::max(left, right);
+            let estimated = ((left as f64) * (right as f64)) * DEFAULT_SELECTIVITY;
             StatisticsCount::Estimated(estimated as usize)
         }
         _ => StatisticsCount::Unknown,
@@ -215,6 +215,8 @@ impl LogicalNode for Node<LogicalComparisonJoin> {
 /// normal operator tree with some number of "magic" materialization scans that
 /// read deduplicated values from a materialized plan that's referenced on the
 /// left.
+///
+/// This is never an INNER join, so won't be a part of join reordering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalMagicJoin {
     /// The materialization reference for the left child.

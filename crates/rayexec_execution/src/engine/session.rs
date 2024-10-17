@@ -18,9 +18,13 @@ use crate::execution::executable::pipeline::ExecutablePipeline;
 use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
 use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::execution::intermediate::{IntermediateMaterializationGroup, IntermediatePipelineGroup};
+use crate::explain::context_display::ContextDisplayMode;
+use crate::explain::explainable::ExplainConfig;
+use crate::explain::formatter::ExplainFormatter;
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_attach::LogicalAttachDatabase;
+use crate::logical::logical_explain::ExplainFormat;
 use crate::logical::logical_set::VariableOrAll;
 use crate::logical::operator::{LogicalOperator, Node};
 use crate::logical::planner::plan_statement::StatementPlanner;
@@ -302,6 +306,20 @@ where
                         .ok_or_else(|| RayexecError::new("Missing explain child"))?;
                     explain.node.logical_optimized = Some(Box::new(child.clone()));
                 }
+
+                // println!(
+                //     "{}",
+                //     ExplainFormatter::new(
+                //         &bind_context,
+                //         ExplainConfig {
+                //             context_mode: ContextDisplayMode::Enriched(&bind_context),
+                //             verbose: true,
+                //         },
+                //         ExplainFormat::Text
+                //     )
+                //     .format_logical_plan(&logical)
+                //     .unwrap()
+                // );
 
                 let schema = Schema::new(
                     bind_context

@@ -139,12 +139,12 @@ impl InnerJoinReorder {
         let equalities = std::mem::take(&mut self.equalities);
         let filters = std::mem::take(&mut self.filters);
 
-        const MAX_GENERATED_PLANS: usize = 3;
+        const MAX_GENERATED_PLANS: usize = 8;
 
         let permutations =
             generate_permutations((0..equalities.len()).collect(), MAX_GENERATED_PLANS);
 
-        let mut generated_plans = Vec::with_capacity(MAX_GENERATED_PLANS);
+        let mut best_plan: Option<GeneratedPlan> = None;
 
         for permutation in permutations {
             let mut equalities: Vec<_> = permutation
@@ -162,19 +162,17 @@ impl InnerJoinReorder {
             let plan = builder.try_build()?;
             let cost = builder.get_cost();
 
-            generated_plans.push(GeneratedPlan { plan, cost });
+            match &best_plan {
+                Some(best) => {
+                    if cost.build_side_rows < best.cost.build_side_rows {
+                        best_plan = Some(GeneratedPlan { plan, cost });
+                    }
+                }
+                None => best_plan = Some(GeneratedPlan { plan, cost }),
+            }
         }
 
-        // Find the best cost.
-        generated_plans.sort_unstable_by(|a, b| {
-            a.cost
-                .build_side_rows
-                .cmp(&b.cost.build_side_rows)
-                .reverse()
-        });
-        let best = generated_plans.pop().unwrap();
-
-        Ok(best.plan)
+        Ok(best_plan.unwrap().plan)
     }
 
     fn extract_filters_and_join_children(&mut self, root: LogicalOperator) -> Result<()> {

@@ -187,7 +187,12 @@ impl JoinBuilder {
         let left = self.plans.remove(&left_node_id).unwrap();
         let right = self.plans.remove(&right_node_id).unwrap();
 
-        let [mut left, mut right] = Self::maybe_swap_using_stats([left, right]);
+        let (did_swap, [mut left, mut right]) = Self::maybe_swap_using_stats([left, right]);
+        let mut curr_condition = equality.into_comparision_condition();
+        // Swap the condition sides if needed.
+        if did_swap {
+            curr_condition.flip_sides();
+        }
 
         let left_refs: Vec<_> = left.output_refs.iter().copied().collect();
         let right_refs: Vec<_> = right.output_refs.iter().copied().collect();
@@ -226,9 +231,7 @@ impl JoinBuilder {
         self.add_cost_for_build_side(&left.plan);
 
         // Do the join.
-        conditions
-            .comparisons
-            .push(equality.into_comparision_condition());
+        conditions.comparisons.push(curr_condition);
 
         let mut join = LogicalOperator::ComparisonJoin(Node {
             node: LogicalComparisonJoin {
@@ -264,7 +267,11 @@ impl JoinBuilder {
         Ok(true)
     }
 
-    fn maybe_swap_using_stats([left, right]: [TreeNode; 2]) -> [TreeNode; 2] {
+    /// Maybe swap the nodes such that the left side is the side producing fewer
+    /// rows.
+    ///
+    /// Returns a boolean indicating if the nodes we're swapped.
+    fn maybe_swap_using_stats([left, right]: [TreeNode; 2]) -> (bool, [TreeNode; 2]) {
         let left_stats = left.plan.get_statistics();
         let right_stats = right.plan.get_statistics();
 
@@ -274,9 +281,9 @@ impl JoinBuilder {
         ) {
             (Some(left_size), Some(right_size)) if right_size < left_size => {
                 // Swap, we want smaller on the left.
-                [right, left]
+                (true, [right, left])
             }
-            _ => [left, right], // Unchanged.
+            _ => (false, [left, right]), // Unchanged.
         }
     }
 }
@@ -304,13 +311,25 @@ impl TreeNode {
                 });
             }
             LogicalOperator::ComparisonJoin(join) if join.node.join_type == JoinType::Inner => {
-                // Just add to conditions.
-                join.node
-                    .conditions
-                    .push(equality.into_comparision_condition())
+                // Append to existing conditions.
+
+                // Need to check if we have to flip the condition.
+                let needs_flip = !join
+                    .get_nth_child(0)
+                    .unwrap()
+                    .get_output_table_refs()
+                    .contains(&equality.left_ref);
+
+                let mut comparison = equality.into_comparision_condition();
+
+                if needs_flip {
+                    comparison.flip_sides();
+                }
+
+                join.node.conditions.push(comparison)
             }
             LogicalOperator::ArbitraryJoin(join) if join.node.join_type == JoinType::Inner => {
-                // TODO: This coult turn the arbitrary join into a comparison
+                // TODO: This could turn the arbitrary join into a comparison
                 // join. We could do the same with cross join.
                 join.node.condition.replace_with(|expr| {
                     Expression::Conjunction(ConjunctionExpr {
