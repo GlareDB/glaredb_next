@@ -1,15 +1,21 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
-use tracing::warn;
 
 use super::OptimizeRule;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, MaterializationRef, TableRef};
+use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 
+/// Prunes columns from the plan, potentially pushing down projects into scans.
+///
+/// Note that a previous iteration of this rule assumed that table refs were
+/// unique within a plan. That is not the case, particularly with CTEs as they
+/// get cloned into the plan during planning without altering any table refs.
+/// TPCH query 15 triggered an error due to this, but I was not actually able to
+/// easily write a minimal example that could reproduce it.
 #[derive(Debug, Default)]
 pub struct ColumnPrune {}
 
@@ -343,7 +349,7 @@ fn try_flatten_projection(current: &mut Node<LogicalProject>) -> Result<()> {
 
     let mut child_projection = match current.take_one_child_exact()? {
         LogicalOperator::Project(project) => project,
-        _ => unreachable!("operator has to a project"),
+        _ => unreachable!("operator has to be a project"),
     };
 
     // Try flattening child project first.
