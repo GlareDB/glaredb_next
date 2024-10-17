@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use shared_or_owned::SharedOrOwned;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
@@ -44,6 +45,12 @@ use crate::storage::{
     UntypedNullStorage,
 };
 
+/// Validity mask for physical storage.
+pub type PhysicalValidity = SharedOrOwned<Bitmap>;
+
+/// Logical row selection.
+pub type LogicalSelection = SharedOrOwned<SelectionVector>;
+
 /// Wrapper around a selection vector allowing for owned or shared vectors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Selection {
@@ -81,7 +88,7 @@ pub struct Array {
     /// If set, this provides logical row mapping on top of the underlying data.
     /// If not set, then there's a one-to-one mapping between the logical row
     /// and and row in the underlying data.
-    pub(crate) selection: Option<Selection>,
+    pub(crate) selection: Option<LogicalSelection>,
     /// Option validity mask.
     ///
     /// This indicates the validity of the underlying data. This does not take
@@ -150,7 +157,7 @@ impl Array {
     pub fn new_with_validity_selection_and_array_data(
         datatype: DataType,
         validity: Bitmap,
-        selection: impl Into<Selection>,
+        selection: impl Into<LogicalSelection>,
         data: impl Into<ArrayData>,
     ) -> Self {
         Array {
@@ -189,7 +196,7 @@ impl Array {
     }
 
     // TODO: Validating variant too.
-    pub fn put_selection(&mut self, selection: impl Into<Selection>) {
+    pub fn put_selection(&mut self, selection: impl Into<LogicalSelection>) {
         self.selection = Some(selection.into())
     }
 
@@ -197,7 +204,8 @@ impl Array {
     ///
     /// Takes into account any existing selection. This allows for repeated
     /// selection (filtering) against the same array.
-    pub fn select_mut(&mut self, selection: &Selection) {
+    pub fn select_mut(&mut self, selection: impl Into<LogicalSelection>) {
+        let selection = selection.into();
         match self.selection_vector() {
             Some(existing) => {
                 // Existing selection, need to create a new vector that selects
@@ -214,7 +222,7 @@ impl Array {
             None => {
                 // No existing selection, we can just use the provided vector
                 // directly.
-                self.selection = Some(selection.clone())
+                self.selection = Some(selection)
             }
         }
     }
@@ -1055,7 +1063,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::with_range(0..3);
 
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
@@ -1067,7 +1075,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 2]);
 
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
@@ -1079,7 +1087,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 1, 1, 2]);
 
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
@@ -1094,10 +1102,10 @@ mod tests {
         let selection = SelectionVector::from_iter([0, 2]);
 
         // => ["a", "c"]
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         let selection = SelectionVector::from_iter([1, 1, 0]);
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("c"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());

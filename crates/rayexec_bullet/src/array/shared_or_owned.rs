@@ -4,12 +4,12 @@ use std::sync::Arc;
 ///
 /// This type allows for easily converting to and from shared variants of some
 /// underlying type (e.g. selection vectors or bitmaps).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedOrOwned<T> {
     inner: SharedOrOwnedInner<T>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum SharedOrOwnedInner<T> {
     Shared(Arc<T>),
     Owned(T),
