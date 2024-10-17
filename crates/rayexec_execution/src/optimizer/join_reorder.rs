@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 
 use rayexec_error::{RayexecError, Result};
@@ -88,6 +89,9 @@ impl InnerJoinReorder {
             LogicalOperator::ComparisonJoin(join) if join.node.join_type == JoinType::Inner => {
                 self.extract_filters_and_join_children(root)?;
             }
+            LogicalOperator::ArbitraryJoin(join) if join.node.join_type == JoinType::Inner => {
+                self.extract_filters_and_join_children(root)?;
+            }
             _ => {
                 // Can't extract at this node, try reordering children and
                 // return.
@@ -147,6 +151,17 @@ impl InnerJoinReorder {
                         self.child_plans.push(LogicalOperator::ComparisonJoin(join))
                     }
                 }
+                LogicalOperator::ArbitraryJoin(mut join) => {
+                    if join.node.join_type == JoinType::Inner {
+                        self.add_filter(join.node.condition);
+                        for child in join.children.drain(..) {
+                            queue.push_back(child);
+                        }
+                    } else {
+                        // Nothing we can do (yet).
+                        self.child_plans.push(LogicalOperator::ArbitraryJoin(join))
+                    }
+                }
                 other => self.child_plans.push(other),
             }
         }
@@ -177,7 +192,7 @@ struct JoinTreeNode {
     ///
     /// If this is valid, this should never be None.
     plan: Option<LogicalOperator>,
-    /// All filters that we know apply to the
+    /// All filters that we know apply to this node in the tree.
     filters: Vec<Expression>,
 }
 
@@ -201,7 +216,7 @@ impl JoinTree {
         // treating this vec as a stack, and the fewer the table refs, the lower
         // in the tree the filter will go.
         let mut filters: Vec<ExtractedFilter> = filters.into_iter().collect();
-        filters.sort_unstable_by(|a, b| (a.tables_refs.len().cmp(&b.tables_refs.len())).reverse());
+        filters.sort_unstable_by(filter_sort_compare);
 
         JoinTree {
             nodes,
@@ -280,6 +295,8 @@ impl JoinTree {
             Some(filter) => filter,
             None => return Ok(false),
         };
+
+        println!("FILTER: {filter:?}");
 
         // Figure out which nodes this filter can possibly apply to.
         let node_indices: Vec<_> = self
@@ -462,4 +479,25 @@ impl JoinTree {
             _ => [left, right], // Unchanged.
         }
     }
+}
+
+fn filter_sort_compare(a: &ExtractedFilter, b: &ExtractedFilter) -> Ordering {
+    // Try to sort with possible equalities coming first.
+    let a_possible_equality = a.is_equality_join_candidate();
+    let b_possible_equality = b.is_equality_join_candidate();
+
+    if a_possible_equality && b_possible_equality {
+        return Ordering::Equal;
+    }
+
+    if a_possible_equality {
+        return Ordering::Less;
+    }
+
+    if b_possible_equality {
+        return Ordering::Greater;
+    }
+
+    // Otherwise sort by which expression has fewer table refs.
+    a.tables_refs.len().cmp(&b.tables_refs.len())
 }
