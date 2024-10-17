@@ -203,7 +203,7 @@ impl<'a> JoinConditionExtractor<'a> {
                     }
                 }
                 ExprJoinSide::Right => {
-                    if self.join_type == JoinType::Left {
+                    if matches!(self.join_type, JoinType::Left | JoinType::Inner) {
                         // Filter right input into LEFT join.
                         extracted.right_filter.push(expr);
                     } else {
@@ -211,7 +211,7 @@ impl<'a> JoinConditionExtractor<'a> {
                     }
                 }
                 ExprJoinSide::Left => {
-                    if self.join_type == JoinType::Right {
+                    if matches!(self.join_type, JoinType::Right | JoinType::Inner) {
                         // Filter left input into RIGHT join.
                         extracted.left_filter.push(expr);
                     } else {

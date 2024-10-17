@@ -139,7 +139,7 @@ impl InnerJoinReorder {
         let equalities = std::mem::take(&mut self.equalities);
         let filters = std::mem::take(&mut self.filters);
 
-        const MAX_GENERATED_PLANS: usize = 8;
+        const MAX_GENERATED_PLANS: usize = 3;
 
         let permutations =
             generate_permutations((0..equalities.len()).collect(), MAX_GENERATED_PLANS);
@@ -161,8 +161,6 @@ impl InnerJoinReorder {
 
             let plan = builder.try_build()?;
             let cost = builder.get_cost();
-
-            println!("COST: {cost:?}");
 
             generated_plans.push(GeneratedPlan { plan, cost });
         }
