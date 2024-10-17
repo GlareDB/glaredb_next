@@ -9,8 +9,14 @@ use super::OptimizeRule;
 use crate::expr::{self, Expression};
 use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_filter::LogicalFilter;
-use crate::logical::logical_join::{JoinType, LogicalComparisonJoin, LogicalCrossJoin};
+use crate::logical::logical_join::{
+    inner_join_est_cardinality,
+    JoinType,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+};
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::statistics::StatisticsCount;
 use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
 
 /// Reorders joins in the plan.
@@ -214,7 +220,7 @@ impl JoinTree {
 
         // Collect all filters, then sort.
         let mut filters: Vec<ExtractedFilter> = filters.into_iter().collect();
-        filters.sort_unstable_by(|a, b| filter_sort_compare(a, b).reverse()); // Reversed since we're going to treat the vec as a stack.
+        filters.sort_unstable_by(|a, b| filter_sort_compare(&nodes, a, b).reverse()); // Reversed since we're going to treat the vec as a stack.
 
         JoinTree {
             nodes,
@@ -396,6 +402,7 @@ impl JoinTree {
                 });
             }
             _ => {
+                println!("IS CROSS JOIN");
                 // > 2 nodes.
                 //
                 // Arbitrarily cross join two of them, and push back the filter
@@ -483,23 +490,65 @@ impl JoinTree {
 /// This will sort filters that are equality join candidates first, followed by
 /// filters sorted by number of table refs they reference (fewer table refs
 /// roughly indicate they can be pushed further down into the tree).
-fn filter_sort_compare(a: &ExtractedFilter, b: &ExtractedFilter) -> Ordering {
+fn filter_sort_compare(
+    plans: &[JoinTreeNode],
+    a: &ExtractedFilter,
+    b: &ExtractedFilter,
+) -> Ordering {
     // Try to sort with possible equalities coming first.
-    let a_possible_equality = a.is_equality_join_candidate();
-    let b_possible_equality = b.is_equality_join_candidate();
+    let a_join_refs = a.try_get_tables_refs_for_equality();
+    let b_join_refs = b.try_get_tables_refs_for_equality();
 
-    if a_possible_equality && b_possible_equality {
-        return Ordering::Equal;
+    match (a_join_refs, b_join_refs) {
+        (Some(a), Some(b)) => {
+            // Both 'a' and 'b' can be used for an inner join. Determine which
+            // should come first based on statistcs.
+            let a_est = inner_join_candidate_cardinality(plans, a);
+            let b_est = inner_join_candidate_cardinality(plans, b);
+
+            match (a_est.value(), b_est.value()) {
+                (Some(a), Some(b)) => a.cmp(&b),
+                _ => Ordering::Equal,
+            }
+        }
+        (Some(_a), None) => {
+            // Just 'a' can potentially be used for an inner join.
+            Ordering::Less
+        }
+        (None, Some(_b)) => {
+            // Just 'b' can potentially be used for an inner join.
+            Ordering::Greater
+        }
+        (None, None) => {
+            // Otherwise sort by which expression has fewer table refs.
+            a.tables_refs.len().cmp(&b.tables_refs.len())
+        }
     }
+}
 
-    if a_possible_equality {
-        return Ordering::Less;
-    }
+/// Compute the output cardinality of a candidate join between two table refs.
+fn inner_join_candidate_cardinality(
+    plans: &[JoinTreeNode],
+    [left_ref, right_ref]: [TableRef; 2],
+) -> StatisticsCount {
+    let left_plan = match plans
+        .iter()
+        .find(|plan| plan.output_refs.contains(&left_ref))
+    {
+        Some(plan) => plan,
+        None => return StatisticsCount::Unknown,
+    };
 
-    if b_possible_equality {
-        return Ordering::Greater;
-    }
+    let right_plan = match plans
+        .iter()
+        .find(|plan| plan.output_refs.contains(&right_ref))
+    {
+        Some(plan) => plan,
+        None => return StatisticsCount::Unknown,
+    };
 
-    // Otherwise sort by which expression has fewer table refs.
-    a.tables_refs.len().cmp(&b.tables_refs.len())
+    let left_stats = left_plan.plan.as_ref().unwrap().get_statistics();
+    let right_stats = right_plan.plan.as_ref().unwrap().get_statistics();
+
+    inner_join_est_cardinality(&left_stats, &right_stats)
 }

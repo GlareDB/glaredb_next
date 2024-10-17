@@ -31,7 +31,6 @@ impl LogicalNode for Node<LogicalFilter> {
 
         if let Some(card) = child_stats.cardinality.value() {
             let estimated = (card as f64) * DEFAULT_SELECTIVITY;
-
             return Statistics {
                 cardinality: StatisticsCount::Estimated(estimated as usize),
                 column_stats: None,

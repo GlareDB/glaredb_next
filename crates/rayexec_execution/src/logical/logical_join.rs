@@ -62,25 +62,16 @@ impl JoinType {
         let left = iter.next().expect("first child");
         let right = iter.next().expect("second child");
 
-        let left_card = left.cardinality.value();
-        let right_card = right.cardinality.value();
-
         let cardinality = match self {
-            Self::Left | Self::LeftMark { .. } => match left_card {
+            Self::Left | Self::LeftMark { .. } => match left.cardinality.value() {
                 Some(v) => StatisticsCount::Estimated(v),
                 _ => StatisticsCount::Unknown,
             },
-            Self::Right => match right_card {
+            Self::Right => match right.cardinality.value() {
                 Some(v) => StatisticsCount::Estimated(v),
                 _ => StatisticsCount::Unknown,
             },
-            Self::Inner => match (left_card, right_card) {
-                (Some(left), Some(right)) => {
-                    let estimated = (left as f64) * (right as f64) * DEFAULT_SELECTIVITY;
-                    StatisticsCount::Estimated(estimated as usize)
-                }
-                _ => StatisticsCount::Unknown,
-            },
+            Self::Inner => inner_join_est_cardinality(&left, &right),
             _ => StatisticsCount::Unknown,
         };
 
@@ -88,6 +79,21 @@ impl JoinType {
             cardinality,
             column_stats: None,
         }
+    }
+}
+
+/// Compute the estimated cardinality of an inner join using left and right
+/// statistics.
+pub fn inner_join_est_cardinality(left: &Statistics, right: &Statistics) -> StatisticsCount {
+    let left_card = left.cardinality.value();
+    let right_card = right.cardinality.value();
+
+    match (left_card, right_card) {
+        (Some(left), Some(right)) => {
+            let estimated = usize::max(left, right);
+            StatisticsCount::Estimated(estimated as usize)
+        }
+        _ => StatisticsCount::Unknown,
     }
 }
 
