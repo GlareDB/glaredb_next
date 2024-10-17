@@ -212,11 +212,9 @@ impl JoinTree {
             })
             .collect();
 
-        // Collect all filters, then sort by table refs descending. We'll be
-        // treating this vec as a stack, and the fewer the table refs, the lower
-        // in the tree the filter will go.
+        // Collect all filters, then sort.
         let mut filters: Vec<ExtractedFilter> = filters.into_iter().collect();
-        filters.sort_unstable_by(filter_sort_compare);
+        filters.sort_unstable_by(|a, b| filter_sort_compare(a, b).reverse()); // Reversed since we're going to treat the vec as a stack.
 
         JoinTree {
             nodes,
@@ -295,8 +293,6 @@ impl JoinTree {
             Some(filter) => filter,
             None => return Ok(false),
         };
-
-        println!("FILTER: {filter:?}");
 
         // Figure out which nodes this filter can possibly apply to.
         let node_indices: Vec<_> = self
@@ -481,6 +477,12 @@ impl JoinTree {
     }
 }
 
+/// Sort function we're using for ordering the filters by which filter we should
+/// try applying first.
+///
+/// This will sort filters that are equality join candidates first, followed by
+/// filters sorted by number of table refs they reference (fewer table refs
+/// roughly indicate they can be pushed further down into the tree).
 fn filter_sort_compare(a: &ExtractedFilter, b: &ExtractedFilter) -> Ordering {
     // Try to sort with possible equalities coming first.
     let a_possible_equality = a.is_equality_join_candidate();

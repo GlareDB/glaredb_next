@@ -45,6 +45,8 @@ impl ExtractedFilter {
     /// an Eq comparison, and the each side references one of the two refs and
     /// without overlap.
     pub fn is_equality_join_candidate(&self) -> bool {
+        // TODO: It's possible that a filter can have more than two table refs
+        // and still be used for an equality join.
         if self.tables_refs.len() != 2 {
             return false;
         }
