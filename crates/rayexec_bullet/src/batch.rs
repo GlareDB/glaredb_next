@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::array::{Array, Selection};
+use crate::array::Array;
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::executor::builder::{
@@ -455,7 +455,7 @@ where
     let validity = if validity.is_all_true() {
         None
     } else {
-        Some(validity)
+        Some(validity.into())
     };
 
     Ok(Array {

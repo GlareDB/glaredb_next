@@ -73,7 +73,7 @@ impl UniformExecutor {
                 op(op_inputs.as_slice(), &mut output_buffer);
             }
 
-            out_validity = Some(out_validity_builder);
+            out_validity = Some(out_validity_builder.into());
         } else {
             let storage_values: Vec<_> = arrays
                 .iter()

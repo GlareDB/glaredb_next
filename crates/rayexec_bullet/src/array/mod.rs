@@ -93,7 +93,7 @@ pub struct Array {
     ///
     /// This indicates the validity of the underlying data. This does not take
     /// into account the selection vector, and always maps directly to the data.
-    pub(crate) validity: Option<Bitmap>,
+    pub(crate) validity: Option<PhysicalValidity>,
     /// The physical data.
     pub(crate) data: ArrayData,
 }
@@ -111,7 +111,7 @@ impl Array {
         Array {
             datatype: DataType::Null,
             selection: Some(selection.into()),
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data: data.into(),
         }
     }
@@ -127,7 +127,7 @@ impl Array {
         Ok(Array {
             datatype,
             selection: Some(selection.into()),
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data,
         })
     }
@@ -143,27 +143,27 @@ impl Array {
 
     pub fn new_with_validity_and_array_data(
         datatype: DataType,
-        validity: Bitmap,
+        validity: impl Into<PhysicalValidity>,
         data: impl Into<ArrayData>,
     ) -> Self {
         Array {
             datatype,
             selection: None,
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data: data.into(),
         }
     }
 
     pub fn new_with_validity_selection_and_array_data(
         datatype: DataType,
-        validity: Bitmap,
+        validity: impl Into<PhysicalValidity>,
         selection: impl Into<LogicalSelection>,
         data: impl Into<ArrayData>,
     ) -> Self {
         Array {
             datatype,
             selection: Some(selection.into()),
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data: data.into(),
         }
     }
@@ -183,14 +183,17 @@ impl Array {
     /// Sets the validity for a value at a given physical index.
     pub fn set_physical_validity(&mut self, idx: usize, valid: bool) {
         match &mut self.validity {
-            Some(validity) => validity.set_unchecked(idx, valid),
+            Some(validity) => {
+                let validity = validity.get_mut();
+                validity.set_unchecked(idx, valid);
+            }
             None => {
                 // Initialize validity.
                 let len = self.data.len();
                 let mut validity = Bitmap::new_with_all_true(len);
                 validity.set_unchecked(idx, valid);
 
-                self.validity = Some(validity)
+                self.validity = Some(validity.into())
             }
         }
     }
@@ -235,7 +238,7 @@ impl Array {
     }
 
     pub fn validity(&self) -> Option<&Bitmap> {
-        self.validity.as_ref()
+        self.validity.as_ref().map(|v| v.as_ref())
     }
 
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
@@ -249,7 +252,7 @@ impl Array {
         };
 
         if let Some(validity) = &self.validity {
-            return Some(validity.value_unchecked(idx));
+            return Some(validity.as_ref().value_unchecked(idx));
         }
 
         Some(true)
@@ -285,7 +288,7 @@ impl Array {
         };
 
         if let Some(validity) = &self.validity {
-            if !validity.value_unchecked(idx) {
+            if !validity.as_ref().value_unchecked(idx) {
                 return Ok(ScalarValue::Null);
             }
         }
@@ -785,7 +788,7 @@ where
         }
 
         let mut array = Array::from_iter(new_vals);
-        array.validity = Some(validity);
+        array.validity = Some(validity.into());
 
         array
     }

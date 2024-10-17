@@ -76,6 +76,14 @@ where
         }
     }
 
+    pub fn get_mut(&mut self) -> &mut T {
+        self.make_owned();
+        match &mut self.inner {
+            SharedOrOwnedInner::Owned(v) => v,
+            _ => panic!("invalid state"),
+        }
+    }
+
     pub fn is_shared(&self) -> bool {
         matches!(self.inner, SharedOrOwnedInner::Shared(_))
     }
