@@ -1,5 +1,7 @@
 mod equality_condition;
+mod graph;
 mod join_builder;
+mod set;
 
 use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
