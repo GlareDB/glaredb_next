@@ -9,6 +9,7 @@ use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{JoinType, LogicalComparisonJoin, LogicalCrossJoin};
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::statistics::Statistics;
 use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 
@@ -50,7 +51,12 @@ impl JoinBuilder {
             .into_iter()
             .map(|plan| {
                 let output_refs = plan.get_output_table_refs().into_iter().collect();
-                TreeNode { plan, output_refs }
+                let stats = plan.get_statistics();
+                TreeNode {
+                    plan,
+                    output_refs,
+                    stats,
+                }
             })
             .enumerate()
             .collect();
@@ -146,6 +152,49 @@ impl JoinBuilder {
         Ok(plan)
     }
 
+    /// Finds a node id for a table ref that will be a join child.
+    fn find_node_id_for_join(&self, table_ref: TableRef, low_cardinality: bool) -> Result<usize> {
+        // Get all candidate nodes.
+        let mut nodes: Vec<_> = self
+            .plans
+            .iter()
+            .filter_map(|(node_id, node)| {
+                if node.output_refs.contains(&table_ref) {
+                    Some((node_id, node))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Now find the node with the lowest cardinality.
+        let mut best = nodes
+            .pop()
+            .ok_or_else(|| RayexecError::new("Missing node"))?; // Shouldn't happen.
+
+        for node in nodes {
+            match (
+                best.1.stats.cardinality.value(),
+                node.1.stats.cardinality.value(),
+            ) {
+                (Some(best_val), Some(check_val)) => {
+                    if low_cardinality {
+                        if check_val < best_val {
+                            best = node
+                        }
+                    } else {
+                        if check_val > best_val {
+                            best = node
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        Ok(*best.0)
+    }
+
     /// Take a single step to try to combine two nodes into a join.
     ///
     /// Returns a bool indicating if we have more equalities and should continue
@@ -159,16 +208,8 @@ impl JoinBuilder {
         // Find nodes to join.
         //
         // We should always have nodes that we can join, the errors shouldn't happen.
-        let (&left_node_id, _) = self
-            .plans
-            .iter()
-            .find(|(_, plan)| plan.output_refs.contains(&equality.left_ref))
-            .ok_or_else(|| RayexecError::new(format!("Missing node left node for {equality:?}")))?;
-        let (&right_node_id, _) = self
-            .plans
-            .iter()
-            .find(|(_, plan)| plan.output_refs.contains(&equality.right_ref))
-            .ok_or_else(|| RayexecError::new(format!("Missing node left node for {equality:?}")))?;
+        let left_node_id = self.find_node_id_for_join(equality.left_ref, true)?;
+        let right_node_id = self.find_node_id_for_join(equality.right_ref, false)?;
 
         if left_node_id == right_node_id {
             // Equality is just a filter for an existing node.
@@ -256,11 +297,14 @@ impl JoinBuilder {
         let node_id = self.next_node_id;
         self.next_node_id += 1;
 
+        let stats = join.get_statistics();
+
         self.plans.insert(
             node_id,
             TreeNode {
                 plan: join,
                 output_refs: combined_output_refs,
+                stats,
             },
         );
 
@@ -291,8 +335,12 @@ impl JoinBuilder {
 /// Node in the tree.
 #[derive(Debug)]
 struct TreeNode {
+    /// Plan for this node.
     plan: LogicalOperator,
+    /// All output refs from the plan.
     output_refs: HashSet<TableRef>,
+    /// Cached statistics.
+    stats: Statistics,
 }
 
 impl TreeNode {
