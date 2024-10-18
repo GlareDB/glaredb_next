@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::expr::comparison_expr::ComparisonExpr;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_join::{ComparisonCondition, JoinType};
@@ -223,6 +223,8 @@ where
                                 extracted.comparisons.push(condition);
                                 continue;
                             }
+
+                            // TODO: Do we need to push to arbitrary here?
                         }
                         other => {
                             extracted.arbitrary.push(other);
@@ -252,5 +254,33 @@ where
         }
 
         Ok(extracted)
+    }
+
+    /// Try to get a comparison operator from an expression, treating the
+    /// expression as a join condition between left and right.
+    ///
+    /// Assumes that the expression has already been split on conjunctions.
+    ///
+    /// Returns None if the expression is not a comparison between left and
+    /// right.
+    pub fn try_get_comparison_operator(
+        &self,
+        expr: &Expression,
+    ) -> Result<Option<ComparisonOperator>> {
+        if let Expression::Comparison(ComparisonExpr { left, right, op }) = expr {
+            let left_side =
+                ExprJoinSide::try_from_expr(&left, self.left_tables, self.right_tables)?;
+            let right_side =
+                ExprJoinSide::try_from_expr(&right, self.left_tables, self.right_tables)?;
+
+            if left_side != ExprJoinSide::Both
+                && right_side != ExprJoinSide::Both
+                && left_side != right_side
+            {
+                return Ok(Some(*op));
+            }
+        }
+
+        Ok(None)
     }
 }
