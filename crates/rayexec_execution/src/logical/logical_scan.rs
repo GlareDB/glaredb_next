@@ -107,7 +107,8 @@ impl Explainable for LogicalScan {
         if conf.verbose {
             ent = ent
                 .with_value("table_ref", self.table_ref)
-                .with_values("projection", &self.projection);
+                .with_values("projection", &self.projection)
+                .with_statistics(self.source.statistics())
         }
 
         ent

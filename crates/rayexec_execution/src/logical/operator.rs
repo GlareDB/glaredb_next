@@ -226,11 +226,22 @@ impl<N> Node<N> {
     }
 }
 
-impl<N: Explainable> Explainable for Node<N> {
+impl<N> Explainable for Node<N>
+where
+    N: Explainable,
+    Node<N>: LogicalNode,
+{
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.node
+        let mut ent = self
+            .node
             .explain_entry(conf)
-            .with_value("location", self.location)
+            .with_value("location", self.location);
+
+        if conf.verbose {
+            ent = ent.with_statistics(self.get_statistics());
+        }
+
+        ent
     }
 }
 

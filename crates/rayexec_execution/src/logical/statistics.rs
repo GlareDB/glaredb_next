@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub mod assumptions {
     //! Assumptions when we don't have complete statistics available to us.
 
@@ -21,6 +23,16 @@ impl StatisticsCount {
         match self {
             Self::Exact(v) | Self::Estimated(v) => Some(v),
             Self::Unknown => None,
+        }
+    }
+}
+
+impl fmt::Display for StatisticsCount {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Exact(v) => write!(f, "{v}"),
+            Self::Estimated(v) => write!(f, "{v} [estimated]"),
+            Self::Unknown => write!(f, "[unknown]"),
         }
     }
 }

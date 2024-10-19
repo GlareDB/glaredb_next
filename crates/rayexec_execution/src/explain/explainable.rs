@@ -4,6 +4,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use super::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::logical::statistics::Statistics;
 
 /// An entry in an output for explaining a query.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,6 +116,10 @@ impl ExplainEntry {
         );
         self.items.insert(key, vals);
         self
+    }
+
+    pub fn with_statistics(self, stats: Statistics) -> Self {
+        self.with_value("cardinality", stats.cardinality)
     }
 }
 
