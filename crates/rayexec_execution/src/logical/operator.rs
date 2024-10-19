@@ -99,6 +99,7 @@ pub trait LogicalNode {
     /// If a logical operator references a table ref that isn't the output of
     /// any of its immediate children, then we messed up planning (e.g. didn't
     /// fully decorrelate).
+    // TODO: Make this take a bind context
     fn get_output_table_refs(&self) -> Vec<TableRef>;
 
     /// Get the statistics for the output of this operator.

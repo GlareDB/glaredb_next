@@ -142,11 +142,11 @@ impl UsedEdges {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
     /// The join condition.
-    pub condition: ComparisonCondition,
+    condition: ComparisonCondition,
     /// Refs on the left side of the comparison.
-    pub left_refs: HashSet<TableRef>,
+    left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
-    pub right_refs: HashSet<TableRef>,
+    right_refs: HashSet<TableRef>,
 }
 
 #[derive(Debug)]
@@ -160,6 +160,34 @@ pub struct Graph {
 }
 
 impl Graph {
+    pub fn new(
+        base_relations: impl IntoIterator<Item = LogicalOperator>,
+        conditions: impl IntoIterator<Item = ComparisonCondition>,
+        filters: impl IntoIterator<Item = ExtractedFilter>,
+    ) -> Self {
+        let base_relations = base_relations.into_iter().enumerate().collect();
+        let edges = conditions
+            .into_iter()
+            .map(|condition| {
+                let left_refs = condition.left.get_table_references();
+                let right_refs = condition.right.get_table_references();
+                Edge {
+                    condition,
+                    left_refs,
+                    right_refs,
+                }
+            })
+            .enumerate()
+            .collect();
+        let filters = filters.into_iter().enumerate().collect();
+
+        Graph {
+            edges,
+            filters,
+            base_relations,
+        }
+    }
+
     pub fn try_build(&mut self) -> Result<LogicalOperator> {
         let mut plans = self.generate_plans()?;
 
@@ -169,18 +197,24 @@ impl Graph {
             .remove(&key)
             .ok_or_else(|| RayexecError::new("Missing longest generated plan"))?;
 
-        let plan = self.build_from_generated(longest, &mut plans)?;
+        let plan = self.build_from_generated(&longest, &mut plans)?;
 
+        // All edges and relations should have been used to build up the plan.
         assert!(self.edges.is_empty());
-        assert!(self.filters.is_empty());
         assert!(self.base_relations.is_empty());
+
+        // But we may still have filters. Apply them to the final plan.
+        let filter_ids: HashSet<_> = self.filters.keys().copied().collect();
+        let plan = self.apply_filters(plan, &filter_ids)?;
+
+        assert!(self.filters.is_empty());
 
         Ok(plan)
     }
 
     fn build_from_generated(
         &mut self,
-        generated: GeneratedPlan,
+        generated: &GeneratedPlan,
         plans: &mut HashMap<PlanKey, GeneratedPlan>,
     ) -> Result<LogicalOperator> {
         // If we're building a base relation, we can just return the relation
@@ -205,23 +239,23 @@ impl Graph {
         // Otherwise build up the plan.
 
         let left_gen = plans
-            .remove(&generated.left_input.expect("left_input to be set"))
+            .remove(generated.left_input.as_ref().expect("left to be set"))
             .ok_or_else(|| RayexecError::new("Missing left input"))?;
         let right_gen = plans
-            .remove(&generated.right_input.expect("right_input to be set"))
+            .remove(generated.right_input.as_ref().expect("right to be set"))
             .ok_or_else(|| RayexecError::new("Missing right input"))?;
 
         // Swap sides if needed. We always want left (build) side to have the
         // lower cardinality (not necessarily cost).
-        let swap_sides = right_gen.cardinality < left_gen.cardinality;
+        let plan_swap_sides = right_gen.cardinality < left_gen.cardinality;
 
-        let left = self.build_from_generated(left_gen, plans)?;
-        let right = self.build_from_generated(right_gen, plans)?;
+        let left = self.build_from_generated(&left_gen, plans)?;
+        let right = self.build_from_generated(&right_gen, plans)?;
 
-        let left = self.apply_filters(left, generated.left_filters)?;
-        let right = self.apply_filters(right, generated.right_filters)?;
+        let left = self.apply_filters(left, &generated.left_filters)?;
+        let right = self.apply_filters(right, &generated.right_filters)?;
 
-        let [left, right] = if swap_sides {
+        let [left, right] = if plan_swap_sides {
             [right, left]
         } else {
             [left, right]
@@ -229,15 +263,24 @@ impl Graph {
 
         let mut conditions = Vec::with_capacity(generated.conditions.len());
 
-        for cond_id in generated.conditions {
-            let mut condition = self
+        for cond_id in &generated.conditions {
+            let edge = self
                 .edges
-                .remove(&cond_id)
-                .ok_or_else(|| RayexecError::new("Condition already used"))?
-                .condition;
+                .remove(cond_id)
+                .ok_or_else(|| RayexecError::new("Condition already used"))?;
+
+            // Check if we have to flip the condition (left side of the
+            // condition referencing the right side of the original unswapped
+            // plan).
+            let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
+            let mut condition = edge.condition;
+
+            if condition_swap_sides {
+                condition.flip_sides();
+            }
 
             // Update condition if we swapped.
-            if swap_sides {
+            if plan_swap_sides {
                 condition.flip_sides();
             }
 
@@ -271,7 +314,7 @@ impl Graph {
     fn apply_filters(
         &mut self,
         input: LogicalOperator,
-        filters: HashSet<FilterId>,
+        filters: &HashSet<FilterId>,
     ) -> Result<LogicalOperator> {
         if filters.is_empty() {
             // Nothing to do.
@@ -284,7 +327,7 @@ impl Graph {
             let filter = self
                 .filters
                 .remove(&filter_id)
-                .ok_or_else(|| RayexecError::new("Filter previously used"))?;
+                .ok_or_else(|| RayexecError::new(format!("Filter previously used: {filter_id}")))?;
 
             input_filters.push(filter.into_expression());
         }
@@ -329,7 +372,7 @@ impl Graph {
                 node: LogicalFilter {
                     filter: expr::and(input_filters).unwrap(),
                 },
-                location: *other.location(),
+                location: LocationRequirement::Any,
                 children: vec![other],
             })),
         }
@@ -368,7 +411,7 @@ impl Graph {
         let rel_indices: Vec<_> = (0..self.base_relations.len()).collect();
         let rel_subsets = powerset(&rel_indices);
 
-        for subset_size in 2..self.base_relations.len() {
+        for subset_size in 2..=self.base_relations.len() {
             for subset in rel_subsets
                 .iter()
                 .filter(|subset| subset.len() == subset_size)
@@ -475,7 +518,7 @@ impl Graph {
                 // We don't need to track if we have to swap here. That'll be done
                 // when we're building back up the logical plan from these generated
                 // plans.
-                if edge.right_refs.is_subset(&p2.output_refs)
+                if edge.left_refs.is_subset(&p2.output_refs)
                     && edge.right_refs.is_subset(&p1.output_refs)
                 {
                     return true;
@@ -492,6 +535,16 @@ impl Graph {
         self.filters
             .iter()
             .filter_map(|(filter_id, filter)| {
+                // Constant filter, this should be applied to the top of the
+                // plan. An optimizer rule should be written to prune out
+                // constant filters.
+                //
+                // We're currently assuming that a filter needs to be used
+                // extactly once in the tree. And this check enforces that.
+                if filter.tables_refs.is_empty() {
+                    return None;
+                }
+
                 // Only consider filters not yet used.
                 if plan.used.filters.contains(filter_id) {
                     return None;
@@ -520,8 +573,16 @@ impl Graph {
 
         for (_, edge) in edges {
             match edge.condition.op {
-                ComparisonOperator::Eq => selectivity *= EQUALITY_SELECTIVITY,
-                _ => selectivity *= INEQUALITY_SELECTIVITY,
+                ComparisonOperator::Eq => {
+                    if EQUALITY_SELECTIVITY < selectivity {
+                        selectivity = EQUALITY_SELECTIVITY
+                    }
+                }
+                _ => {
+                    if INEQUALITY_SELECTIVITY < selectivity {
+                        selectivity = INEQUALITY_SELECTIVITY
+                    }
+                }
             }
         }
 

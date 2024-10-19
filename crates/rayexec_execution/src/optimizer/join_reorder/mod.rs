@@ -3,28 +3,19 @@ mod graph;
 mod join_builder;
 mod set;
 
-use std::cmp::Ordering;
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
-use equality_condition::EqualityCondition;
-use join_builder::{JoinBuilder, JoinCost};
-use rayexec_error::{RayexecError, Result};
+use graph::Graph;
+use join_builder::JoinCost;
+use rayexec_error::Result;
 
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
 use super::OptimizeRule;
-use crate::expr::{self, Expression};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
-use crate::logical::logical_filter::LogicalFilter;
-use crate::logical::logical_join::{
-    inner_join_est_cardinality,
-    JoinType,
-    LogicalComparisonJoin,
-    LogicalCrossJoin,
-};
-use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
-use crate::logical::statistics::StatisticsCount;
-use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::logical_join::{ComparisonCondition, JoinType};
+use crate::logical::operator::{LogicalNode, LogicalOperator};
 
 /// Reorders joins in the plan.
 ///
@@ -46,8 +37,8 @@ impl OptimizeRule for JoinReorder {
 
 #[derive(Debug, Default)]
 struct InnerJoinReorder {
-    /// Extracted equalities that can be used for inner joins.
-    equalities: Vec<EqualityCondition>,
+    /// Extracted conditions from comparison joins.
+    conditions: Vec<ComparisonCondition>,
     /// Extracted expressions that cannot be used for inner joins.
     filters: Vec<ExtractedFilter>,
     /// All plans that will be used to build up the join tree.
@@ -66,10 +57,7 @@ impl InnerJoinReorder {
         split_conjunction(expr, &mut split);
 
         for expr in split {
-            match EqualityCondition::try_new(expr) {
-                Ok(equality) => self.equalities.push(equality),
-                Err(expr) => self.filters.push(ExtractedFilter::from_expr(expr)),
-            }
+            self.filters.push(ExtractedFilter::from_expr(expr))
         }
     }
 
@@ -138,43 +126,13 @@ impl InnerJoinReorder {
             child_plans.push(child);
         }
 
-        let equalities = std::mem::take(&mut self.equalities);
-        let filters = std::mem::take(&mut self.filters);
+        let mut graph = Graph::new(
+            child_plans,
+            self.conditions.drain(..),
+            self.filters.drain(..),
+        );
 
-        const MAX_GENERATED_PLANS: usize = 8;
-
-        let permutations =
-            generate_permutations((0..equalities.len()).collect(), MAX_GENERATED_PLANS);
-
-        let mut best_plan: Option<GeneratedPlan> = None;
-
-        for permutation in permutations {
-            let mut equalities: Vec<_> = permutation
-                .into_iter()
-                .zip(equalities.iter().cloned())
-                .collect();
-            equalities.sort_unstable_by_key(|(key, _)| *key);
-
-            let mut builder = JoinBuilder::new(
-                equalities.into_iter().map(|(_, eq)| eq),
-                filters.iter().cloned(),
-                child_plans.iter().cloned(),
-            );
-
-            let plan = builder.try_build()?;
-            let cost = builder.get_cost();
-
-            match &best_plan {
-                Some(best) => {
-                    if cost.build_side_rows < best.cost.build_side_rows {
-                        best_plan = Some(GeneratedPlan { plan, cost });
-                    }
-                }
-                None => best_plan = Some(GeneratedPlan { plan, cost }),
-            }
-        }
-
-        Ok(best_plan.unwrap().plan)
+        graph.try_build()
     }
 
     fn extract_filters_and_join_children(&mut self, root: LogicalOperator) -> Result<()> {
@@ -198,9 +156,7 @@ impl InnerJoinReorder {
                 }
                 LogicalOperator::ComparisonJoin(mut join) => {
                     if join.node.join_type == JoinType::Inner {
-                        for condition in join.node.conditions {
-                            self.add_expression(condition.into_expression());
-                        }
+                        self.conditions.extend(join.node.conditions);
                         for child in join.children.drain(..) {
                             queue.push_back(child);
                         }
@@ -225,56 +181,5 @@ impl InnerJoinReorder {
         }
 
         Ok(())
-    }
-}
-
-/// Generate permutations of `v`.
-fn generate_permutations(v: Vec<usize>, max_permutations: usize) -> Vec<Vec<usize>> {
-    let mut result = Vec::new();
-    let mut v_mut = v.clone();
-    permute(&mut v_mut, 0, &mut result, max_permutations);
-    result
-}
-
-fn permute(
-    v: &mut Vec<usize>,
-    start: usize,
-    result: &mut Vec<Vec<usize>>,
-    max_permutations: usize,
-) {
-    if result.len() == max_permutations {
-        return;
-    }
-
-    if start == v.len() {
-        result.push(v.clone());
-        return;
-    }
-
-    for i in start..v.len() {
-        v.swap(start, i);
-        permute(v, start + 1, result, max_permutations);
-        v.swap(start, i); // Backtrack to restore original order.
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_permutations() {
-        let v = vec![1, 2, 3];
-        let expected = vec![
-            vec![1, 2, 3],
-            vec![1, 3, 2],
-            vec![2, 1, 3],
-            vec![2, 3, 1],
-            vec![3, 2, 1],
-        ];
-
-        let got = generate_permutations(v, 5);
-
-        assert_eq!(expected, got);
     }
 }
