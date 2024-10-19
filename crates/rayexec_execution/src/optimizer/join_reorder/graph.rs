@@ -18,6 +18,15 @@ use crate::logical::statistics::assumptions::{EQUALITY_SELECTIVITY, INEQUALITY_S
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
 
+/// Default estimated cardinality to use for base relations if we don't have it
+/// available to us.
+///
+/// This is arbitrary, but we need something to enable cost estimation at some
+/// level. The value picked is based on intuition where if we don't have
+/// statistic, we assume somewhat large cardinality such that we prefer working
+/// with joins that are smaller than this.
+const DEFAULT_CARDINALITY: usize = 20_000;
+
 /// Unique id for identifying nodes in the graph.
 type RelId = usize;
 
@@ -332,13 +341,19 @@ impl Graph {
 
         // Plans for just the base relation.
         for (&rel_id, base_rel) in &self.base_relations {
+            let card = base_rel
+                .get_statistics()
+                .cardinality
+                .value()
+                .unwrap_or(DEFAULT_CARDINALITY) as f64;
+
             let key = PlanKey::new_from_ids([rel_id]);
             best_plans.insert(
                 key.clone(),
                 GeneratedPlan {
                     key,
-                    cost: 0.0,        // TODO
-                    cardinality: 0.0, // TODO
+                    cost: card,
+                    cardinality: card,
                     output_refs: base_rel.get_output_table_refs().into_iter().collect(),
                     conditions: HashSet::new(),
                     left_input: None,
