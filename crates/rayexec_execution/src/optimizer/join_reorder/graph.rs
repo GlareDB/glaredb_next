@@ -2,12 +2,19 @@ use std::collections::{HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
 
+use crate::expr;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::binder::bind_context::TableRef;
-use crate::logical::logical_join::{ComparisonCondition, JoinType};
-use crate::logical::operator::{LogicalNode, LogicalOperator};
+use crate::logical::logical_filter::LogicalFilter;
+use crate::logical::logical_join::{
+    ComparisonCondition,
+    JoinType,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+};
+use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::assumptions::{EQUALITY_SELECTIVITY, INEQUALITY_SELECTIVITY};
-use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
 
@@ -33,12 +40,21 @@ impl PlanKey {
         v.sort_unstable();
         PlanKey(v)
     }
+
+    /// Returns if this key is for a base relation.
+    ///
+    /// A base relation key will only have one relation id (itself).
+    fn is_base(&self) -> bool {
+        self.0.len() == 1
+    }
 }
 
 /// A generated plan represents a either a join between two plan subsets, or a
 /// base relations.
 #[derive(Debug)]
 struct GeneratedPlan {
+    /// The key for this plan.
+    key: PlanKey,
     /// Relative cost of executing _this_ plan.
     ///
     /// For base relations, this is initialized to the estimated cardinality of
@@ -51,14 +67,20 @@ struct GeneratedPlan {
     /// Union of all child output refs.
     output_refs: HashSet<TableRef>,
     /// Conditions that should be used when joining left and right.
+    ///
+    /// Empty when just a base relation.
     conditions: HashSet<EdgeId>,
     /// Left input to the plan. Will be None if this plan is for a base relation.
     left_input: Option<PlanKey>,
     /// Right input to the plan. Will be None if this plan is for a base relation.
     right_input: Option<PlanKey>,
     /// Filters that will be applied to the left input.
+    ///
+    /// Empty when just a base relation.
     left_filters: HashSet<FilterId>,
     /// Filters that will be applied to the right input.
+    ///
+    /// Empty when just a base relation.
     right_filters: HashSet<FilterId>,
     /// Complete set of used edges up to and including this plan.
     ///
@@ -129,15 +151,192 @@ pub struct Graph {
 }
 
 impl Graph {
+    pub fn try_build(&mut self) -> Result<LogicalOperator> {
+        let mut plans = self.generate_plans()?;
+
+        // Get longest plan (plan that contains all relations).
+        let key = PlanKey::new_from_ids(0..self.base_relations.len());
+        let longest = plans
+            .remove(&key)
+            .ok_or_else(|| RayexecError::new("Missing longest generated plan"))?;
+
+        let plan = self.build_from_generated(longest, &mut plans)?;
+
+        assert!(self.edges.is_empty());
+        assert!(self.filters.is_empty());
+        assert!(self.base_relations.is_empty());
+
+        Ok(plan)
+    }
+
+    fn build_from_generated(
+        &mut self,
+        generated: GeneratedPlan,
+        plans: &mut HashMap<PlanKey, GeneratedPlan>,
+    ) -> Result<LogicalOperator> {
+        // If we're building a base relation, we can just return the relation
+        // as-is. No other field should have been populated.
+        if generated.key.is_base() {
+            assert!(generated.left_input.is_none());
+            assert!(generated.right_input.is_none());
+            assert!(generated.conditions.is_empty());
+            assert!(generated.left_filters.is_empty());
+            assert!(generated.right_filters.is_empty());
+
+            // There should always be one generated plan referencing the base
+            // relation.
+            let operator = self
+                .base_relations
+                .remove(&generated.key.0[0])
+                .ok_or_else(|| RayexecError::new("Missing base relation"))?;
+
+            return Ok(operator);
+        }
+
+        // Otherwise build up the plan.
+
+        let left_gen = plans
+            .remove(&generated.left_input.expect("left_input to be set"))
+            .ok_or_else(|| RayexecError::new("Missing left input"))?;
+        let right_gen = plans
+            .remove(&generated.right_input.expect("right_input to be set"))
+            .ok_or_else(|| RayexecError::new("Missing right input"))?;
+
+        // Swap sides if needed. We always want left (build) side to have the
+        // lower cardinality (not necessarily cost).
+        let swap_sides = right_gen.cardinality < left_gen.cardinality;
+
+        let left = self.build_from_generated(left_gen, plans)?;
+        let right = self.build_from_generated(right_gen, plans)?;
+
+        let left = self.apply_filters(left, generated.left_filters)?;
+        let right = self.apply_filters(right, generated.right_filters)?;
+
+        let [left, right] = if swap_sides {
+            [right, left]
+        } else {
+            [left, right]
+        };
+
+        let mut conditions = Vec::with_capacity(generated.conditions.len());
+
+        for cond_id in generated.conditions {
+            let mut condition = self
+                .edges
+                .remove(&cond_id)
+                .ok_or_else(|| RayexecError::new("Condition already used"))?
+                .condition;
+
+            // Update condition if we swapped.
+            if swap_sides {
+                condition.flip_sides();
+            }
+
+            conditions.push(condition);
+        }
+
+        if conditions.is_empty() {
+            // No conditions, simple cross join.
+            Ok(LogicalOperator::CrossJoin(Node {
+                node: LogicalCrossJoin,
+                location: LocationRequirement::Any,
+                children: vec![left, right],
+            }))
+        } else {
+            // We have conditions, create comparison join.
+
+            Ok(LogicalOperator::ComparisonJoin(Node {
+                node: LogicalComparisonJoin {
+                    join_type: JoinType::Inner,
+                    conditions,
+                },
+                location: LocationRequirement::Any,
+                children: vec![left, right],
+            }))
+        }
+    }
+
+    /// Apply filters to a plan we're building up.
+    ///
+    /// Errors if any of the filters were previously used.
+    fn apply_filters(
+        &mut self,
+        input: LogicalOperator,
+        filters: HashSet<FilterId>,
+    ) -> Result<LogicalOperator> {
+        if filters.is_empty() {
+            // Nothing to do.
+            return Ok(input);
+        }
+
+        let mut input_filters = Vec::with_capacity(filters.len());
+
+        for filter_id in filters {
+            let filter = self
+                .filters
+                .remove(&filter_id)
+                .ok_or_else(|| RayexecError::new("Filter previously used"))?;
+
+            input_filters.push(filter.into_expression());
+        }
+
+        // Try to squash into underlying operator if able. Otherwise just wrap
+        // in a filter.
+        match input {
+            LogicalOperator::Filter(filter) => {
+                let filter_expr =
+                    expr::and(input_filters.into_iter().chain([filter.node.filter])).unwrap();
+
+                Ok(LogicalOperator::Filter(Node {
+                    node: LogicalFilter {
+                        filter: filter_expr,
+                    },
+                    location: filter.location,
+                    children: filter.children,
+                }))
+            }
+            LogicalOperator::ArbitraryJoin(join) if join.node.join_type == JoinType::Inner => {
+                let condition =
+                    expr::and(input_filters.into_iter().chain([join.node.condition])).unwrap();
+
+                Ok(LogicalOperator::ArbitraryJoin(Node {
+                    node: LogicalArbitraryJoin {
+                        join_type: JoinType::Inner,
+                        condition,
+                    },
+                    location: join.location,
+                    children: join.children,
+                }))
+            }
+            LogicalOperator::CrossJoin(join) => Ok(LogicalOperator::ArbitraryJoin(Node {
+                node: LogicalArbitraryJoin {
+                    join_type: JoinType::Inner,
+                    condition: expr::and(input_filters).unwrap(),
+                },
+                location: join.location,
+                children: join.children,
+            })),
+            other => Ok(LogicalOperator::Filter(Node {
+                node: LogicalFilter {
+                    filter: expr::and(input_filters).unwrap(),
+                },
+                location: *other.location(),
+                children: vec![other],
+            })),
+        }
+    }
+
     fn generate_plans(&self) -> Result<HashMap<PlanKey, GeneratedPlan>> {
         // Best plans generated for each group of relations.
         let mut best_plans: HashMap<PlanKey, GeneratedPlan> = HashMap::new();
 
         // Plans for just the base relation.
         for (&rel_id, base_rel) in &self.base_relations {
+            let key = PlanKey::new_from_ids([rel_id]);
             best_plans.insert(
-                PlanKey::new_from_ids([rel_id]),
+                key.clone(),
                 GeneratedPlan {
+                    key,
                     cost: 0.0,        // TODO
                     cardinality: 0.0, // TODO
                     output_refs: base_rel.get_output_table_refs().into_iter().collect(),
@@ -165,6 +364,9 @@ impl Graph {
                 // trying each one and seeing if it would produce a join with
                 // lower cost than the current best.
                 let partitions = binary_partitions(subset);
+
+                // Key for the plan we're generating.
+                let plan_key = PlanKey::new_from_ids(subset.iter().copied());
 
                 for (s1, s2) in partitions {
                     let s1 = PlanKey::new_from_ids(s1);
@@ -212,6 +414,7 @@ impl Graph {
 
                     // Friendship over with old best plan.
                     best_subset_plan = Some(GeneratedPlan {
+                        key: plan_key.clone(),
                         cost,
                         cardinality: est_cardinality,
                         output_refs,
@@ -225,7 +428,6 @@ impl Graph {
                 }
 
                 // Add to best plans.
-                let plan_key = PlanKey::new_from_ids(subset.iter().copied());
                 best_plans.insert(
                     plan_key,
                     best_subset_plan.expect("best subset plan to be populated"),
