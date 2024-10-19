@@ -14,7 +14,11 @@ use crate::logical::logical_join::{
     LogicalCrossJoin,
 };
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
-use crate::logical::statistics::assumptions::{EQUALITY_SELECTIVITY, INEQUALITY_SELECTIVITY};
+use crate::logical::statistics::assumptions::{
+    DEFAULT_SELECTIVITY,
+    EQUALITY_SELECTIVITY,
+    INEQUALITY_SELECTIVITY,
+};
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
 
@@ -247,7 +251,22 @@ impl Graph {
 
         // Swap sides if needed. We always want left (build) side to have the
         // lower cardinality (not necessarily cost).
-        let plan_swap_sides = right_gen.cardinality < left_gen.cardinality;
+        let plan_swap_sides = {
+            // TODO: Better selectivity with filters.
+            let left_card = if generated.left_filters.is_empty() {
+                left_gen.cardinality
+            } else {
+                left_gen.cardinality * DEFAULT_SELECTIVITY
+            };
+
+            let right_card = if generated.right_filters.is_empty() {
+                right_gen.cardinality
+            } else {
+                right_gen.cardinality * DEFAULT_SELECTIVITY
+            };
+
+            right_card < left_card
+        };
 
         let left = self.build_from_generated(&left_gen, plans)?;
         let right = self.build_from_generated(&right_gen, plans)?;
@@ -296,7 +315,6 @@ impl Graph {
             }))
         } else {
             // We have conditions, create comparison join.
-
             Ok(LogicalOperator::ComparisonJoin(Node {
                 node: LogicalComparisonJoin {
                     join_type: JoinType::Inner,
@@ -435,7 +453,16 @@ impl Graph {
 
                     let conditions = self.find_conditions(p1, p2);
 
-                    let est_cardinality = Self::estimate_output_cardinality(p1, p2, &conditions);
+                    let left_filters = self.find_filters(p1);
+                    let right_filters = self.find_filters(p2);
+
+                    let est_cardinality = Self::estimate_output_cardinality(
+                        p1,
+                        p2,
+                        &conditions,
+                        &left_filters,
+                        &right_filters,
+                    );
 
                     // Simple cost function.
                     //
@@ -450,10 +477,9 @@ impl Graph {
                         }
                     }
 
-                    // TODO: This should be incorporated into estimated
-                    // cardinality (and cost).
-                    let left_filters = self.find_filters(p1);
-                    let right_filters = self.find_filters(p2);
+                    let left_filters: HashSet<_> = left_filters.iter().map(|(&id, _)| id).collect();
+                    let right_filters: HashSet<_> =
+                        right_filters.iter().map(|(&id, _)| id).collect();
 
                     let conditions: HashSet<_> = conditions.iter().map(|(&id, _)| id).collect();
 
@@ -531,10 +557,10 @@ impl Graph {
     }
 
     /// Find filters that apply fully to the given plan.
-    fn find_filters(&self, plan: &GeneratedPlan) -> HashSet<FilterId> {
+    fn find_filters(&self, plan: &GeneratedPlan) -> Vec<(&FilterId, &ExtractedFilter)> {
         self.filters
             .iter()
-            .filter_map(|(filter_id, filter)| {
+            .filter(|(filter_id, filter)| {
                 // Constant filter, this should be applied to the top of the
                 // plan. An optimizer rule should be written to prune out
                 // constant filters.
@@ -542,32 +568,33 @@ impl Graph {
                 // We're currently assuming that a filter needs to be used
                 // extactly once in the tree. And this check enforces that.
                 if filter.tables_refs.is_empty() {
-                    return None;
+                    return false;
                 }
 
                 // Only consider filters not yet used.
                 if plan.used.filters.contains(filter_id) {
-                    return None;
+                    return false;
                 }
 
                 // Only consider filters that apply to just the plan's table refs.
                 if !filter.tables_refs.is_subset(&plan.output_refs) {
-                    return None;
+                    return false;
                 }
 
                 // Usable filter.
-                Some(*filter_id)
+                true
             })
             .collect()
     }
 
     /// Estimate the output cardinality of a join between two plans on some
     /// number of conditions.
-    // TODO: Incorporate filters too.
     fn estimate_output_cardinality(
         p1: &GeneratedPlan,
         p2: &GeneratedPlan,
         edges: &[(&EdgeId, &Edge)],
+        left_filters: &[(&FilterId, &ExtractedFilter)],
+        right_filters: &[(&FilterId, &ExtractedFilter)],
     ) -> f64 {
         let mut selectivity = 1.0; // Default, if no edges, will be cross product.
 
@@ -586,6 +613,20 @@ impl Graph {
             }
         }
 
-        selectivity * p1.cardinality * p2.cardinality
+        // TODO: Better selectivity with filters.
+
+        let left_card = if left_filters.is_empty() {
+            p1.cardinality
+        } else {
+            p1.cardinality * DEFAULT_SELECTIVITY
+        };
+
+        let right_card = if right_filters.is_empty() {
+            p2.cardinality
+        } else {
+            p2.cardinality * DEFAULT_SELECTIVITY
+        };
+
+        selectivity * left_card * right_card
     }
 }
