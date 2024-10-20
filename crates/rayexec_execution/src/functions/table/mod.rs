@@ -19,7 +19,7 @@ use series::GenerateSeries;
 use system::{ListDatabases, ListSchemas, ListTables};
 
 use crate::database::DatabaseContext;
-use crate::logical::statistics::{Statistics, StatisticsCount};
+use crate::logical::statistics::{Statistics, StatisticsValue};
 use crate::storage::table_storage::DataTable;
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> = Lazy::new(|| {
@@ -163,7 +163,7 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// Get the statistics for the table we're scanning.
     fn statistics(&self) -> Statistics {
         Statistics {
-            cardinality: StatisticsCount::Unknown,
+            cardinality: StatisticsValue::Unknown,
             column_stats: None,
         }
     }

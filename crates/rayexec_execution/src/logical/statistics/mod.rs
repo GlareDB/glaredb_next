@@ -11,15 +11,20 @@ pub mod assumptions {
     pub const DEFAULT_SELECTIVITY: f64 = 0.3;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StatisticsCount {
-    Exact(usize),
-    Estimated(usize),
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
+pub enum StatisticsValue<T> {
+    /// Exact value is known.
+    Exact(T),
+    /// Value is estimated.
+    Estimated(T),
+    /// Value is unknown.
+    #[default]
     Unknown,
 }
 
-impl StatisticsCount {
-    pub fn value(self) -> Option<usize> {
+impl<T> StatisticsValue<T> {
+    /// Try to get a value if available.
+    pub fn value(&self) -> Option<&T> {
         match self {
             Self::Exact(v) | Self::Estimated(v) => Some(v),
             Self::Unknown => None,
@@ -27,7 +32,10 @@ impl StatisticsCount {
     }
 }
 
-impl fmt::Display for StatisticsCount {
+impl<T> fmt::Display for StatisticsValue<T>
+where
+    T: fmt::Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Exact(v) => write!(f, "{v}"),
@@ -40,7 +48,7 @@ impl fmt::Display for StatisticsCount {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Statistics {
     /// Cardinality of the operator.
-    pub cardinality: StatisticsCount,
+    pub cardinality: StatisticsValue<usize>,
     /// Statistics for each column emitted by an operator.
     ///
     /// May be None if no column statistics are available.
@@ -50,13 +58,13 @@ pub struct Statistics {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnStatistics {
     /// Number of distinct values in the column.
-    pub num_distinct: StatisticsCount,
+    pub num_distinct: StatisticsValue<usize>,
 }
 
 impl Statistics {
     pub const fn unknown() -> Self {
         Statistics {
-            cardinality: StatisticsCount::Unknown,
+            cardinality: StatisticsValue::Unknown,
             column_stats: None,
         }
     }

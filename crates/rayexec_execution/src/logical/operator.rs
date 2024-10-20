@@ -28,7 +28,7 @@ use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use super::logical_setop::LogicalSetop;
-use super::statistics::{Statistics, StatisticsCount};
+use super::statistics::{Statistics, StatisticsValue};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -105,7 +105,7 @@ pub trait LogicalNode {
     /// Get the statistics for the output of this operator.
     fn get_statistics(&self) -> Statistics {
         Statistics {
-            cardinality: StatisticsCount::Unknown,
+            cardinality: StatisticsValue::Unknown,
             column_stats: None,
         }
     }

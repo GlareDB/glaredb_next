@@ -6,7 +6,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
-use rayexec_execution::logical::statistics::{Statistics, StatisticsCount};
+use rayexec_execution::logical::statistics::{Statistics, StatisticsValue};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -142,7 +142,7 @@ impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
             .sum::<i64>() as usize;
 
         Statistics {
-            cardinality: StatisticsCount::Exact(num_rows),
+            cardinality: StatisticsValue::Exact(num_rows),
             column_stats: None,
         }
     }

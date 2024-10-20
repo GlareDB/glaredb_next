@@ -1,12 +1,9 @@
-mod equality_condition;
 mod graph;
-mod join_builder;
 mod set;
 
 use std::collections::VecDeque;
 
 use graph::Graph;
-use join_builder::JoinCost;
 use rayexec_error::Result;
 
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
@@ -43,12 +40,6 @@ struct InnerJoinReorder {
     filters: Vec<ExtractedFilter>,
     /// All plans that will be used to build up the join tree.
     child_plans: Vec<LogicalOperator>,
-}
-
-#[derive(Debug)]
-struct GeneratedPlan {
-    plan: LogicalOperator,
-    cost: JoinCost,
 }
 
 impl InnerJoinReorder {

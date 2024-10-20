@@ -6,7 +6,7 @@ use rayexec_error::Result;
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};
 use super::scan_filter::ScanFilter;
-use super::statistics::{Statistics, StatisticsCount};
+use super::statistics::{Statistics, StatisticsValue};
 use crate::database::catalog_entry::CatalogEntry;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -40,7 +40,7 @@ impl ScanSource {
             Self::Table { .. } => Statistics::unknown(),
             Self::TableFunction { function } => function.statistics(),
             Self::ExpressionList { rows } => Statistics {
-                cardinality: StatisticsCount::Exact(rows.len()),
+                cardinality: StatisticsValue::Exact(rows.len()),
                 column_stats: None,
             },
             Self::View { .. } => Statistics::unknown(),

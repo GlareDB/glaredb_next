@@ -10,7 +10,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
 use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
-use crate::logical::statistics::StatisticsCount;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
@@ -64,15 +64,15 @@ impl JoinType {
 
         let cardinality = match self {
             Self::Left | Self::LeftMark { .. } => match left.cardinality.value() {
-                Some(v) => StatisticsCount::Estimated(v),
-                _ => StatisticsCount::Unknown,
+                Some(v) => StatisticsValue::Estimated(*v),
+                _ => StatisticsValue::Unknown,
             },
             Self::Right => match right.cardinality.value() {
-                Some(v) => StatisticsCount::Estimated(v),
-                _ => StatisticsCount::Unknown,
+                Some(v) => StatisticsValue::Estimated(*v),
+                _ => StatisticsValue::Unknown,
             },
             Self::Inner => inner_join_est_cardinality(&left, &right),
-            _ => StatisticsCount::Unknown,
+            _ => StatisticsValue::Unknown,
         };
 
         Statistics {
@@ -84,16 +84,16 @@ impl JoinType {
 
 /// Compute the estimated cardinality of an inner join using left and right
 /// statistics.
-pub fn inner_join_est_cardinality(left: &Statistics, right: &Statistics) -> StatisticsCount {
+pub fn inner_join_est_cardinality(left: &Statistics, right: &Statistics) -> StatisticsValue<usize> {
     let left_card = left.cardinality.value();
     let right_card = right.cardinality.value();
 
     match (left_card, right_card) {
         (Some(left), Some(right)) => {
-            let estimated = ((left as f64) * (right as f64)) * DEFAULT_SELECTIVITY;
-            StatisticsCount::Estimated(estimated as usize)
+            let estimated = ((*left as f64) * (*right as f64)) * DEFAULT_SELECTIVITY;
+            StatisticsValue::Estimated(estimated as usize)
         }
-        _ => StatisticsCount::Unknown,
+        _ => StatisticsValue::Unknown,
     }
 }
 
@@ -331,8 +331,8 @@ impl LogicalNode for Node<LogicalCrossJoin> {
         let right_card = right.cardinality.value();
 
         let cardinality = match (left_card, right_card) {
-            (Some(left), Some(right)) => StatisticsCount::Estimated(left.saturating_mul(right)),
-            _ => StatisticsCount::Unknown,
+            (Some(&left), Some(&right)) => StatisticsValue::Estimated(left.saturating_mul(right)),
+            _ => StatisticsValue::Unknown,
         };
 
         Statistics {

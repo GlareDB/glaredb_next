@@ -406,6 +406,7 @@ impl Graph {
                 .get_statistics()
                 .cardinality
                 .value()
+                .copied()
                 .unwrap_or(DEFAULT_CARDINALITY) as f64;
 
             let key = PlanKey::new_from_ids([rel_id]);
