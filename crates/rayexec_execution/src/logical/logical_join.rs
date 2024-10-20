@@ -162,6 +162,7 @@ impl ContextDisplay for ComparisonCondition {
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
     pub conditions: Vec<ComparisonCondition>,
+    pub cardinality: StatisticsValue<usize>,
 }
 
 impl Explainable for LogicalComparisonJoin {
@@ -175,6 +176,10 @@ impl Explainable for LogicalComparisonJoin {
 impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
+    }
+
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        self.node.cardinality
     }
 
     fn get_statistics(&self) -> Statistics {

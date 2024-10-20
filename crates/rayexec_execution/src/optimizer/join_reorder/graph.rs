@@ -4,6 +4,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::stats::PlanStats;
 use crate::expr;
+use crate::expr::column_expr::ColumnExpr;
 use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
@@ -14,6 +15,7 @@ use crate::logical::logical_join::{
     LogicalCrossJoin,
 };
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
 
@@ -130,6 +132,10 @@ impl UsedEdges {
 pub struct Edge {
     /// The join condition.
     pub condition: ComparisonCondition,
+    /// Columns on the left side.
+    pub left_cols: Vec<ColumnExpr>,
+    /// Columns on the right side.
+    pub right_cols: Vec<ColumnExpr>,
     /// Refs on the left side of the comparison.
     pub left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
@@ -140,7 +146,6 @@ pub struct Edge {
 pub struct FoundEdge<'a> {
     pub edge_id: EdgeId,
     pub edge: &'a Edge,
-    pub flipped: bool,
 }
 
 #[derive(Debug)]
@@ -166,8 +171,13 @@ impl Graph {
                 let left_refs = condition.left.get_table_references();
                 let right_refs = condition.right.get_table_references();
 
+                let left_cols = condition.left.get_column_references();
+                let right_cols = condition.right.get_column_references();
+
                 Edge {
                     condition,
+                    left_cols,
+                    right_cols,
                     left_refs,
                     right_refs,
                 }
@@ -295,6 +305,7 @@ impl Graph {
                 node: LogicalComparisonJoin {
                     join_type: JoinType::Inner,
                     conditions,
+                    cardinality: StatisticsValue::Estimated(generated.stats.cardinality as usize),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
@@ -388,7 +399,7 @@ impl Graph {
                 key.clone(),
                 GeneratedPlan {
                     key,
-                    cost: stats.cardinality,
+                    cost: 0.0,
                     stats,
                     output_refs: base_rel.get_output_table_refs().into_iter().collect(),
                     conditions: HashSet::new(),
@@ -515,18 +526,19 @@ impl Graph {
                     return Some(FoundEdge {
                         edge_id: *edge_id,
                         edge,
-                        flipped: false,
                     });
                 }
 
                 // Edge between p2 and p1 (reversed)
+                //
+                // Note we don't need to keep track if this is reversed, we'll
+                // worry about that when we build up the plan.
                 if edge.left_refs.is_subset(&p2.output_refs)
                     && edge.right_refs.is_subset(&p1.output_refs)
                 {
                     return Some(FoundEdge {
                         edge_id: *edge_id,
                         edge,
-                        flipped: true,
                     });
                 }
 
@@ -547,7 +559,7 @@ impl Graph {
                 //
                 // We're currently assuming that a filter needs to be used
                 // extactly once in the tree. And this check enforces that.
-                if filter.tables_refs.is_empty() {
+                if filter.table_refs.is_empty() {
                     return false;
                 }
 
@@ -557,7 +569,7 @@ impl Graph {
                 }
 
                 // Only consider filters that apply to just the plan's table refs.
-                if !filter.tables_refs.is_subset(&plan.output_refs) {
+                if !filter.table_refs.is_subset(&plan.output_refs) {
                     return false;
                 }
 

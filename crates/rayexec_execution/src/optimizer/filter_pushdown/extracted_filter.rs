@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
-use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::TableRef;
 
@@ -10,16 +10,20 @@ use crate::logical::binder::bind_context::TableRef;
 pub struct ExtractedFilter {
     /// The filter expression.
     pub filter: Expression,
-    /// Tables refs this expression references.
-    pub tables_refs: HashSet<TableRef>,
+    /// Table refs this expression references.
+    pub table_refs: HashSet<TableRef>,
+    /// Columns in the filter.
+    pub columns: Vec<ColumnExpr>,
 }
 
 impl ExtractedFilter {
     pub fn from_expr(expr: Expression) -> Self {
-        let refs = expr.get_table_references();
+        let table_refs = expr.get_table_references();
+        let columns = expr.get_column_references();
         ExtractedFilter {
             filter: expr,
-            tables_refs: refs,
+            table_refs,
+            columns,
         }
     }
 

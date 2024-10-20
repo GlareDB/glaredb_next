@@ -181,7 +181,7 @@ impl FilterPushdown {
         // by.
         for filter in self.filters.drain(..) {
             // Cannot pushdown filter referencing aggregate output.
-            if filter.tables_refs.contains(&plan.node.aggregates_table) {
+            if filter.table_refs.contains(&plan.node.aggregates_table) {
                 remaining_filters.push(filter);
                 continue;
             }
@@ -359,7 +359,7 @@ impl FilterPushdown {
 
                 for filter in self.filters.drain(..) {
                     let side = ExprJoinSide::try_from_table_refs(
-                        &filter.tables_refs,
+                        &filter.table_refs,
                         &left_tables,
                         &right_tables,
                     )?;
@@ -467,7 +467,7 @@ impl FilterPushdown {
                 let mut remaining_filters = Vec::new();
                 for filter in self.filters.drain(..) {
                     let side = ExprJoinSide::try_from_table_refs(
-                        &filter.tables_refs,
+                        &filter.table_refs,
                         &left_tables,
                         &right_tables,
                     )?;
@@ -525,11 +525,8 @@ impl FilterPushdown {
         // Figure out which expressions we can push further down vs which are
         // part of the join expression.
         for filter in self.filters.drain(..) {
-            let side = ExprJoinSide::try_from_table_refs(
-                &filter.tables_refs,
-                &left_tables,
-                &right_tables,
-            )?;
+            let side =
+                ExprJoinSide::try_from_table_refs(&filter.table_refs, &left_tables, &right_tables)?;
 
             match side {
                 ExprJoinSide::Left => {
