@@ -128,6 +128,73 @@ impl PruneState {
                     .copied()
                     .collect();
 
+                // Special case for if this projection is just a pass through.
+                if !self.implicit_reference && projection_is_passthrough(project)? {
+                    // New reference set we'll pass to child.
+                    let mut child_references = HashSet::new();
+                    let mut old_references = HashMap::new();
+
+                    for (col_idx, projection) in project.node.projections.iter().enumerate() {
+                        let old_column = ColumnExpr {
+                            table_scope: project.node.projection_table,
+                            column: col_idx,
+                        };
+
+                        if !proj_references.contains(&old_column) {
+                            // Column not part of expression we're replacing nor
+                            // expression we'll want to keep in the child.
+                            continue;
+                        }
+
+                        let child_col = match projection {
+                            Expression::Column(col) => *col,
+                            other => {
+                                return Err(RayexecError::new(format!(
+                                    "Unexpected expression: {other}"
+                                )))
+                            }
+                        };
+
+                        child_references.insert(child_col);
+
+                        // Map projection back to old column reference.
+                        old_references.insert(child_col, old_column);
+                    }
+
+                    // Replace project plan with its child.
+                    let mut child = project.take_one_child_exact()?;
+
+                    let mut child_prune = PruneState {
+                        implicit_reference: false,
+                        current_references: child_references,
+                        updated_expressions: HashMap::new(),
+                    };
+                    child_prune.walk_plan(bind_context, &mut child)?;
+
+                    // Since we're removing the projection, no need to apply any
+                    // changes here, but we'll need to propogate them up.
+                    for (child_col, old_col) in old_references {
+                        match child_prune.updated_expressions.get(&child_col) {
+                            Some(updated) => {
+                                // Map old column to updated child column.
+                                self.updated_expressions.insert(old_col, updated.clone());
+                            }
+                            None => {
+                                // Child didn't change, map old column to child
+                                // column.
+                                self.updated_expressions
+                                    .insert(old_col, Expression::Column(child_col));
+                            }
+                        }
+                    }
+
+                    // Drop project, replace with child.
+                    *plan = child;
+
+                    // And we're done, project no longer part of plan.
+                    return Ok(());
+                }
+
                 // Only create an updated projection if we're actually pruning
                 // columns.
                 //
@@ -337,26 +404,31 @@ impl PruneState {
 /// A project is passthrough if it contains only column expressions with the
 /// first expression starting at column 0 and every subsequent expression being
 /// incremented by 1 up to num_cols
-fn projection_is_passthrough_for_table(proj: &Node<LogicalProject>, child_ref: TableRef) -> bool {
+fn projection_is_passthrough(proj: &Node<LogicalProject>) -> Result<bool> {
+    let child_ref = match proj.get_one_child_exact()?.get_output_table_refs().first() {
+        Some(table_ref) => *table_ref,
+        None => return Ok(false),
+    };
+
     let mut check_idx = 0;
     for expr in &proj.node.projections {
         let col = match expr {
             Expression::Column(col) => col,
-            _ => return false,
+            _ => return Ok(false),
         };
 
         if col.table_scope != child_ref {
-            return false;
+            return Ok(false);
         }
 
         if col.column != check_idx {
-            return false;
+            return Ok(false);
         }
 
         check_idx += 1;
     }
 
-    true
+    Ok(true)
 }
 
 /// Recursively try to flatten this projection into a child projection.
