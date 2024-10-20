@@ -160,6 +160,11 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// sources.
     fn schema(&self) -> Schema;
 
+    /// Get the cardinality of the output.
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        StatisticsValue::Unknown
+    }
+
     /// Get the statistics for the table we're scanning.
     fn statistics(&self) -> Statistics {
         Statistics {

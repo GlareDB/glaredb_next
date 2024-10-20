@@ -1,5 +1,6 @@
 mod graph;
 mod set;
+mod stats;
 
 use std::collections::VecDeque;
 
@@ -123,7 +124,7 @@ impl InnerJoinReorder {
             self.filters.drain(..),
         );
 
-        graph.try_build()
+        graph.try_build(bind_context)
     }
 
     fn extract_filters_and_join_children(&mut self, root: LogicalOperator) -> Result<()> {

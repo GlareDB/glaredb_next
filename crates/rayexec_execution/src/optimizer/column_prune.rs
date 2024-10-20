@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use super::OptimizeRule;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 
@@ -156,10 +156,8 @@ impl PruneState {
                     }
 
                     // Generate the new table ref.
-                    let table_ref = bind_context.new_ephemeral_table_from_expressions(
-                        "__generated_pruned_projection",
-                        new_proj_mapping.iter().map(|(_, expr)| expr),
-                    )?;
+                    let table_ref =
+                        bind_context.clone_to_new_ephemeral_table(project.node.projection_table)?;
 
                     // Generate the new projection, inserting updated
                     // expressions into the state.
@@ -331,6 +329,34 @@ impl PruneState {
 
         Ok(())
     }
+}
+
+/// Check if this project is just a simple pass through projection for its
+/// child, and not actually needed.
+///
+/// A project is passthrough if it contains only column expressions with the
+/// first expression starting at column 0 and every subsequent expression being
+/// incremented by 1 up to num_cols
+fn projection_is_passthrough_for_table(proj: &Node<LogicalProject>, child_ref: TableRef) -> bool {
+    let mut check_idx = 0;
+    for expr in &proj.node.projections {
+        let col = match expr {
+            Expression::Column(col) => col,
+            _ => return false,
+        };
+
+        if col.table_scope != child_ref {
+            return false;
+        }
+
+        if col.column != check_idx {
+            return false;
+        }
+
+        check_idx += 1;
+    }
+
+    true
 }
 
 /// Recursively try to flatten this projection into a child projection.

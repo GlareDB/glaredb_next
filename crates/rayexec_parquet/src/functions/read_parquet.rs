@@ -131,6 +131,19 @@ impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
         self.state.encode(state)
     }
 
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        let num_rows = self
+            .state
+            .metadata
+            .decoded_metadata
+            .row_groups()
+            .iter()
+            .map(|g| g.num_rows())
+            .sum::<i64>() as usize;
+
+        StatisticsValue::Exact(num_rows)
+    }
+
     fn statistics(&self) -> Statistics {
         let num_rows = self
             .state

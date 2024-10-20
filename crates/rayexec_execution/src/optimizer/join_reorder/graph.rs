@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
 
+use super::stats::PlanStats;
 use crate::expr;
-use crate::expr::comparison_expr::ComparisonOperator;
-use crate::logical::binder::bind_context::TableRef;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
     ComparisonCondition,
@@ -14,35 +14,21 @@ use crate::logical::logical_join::{
     LogicalCrossJoin,
 };
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
-use crate::logical::statistics::assumptions::{
-    DEFAULT_SELECTIVITY,
-    EQUALITY_SELECTIVITY,
-    INEQUALITY_SELECTIVITY,
-};
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
 
-/// Default estimated cardinality to use for base relations if we don't have it
-/// available to us.
-///
-/// This is arbitrary, but we need something to enable cost estimation at some
-/// level. The value picked is based on intuition where if we don't have
-/// statistic, we assume somewhat large cardinality such that we prefer working
-/// with joins that are smaller than this.
-const DEFAULT_CARDINALITY: usize = 20_000;
-
 /// Unique id for identifying nodes in the graph.
-type RelId = usize;
+pub type RelId = usize;
 
 /// Unique id for indentifying join conditions (edges) in the graph.
-type EdgeId = usize;
+pub type EdgeId = usize;
 
 /// Unique id for extra filters in the graph.
-type FilterId = usize;
+pub type FilterId = usize;
 
 /// Key for a generated plan. Made up of sorted relation ids.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct PlanKey(Vec<RelId>);
+pub struct PlanKey(Vec<RelId>);
 
 impl PlanKey {
     /// Creates a new plan key from relation ids.
@@ -65,36 +51,33 @@ impl PlanKey {
 /// A generated plan represents a either a join between two plan subsets, or a
 /// base relations.
 #[derive(Debug)]
-struct GeneratedPlan {
+pub struct GeneratedPlan {
     /// The key for this plan.
-    key: PlanKey,
+    pub key: PlanKey,
     /// Relative cost of executing _this_ plan.
-    ///
-    /// For base relations, this is initialized to the estimated cardinality of
-    /// the relation.
-    cost: f64,
-    /// Estimated _output_ cardinality for this plan.
-    cardinality: f64,
+    pub cost: f64,
+    /// Stats for this plan.
+    pub stats: PlanStats,
     /// Output table refs for this plan.
     ///
     /// Union of all child output refs.
-    output_refs: HashSet<TableRef>,
+    pub output_refs: HashSet<TableRef>,
     /// Conditions that should be used when joining left and right.
     ///
     /// Empty when just a base relation.
-    conditions: HashSet<EdgeId>,
+    pub conditions: HashSet<EdgeId>,
     /// Left input to the plan. Will be None if this plan is for a base relation.
-    left_input: Option<PlanKey>,
+    pub left_input: Option<PlanKey>,
     /// Right input to the plan. Will be None if this plan is for a base relation.
-    right_input: Option<PlanKey>,
+    pub right_input: Option<PlanKey>,
     /// Filters that will be applied to the left input.
     ///
     /// Empty when just a base relation.
-    left_filters: HashSet<FilterId>,
+    pub left_filters: HashSet<FilterId>,
     /// Filters that will be applied to the right input.
     ///
     /// Empty when just a base relation.
-    right_filters: HashSet<FilterId>,
+    pub right_filters: HashSet<FilterId>,
     /// Complete set of used edges up to and including this plan.
     ///
     /// Union of all edges used in children.
@@ -102,16 +85,16 @@ struct GeneratedPlan {
     /// This lets us track which filters/conditions we have used so far when
     /// considering this join order. We don't want to reuse filters/conditions
     /// within a join order.
-    used: UsedEdges,
+    pub used: UsedEdges,
 }
 
 /// Tracks edges that have been used thus far in a particular join ordering.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct UsedEdges {
+pub struct UsedEdges {
     /// Complete set of filters used.
-    filters: HashSet<FilterId>,
+    pub filters: HashSet<FilterId>,
     /// Complete set of edges used.
-    edges: HashSet<EdgeId>,
+    pub edges: HashSet<EdgeId>,
 }
 
 impl UsedEdges {
@@ -121,14 +104,14 @@ impl UsedEdges {
             filters: left
                 .filters
                 .iter()
+                .chain(right.filters.iter())
                 .copied()
-                .chain(right.filters.iter().copied())
                 .collect(),
             edges: left
                 .edges
                 .iter()
+                .chain(right.edges.iter())
                 .copied()
-                .chain(right.edges.iter().copied())
                 .collect(),
         }
     }
@@ -146,11 +129,18 @@ impl UsedEdges {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
     /// The join condition.
-    condition: ComparisonCondition,
+    pub condition: ComparisonCondition,
     /// Refs on the left side of the comparison.
-    left_refs: HashSet<TableRef>,
+    pub left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
-    right_refs: HashSet<TableRef>,
+    pub right_refs: HashSet<TableRef>,
+}
+
+#[derive(Debug)]
+pub struct FoundEdge<'a> {
+    pub edge_id: EdgeId,
+    pub edge: &'a Edge,
+    pub flipped: bool,
 }
 
 #[derive(Debug)]
@@ -175,6 +165,7 @@ impl Graph {
             .map(|condition| {
                 let left_refs = condition.left.get_table_references();
                 let right_refs = condition.right.get_table_references();
+
                 Edge {
                     condition,
                     left_refs,
@@ -192,8 +183,8 @@ impl Graph {
         }
     }
 
-    pub fn try_build(&mut self) -> Result<LogicalOperator> {
-        let mut plans = self.generate_plans()?;
+    pub fn try_build(&mut self, bind_context: &BindContext) -> Result<LogicalOperator> {
+        let mut plans = self.generate_plans(bind_context)?;
 
         // Get longest plan (plan that contains all relations).
         let key = PlanKey::new_from_ids(0..self.base_relations.len());
@@ -251,22 +242,7 @@ impl Graph {
 
         // Swap sides if needed. We always want left (build) side to have the
         // lower cardinality (not necessarily cost).
-        let plan_swap_sides = {
-            // TODO: Better selectivity with filters.
-            let left_card = if generated.left_filters.is_empty() {
-                left_gen.cardinality
-            } else {
-                left_gen.cardinality * DEFAULT_SELECTIVITY
-            };
-
-            let right_card = if generated.right_filters.is_empty() {
-                right_gen.cardinality
-            } else {
-                right_gen.cardinality * DEFAULT_SELECTIVITY
-            };
-
-            right_card < left_card
-        };
+        let plan_swap_sides = right_gen.stats.cardinality < left_gen.stats.cardinality;
 
         let left = self.build_from_generated(&left_gen, plans)?;
         let right = self.build_from_generated(&right_gen, plans)?;
@@ -396,26 +372,24 @@ impl Graph {
         }
     }
 
-    fn generate_plans(&self) -> Result<HashMap<PlanKey, GeneratedPlan>> {
+    fn generate_plans(
+        &self,
+        bind_context: &BindContext,
+    ) -> Result<HashMap<PlanKey, GeneratedPlan>> {
         // Best plans generated for each group of relations.
         let mut best_plans: HashMap<PlanKey, GeneratedPlan> = HashMap::new();
 
         // Plans for just the base relation.
         for (&rel_id, base_rel) in &self.base_relations {
-            let card = base_rel
-                .get_statistics()
-                .cardinality
-                .value()
-                .copied()
-                .unwrap_or(DEFAULT_CARDINALITY) as f64;
+            let stats = PlanStats::new_from_base_operator(&base_rel, bind_context)?;
 
             let key = PlanKey::new_from_ids([rel_id]);
             best_plans.insert(
                 key.clone(),
                 GeneratedPlan {
                     key,
-                    cost: card,
-                    cardinality: card,
+                    cost: stats.cardinality,
+                    stats,
                     output_refs: base_rel.get_output_table_refs().into_iter().collect(),
                     conditions: HashSet::new(),
                     left_input: None,
@@ -457,7 +431,7 @@ impl Graph {
                     let left_filters = self.find_filters(p1);
                     let right_filters = self.find_filters(p2);
 
-                    let est_cardinality = Self::estimate_output_cardinality(
+                    let stats = PlanStats::new_plan_stats(
                         p1,
                         p2,
                         &conditions,
@@ -469,7 +443,7 @@ impl Graph {
                     //
                     // This is additive to ensure we fully include the cost of
                     // all other joins making up this plan.
-                    let cost = est_cardinality + p1.cost + p2.cost;
+                    let cost = stats.cardinality + p1.cost + p2.cost;
 
                     if let Some(best) = &best_subset_plan {
                         if best.cost < cost {
@@ -482,7 +456,8 @@ impl Graph {
                     let right_filters: HashSet<_> =
                         right_filters.iter().map(|(&id, _)| id).collect();
 
-                    let conditions: HashSet<_> = conditions.iter().map(|(&id, _)| id).collect();
+                    let conditions: HashSet<_> =
+                        conditions.iter().map(|edge| edge.edge_id).collect();
 
                     let mut used = UsedEdges::unioned(&p1.used, &p2.used);
                     used.mark_edges_used(conditions.iter().copied());
@@ -501,7 +476,7 @@ impl Graph {
                     best_subset_plan = Some(GeneratedPlan {
                         key: plan_key.clone(),
                         cost,
-                        cardinality: est_cardinality,
+                        stats,
                         output_refs,
                         conditions,
                         left_input: Some(s1),
@@ -524,35 +499,39 @@ impl Graph {
     }
 
     /// Find join conditions between plans `p1` and `p2`.
-    fn find_conditions(&self, p1: &GeneratedPlan, p2: &GeneratedPlan) -> Vec<(&EdgeId, &Edge)> {
+    fn find_conditions(&self, p1: &GeneratedPlan, p2: &GeneratedPlan) -> Vec<FoundEdge> {
         self.edges
             .iter()
-            .filter(|(edge_id, edge)| {
+            .filter_map(|(edge_id, edge)| {
                 // Only consider conditions not previously used.
                 if p1.used.edges.contains(edge_id) || p2.used.edges.contains(edge_id) {
-                    return false;
+                    return None;
                 }
 
                 // Edge between p1 and p2.
                 if edge.left_refs.is_subset(&p1.output_refs)
                     && edge.right_refs.is_subset(&p2.output_refs)
                 {
-                    return true;
+                    return Some(FoundEdge {
+                        edge_id: *edge_id,
+                        edge,
+                        flipped: false,
+                    });
                 }
 
                 // Edge between p2 and p1 (reversed)
-                //
-                // We don't need to track if we have to swap here. That'll be done
-                // when we're building back up the logical plan from these generated
-                // plans.
                 if edge.left_refs.is_subset(&p2.output_refs)
                     && edge.right_refs.is_subset(&p1.output_refs)
                 {
-                    return true;
+                    return Some(FoundEdge {
+                        edge_id: *edge_id,
+                        edge,
+                        flipped: true,
+                    });
                 }
 
                 // Not a valid edge.
-                false
+                None
             })
             .collect()
     }
@@ -586,48 +565,5 @@ impl Graph {
                 true
             })
             .collect()
-    }
-
-    /// Estimate the output cardinality of a join between two plans on some
-    /// number of conditions.
-    fn estimate_output_cardinality(
-        p1: &GeneratedPlan,
-        p2: &GeneratedPlan,
-        edges: &[(&EdgeId, &Edge)],
-        left_filters: &[(&FilterId, &ExtractedFilter)],
-        right_filters: &[(&FilterId, &ExtractedFilter)],
-    ) -> f64 {
-        let mut selectivity = 1.0; // Default, if no edges, will be cross product.
-
-        for (_, edge) in edges {
-            match edge.condition.op {
-                ComparisonOperator::Eq => {
-                    if EQUALITY_SELECTIVITY < selectivity {
-                        selectivity = EQUALITY_SELECTIVITY
-                    }
-                }
-                _ => {
-                    if INEQUALITY_SELECTIVITY < selectivity {
-                        selectivity = INEQUALITY_SELECTIVITY
-                    }
-                }
-            }
-        }
-
-        // TODO: Better selectivity with filters.
-
-        let left_card = if left_filters.is_empty() {
-            p1.cardinality
-        } else {
-            p1.cardinality * DEFAULT_SELECTIVITY
-        };
-
-        let right_card = if right_filters.is_empty() {
-            p2.cardinality
-        } else {
-            p2.cardinality * DEFAULT_SELECTIVITY
-        };
-
-        selectivity * left_card * right_card
     }
 }

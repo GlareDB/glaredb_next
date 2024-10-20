@@ -35,6 +35,15 @@ pub enum ScanSource {
 }
 
 impl ScanSource {
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        match self {
+            Self::Table { .. } => StatisticsValue::Unknown,
+            Self::TableFunction { function } => function.cardinality(),
+            Self::ExpressionList { rows } => StatisticsValue::Exact(rows.len()),
+            Self::View { .. } => StatisticsValue::Unknown,
+        }
+    }
+
     fn statistics(&self) -> Statistics {
         match self {
             Self::Table { .. } => Statistics::unknown(),
@@ -108,7 +117,6 @@ impl Explainable for LogicalScan {
             ent = ent
                 .with_value("table_ref", self.table_ref)
                 .with_values("projection", &self.projection)
-                .with_statistics(self.source.statistics())
         }
 
         ent
@@ -118,6 +126,10 @@ impl Explainable for LogicalScan {
 impl LogicalNode for Node<LogicalScan> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         vec![self.node.table_ref]
+    }
+
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        self.node.source.cardinality()
     }
 
     fn get_statistics(&self) -> Statistics {

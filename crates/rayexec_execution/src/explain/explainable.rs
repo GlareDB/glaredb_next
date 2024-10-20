@@ -117,10 +117,6 @@ impl ExplainEntry {
         self.items.insert(key, vals);
         self
     }
-
-    pub fn with_statistics(self, stats: Statistics) -> Self {
-        self.with_value("cardinality", stats.cardinality)
-    }
 }
 
 impl fmt::Display for ExplainEntry {

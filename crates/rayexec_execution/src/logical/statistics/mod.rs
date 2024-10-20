@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt;
 
 pub mod assumptions {
@@ -29,6 +30,29 @@ impl<T> StatisticsValue<T> {
             Self::Exact(v) | Self::Estimated(v) => Some(v),
             Self::Unknown => None,
         }
+    }
+}
+
+impl<T> PartialOrd for StatisticsValue<T>
+where
+    T: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self.value(), other.value()) {
+            (Some(a), Some(b)) => a.partial_cmp(b),
+            (Some(_), None) => Some(Ordering::Greater),
+            (None, Some(_)) => Some(Ordering::Less),
+            (None, None) => Some(Ordering::Equal),
+        }
+    }
+}
+
+impl<T> Ord for StatisticsValue<T>
+where
+    T: Ord,
+{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
