@@ -29,8 +29,9 @@ pub type EdgeId = usize;
 pub type FilterId = usize;
 
 /// Key for a generated plan. Made up of sorted relation ids.
+// TODO: Bits
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlanKey(Vec<RelId>);
+pub struct PlanKey(pub Vec<RelId>);
 
 impl PlanKey {
     /// Creates a new plan key from relation ids.
@@ -128,18 +129,24 @@ impl UsedEdges {
 }
 
 /// Edge in the graph linking two relations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Edge {
     /// The join condition.
     pub condition: ComparisonCondition,
-    /// Columns on the left side.
-    pub left_cols: Vec<ColumnExpr>,
-    /// Columns on the right side.
-    pub right_cols: Vec<ColumnExpr>,
     /// Refs on the left side of the comparison.
     pub left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
     pub right_refs: HashSet<TableRef>,
+    pub min_ndv: f64,
+}
+
+// Not derivable since we have an f64, but our f64 value will never be NaN/Inf.
+impl Eq for Edge {}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnconnectedFilter {
+    pub filter: ExtractedFilter,
+    pub min_ndv: f64,
 }
 
 #[derive(Debug)]
@@ -149,13 +156,20 @@ pub struct FoundEdge<'a> {
 }
 
 #[derive(Debug)]
+pub struct BaseRelation {
+    pub operator: LogicalOperator,
+    pub output_refs: HashSet<TableRef>,
+    pub cardinality: f64,
+}
+
+#[derive(Debug)]
 pub struct Graph {
     /// Edges in the graph.
     edges: HashMap<EdgeId, Edge>,
     /// Extra filters in the graph.
-    filters: HashMap<FilterId, ExtractedFilter>,
+    filters: HashMap<FilterId, UnconnectedFilter>,
     /// Base relations in the graph that we're joining.
-    base_relations: HashMap<RelId, LogicalOperator>,
+    base_relations: HashMap<RelId, BaseRelation>,
 }
 
 impl Graph {
@@ -164,31 +178,69 @@ impl Graph {
         conditions: impl IntoIterator<Item = ComparisonCondition>,
         filters: impl IntoIterator<Item = ExtractedFilter>,
     ) -> Self {
-        let base_relations = base_relations.into_iter().enumerate().collect();
-        let edges = conditions
+        let base_relations: HashMap<RelId, BaseRelation> = base_relations
             .into_iter()
-            .map(|condition| {
-                let left_refs = condition.left.get_table_references();
-                let right_refs = condition.right.get_table_references();
+            .map(|op| {
+                let output_refs = op.get_output_table_refs().into_iter().collect();
+                let cardinality = op.cardinality().value().copied().unwrap_or(20_000);
 
-                let left_cols = condition.left.get_column_references();
-                let right_cols = condition.right.get_column_references();
-
-                Edge {
-                    condition,
-                    left_cols,
-                    right_cols,
-                    left_refs,
-                    right_refs,
+                BaseRelation {
+                    operator: op,
+                    output_refs,
+                    cardinality: cardinality as f64,
                 }
             })
             .enumerate()
             .collect();
-        let filters = filters.into_iter().enumerate().collect();
+
+        let mut edges: HashMap<EdgeId, Edge> = HashMap::new();
+
+        for (idx, condition) in conditions.into_iter().enumerate() {
+            let mut min_ndv = f64::MAX;
+
+            let left_refs = condition.left.get_table_references();
+            let right_refs = condition.right.get_table_references();
+
+            for (_, rel) in &base_relations {
+                if left_refs.is_subset(&rel.output_refs) || right_refs.is_subset(&rel.output_refs) {
+                    // Note we initialize NDV to relation cardinality which will
+                    // typically overestimate NDV, but by taking the min of all
+                    // cardinalities involved in the condition, we can
+                    // significantly reduce it.
+                    min_ndv = f64::min(min_ndv, rel.cardinality);
+                }
+            }
+
+            edges.insert(
+                idx,
+                Edge {
+                    condition,
+                    left_refs,
+                    right_refs,
+                    min_ndv,
+                },
+            );
+        }
+
+        let mut unconnected_filters: HashMap<FilterId, UnconnectedFilter> = HashMap::new();
+
+        for (idx, filter) in filters.into_iter().enumerate() {
+            let mut min_ndv = f64::MAX;
+
+            for (_, rel) in &base_relations {
+                if filter.table_refs.is_subset(&rel.output_refs) {
+                    min_ndv = f64::min(min_ndv, rel.cardinality);
+                }
+            }
+
+            unconnected_filters.insert(idx, UnconnectedFilter { filter, min_ndv });
+        }
+
+        // let filters = filters.into_iter().enumerate().collect();
 
         Graph {
             edges,
-            filters,
+            filters: unconnected_filters,
             base_relations,
         }
     }
@@ -233,12 +285,12 @@ impl Graph {
 
             // There should always be one generated plan referencing the base
             // relation.
-            let operator = self
+            let rel = self
                 .base_relations
                 .remove(&generated.key.0[0])
                 .ok_or_else(|| RayexecError::new("Missing base relation"))?;
 
-            return Ok(operator);
+            return Ok(rel.operator);
         }
 
         // Otherwise build up the plan.
@@ -334,7 +386,7 @@ impl Graph {
                 .remove(&filter_id)
                 .ok_or_else(|| RayexecError::new(format!("Filter previously used: {filter_id}")))?;
 
-            input_filters.push(filter.into_expression());
+            input_filters.push(filter.filter.into_expression());
         }
 
         // Try to squash into underlying operator if able. Otherwise just wrap
@@ -384,7 +436,7 @@ impl Graph {
     }
 
     fn generate_plans(
-        &self,
+        &mut self,
         bind_context: &BindContext,
     ) -> Result<HashMap<PlanKey, GeneratedPlan>> {
         // Best plans generated for each group of relations.
@@ -392,7 +444,10 @@ impl Graph {
 
         // Plans for just the base relation.
         for (&rel_id, base_rel) in &self.base_relations {
-            let stats = PlanStats::new_from_base_operator(&base_rel, bind_context)?;
+            let stats = PlanStats {
+                cardinality: base_rel.cardinality,
+                selectivitiy_denom: 1.0,
+            };
 
             let key = PlanKey::new_from_ids([rel_id]);
             best_plans.insert(
@@ -401,7 +456,7 @@ impl Graph {
                     key,
                     cost: 0.0,
                     stats,
-                    output_refs: base_rel.get_output_table_refs().into_iter().collect(),
+                    output_refs: base_rel.output_refs.clone(),
                     conditions: HashSet::new(),
                     left_input: None,
                     right_input: None,
@@ -445,6 +500,7 @@ impl Graph {
                     let stats = PlanStats::new_plan_stats(
                         p1,
                         p2,
+                        &self.base_relations,
                         &conditions,
                         &left_filters,
                         &right_filters,
@@ -549,7 +605,7 @@ impl Graph {
     }
 
     /// Find filters that apply fully to the given plan.
-    fn find_filters(&self, plan: &GeneratedPlan) -> Vec<(&FilterId, &ExtractedFilter)> {
+    fn find_filters(&self, plan: &GeneratedPlan) -> Vec<(&FilterId, &UnconnectedFilter)> {
         self.filters
             .iter()
             .filter(|(filter_id, filter)| {
@@ -559,7 +615,7 @@ impl Graph {
                 //
                 // We're currently assuming that a filter needs to be used
                 // extactly once in the tree. And this check enforces that.
-                if filter.table_refs.is_empty() {
+                if filter.filter.table_refs.is_empty() {
                     return false;
                 }
 
@@ -569,7 +625,7 @@ impl Graph {
                 }
 
                 // Only consider filters that apply to just the plan's table refs.
-                if !filter.table_refs.is_subset(&plan.output_refs) {
+                if !filter.filter.table_refs.is_subset(&plan.output_refs) {
                     return false;
                 }
 

@@ -9,7 +9,7 @@ pub mod assumptions {
     /// Selectivity with other comparison operators like '<', '>', '!=' etc.
     pub const INEQUALITY_SELECTIVITY: f64 = 0.3;
     /// Default selectivity to use if neither of the above apply.
-    pub const DEFAULT_SELECTIVITY: f64 = 0.3;
+    pub const DEFAULT_SELECTIVITY: f64 = 0.2;
 }
 
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
