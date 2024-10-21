@@ -1,3 +1,4 @@
+mod edge;
 mod graph;
 mod set;
 mod stats;
@@ -122,6 +123,7 @@ impl InnerJoinReorder {
             child_plans,
             self.conditions.drain(..),
             self.filters.drain(..),
+            bind_context,
         );
 
         graph.try_build(bind_context)

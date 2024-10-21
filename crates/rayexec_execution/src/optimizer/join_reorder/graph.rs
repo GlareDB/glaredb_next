@@ -2,7 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
 
+use super::edge::EdgeId;
 use super::stats::PlanStats;
+use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
 use crate::expr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::logical::binder::bind_context::{BindContext, TableRef};
@@ -21,9 +23,6 @@ use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
 
 /// Unique id for identifying nodes in the graph.
 pub type RelId = usize;
-
-/// Unique id for indentifying join conditions (edges) in the graph.
-pub type EdgeId = usize;
 
 /// Unique id for extra filters in the graph.
 pub type FilterId = usize;
@@ -177,12 +176,26 @@ impl Graph {
         base_relations: impl IntoIterator<Item = LogicalOperator>,
         conditions: impl IntoIterator<Item = ComparisonCondition>,
         filters: impl IntoIterator<Item = ExtractedFilter>,
+        bind_context: &BindContext,
     ) -> Self {
         let base_relations: HashMap<RelId, BaseRelation> = base_relations
             .into_iter()
             .map(|op| {
                 let output_refs = op.get_output_table_refs().into_iter().collect();
                 let cardinality = op.cardinality().value().copied().unwrap_or(20_000);
+
+                println!(
+                    "{output_refs:?}  {cardinality}, {}",
+                    match &op {
+                        LogicalOperator::Project(_) => "project",
+                        LogicalOperator::Filter(_) => "filter",
+                        LogicalOperator::Scan(_) => "scan",
+                        LogicalOperator::CrossJoin(_) => "cross",
+                        LogicalOperator::ComparisonJoin(_) => "cmp",
+                        LogicalOperator::ArbitraryJoin(_) => "arb",
+                        other => "other",
+                    }
+                );
 
                 BaseRelation {
                     operator: op,
@@ -211,15 +224,20 @@ impl Graph {
                 }
             }
 
-            edges.insert(
-                idx,
-                Edge {
-                    condition,
-                    left_refs,
-                    right_refs,
-                    min_ndv,
-                },
-            );
+            unimplemented!()
+            // debug_print_context(ContextDisplayMode::Enriched(bind_context), &condition);
+            // println!("CONDITION: {condition}");
+            // println!("MIN: {min_ndv}");
+
+            // edges.insert(
+            //     idx,
+            //     Edge {
+            //         condition,
+            //         left_refs,
+            //         right_refs,
+            //         min_ndv,
+            //     },
+            // );
         }
 
         let mut unconnected_filters: HashMap<FilterId, UnconnectedFilter> = HashMap::new();
