@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 use super::graph::{BaseRelation, GeneratedPlan, RelId};
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
 use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_join::ComparisonCondition;
@@ -112,6 +114,22 @@ impl HyperEdges {
         found
     }
 
+    pub fn remove_edge(&mut self, id: EdgeId) -> Option<Edge> {
+        let hyper_edge = self.0.get_mut(id.hyper_edge_id)?;
+        hyper_edge.edges.remove(&id)
+    }
+
+    /// Checks if all edges have been removed during the building of the final
+    /// plan.
+    pub fn all_edges_removed(&self) -> bool {
+        for hyper_edge in &self.0 {
+            if !hyper_edge.edges.is_empty() {
+                return false;
+            }
+        }
+        true
+    }
+
     fn insert_condition_as_edge(
         &mut self,
         condition: ComparisonCondition,
@@ -186,5 +204,25 @@ impl HyperEdges {
         };
 
         self.0.push(hyper_edge);
+    }
+}
+
+impl ContextDisplay for HyperEdges {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        for hyp in &self.0 {
+            writeln!(f, "Hyperedge: {}", hyp.id)?;
+            writeln!(f, "  min_ndv: {}", hyp.min_ndv)?;
+            writeln!(f, "  columns:")?;
+            for col in &hyp.columns {
+                write!(f, "    - ")?;
+                col.fmt_using_context(mode, f)?;
+                writeln!(f, "")?;
+            }
+        }
+        Ok(())
     }
 }

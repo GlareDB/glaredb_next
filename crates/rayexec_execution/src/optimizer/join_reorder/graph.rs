@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
 
-use super::edge::EdgeId;
+use super::edge::{EdgeId, HyperEdges};
 use super::stats::PlanStats;
 use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
 use crate::expr;
@@ -64,10 +64,11 @@ pub struct GeneratedPlan {
     ///
     /// Union of all child output refs.
     pub output_refs: HashSet<TableRef>,
-    /// Conditions that should be used when joining left and right.
+    /// Edges containing the conditions that should be used when joining left
+    /// and right.
     ///
     /// Empty when just a base relation.
-    pub conditions: HashSet<EdgeId>,
+    pub edges: HashSet<EdgeId>,
     /// Left input to the plan. Will be None if this plan is for a base relation.
     pub left_input: Option<PlanKey>,
     /// Right input to the plan. Will be None if this plan is for a base relation.
@@ -127,31 +128,10 @@ impl UsedEdges {
     }
 }
 
-/// Edge in the graph linking two relations.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Edge {
-    /// The join condition.
-    pub condition: ComparisonCondition,
-    /// Refs on the left side of the comparison.
-    pub left_refs: HashSet<TableRef>,
-    /// Refs on the right side of the comparison.
-    pub right_refs: HashSet<TableRef>,
-    pub min_ndv: f64,
-}
-
-// Not derivable since we have an f64, but our f64 value will never be NaN/Inf.
-impl Eq for Edge {}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnconnectedFilter {
     pub filter: ExtractedFilter,
     pub min_ndv: f64,
-}
-
-#[derive(Debug)]
-pub struct FoundEdge<'a> {
-    pub edge_id: EdgeId,
-    pub edge: &'a Edge,
 }
 
 #[derive(Debug)]
@@ -163,8 +143,8 @@ pub struct BaseRelation {
 
 #[derive(Debug)]
 pub struct Graph {
-    /// Edges in the graph.
-    edges: HashMap<EdgeId, Edge>,
+    /// Hyper edged in the graph.
+    hyper_edges: HyperEdges,
     /// Extra filters in the graph.
     filters: HashMap<FilterId, UnconnectedFilter>,
     /// Base relations in the graph that we're joining.
@@ -184,18 +164,18 @@ impl Graph {
                 let output_refs = op.get_output_table_refs().into_iter().collect();
                 let cardinality = op.cardinality().value().copied().unwrap_or(20_000);
 
-                println!(
-                    "{output_refs:?}  {cardinality}, {}",
-                    match &op {
-                        LogicalOperator::Project(_) => "project",
-                        LogicalOperator::Filter(_) => "filter",
-                        LogicalOperator::Scan(_) => "scan",
-                        LogicalOperator::CrossJoin(_) => "cross",
-                        LogicalOperator::ComparisonJoin(_) => "cmp",
-                        LogicalOperator::ArbitraryJoin(_) => "arb",
-                        other => "other",
-                    }
-                );
+                // println!(
+                //     "{output_refs:?}  {cardinality}, {}",
+                //     match &op {
+                //         LogicalOperator::Project(_) => "project",
+                //         LogicalOperator::Filter(_) => "filter",
+                //         LogicalOperator::Scan(_) => "scan",
+                //         LogicalOperator::CrossJoin(_) => "cross",
+                //         LogicalOperator::ComparisonJoin(_) => "cmp",
+                //         LogicalOperator::ArbitraryJoin(_) => "arb",
+                //         other => "other",
+                //     }
+                // );
 
                 BaseRelation {
                     operator: op,
@@ -206,39 +186,8 @@ impl Graph {
             .enumerate()
             .collect();
 
-        let mut edges: HashMap<EdgeId, Edge> = HashMap::new();
-
-        for (idx, condition) in conditions.into_iter().enumerate() {
-            let mut min_ndv = f64::MAX;
-
-            let left_refs = condition.left.get_table_references();
-            let right_refs = condition.right.get_table_references();
-
-            for (_, rel) in &base_relations {
-                if left_refs.is_subset(&rel.output_refs) || right_refs.is_subset(&rel.output_refs) {
-                    // Note we initialize NDV to relation cardinality which will
-                    // typically overestimate NDV, but by taking the min of all
-                    // cardinalities involved in the condition, we can
-                    // significantly reduce it.
-                    min_ndv = f64::min(min_ndv, rel.cardinality);
-                }
-            }
-
-            unimplemented!()
-            // debug_print_context(ContextDisplayMode::Enriched(bind_context), &condition);
-            // println!("CONDITION: {condition}");
-            // println!("MIN: {min_ndv}");
-
-            // edges.insert(
-            //     idx,
-            //     Edge {
-            //         condition,
-            //         left_refs,
-            //         right_refs,
-            //         min_ndv,
-            //     },
-            // );
-        }
+        let hyper_edges = HyperEdges::new(conditions, &base_relations);
+        debug_print_context(ContextDisplayMode::Enriched(bind_context), &hyper_edges);
 
         let mut unconnected_filters: HashMap<FilterId, UnconnectedFilter> = HashMap::new();
 
@@ -254,10 +203,8 @@ impl Graph {
             unconnected_filters.insert(idx, UnconnectedFilter { filter, min_ndv });
         }
 
-        // let filters = filters.into_iter().enumerate().collect();
-
         Graph {
-            edges,
+            hyper_edges,
             filters: unconnected_filters,
             base_relations,
         }
@@ -275,7 +222,7 @@ impl Graph {
         let plan = self.build_from_generated(&longest, &mut plans)?;
 
         // All edges and relations should have been used to build up the plan.
-        assert!(self.edges.is_empty());
+        assert!(self.hyper_edges.all_edges_removed());
         assert!(self.base_relations.is_empty());
 
         // But we may still have filters. Apply them to the final plan.
@@ -297,7 +244,7 @@ impl Graph {
         if generated.key.is_base() {
             assert!(generated.left_input.is_none());
             assert!(generated.right_input.is_none());
-            assert!(generated.conditions.is_empty());
+            assert!(generated.edges.is_empty());
             assert!(generated.left_filters.is_empty());
             assert!(generated.right_filters.is_empty());
 
@@ -336,12 +283,12 @@ impl Graph {
             [left, right]
         };
 
-        let mut conditions = Vec::with_capacity(generated.conditions.len());
+        let mut conditions = Vec::with_capacity(generated.edges.len());
 
-        for cond_id in &generated.conditions {
+        for &edge_id in &generated.edges {
             let edge = self
-                .edges
-                .remove(cond_id)
+                .hyper_edges
+                .remove_edge(edge_id)
                 .ok_or_else(|| RayexecError::new("Condition already used"))?;
 
             // Check if we have to flip the condition (left side of the
@@ -475,7 +422,7 @@ impl Graph {
                     cost: 0.0,
                     stats,
                     output_refs: base_rel.output_refs.clone(),
-                    conditions: HashSet::new(),
+                    edges: HashSet::new(),
                     left_input: None,
                     right_input: None,
                     left_filters: HashSet::new(),
@@ -510,7 +457,7 @@ impl Graph {
                     let p1 = best_plans.get(&s1).expect("plan to exist");
                     let p2 = best_plans.get(&s2).expect("plan to exist");
 
-                    let conditions = self.find_conditions(p1, p2);
+                    let edges = self.hyper_edges.find_edges(p1, p2);
 
                     let left_filters = self.find_filters(p1);
                     let right_filters = self.find_filters(p2);
@@ -519,7 +466,7 @@ impl Graph {
                         p1,
                         p2,
                         &self.base_relations,
-                        &conditions,
+                        &edges,
                         &left_filters,
                         &right_filters,
                     );
@@ -541,8 +488,7 @@ impl Graph {
                     let right_filters: HashSet<_> =
                         right_filters.iter().map(|(&id, _)| id).collect();
 
-                    let conditions: HashSet<_> =
-                        conditions.iter().map(|edge| edge.edge_id).collect();
+                    let conditions: HashSet<_> = edges.iter().map(|edge| edge.edge_id).collect();
 
                     let mut used = UsedEdges::unioned(&p1.used, &p2.used);
                     used.mark_edges_used(conditions.iter().copied());
@@ -563,7 +509,7 @@ impl Graph {
                         cost,
                         stats,
                         output_refs,
-                        conditions,
+                        edges: conditions,
                         left_input: Some(s1),
                         right_input: Some(s2),
                         left_filters,
@@ -581,45 +527,6 @@ impl Graph {
         }
 
         Ok(best_plans)
-    }
-
-    /// Find join conditions between plans `p1` and `p2`.
-    fn find_conditions(&self, p1: &GeneratedPlan, p2: &GeneratedPlan) -> Vec<FoundEdge> {
-        self.edges
-            .iter()
-            .filter_map(|(edge_id, edge)| {
-                // Only consider conditions not previously used.
-                if p1.used.edges.contains(edge_id) || p2.used.edges.contains(edge_id) {
-                    return None;
-                }
-
-                // Edge between p1 and p2.
-                if edge.left_refs.is_subset(&p1.output_refs)
-                    && edge.right_refs.is_subset(&p2.output_refs)
-                {
-                    return Some(FoundEdge {
-                        edge_id: *edge_id,
-                        edge,
-                    });
-                }
-
-                // Edge between p2 and p1 (reversed)
-                //
-                // Note we don't need to keep track if this is reversed, we'll
-                // worry about that when we build up the plan.
-                if edge.left_refs.is_subset(&p2.output_refs)
-                    && edge.right_refs.is_subset(&p1.output_refs)
-                {
-                    return Some(FoundEdge {
-                        edge_id: *edge_id,
-                        edge,
-                    });
-                }
-
-                // Not a valid edge.
-                None
-            })
-            .collect()
     }
 
     /// Find filters that apply fully to the given plan.

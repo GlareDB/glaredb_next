@@ -2,16 +2,8 @@ use std::collections::HashMap;
 
 use rayexec_error::Result;
 
-use super::graph::{
-    BaseRelation,
-    Edge,
-    EdgeId,
-    FilterId,
-    FoundEdge,
-    GeneratedPlan,
-    RelId,
-    UnconnectedFilter,
-};
+use super::edge::FoundEdge;
+use super::graph::{BaseRelation, FilterId, GeneratedPlan, RelId, UnconnectedFilter};
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::binder::bind_context::BindContext;
@@ -60,14 +52,7 @@ impl PlanStats {
         }
 
         let mut left_denom = p1.stats.selectivitiy_denom;
-        for (_, left_filter) in left_filters {
-            left_denom *= left_filter.min_ndv;
-        }
-
         let mut right_denom = p2.stats.selectivitiy_denom;
-        for (_, right_filter) in right_filters {
-            right_denom *= right_filter.min_ndv;
-        }
 
         // let left_card = Self::apply_filters(p1.stats.cardinality, left_filters);
         // let right_card = Self::apply_filters(p2.stats.cardinality, right_filters);
@@ -78,7 +63,7 @@ impl PlanStats {
             match edge.edge.condition.op {
                 ComparisonOperator::Eq => {
                     // =
-                    denom *= edge.edge.min_ndv
+                    denom *= edge.min_ndv
                 }
                 ComparisonOperator::NotEq => {
                     denom *= 0.1 // Assuming 10% selectivity for !=
