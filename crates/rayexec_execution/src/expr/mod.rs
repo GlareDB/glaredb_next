@@ -24,7 +24,7 @@ use between_expr::BetweenExpr;
 use case_expr::CaseExpr;
 use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
-use comparison_expr::ComparisonExpr;
+use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
@@ -365,6 +365,46 @@ pub fn add(left: Expression, right: Expression) -> Expression {
         left: Box::new(left),
         right: Box::new(right),
         op: ArithOperator::Add,
+    })
+}
+
+pub fn eq(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::Eq,
+    })
+}
+
+pub fn lt(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::Lt,
+    })
+}
+
+pub fn lt_eq(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::LtEq,
+    })
+}
+
+pub fn gt(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::Gt,
+    })
+}
+
+pub fn gt_eq(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::GtEq,
     })
 }
 

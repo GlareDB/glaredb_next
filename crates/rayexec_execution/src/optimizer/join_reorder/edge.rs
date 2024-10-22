@@ -85,6 +85,10 @@ impl HyperEdges {
             hyper_edges.insert_condition_as_edge(condition, base_relations)?;
         }
 
+        for filter in filters {
+            hyper_edges.insert_expression_as_edge(filter, base_relations)?;
+        }
+
         // TODO: Round of combining hyper edges.
 
         Ok(hyper_edges)
@@ -147,6 +151,12 @@ impl HyperEdges {
             }
         }
         true
+    }
+
+    pub fn drain_edges(&mut self) -> impl Iterator<Item = Edge> + '_ {
+        self.0
+            .iter_mut()
+            .flat_map(|hyp| hyp.edges.drain().map(|(_, edge)| edge))
     }
 
     fn insert_expression_as_edge(

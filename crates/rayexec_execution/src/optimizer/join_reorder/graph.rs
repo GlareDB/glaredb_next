@@ -196,9 +196,16 @@ impl Graph {
 
         let plan = self.build_from_generated(&longest, &mut plans)?;
 
-        // All edges and relations should have been used to build up the plan.
-        assert!(self.hyper_edges.all_edges_removed());
+        // All base relations should have been used to build up the plan.
         assert!(self.base_relations.is_empty());
+
+        // Apply any remaining edges as filters to the output plan.
+        let filters: Vec<_> = self
+            .hyper_edges
+            .drain_edges()
+            .map(|edge| edge.filter)
+            .collect();
+        let plan = self.apply_filters(plan, filters)?;
 
         // // But we may still have filters. Apply them to the final plan.
         // let filter_ids: HashSet<_> = self.filters.keys().copied().collect();

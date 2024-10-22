@@ -11,6 +11,7 @@ use rayexec_error::Result;
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
 use super::OptimizeRule;
+use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_join::{ComparisonCondition, JoinType};
@@ -90,9 +91,13 @@ impl InnerJoinReorder {
 
                 return Ok(LogicalOperator::MaterializationScan(new_scan));
             }
-            LogicalOperator::Filter(_) | LogicalOperator::CrossJoin(_) => {
+            // LogicalOperator::Filter(_)=> {
+            //     self.extract_filters_and_join_children(root)?;
+            // }
+            LogicalOperator::CrossJoin(_) => {
                 self.extract_filters_and_join_children(root)?;
             }
+
             LogicalOperator::ComparisonJoin(join) if join.node.join_type == JoinType::Inner => {
                 self.extract_filters_and_join_children(root)?;
             }
@@ -119,6 +124,10 @@ impl InnerJoinReorder {
             child_plans.push(child);
         }
 
+        for cond in &self.conditions {
+            debug_print_context(ContextDisplayMode::Enriched(bind_context), cond);
+        }
+
         let mut graph = Graph::new(
             child_plans,
             self.conditions.drain(..),
@@ -138,9 +147,16 @@ impl InnerJoinReorder {
         while let Some(plan) = queue.pop_front() {
             match plan {
                 LogicalOperator::Filter(mut filter) => {
-                    self.add_expression(filter.node.filter);
-                    for child in filter.children.drain(..) {
-                        queue.push_back(child);
+                    if let LogicalOperator::Scan(_) = filter.get_one_child_exact()? {
+                        // If this filter is on top of a scan, we shouldn't try
+                        // to do anything with it, the filter is already as far
+                        // down as it'll go.
+                        self.child_plans.push(LogicalOperator::Filter(filter))
+                    } else {
+                        self.add_expression(filter.node.filter);
+                        for child in filter.children.drain(..) {
+                            queue.push_back(child);
+                        }
                     }
                 }
                 LogicalOperator::CrossJoin(mut join) => {

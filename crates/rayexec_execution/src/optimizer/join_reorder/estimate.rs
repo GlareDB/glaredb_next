@@ -28,7 +28,7 @@ impl<'a> CardinalityEstimator<'a> {
             numerator *= rel.cardinality;
         }
 
-        println!("D: {:>40} N: {:>40}", subgraph.selectivity_denom, numerator);
+        // println!("D: {:>40} N: {:>40}", subgraph.selectivity_denom, numerator);
 
         Ok(numerator / subgraph.selectivity_denom)
     }
