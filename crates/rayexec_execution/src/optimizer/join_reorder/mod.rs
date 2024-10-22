@@ -1,7 +1,7 @@
 mod edge;
+mod estimate;
 mod graph;
 mod set;
-mod stats;
 
 use std::collections::VecDeque;
 
@@ -124,7 +124,7 @@ impl InnerJoinReorder {
             self.conditions.drain(..),
             self.filters.drain(..),
             bind_context,
-        );
+        )?;
 
         graph.try_build(bind_context)
     }

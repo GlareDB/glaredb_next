@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use rayexec_error::{RayexecError, Result};
 
 use super::edge::{EdgeId, HyperEdges};
-use super::stats::PlanStats;
+use super::estimate::CardinalityEstimator;
 use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
 use crate::expr;
 use crate::expr::column_expr::ColumnExpr;
@@ -58,8 +58,8 @@ pub struct GeneratedPlan {
     pub key: PlanKey,
     /// Relative cost of executing _this_ plan.
     pub cost: f64,
-    /// Stats for this plan.
-    pub stats: PlanStats,
+    /// Estimated cardinality for this plan.
+    pub cardinality: f64,
     /// Output table refs for this plan.
     ///
     /// Union of all child output refs.
@@ -157,7 +157,7 @@ impl Graph {
         conditions: impl IntoIterator<Item = ComparisonCondition>,
         filters: impl IntoIterator<Item = ExtractedFilter>,
         bind_context: &BindContext,
-    ) -> Self {
+    ) -> Result<Self> {
         let base_relations: HashMap<RelId, BaseRelation> = base_relations
             .into_iter()
             .map(|op| {
@@ -186,7 +186,7 @@ impl Graph {
             .enumerate()
             .collect();
 
-        let hyper_edges = HyperEdges::new(conditions, &base_relations);
+        let hyper_edges = HyperEdges::new(conditions, &base_relations)?;
         debug_print_context(ContextDisplayMode::Enriched(bind_context), &hyper_edges);
 
         let mut unconnected_filters: HashMap<FilterId, UnconnectedFilter> = HashMap::new();
@@ -203,11 +203,11 @@ impl Graph {
             unconnected_filters.insert(idx, UnconnectedFilter { filter, min_ndv });
         }
 
-        Graph {
+        Ok(Graph {
             hyper_edges,
             filters: unconnected_filters,
             base_relations,
-        }
+        })
     }
 
     pub fn try_build(&mut self, bind_context: &BindContext) -> Result<LogicalOperator> {
@@ -269,7 +269,7 @@ impl Graph {
 
         // Swap sides if needed. We always want left (build) side to have the
         // lower cardinality (not necessarily cost).
-        let plan_swap_sides = right_gen.stats.cardinality < left_gen.stats.cardinality;
+        let plan_swap_sides = right_gen.cardinality < left_gen.cardinality;
 
         let left = self.build_from_generated(&left_gen, plans)?;
         let right = self.build_from_generated(&right_gen, plans)?;
@@ -322,7 +322,7 @@ impl Graph {
                 node: LogicalComparisonJoin {
                     join_type: JoinType::Inner,
                     conditions,
-                    cardinality: StatisticsValue::Estimated(generated.stats.cardinality as usize),
+                    cardinality: StatisticsValue::Estimated(generated.cardinality as usize),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
@@ -409,18 +409,13 @@ impl Graph {
 
         // Plans for just the base relation.
         for (&rel_id, base_rel) in &self.base_relations {
-            let stats = PlanStats {
-                cardinality: base_rel.cardinality,
-                selectivitiy_denom: 1.0,
-            };
-
             let key = PlanKey::new_from_ids([rel_id]);
             best_plans.insert(
                 key.clone(),
                 GeneratedPlan {
                     key,
                     cost: 0.0,
-                    stats,
+                    cardinality: base_rel.cardinality,
                     output_refs: base_rel.output_refs.clone(),
                     edges: HashSet::new(),
                     left_input: None,
@@ -457,25 +452,29 @@ impl Graph {
                     let p1 = best_plans.get(&s1).expect("plan to exist");
                     let p2 = best_plans.get(&s2).expect("plan to exist");
 
-                    let edges = self.hyper_edges.find_edges(p1, p2);
+                    let mut edges = self.hyper_edges.find_edges(p1, p2);
+                    // Sort descending by min_ndv to such that we consider more
+                    // selective edges first (since ndv makes up the denominator
+                    // when estimating cardinality).
+                    edges.sort_unstable_by(|a, b| a.min_ndv.total_cmp(&b.min_ndv).reverse());
+
+                    let mut estimator = CardinalityEstimator {
+                        p1,
+                        p2,
+                        edges: &edges,
+                        base_relations: &self.base_relations,
+                    };
+
+                    let cardinality = estimator.estimated_cardinality()?;
 
                     let left_filters = self.find_filters(p1);
                     let right_filters = self.find_filters(p2);
-
-                    let stats = PlanStats::new_plan_stats(
-                        p1,
-                        p2,
-                        &self.base_relations,
-                        &edges,
-                        &left_filters,
-                        &right_filters,
-                    );
 
                     // Simple cost function.
                     //
                     // This is additive to ensure we fully include the cost of
                     // all other joins making up this plan.
-                    let cost = stats.cardinality + p1.cost + p2.cost;
+                    let cost = cardinality + p1.cost + p2.cost;
 
                     if let Some(best) = &best_subset_plan {
                         if best.cost < cost {
@@ -507,7 +506,7 @@ impl Graph {
                     best_subset_plan = Some(GeneratedPlan {
                         key: plan_key.clone(),
                         cost,
-                        stats,
+                        cardinality,
                         output_refs,
                         edges: conditions,
                         left_input: Some(s1),

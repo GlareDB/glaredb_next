@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+use rayexec_error::{RayexecError, Result};
+
 use super::graph::{BaseRelation, GeneratedPlan, RelId};
-use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
+use crate::explain::context_display::{debug_print_context, ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
 use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_join::ComparisonCondition;
@@ -37,12 +39,19 @@ pub struct HyperEdge {
 /// Edge connecting extactly two relations in the graph.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
-    /// The join condition.
+    /// The expression join 1 or 2 nodes.
+    ///
+    /// For join conditions, this will be joining 2 nodes. Simple filters will
+    /// just be on one node (and only left refs will be populated).
     pub condition: ComparisonCondition,
     /// Refs on the left side of the comparison.
     pub left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
     pub right_refs: HashSet<TableRef>,
+    /// Base relation the left side is pointing to.
+    pub left_rel: HashSet<RelId>,
+    /// Base relation the right side is pointing to.
+    pub right_rel: HashSet<RelId>,
 }
 
 #[derive(Debug)]
@@ -59,16 +68,16 @@ impl HyperEdges {
     pub fn new(
         conditions: impl IntoIterator<Item = ComparisonCondition>,
         base_relations: &HashMap<RelId, BaseRelation>,
-    ) -> Self {
+    ) -> Result<Self> {
         let mut hyper_edges = HyperEdges(Vec::new());
 
         for condition in conditions {
-            hyper_edges.insert_condition_as_edge(condition, base_relations);
+            hyper_edges.insert_condition_as_edge(condition, base_relations)?;
         }
 
         // TODO: Round of combining hyper edges.
 
-        hyper_edges
+        Ok(hyper_edges)
     }
 
     /// Find edges between two generated plans.
@@ -134,18 +143,30 @@ impl HyperEdges {
         &mut self,
         condition: ComparisonCondition,
         base_relations: &HashMap<RelId, BaseRelation>,
-    ) {
+    ) -> Result<()> {
         let mut min_ndv = f64::MAX;
 
         let left_refs = condition.left.get_table_references();
         let right_refs = condition.right.get_table_references();
 
-        for (_, rel) in base_relations {
-            if left_refs.is_subset(&rel.output_refs) || right_refs.is_subset(&rel.output_refs) {
+        let mut left_rel = HashSet::new();
+        let mut right_rel = HashSet::new();
+
+        for (&rel_id, rel) in base_relations {
+            if left_refs.is_subset(&rel.output_refs) {
+                left_rel.insert(rel_id);
+
                 // Note we initialize NDV to relation cardinality which will
                 // typically overestimate NDV, but by taking the min of all
                 // cardinalities involved in the condition, we can
                 // significantly reduce it.
+                min_ndv = f64::min(min_ndv, rel.cardinality);
+            }
+
+            if right_refs.is_subset(&rel.output_refs) {
+                right_rel.insert(rel_id);
+
+                // See above.
                 min_ndv = f64::min(min_ndv, rel.cardinality);
             }
         }
@@ -164,6 +185,8 @@ impl HyperEdges {
             condition,
             left_refs,
             right_refs,
+            left_rel,
+            right_rel,
         };
 
         for hyper_edge in &mut self.0 {
@@ -182,7 +205,7 @@ impl HyperEdges {
                 hyper_edge.min_ndv = f64::min(hyper_edge.min_ndv, min_ndv);
 
                 // We're done, edge is now in the hyper graph.
-                return;
+                return Ok(());
             }
         }
 
@@ -204,6 +227,8 @@ impl HyperEdges {
         };
 
         self.0.push(hyper_edge);
+
+        Ok(())
     }
 }
 
