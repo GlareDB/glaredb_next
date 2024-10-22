@@ -5,6 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use super::edge::{FoundEdge, HyperEdge, HyperEdges};
 use super::graph::{BaseRelation, GeneratedPlan, PlanKey, RelId};
 use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::Expression;
 
 /// Estimates the cardinality of joining two input plans.
 #[derive(Debug)]
@@ -57,7 +58,7 @@ impl<'a> CardinalityEstimator<'a> {
                         selectivity_denom: 1.0,
                     };
 
-                    subgraph.update_denominator(&dummy, &edge, self.base_relations);
+                    subgraph.update_denominator(&dummy, &edge);
 
                     subgraphs.push(subgraph);
                 }
@@ -71,7 +72,7 @@ impl<'a> CardinalityEstimator<'a> {
                     let left = &mut subgraphs[connected_indices[0]];
 
                     left.relations.extend(right.relations.drain());
-                    left.update_denominator(&right, &edge, self.base_relations);
+                    left.update_denominator(&right, &edge);
                 }
                 other => {
                     return Err(RayexecError::new(format!(
@@ -146,29 +147,26 @@ impl Subgraph {
 
     /// Updates this subgraph's selectivity denominator by an implied join from
     /// `other` subgraph.
-    fn update_denominator(
-        &mut self,
-        other: &Subgraph,
-        edge: &FoundEdge,
-        base_relations: &HashMap<RelId, BaseRelation>,
-    ) {
+    fn update_denominator(&mut self, other: &Subgraph, edge: &FoundEdge) {
         let mut denom = self.selectivity_denom * other.selectivity_denom;
 
-        match edge.edge.condition.op {
-            ComparisonOperator::Eq => {
-                // =
-                denom *= edge.min_ndv
-            }
-            ComparisonOperator::NotEq => {
-                denom *= 0.1 // Assuming 10% selectivity for !=
-            }
-            ComparisonOperator::Lt
-            | ComparisonOperator::Gt
-            | ComparisonOperator::LtEq
-            | ComparisonOperator::GtEq => {
-                // For range joins, adjust selectivity. Assuming 1/3rd of
-                // the data falls into the range.
-                denom *= 3.0
+        if let Expression::Comparison(cmp) = &edge.edge.filter {
+            match cmp.op {
+                ComparisonOperator::Eq => {
+                    // =
+                    denom *= edge.min_ndv
+                }
+                ComparisonOperator::NotEq => {
+                    denom *= 0.1 // Assuming 10% selectivity for !=
+                }
+                ComparisonOperator::Lt
+                | ComparisonOperator::Gt
+                | ComparisonOperator::LtEq
+                | ComparisonOperator::GtEq => {
+                    // For range joins, adjust selectivity. Assuming 1/3rd of
+                    // the data falls into the range.
+                    denom *= 3.0
+                }
             }
         }
 

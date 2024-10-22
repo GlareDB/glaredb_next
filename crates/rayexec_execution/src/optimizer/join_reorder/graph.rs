@@ -5,8 +5,8 @@ use rayexec_error::{RayexecError, Result};
 use super::edge::{EdgeId, HyperEdges};
 use super::estimate::CardinalityEstimator;
 use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
-use crate::expr;
 use crate::expr::column_expr::ColumnExpr;
+use crate::expr::{self, Expression};
 use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
@@ -73,14 +73,6 @@ pub struct GeneratedPlan {
     pub left_input: Option<PlanKey>,
     /// Right input to the plan. Will be None if this plan is for a base relation.
     pub right_input: Option<PlanKey>,
-    /// Filters that will be applied to the left input.
-    ///
-    /// Empty when just a base relation.
-    pub left_filters: HashSet<FilterId>,
-    /// Filters that will be applied to the right input.
-    ///
-    /// Empty when just a base relation.
-    pub right_filters: HashSet<FilterId>,
     /// Complete set of used edges up to and including this plan.
     ///
     /// Union of all edges used in children.
@@ -145,8 +137,6 @@ pub struct BaseRelation {
 pub struct Graph {
     /// Hyper edged in the graph.
     hyper_edges: HyperEdges,
-    /// Extra filters in the graph.
-    filters: HashMap<FilterId, UnconnectedFilter>,
     /// Base relations in the graph that we're joining.
     base_relations: HashMap<RelId, BaseRelation>,
 }
@@ -186,26 +176,11 @@ impl Graph {
             .enumerate()
             .collect();
 
-        let hyper_edges = HyperEdges::new(conditions, &base_relations)?;
+        let hyper_edges = HyperEdges::new(conditions, filters, &base_relations)?;
         debug_print_context(ContextDisplayMode::Enriched(bind_context), &hyper_edges);
-
-        let mut unconnected_filters: HashMap<FilterId, UnconnectedFilter> = HashMap::new();
-
-        for (idx, filter) in filters.into_iter().enumerate() {
-            let mut min_ndv = f64::MAX;
-
-            for (_, rel) in &base_relations {
-                if filter.table_refs.is_subset(&rel.output_refs) {
-                    min_ndv = f64::min(min_ndv, rel.cardinality);
-                }
-            }
-
-            unconnected_filters.insert(idx, UnconnectedFilter { filter, min_ndv });
-        }
 
         Ok(Graph {
             hyper_edges,
-            filters: unconnected_filters,
             base_relations,
         })
     }
@@ -225,11 +200,11 @@ impl Graph {
         assert!(self.hyper_edges.all_edges_removed());
         assert!(self.base_relations.is_empty());
 
-        // But we may still have filters. Apply them to the final plan.
-        let filter_ids: HashSet<_> = self.filters.keys().copied().collect();
-        let plan = self.apply_filters(plan, &filter_ids)?;
+        // // But we may still have filters. Apply them to the final plan.
+        // let filter_ids: HashSet<_> = self.filters.keys().copied().collect();
+        // let plan = self.apply_filters(plan, &filter_ids)?;
 
-        assert!(self.filters.is_empty());
+        // assert!(self.filters.is_empty());
 
         Ok(plan)
     }
@@ -245,8 +220,6 @@ impl Graph {
             assert!(generated.left_input.is_none());
             assert!(generated.right_input.is_none());
             assert!(generated.edges.is_empty());
-            assert!(generated.left_filters.is_empty());
-            assert!(generated.right_filters.is_empty());
 
             // There should always be one generated plan referencing the base
             // relation.
@@ -267,15 +240,47 @@ impl Graph {
             .remove(generated.right_input.as_ref().expect("right to be set"))
             .ok_or_else(|| RayexecError::new("Missing right input"))?;
 
-        // Swap sides if needed. We always want left (build) side to have the
-        // lower cardinality (not necessarily cost).
+        // Split up edges into left/right filters and join conditions.
+        let mut left_filters = Vec::new();
+        let mut right_filters = Vec::new();
+        let mut conditions = Vec::new();
+
+        for &edge_id in &generated.edges {
+            let edge = self
+                .hyper_edges
+                .remove_edge(edge_id)
+                .ok_or_else(|| RayexecError::new("Edge already used"))?;
+
+            if edge.is_single_node() {
+                // Just a filter, figure out which side this goes to.
+                if edge.left_refs.is_subset(&left_gen.output_refs) {
+                    left_filters.push(edge.filter)
+                } else {
+                    right_filters.push(edge.filter);
+                }
+            } else {
+                // Join condition.
+                let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
+                let mut condition = ComparisonCondition::try_from(edge.filter)?;
+                if condition_swap_sides {
+                    condition.flip_sides();
+                }
+
+                conditions.push(condition);
+            }
+        }
+
+        // Determine if we should swap sides. We always want left (build) side
+        // to have the lower cardinality (not necessarily cost).
+        //
+        // Don't swap sides yet, still need to apply filters.
         let plan_swap_sides = right_gen.cardinality < left_gen.cardinality;
 
         let left = self.build_from_generated(&left_gen, plans)?;
         let right = self.build_from_generated(&right_gen, plans)?;
 
-        let left = self.apply_filters(left, &generated.left_filters)?;
-        let right = self.apply_filters(right, &generated.right_filters)?;
+        let left = self.apply_filters(left, left_filters)?;
+        let right = self.apply_filters(right, right_filters)?;
 
         let [left, right] = if plan_swap_sides {
             [right, left]
@@ -283,30 +288,11 @@ impl Graph {
             [left, right]
         };
 
-        let mut conditions = Vec::with_capacity(generated.edges.len());
-
-        for &edge_id in &generated.edges {
-            let edge = self
-                .hyper_edges
-                .remove_edge(edge_id)
-                .ok_or_else(|| RayexecError::new("Condition already used"))?;
-
-            // Check if we have to flip the condition (left side of the
-            // condition referencing the right side of the original unswapped
-            // plan).
-            let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
-            let mut condition = edge.condition;
-
-            if condition_swap_sides {
-                condition.flip_sides();
+        // If we swapped sides, we'll need to flip the join conditions to match.
+        if plan_swap_sides {
+            for cond in &mut conditions {
+                cond.flip_sides();
             }
-
-            // Update condition if we swapped.
-            if plan_swap_sides {
-                condition.flip_sides();
-            }
-
-            conditions.push(condition);
         }
 
         if conditions.is_empty() {
@@ -336,22 +322,11 @@ impl Graph {
     fn apply_filters(
         &mut self,
         input: LogicalOperator,
-        filters: &HashSet<FilterId>,
+        input_filters: Vec<Expression>,
     ) -> Result<LogicalOperator> {
-        if filters.is_empty() {
+        if input_filters.is_empty() {
             // Nothing to do.
             return Ok(input);
-        }
-
-        let mut input_filters = Vec::with_capacity(filters.len());
-
-        for filter_id in filters {
-            let filter = self
-                .filters
-                .remove(&filter_id)
-                .ok_or_else(|| RayexecError::new(format!("Filter previously used: {filter_id}")))?;
-
-            input_filters.push(filter.filter.into_expression());
         }
 
         // Try to squash into underlying operator if able. Otherwise just wrap
@@ -420,8 +395,6 @@ impl Graph {
                     edges: HashSet::new(),
                     left_input: None,
                     right_input: None,
-                    left_filters: HashSet::new(),
-                    right_filters: HashSet::new(),
                     used: UsedEdges::default(),
                 },
             );
@@ -467,8 +440,8 @@ impl Graph {
 
                     let cardinality = estimator.estimated_cardinality()?;
 
-                    let left_filters = self.find_filters(p1);
-                    let right_filters = self.find_filters(p2);
+                    // let left_filters = self.find_filters(p1);
+                    // let right_filters = self.find_filters(p2);
 
                     // Simple cost function.
                     //
@@ -483,17 +456,17 @@ impl Graph {
                         }
                     }
 
-                    let left_filters: HashSet<_> = left_filters.iter().map(|(&id, _)| id).collect();
-                    let right_filters: HashSet<_> =
-                        right_filters.iter().map(|(&id, _)| id).collect();
+                    // let left_filters: HashSet<_> = left_filters.iter().map(|(&id, _)| id).collect();
+                    // let right_filters: HashSet<_> =
+                    //     right_filters.iter().map(|(&id, _)| id).collect();
 
                     let conditions: HashSet<_> = edges.iter().map(|edge| edge.edge_id).collect();
 
                     let mut used = UsedEdges::unioned(&p1.used, &p2.used);
                     used.mark_edges_used(conditions.iter().copied());
 
-                    used.mark_filters_used(left_filters.iter().copied());
-                    used.mark_filters_used(right_filters.iter().copied());
+                    // used.mark_filters_used(left_filters.iter().copied());
+                    // used.mark_filters_used(right_filters.iter().copied());
 
                     let output_refs: HashSet<_> = p1
                         .output_refs
@@ -511,8 +484,6 @@ impl Graph {
                         edges: conditions,
                         left_input: Some(s1),
                         right_input: Some(s2),
-                        left_filters,
-                        right_filters,
                         used,
                     });
                 }
@@ -530,32 +501,33 @@ impl Graph {
 
     /// Find filters that apply fully to the given plan.
     fn find_filters(&self, plan: &GeneratedPlan) -> Vec<(&FilterId, &UnconnectedFilter)> {
-        self.filters
-            .iter()
-            .filter(|(filter_id, filter)| {
-                // Constant filter, this should be applied to the top of the
-                // plan. An optimizer rule should be written to prune out
-                // constant filters.
-                //
-                // We're currently assuming that a filter needs to be used
-                // extactly once in the tree. And this check enforces that.
-                if filter.filter.table_refs.is_empty() {
-                    return false;
-                }
+        unimplemented!()
+        // self.filters
+        //     .iter()
+        //     .filter(|(filter_id, filter)| {
+        //         // Constant filter, this should be applied to the top of the
+        //         // plan. An optimizer rule should be written to prune out
+        //         // constant filters.
+        //         //
+        //         // We're currently assuming that a filter needs to be used
+        //         // extactly once in the tree. And this check enforces that.
+        //         if filter.filter.table_refs.is_empty() {
+        //             return false;
+        //         }
 
-                // Only consider filters not yet used.
-                if plan.used.filters.contains(filter_id) {
-                    return false;
-                }
+        //         // Only consider filters not yet used.
+        //         if plan.used.filters.contains(filter_id) {
+        //             return false;
+        //         }
 
-                // Only consider filters that apply to just the plan's table refs.
-                if !filter.filter.table_refs.is_subset(&plan.output_refs) {
-                    return false;
-                }
+        //         // Only consider filters that apply to just the plan's table refs.
+        //         if !filter.filter.table_refs.is_subset(&plan.output_refs) {
+        //             return false;
+        //         }
 
-                // Usable filter.
-                true
-            })
-            .collect()
+        //         // Usable filter.
+        //         true
+        //     })
+        //     .collect()
     }
 }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use super::binder::bind_context::{MaterializationRef, TableRef};
 use super::operator::{LogicalNode, Node};
@@ -139,6 +139,24 @@ impl ComparisonCondition {
 impl fmt::Display for ComparisonCondition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.left, self.op, self.right)
+    }
+}
+
+impl TryFrom<Expression> for ComparisonCondition {
+    type Error = RayexecError;
+    fn try_from(value: Expression) -> Result<Self, Self::Error> {
+        match value {
+            Expression::Comparison(cmp) => Ok(ComparisonCondition {
+                left: *cmp.left,
+                right: *cmp.right,
+                op: cmp.op,
+            }),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Cannot convert '{other}' into a comparison condition"
+                )))
+            }
+        }
     }
 }
 
