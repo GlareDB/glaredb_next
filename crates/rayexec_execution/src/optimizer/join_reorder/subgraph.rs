@@ -1,4 +1,4 @@
-use super::edge::{FoundEdge, NeighborEdge};
+use super::edge::NeighborEdge;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::Expression;
 

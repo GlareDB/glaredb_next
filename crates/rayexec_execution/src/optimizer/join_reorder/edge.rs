@@ -56,13 +56,6 @@ pub struct Edge {
 }
 
 #[derive(Debug)]
-pub struct FoundEdge<'a> {
-    pub edge_id: EdgeId,
-    pub edge: &'a Edge,
-    pub min_ndv: f64,
-}
-
-#[derive(Debug)]
 pub struct NeighborEdge {
     pub edge_op: ComparisonOperator,
     pub edge_id: EdgeId,

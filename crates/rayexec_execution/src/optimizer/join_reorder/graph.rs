@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
+use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 
 use super::edge::{EdgeId, HyperEdges, NeighborEdge};
@@ -27,36 +29,25 @@ pub type RelId = usize;
 
 /// Unique id for extra filters in the graph.
 pub type FilterId = usize;
-/// Tracks edges that have been used thus far in a particular join ordering.
+
+/// Tracks filters that have been used thus far in a particular join ordering.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct UsedEdges {
+pub struct UsedFilters {
     /// Complete set of filters used.
     pub filters: HashSet<FilterId>,
-    /// Complete set of edges used.
-    pub edges: HashSet<EdgeId>,
 }
 
-impl UsedEdges {
+impl UsedFilters {
     /// Creates a set of used edges from two existing sets.
-    fn unioned(left: &UsedEdges, right: &UsedEdges) -> Self {
-        UsedEdges {
+    fn unioned(left: &UsedFilters, right: &UsedFilters) -> Self {
+        UsedFilters {
             filters: left
                 .filters
                 .iter()
                 .chain(right.filters.iter())
                 .copied()
                 .collect(),
-            edges: left
-                .edges
-                .iter()
-                .chain(right.edges.iter())
-                .copied()
-                .collect(),
         }
-    }
-
-    fn mark_edges_used(&mut self, edges: impl IntoIterator<Item = EdgeId>) {
-        self.edges.extend(edges)
     }
 
     fn mark_filters_used(&mut self, filters: impl IntoIterator<Item = FilterId>) {
@@ -102,7 +93,7 @@ pub struct JoinNode {
     /// This lets us track which filters/conditions we have used so far when
     /// considering this join order. We don't want to reuse filters/conditions
     /// within a join order.
-    pub used: UsedEdges,
+    pub used: UsedFilters,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -200,13 +191,29 @@ impl RelationSet {
     }
 }
 
+impl fmt::Display for RelationSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.relation_indices.display_with_brackets())
+    }
+}
+
 #[derive(Debug)]
 pub struct Graph {
+    /// Hyper edges in the graph.
+    ///
+    /// This contains the join conditions for joining nodes.
     hyper_edges: HyperEdges,
+    /// Misc filters that only apply to a single node.
+    ///
+    /// What is a valid join condition vs what is just a simple filter should
+    /// have been determined during filter pushdown.
     filters: HashMap<FilterId, ExtractedFilter>,
+    /// Base input relations.
     base_relations: HashMap<RelId, BaseRelation>,
     /// Best join node plans we've found for the given set of relations.
     best_plans: HashMap<RelationSet, JoinNode>,
+    /// Count of join pairs considered.
+    pairs_considered: usize,
 }
 
 impl Graph {
@@ -255,7 +262,7 @@ impl Graph {
                 edges: HashSet::new(),
                 left_filters: HashSet::new(),
                 right_filters: HashSet::new(),
-                used: UsedEdges::default(),
+                used: UsedFilters::default(),
             };
 
             best_plans.insert(rel_set, node);
@@ -266,6 +273,7 @@ impl Graph {
             filters,
             best_plans,
             base_relations,
+            pairs_considered: 0,
         })
     }
 
@@ -309,6 +317,8 @@ impl Graph {
             self.enumerate_connected_subgraphs_rec(&base_rel, &exclude)?;
         }
 
+        println!("PAIRS CONSIDERED: {}", self.pairs_considered);
+
         Ok(())
     }
 
@@ -317,12 +327,19 @@ impl Graph {
         set: &RelationSet,
         exclude: &HashSet<usize>,
     ) -> Result<()> {
+        // println!("CSG RECUR");
+
         let neighbors = self.hyper_edges.find_neighbors(set, exclude);
         if neighbors.is_empty() {
             return Ok(());
         }
 
         let neighbor_sets = RelationSet::get_all_neighbor_sets(neighbors.clone());
+        // println!("CSG RECUR NEIGHBOR SETS");
+        // for set in &neighbor_sets {
+        //     println!("{set}");
+        // }
+
         let mut combined_sets = Vec::with_capacity(neighbor_sets.len());
 
         for neigbor_set in neighbor_sets {
@@ -345,6 +362,13 @@ impl Graph {
     }
 
     fn emit_connected_subgraphs(&mut self, set: &RelationSet) -> Result<()> {
+        // println!("EMIT CSG");
+
+        if set.relation_indices.len() == self.base_relations.len() {
+            // Already at largest subgraph.
+            return Ok(());
+        }
+
         // Create an exclusion set for all relations "previous" to this set, as
         // well as all relations within this set.
         let mut exclude: HashSet<_> = (0..set.relation_indices[0]).collect();
@@ -354,17 +378,27 @@ impl Graph {
 
         let mut neighbors = self.hyper_edges.find_neighbors(set, &exclude);
         neighbors.sort_unstable_by(|a, b| a.cmp(b).reverse());
+        // for idx in &neighbors {
+        //     println!("n: {idx}");
+        // }
 
         // Add neighbors to exlusion set, as we're going to be working them in
         // the recursive call.
         exclude.extend(&neighbors);
 
         for neighbor in neighbors {
+            // println!("NEIGHBOR: {neighbor}");
+
             // Find edges between this node and neighbor.
             let neighbor_set = RelationSet::base(neighbor);
             let edges = self.hyper_edges.find_edges(set, &neighbor_set);
 
+            // for edge in &edges {
+            //     println!("{edge:?}");
+            // }
+
             if !edges.is_empty() {
+                // println!("CSG");
                 // We have a connection.
                 self.emit_pair(set, &neighbor_set, edges)?;
             }
@@ -384,6 +418,8 @@ impl Graph {
         right: &RelationSet,
         exclude: &HashSet<usize>,
     ) -> Result<()> {
+        // println!("CMP RECUR");
+
         let neighbors = self.hyper_edges.find_neighbors(right, &exclude);
         if neighbors.is_empty() {
             return Ok(());
@@ -394,10 +430,14 @@ impl Graph {
 
         for neigbor_set in neighbor_sets {
             let combined = RelationSet::union(right, &neigbor_set);
+
+            assert!(combined.relation_indices.len() > right.relation_indices.len());
+
             if self.best_plans.contains_key(&combined) {
                 let edges = self.hyper_edges.find_edges(left, &combined);
 
                 if !edges.is_empty() {
+                    // println!("COMP");
                     self.emit_pair(left, &combined, edges)?;
                 }
             }
@@ -423,6 +463,10 @@ impl Graph {
         right: &RelationSet,
         edges: Vec<NeighborEdge>,
     ) -> Result<()> {
+        self.pairs_considered += 1;
+        // println!("{left}");
+        // println!("{right}");
+
         let left = self
             .best_plans
             .get_key_value(left)
@@ -447,9 +491,24 @@ impl Graph {
             // subgraph.selectivity_denom *= (1.0 - DEFAULT_SELECTIVITY);
         }
 
-        if let Some(edge) = edges.first() {
-            subgraph.update_denom(&right.1.subgraph, edge);
+        // for edge in &edges {
+        //     subgraph.update_denom(&right.1.subgraph, edge);
+        // }
+
+        match edges
+            .iter()
+            .reduce(|a, b| if a.min_ndv < b.min_ndv { a } else { b })
+        {
+            Some(edge) => {
+                subgraph.update_denom(&right.1.subgraph, edge);
+            }
+            None => (),
         }
+
+        // println!(
+        //     "D: {:>40}  N: {:>40}",
+        //     subgraph.selectivity_denom, subgraph.numerator
+        // );
 
         // Get the estimated cardinality at this point in the
         // subgraph construction.
@@ -461,7 +520,7 @@ impl Graph {
         // all other joins making up this plan.
         let cost = cardinality + left.1.cost + right.1.cost;
 
-        println!("COST: {cost},       CARD: {cardinality}");
+        // println!("COST: {cost:>40}  CARD: {cardinality:>40}");
 
         // Check to see if this cost is lower than existing cost. Returns early
         // if not.
@@ -481,9 +540,7 @@ impl Graph {
 
         let edges: HashSet<_> = edges.iter().map(|edge| edge.edge_id).collect();
 
-        let mut used = UsedEdges::unioned(&left.1.used, &right.1.used);
-        used.mark_edges_used(edges.iter().copied());
-
+        let mut used = UsedFilters::unioned(&left.1.used, &right.1.used);
         used.mark_filters_used(left_filters.iter().copied());
         used.mark_filters_used(right_filters.iter().copied());
 
