@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::ops::ControlFlow;
 
 use rayexec_error::{RayexecError, Result};
 
@@ -49,9 +50,9 @@ pub struct Edge {
     /// Refs on the right side of the comparison.
     pub right_refs: HashSet<TableRef>,
     /// Base relation the left side is pointing to.
-    pub left_rel: HashSet<RelId>,
+    pub left_rel: RelId,
     /// Base relation the right side is pointing to.
-    pub right_rel: HashSet<RelId>,
+    pub right_rel: RelId,
 }
 
 #[derive(Debug)]
@@ -87,51 +88,70 @@ impl HyperEdges {
         Ok(hyper_edges)
     }
 
-    pub fn find_neighbors(&self, set: &RelationSet, exclude: &HashSet<usize>) -> Vec<usize> {
-        unimplemented!()
+    pub fn find_neighbors(&self, set: &RelationSet, exclude: &HashSet<RelId>) -> Vec<RelId> {
+        let mut neighbors = HashSet::new();
+
+        self.for_each_edge(&mut |_hyp, _edge_id, edge| {
+            if set.relation_indices.contains(&edge.left_rel) {
+                if !exclude.contains(&edge.right_rel) {
+                    neighbors.insert(edge.right_rel);
+                }
+            }
+
+            if set.relation_indices.contains(&edge.right_rel) {
+                if !exclude.contains(&edge.left_rel) {
+                    neighbors.insert(edge.left_rel);
+                }
+            }
+
+            ControlFlow::Continue(())
+        });
+
+        neighbors.into_iter().collect()
     }
 
     pub fn find_edges(&self, p1: &RelationSet, p2: &RelationSet) -> Vec<NeighborEdge> {
-        unimplemented!()
-        // let mut found = Vec::new();
+        let mut found = Vec::new();
 
-        // for hyper_edge in &self.0 {
-        //     for (edge_id, edge) in &hyper_edge.edges {
-        //         // Only consider conditions not previously used.
-        //         if p1.used.edges.contains(edge_id) || p2.used.edges.contains(edge_id) {
-        //             continue;
-        //         }
+        self.for_each_edge(&mut |hyp, edge_id, edge| {
+            if p1.relation_indices.contains(&edge.left_rel) {
+                if p2.relation_indices.contains(&edge.right_rel) {
+                    found.push(NeighborEdge {
+                        edge_op: edge.filter.op,
+                        edge_id,
+                        min_ndv: hyp.min_ndv,
+                    })
+                }
+            }
 
-        //         // Edge between p1 and p2.
-        //         if edge.left_refs.is_subset(&p1.output_refs)
-        //             && edge.right_refs.is_subset(&p2.output_refs)
-        //         {
-        //             found.push(NeighborEdge {
-        //                 edge_op: edge.filter.op,
-        //                 edge_id,
-        //                 min_ndv: hyper_edge.min_ndv,
-        //             });
-        //         }
+            if p1.relation_indices.contains(&edge.right_rel) {
+                if p2.relation_indices.contains(&edge.left_rel) {
+                    found.push(NeighborEdge {
+                        edge_op: edge.filter.op,
+                        edge_id,
+                        min_ndv: hyp.min_ndv,
+                    })
+                }
+            }
 
-        //         // Edge between p2 and p1 (reversed)
-        //         //
-        //         // Note we don't need to keep track if this is reversed, we'll
-        //         // worry about that when we build up the plan.
-        //         if edge.left_refs.is_subset(&p2.output_refs)
-        //             && edge.right_refs.is_subset(&p1.output_refs)
-        //         {
-        //             found.push(NeighborEdge {
-        //                 edge_op: edge.filter.op,
-        //                 edge_id,
-        //                 min_ndv: hyper_edge.min_ndv,
-        //             });
-        //         }
+            ControlFlow::Continue(())
+        });
 
-        //         // Not a valid edge, continue.
-        //     }
-        // }
+        found
+    }
 
-        // found
+    fn for_each_edge<F>(&self, f: &mut F)
+    where
+        F: FnMut(&HyperEdge, EdgeId, &Edge) -> ControlFlow<()>,
+    {
+        for hyper_edge in &self.0 {
+            for (edge_id, edge) in &hyper_edge.edges {
+                match f(hyper_edge, *edge_id, edge) {
+                    ControlFlow::Continue(_) => (),
+                    ControlFlow::Break(_) => return,
+                }
+            }
+        }
     }
 
     /// Find edges between two generated plans.
@@ -203,12 +223,12 @@ impl HyperEdges {
         let left_refs = condition.left.get_table_references();
         let right_refs = condition.right.get_table_references();
 
-        let mut left_rel = HashSet::new();
-        let mut right_rel = HashSet::new();
+        let mut left_rel = None;
+        let mut right_rel = None;
 
         for (&rel_id, rel) in base_relations {
             if left_refs.is_subset(&rel.output_refs) {
-                left_rel.insert(rel_id);
+                left_rel = Some(rel_id);
 
                 // Note we initialize NDV to relation cardinality which will
                 // typically overestimate NDV, but by taking the min of all
@@ -218,7 +238,7 @@ impl HyperEdges {
             }
 
             if right_refs.is_subset(&rel.output_refs) {
-                right_rel.insert(rel_id);
+                right_rel = Some(rel_id);
 
                 // See above.
                 min_ndv = f64::min(min_ndv, rel.cardinality);
@@ -234,6 +254,9 @@ impl HyperEdges {
             .into_iter()
             .chain(condition.right.get_column_references().into_iter())
             .collect();
+
+        let left_rel = left_rel.ok_or_else(|| RayexecError::new("Missing left rel id"))?;
+        let right_rel = right_rel.ok_or_else(|| RayexecError::new("Missing right rel id"))?;
 
         let edge = Edge {
             filter: condition,

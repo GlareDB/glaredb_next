@@ -127,14 +127,13 @@ impl InnerJoinReorder {
             debug_print_context(ContextDisplayMode::Enriched(bind_context), cond);
         }
 
-        let mut graph = Graph::new(
+        let mut graph = Graph::try_new(
             child_plans,
             self.conditions.drain(..),
             self.filters.drain(..),
-            bind_context,
         )?;
 
-        let plan = graph.try_build(bind_context)?;
+        let plan = graph.try_build()?;
 
         Ok(plan)
     }
