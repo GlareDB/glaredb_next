@@ -1,6 +1,5 @@
 use super::edge::NeighborEdge;
 use crate::expr::comparison_expr::ComparisonOperator;
-use crate::expr::Expression;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Subgraph {
@@ -15,13 +14,6 @@ pub struct Subgraph {
 }
 
 impl Subgraph {
-    pub fn new() -> Self {
-        Subgraph {
-            numerator: 1.0,
-            selectivity_denom: 1.0,
-        }
-    }
-
     pub fn estimated_cardinality(&self) -> f64 {
         self.numerator / self.selectivity_denom
     }

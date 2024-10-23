@@ -1,3 +1,27 @@
+//! Join ordering based on dynamic programming on hyper graphs.
+//!
+//! Follows the DPHyp algorithm for determining join order.
+//!
+//! See: <https://15721.courses.cs.cmu.edu/spring2020/papers/20-optimizer2/p539-moerkotte.pdf>
+//!
+//! The graph gets initalized with child plans, join conditions, and extra filters.
+//! The conditions will be converted to edges between the base relations. Filters
+//! are assumed to apply to a single node, and so will be added to a "built"
+//! relations and are not considered to be edges.
+//!
+//! Join conditions are converted into "hyper edges" which contains a min NDV (Num
+//! Distinct Values). This NDV is initialized to be the min cardinality of all base
+//! relations connected by the hyper edge. The min NDV is used when computing the
+//! estimated output cardinality of a join.
+//!
+//! Estimating the cardinality is done by dividing the product of all base relation
+//! cardinalities taking part in the join by the a selectivity denominator. The
+//! selectivity denominator is the product of all hyper edge NDVs taking part in the
+//! join.
+//!
+//! The cost function is the estimated cardinality plus the cost of building up the
+//! two child node.
+
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -6,10 +30,8 @@ use rayexec_error::{RayexecError, Result};
 
 use super::edge::{EdgeId, HyperEdges, NeighborEdge};
 use super::subgraph::Subgraph;
-use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
-use crate::expr::column_expr::ColumnExpr;
-use crate::expr::{self, Expression};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::expr;
+use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
     ComparisonCondition,
@@ -22,9 +44,8 @@ use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator
 use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
-use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
 
-/// Unique id for identifying nodes in the graph.
+/// Unique id for identifying base relations in the graph.
 pub type RelId = usize;
 
 /// Unique id for extra filters in the graph.
@@ -64,10 +85,15 @@ pub struct BaseRelation {
 
 #[derive(Debug, Clone)]
 pub struct JoinNode {
+    /// The set of base relations making up this node.
     pub set: RelationSet,
+    /// The cost for producing this node.
     pub cost: f64,
+    /// Left child relations.
     pub left: RelationSet,
+    /// Right child relations.
     pub right: RelationSet,
+    /// Current subgraph for estimating cardinality.
     pub subgraph: Subgraph,
     /// Output table refs for this plan.
     ///
@@ -302,6 +328,10 @@ impl Graph {
         Ok(plan)
     }
 
+    /// Solve the join order.
+    ///
+    /// Once solved, `best_plans` will have a generated join node containing the
+    /// optimal join order.
     fn solve(&mut self) -> Result<()> {
         // Iterate over base relations to produce possible pairs.
         for base_idx in (0..self.base_relations.len()).rev() {
@@ -317,7 +347,45 @@ impl Graph {
             self.enumerate_connected_subgraphs_rec(&base_rel, &exclude)?;
         }
 
-        println!("PAIRS CONSIDERED: {}", self.pairs_considered);
+        Ok(())
+    }
+
+    /// Iterates a connected subgraph, emitting connected pairs.
+    fn emit_connected_subgraphs(&mut self, set: &RelationSet) -> Result<()> {
+        if set.relation_indices.len() == self.base_relations.len() {
+            // Already at largest subgraph.
+            return Ok(());
+        }
+
+        // Create an exclusion set for all relations "previous" to this set, as
+        // well as all relations within this set.
+        let mut exclude: HashSet<_> = (0..set.relation_indices[0]).collect();
+        for idx in &set.relation_indices {
+            exclude.insert(*idx);
+        }
+
+        let mut neighbors = self.hyper_edges.find_neighbors(set, &exclude);
+        neighbors.sort_unstable_by(|a, b| a.cmp(b).reverse());
+
+        // Add neighbors to exlusion set, as we're going to be working them in
+        // the recursive call.
+        exclude.extend(&neighbors);
+
+        for neighbor in neighbors {
+            // Find edges between this node and neighbor.
+            let neighbor_set = RelationSet::base(neighbor);
+            let edges = self.hyper_edges.find_edges(set, &neighbor_set);
+
+            if !edges.is_empty() {
+                // We have a connection.
+                self.emit_pair(set, &neighbor_set, edges)?;
+            }
+
+            // Kick off recursively visiting neighbors.
+            self.enumerate_connected_complement_rec(set, &neighbor_set, &exclude)?;
+
+            exclude.remove(&neighbor);
+        }
 
         Ok(())
     }
@@ -327,19 +395,12 @@ impl Graph {
         set: &RelationSet,
         exclude: &HashSet<usize>,
     ) -> Result<()> {
-        // println!("CSG RECUR");
-
         let neighbors = self.hyper_edges.find_neighbors(set, exclude);
         if neighbors.is_empty() {
             return Ok(());
         }
 
         let neighbor_sets = RelationSet::get_all_neighbor_sets(neighbors.clone());
-        // println!("CSG RECUR NEIGHBOR SETS");
-        // for set in &neighbor_sets {
-        //     println!("{set}");
-        // }
-
         let mut combined_sets = Vec::with_capacity(neighbor_sets.len());
 
         for neigbor_set in neighbor_sets {
@@ -361,65 +422,12 @@ impl Graph {
         Ok(())
     }
 
-    fn emit_connected_subgraphs(&mut self, set: &RelationSet) -> Result<()> {
-        // println!("EMIT CSG");
-
-        if set.relation_indices.len() == self.base_relations.len() {
-            // Already at largest subgraph.
-            return Ok(());
-        }
-
-        // Create an exclusion set for all relations "previous" to this set, as
-        // well as all relations within this set.
-        let mut exclude: HashSet<_> = (0..set.relation_indices[0]).collect();
-        for idx in &set.relation_indices {
-            exclude.insert(*idx);
-        }
-
-        let mut neighbors = self.hyper_edges.find_neighbors(set, &exclude);
-        neighbors.sort_unstable_by(|a, b| a.cmp(b).reverse());
-        // for idx in &neighbors {
-        //     println!("n: {idx}");
-        // }
-
-        // Add neighbors to exlusion set, as we're going to be working them in
-        // the recursive call.
-        exclude.extend(&neighbors);
-
-        for neighbor in neighbors {
-            // println!("NEIGHBOR: {neighbor}");
-
-            // Find edges between this node and neighbor.
-            let neighbor_set = RelationSet::base(neighbor);
-            let edges = self.hyper_edges.find_edges(set, &neighbor_set);
-
-            // for edge in &edges {
-            //     println!("{edge:?}");
-            // }
-
-            if !edges.is_empty() {
-                // println!("CSG");
-                // We have a connection.
-                self.emit_pair(set, &neighbor_set, edges)?;
-            }
-
-            // Kick off recursively visiting neighbors.
-            self.enumerate_connected_complement_rec(set, &neighbor_set, &exclude)?;
-
-            exclude.remove(&neighbor);
-        }
-
-        Ok(())
-    }
-
     fn enumerate_connected_complement_rec(
         &mut self,
         left: &RelationSet,
         right: &RelationSet,
         exclude: &HashSet<usize>,
     ) -> Result<()> {
-        // println!("CMP RECUR");
-
         let neighbors = self.hyper_edges.find_neighbors(right, &exclude);
         if neighbors.is_empty() {
             return Ok(());
@@ -457,6 +465,10 @@ impl Graph {
         Ok(())
     }
 
+    /// Emits a join pair between left and right.
+    ///
+    /// If the cost for the join is lower than the current best for the union of
+    /// left and right, this join pair will replace the existing pair.
     fn emit_pair(
         &mut self,
         left: &RelationSet,
@@ -464,8 +476,6 @@ impl Graph {
         edges: Vec<NeighborEdge>,
     ) -> Result<()> {
         self.pairs_considered += 1;
-        // println!("{left}");
-        // println!("{right}");
 
         let left = self
             .best_plans
@@ -486,29 +496,26 @@ impl Graph {
         let mut subgraph = left.1.subgraph;
         subgraph.update_numerator(&right.1.subgraph);
 
+        // Update both the numerator and denominator since filters will impact
+        // both the relative NDV and output cardinality.
         for _ in 0..left_filters.len() + right_filters.len() {
             subgraph.numerator *= DEFAULT_SELECTIVITY;
-            // subgraph.selectivity_denom *= (1.0 - DEFAULT_SELECTIVITY);
+            subgraph.selectivity_denom *= 1.0 - DEFAULT_SELECTIVITY;
         }
 
-        // for edge in &edges {
-        //     subgraph.update_denom(&right.1.subgraph, edge);
-        // }
-
-        match edges
-            .iter()
-            .reduce(|a, b| if a.min_ndv < b.min_ndv { a } else { b })
-        {
-            Some(edge) => {
-                subgraph.update_denom(&right.1.subgraph, edge);
+        // Update denominator based on edges used for this join.
+        //
+        // Only one edge per hyper edge is considered as edges within a hyper
+        // edge are very likely to be correlated.
+        let mut used_hyperedges = Vec::new();
+        for edge in &edges {
+            if used_hyperedges.contains(&edge.hyper_edge_id) {
+                continue;
             }
-            None => (),
-        }
 
-        // println!(
-        //     "D: {:>40}  N: {:>40}",
-        //     subgraph.selectivity_denom, subgraph.numerator
-        // );
+            subgraph.update_denom(&right.1.subgraph, edge);
+            used_hyperedges.push(edge.hyper_edge_id);
+        }
 
         // Get the estimated cardinality at this point in the
         // subgraph construction.
@@ -519,8 +526,6 @@ impl Graph {
         // This is additive to ensure we fully include the cost of
         // all other joins making up this plan.
         let cost = cardinality + left.1.cost + right.1.cost;
-
-        // println!("COST: {cost:>40}  CARD: {cardinality:>40}");
 
         // Check to see if this cost is lower than existing cost. Returns early
         // if not.
@@ -672,6 +677,7 @@ impl Graph {
         }
     }
 
+    /// Recursively builds up the logical operator from a generated join node.
     fn build_from_generated(&mut self, node: &JoinNode) -> Result<LogicalOperator> {
         // If we're building a base relation, we can just return the relation
         // as-is. No other field should have been populated.

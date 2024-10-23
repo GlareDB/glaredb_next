@@ -5,13 +5,11 @@ use std::ops::ControlFlow;
 use rayexec_error::{RayexecError, Result};
 
 use super::graph::{BaseRelation, RelId, RelationSet};
-use crate::explain::context_display::{debug_print_context, ContextDisplay, ContextDisplayMode};
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonOperator;
-use crate::expr::Expression;
 use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_join::ComparisonCondition;
-use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 
 pub type HyperEdgeId = usize;
 
@@ -57,8 +55,14 @@ pub struct Edge {
 
 #[derive(Debug)]
 pub struct NeighborEdge {
+    /// Operator that's used in the condition. Affects the computed denominator
+    /// for the subgraph.
     pub edge_op: ComparisonOperator,
+    /// Id for the hyper edge this edge was in.
+    pub hyper_edge_id: HyperEdgeId,
+    /// Id of the edge.
     pub edge_id: EdgeId,
+    /// Min NDV for the hyper edge. Affects the computed denominator.
     pub min_ndv: f64,
 }
 
@@ -111,6 +115,7 @@ impl HyperEdges {
                 if p2.relation_indices.contains(&edge.right_rel) {
                     found.push(NeighborEdge {
                         edge_op: edge.filter.op,
+                        hyper_edge_id: hyp.id,
                         edge_id,
                         min_ndv: hyp.min_ndv,
                     })
@@ -121,6 +126,7 @@ impl HyperEdges {
                 if p2.relation_indices.contains(&edge.left_rel) {
                     found.push(NeighborEdge {
                         edge_op: edge.filter.op,
+                        hyper_edge_id: hyp.id,
                         edge_id,
                         min_ndv: hyp.min_ndv,
                     })

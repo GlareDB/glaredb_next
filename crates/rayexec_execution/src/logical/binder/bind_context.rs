@@ -522,7 +522,7 @@ impl BindContext {
     /// Useful for optimizer rules where we're creating new table refs, but want
     /// to keep the existing column names and types for debuggability.
     pub fn clone_to_new_ephemeral_table(&mut self, table: TableRef) -> Result<TableRef> {
-        let table = self.get_table(table)?.clone();
+        let table = self.get_table(table)?;
         let table_idx = self.tables.len();
         let reference = TableRef { table_idx };
 

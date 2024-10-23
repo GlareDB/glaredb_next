@@ -4,7 +4,6 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use super::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::logical::statistics::Statistics;
 
 /// An entry in an output for explaining a query.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

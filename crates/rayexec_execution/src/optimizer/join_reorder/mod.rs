@@ -1,6 +1,5 @@
 mod edge;
 mod graph;
-mod set;
 mod subgraph;
 
 use std::collections::VecDeque;
@@ -11,7 +10,6 @@ use rayexec_error::Result;
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
 use super::OptimizeRule;
-use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_join::{ComparisonCondition, JoinType};
@@ -123,11 +121,7 @@ impl InnerJoinReorder {
             child_plans.push(child);
         }
 
-        for cond in &self.conditions {
-            debug_print_context(ContextDisplayMode::Enriched(bind_context), cond);
-        }
-
-        let mut graph = Graph::try_new(
+        let graph = Graph::try_new(
             child_plans,
             self.conditions.drain(..),
             self.filters.drain(..),
