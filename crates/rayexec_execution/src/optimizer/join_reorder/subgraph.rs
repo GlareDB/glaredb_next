@@ -25,9 +25,17 @@ impl Subgraph {
     /// Updates this subgraph's selectivity denominator by an implied join from
     /// `other` subgraph.
     pub fn update_denom(&mut self, other: &Subgraph, edge: &NeighborEdge) {
+        // Only update the denominator (selectivity) if we have a join
+        // condition. If we don't, we should assume cross join and not make this
+        // join more selective (and thus higher cost).
+        let op = match edge.edge_op {
+            Some(op) => op,
+            None => return,
+        };
+
         let mut denom = self.selectivity_denom * other.selectivity_denom;
 
-        match edge.edge_op {
+        match op {
             ComparisonOperator::Eq => {
                 // =
                 denom *= edge.min_ndv

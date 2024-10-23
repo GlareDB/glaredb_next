@@ -42,7 +42,9 @@ pub struct HyperEdge {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
     /// The expression joining two nodes in the graph.
-    pub filter: ComparisonCondition,
+    ///
+    /// If None, this indicates a cross join between the two relations.
+    pub filter: Option<ComparisonCondition>,
     /// Refs on the left side of the comparison.
     pub left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
@@ -57,7 +59,7 @@ pub struct Edge {
 pub struct NeighborEdge {
     /// Operator that's used in the condition. Affects the computed denominator
     /// for the subgraph.
-    pub edge_op: ComparisonOperator,
+    pub edge_op: Option<ComparisonOperator>,
     /// Id for the hyper edge this edge was in.
     pub hyper_edge_id: HyperEdgeId,
     /// Id of the edge.
@@ -114,7 +116,7 @@ impl HyperEdges {
             if p1.relation_indices.contains(&edge.left_rel) {
                 if p2.relation_indices.contains(&edge.right_rel) {
                     found.push(NeighborEdge {
-                        edge_op: edge.filter.op,
+                        edge_op: edge.filter.as_ref().map(|f| f.op),
                         hyper_edge_id: hyp.id,
                         edge_id,
                         min_ndv: hyp.min_ndv,
@@ -125,7 +127,7 @@ impl HyperEdges {
             if p1.relation_indices.contains(&edge.right_rel) {
                 if p2.relation_indices.contains(&edge.left_rel) {
                     found.push(NeighborEdge {
-                        edge_op: edge.filter.op,
+                        edge_op: edge.filter.as_ref().map(|f| f.op),
                         hyper_edge_id: hyp.id,
                         edge_id,
                         min_ndv: hyp.min_ndv,
@@ -158,15 +160,45 @@ impl HyperEdges {
         hyper_edge.edges.remove(&id)
     }
 
-    /// Checks if all edges have been removed during the building of the final
-    /// plan.
-    pub fn all_edges_removed(&self) -> bool {
+    /// Checks if all edges containing a join condition have been removed from
+    /// the hyper graph.
+    pub fn all_non_empty_edges_removed(&self) -> bool {
         for hyper_edge in &self.0 {
-            if !hyper_edge.edges.is_empty() {
-                return false;
+            for (_, edge) in &hyper_edge.edges {
+                if edge.filter.is_some() {
+                    return false;
+                }
             }
         }
         true
+    }
+
+    /// Insert an edge representing a cross product between left and right.
+    pub fn insert_cross_product(&mut self, left: &BaseRelation, right: &BaseRelation) {
+        // We can just create new hyper edges for this.
+        let id = self.0.len();
+        let hyp = HyperEdge {
+            id,
+            edges: [(
+                EdgeId {
+                    hyper_edge_id: id,
+                    edge_id: 0,
+                },
+                Edge {
+                    filter: None,
+                    left_refs: left.output_refs.clone(),
+                    right_refs: right.output_refs.clone(),
+                    left_rel: left.rel_id,
+                    right_rel: right.rel_id,
+                },
+            )]
+            .into_iter()
+            .collect(),
+            min_ndv: f64::min(left.cardinality, right.cardinality),
+            columns: HashSet::new(), // No columns involved.
+        };
+
+        self.0.push(hyp);
     }
 
     fn insert_condition_as_edge(
@@ -215,7 +247,7 @@ impl HyperEdges {
         let right_rel = right_rel.ok_or_else(|| RayexecError::new("Missing right rel id"))?;
 
         let edge = Edge {
-            filter: condition,
+            filter: Some(condition),
             left_refs,
             right_refs,
             left_rel,

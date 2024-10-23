@@ -78,6 +78,7 @@ impl UsedFilters {
 
 #[derive(Debug)]
 pub struct BaseRelation {
+    pub rel_id: RelId,
     pub operator: LogicalOperator,
     pub output_refs: HashSet<TableRef>,
     pub cardinality: f64,
@@ -250,17 +251,21 @@ impl Graph {
     ) -> Result<Self> {
         let base_relations: HashMap<RelId, BaseRelation> = base_ops
             .into_iter()
-            .map(|op| {
+            .enumerate()
+            .map(|(rel_id, op)| {
                 let output_refs = op.get_output_table_refs().into_iter().collect();
                 let cardinality = op.cardinality().value().copied().unwrap_or(20_000) as f64;
 
-                BaseRelation {
-                    operator: op,
-                    output_refs,
-                    cardinality,
-                }
+                (
+                    rel_id,
+                    BaseRelation {
+                        rel_id,
+                        operator: op,
+                        output_refs,
+                        cardinality,
+                    },
+                )
             })
-            .enumerate()
             .collect();
 
         let hyper_edges = HyperEdges::new(conditions, &base_relations)?;
@@ -307,6 +312,35 @@ impl Graph {
         self.solve()?;
 
         let longest_set = RelationSet::new(0..self.base_relations.len());
+
+        // Check if we were able to actually create a best plan for the longest
+        // set. If we weren't, then there's a disjunction in the relations.
+        //
+        // Generated edges for each relation such that cross joins are possible
+        // at every level.
+        if !self.best_plans.contains_key(&longest_set) {
+            for i in 0..self.base_relations.len() {
+                for j in 0..self.base_relations.len() {
+                    if i == j {
+                        continue;
+                    }
+
+                    let left = self.base_relations.get(&i).unwrap();
+                    let right = self.base_relations.get(&j).unwrap();
+
+                    self.hyper_edges.insert_cross_product(left, right);
+                }
+            }
+
+            // TODO: Heuristic for if we should even try to solve. When running
+            // this for 10 cross joins, we end up considering >50,000 pairs.
+
+            // Try to solve again, now with the new edges. Failing to solve this
+            // indicates a bigger problem, as the graph is now fully connected
+            // and should be solveable.
+            self.solve()?;
+        }
+
         let longest = self
             .best_plans
             .remove(&longest_set)
@@ -317,7 +351,7 @@ impl Graph {
         // All base relations and edges should have been used to build up the
         // plan.
         assert!(self.base_relations.is_empty());
-        assert!(self.hyper_edges.all_edges_removed());
+        assert!(self.hyper_edges.all_non_empty_edges_removed());
 
         // But we may still have filters. Apply them to the final plan.
         let filter_ids: HashSet<_> = self.filters.keys().copied().collect();
@@ -712,7 +746,13 @@ impl Graph {
                 .remove_edge(edge_id)
                 .ok_or_else(|| RayexecError::new("Edge already used"))?;
 
-            let mut condition = edge.filter;
+            let mut condition = match edge.filter {
+                Some(filter) => filter,
+                None => {
+                    // No condition on this edge, assume cross join.
+                    continue;
+                }
+            };
 
             let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
             if condition_swap_sides {
