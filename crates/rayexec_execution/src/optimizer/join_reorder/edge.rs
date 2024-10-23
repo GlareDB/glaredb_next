@@ -92,45 +92,46 @@ impl HyperEdges {
     }
 
     pub fn find_edges(&self, p1: &RelationSet, p2: &RelationSet) -> Vec<NeighborEdge> {
-        let mut found = Vec::new();
+        unimplemented!()
+        // let mut found = Vec::new();
 
-        for hyper_edge in &self.0 {
-            for (edge_id, edge) in &hyper_edge.edges {
-                // Only consider conditions not previously used.
-                if p1.used.edges.contains(edge_id) || p2.used.edges.contains(edge_id) {
-                    continue;
-                }
+        // for hyper_edge in &self.0 {
+        //     for (edge_id, edge) in &hyper_edge.edges {
+        //         // Only consider conditions not previously used.
+        //         if p1.used.edges.contains(edge_id) || p2.used.edges.contains(edge_id) {
+        //             continue;
+        //         }
 
-                // Edge between p1 and p2.
-                if edge.left_refs.is_subset(&p1.output_refs)
-                    && edge.right_refs.is_subset(&p2.output_refs)
-                {
-                    found.push(NeighborEdge {
-                        edge_op: edge.filter.op,
-                        edge_id,
-                        min_ndv: hyper_edge.min_ndv,
-                    });
-                }
+        //         // Edge between p1 and p2.
+        //         if edge.left_refs.is_subset(&p1.output_refs)
+        //             && edge.right_refs.is_subset(&p2.output_refs)
+        //         {
+        //             found.push(NeighborEdge {
+        //                 edge_op: edge.filter.op,
+        //                 edge_id,
+        //                 min_ndv: hyper_edge.min_ndv,
+        //             });
+        //         }
 
-                // Edge between p2 and p1 (reversed)
-                //
-                // Note we don't need to keep track if this is reversed, we'll
-                // worry about that when we build up the plan.
-                if edge.left_refs.is_subset(&p2.output_refs)
-                    && edge.right_refs.is_subset(&p1.output_refs)
-                {
-                    found.push(NeighborEdge {
-                        edge_op: edge.filter.op,
-                        edge_id,
-                        min_ndv: hyper_edge.min_ndv,
-                    });
-                }
+        //         // Edge between p2 and p1 (reversed)
+        //         //
+        //         // Note we don't need to keep track if this is reversed, we'll
+        //         // worry about that when we build up the plan.
+        //         if edge.left_refs.is_subset(&p2.output_refs)
+        //             && edge.right_refs.is_subset(&p1.output_refs)
+        //         {
+        //             found.push(NeighborEdge {
+        //                 edge_op: edge.filter.op,
+        //                 edge_id,
+        //                 min_ndv: hyper_edge.min_ndv,
+        //             });
+        //         }
 
-                // Not a valid edge, continue.
-            }
-        }
+        //         // Not a valid edge, continue.
+        //     }
+        // }
 
-        found
+        // found
     }
 
     /// Find edges between two generated plans.
