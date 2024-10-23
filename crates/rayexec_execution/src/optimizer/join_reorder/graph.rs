@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
 
-use super::edge::{EdgeId, HyperEdges};
-use super::estimate::CardinalityEstimator;
+use super::edge::{EdgeId, HyperEdges, NeighborEdge};
+use super::subgraph::Subgraph;
 use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::{self, Expression};
@@ -17,6 +17,7 @@ use crate::logical::logical_join::{
     LogicalCrossJoin,
 };
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::optimizer::join_reorder::set::{binary_partitions, powerset};
@@ -58,8 +59,8 @@ pub struct GeneratedPlan {
     pub key: PlanKey,
     /// Relative cost of executing _this_ plan.
     pub cost: f64,
-    /// Estimated cardinality for this plan.
-    pub cardinality: f64,
+    /// Current subgraph of this plan.
+    pub subgraph: Subgraph,
     /// Output table refs for this plan.
     ///
     /// Union of all child output refs.
@@ -73,6 +74,14 @@ pub struct GeneratedPlan {
     pub left_input: Option<PlanKey>,
     /// Right input to the plan. Will be None if this plan is for a base relation.
     pub right_input: Option<PlanKey>,
+    /// Filters that will be applied to the left input.
+    ///
+    /// Empty when just a base relation.
+    pub left_filters: HashSet<FilterId>,
+    /// Filters that will be applied to the right input.
+    ///
+    /// Empty when just a base relation.
+    pub right_filters: HashSet<FilterId>,
     /// Complete set of used edges up to and including this plan.
     ///
     /// Union of all edges used in children.
@@ -137,6 +146,8 @@ pub struct BaseRelation {
 pub struct Graph {
     /// Hyper edged in the graph.
     hyper_edges: HyperEdges,
+    /// Extra filters in the graph. These are implied to only connect one node.
+    filters: HashMap<FilterId, ExtractedFilter>,
     /// Base relations in the graph that we're joining.
     base_relations: HashMap<RelId, BaseRelation>,
 }
@@ -176,11 +187,14 @@ impl Graph {
             .enumerate()
             .collect();
 
-        let hyper_edges = HyperEdges::new(conditions, filters, &base_relations)?;
-        debug_print_context(ContextDisplayMode::Enriched(bind_context), &hyper_edges);
+        let hyper_edges = HyperEdges::new(conditions, &base_relations)?;
+        // debug_print_context(ContextDisplayMode::Enriched(bind_context), &hyper_edges);
+
+        let filters = filters.into_iter().enumerate().collect();
 
         Ok(Graph {
             hyper_edges,
+            filters,
             base_relations,
         })
     }
@@ -196,22 +210,16 @@ impl Graph {
 
         let plan = self.build_from_generated(&longest, &mut plans)?;
 
-        // All base relations should have been used to build up the plan.
+        // All base relations and edges should have been used to build up the
+        // plan.
         assert!(self.base_relations.is_empty());
+        assert!(self.hyper_edges.all_edges_removed());
 
-        // Apply any remaining edges as filters to the output plan.
-        let filters: Vec<_> = self
-            .hyper_edges
-            .drain_edges()
-            .map(|edge| edge.filter)
-            .collect();
-        let plan = self.apply_filters(plan, filters)?;
+        // But we may still have filters. Apply them to the final plan.
+        let filter_ids: HashSet<_> = self.filters.keys().copied().collect();
+        let plan = self.apply_filters(plan, &filter_ids)?;
 
-        // // But we may still have filters. Apply them to the final plan.
-        // let filter_ids: HashSet<_> = self.filters.keys().copied().collect();
-        // let plan = self.apply_filters(plan, &filter_ids)?;
-
-        // assert!(self.filters.is_empty());
+        assert!(self.filters.is_empty());
 
         Ok(plan)
     }
@@ -247,47 +255,35 @@ impl Graph {
             .remove(generated.right_input.as_ref().expect("right to be set"))
             .ok_or_else(|| RayexecError::new("Missing right input"))?;
 
-        // Split up edges into left/right filters and join conditions.
-        let mut left_filters = Vec::new();
-        let mut right_filters = Vec::new();
-        let mut conditions = Vec::new();
-
+        let mut conditions = Vec::with_capacity(generated.edges.len());
         for &edge_id in &generated.edges {
             let edge = self
                 .hyper_edges
                 .remove_edge(edge_id)
                 .ok_or_else(|| RayexecError::new("Edge already used"))?;
 
-            if edge.is_single_node() {
-                // Just a filter, figure out which side this goes to.
-                if edge.left_refs.is_subset(&left_gen.output_refs) {
-                    left_filters.push(edge.filter)
-                } else {
-                    right_filters.push(edge.filter);
-                }
-            } else {
-                // Join condition.
-                let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
-                let mut condition = ComparisonCondition::try_from(edge.filter)?;
-                if condition_swap_sides {
-                    condition.flip_sides();
-                }
+            let mut condition = edge.filter;
 
-                conditions.push(condition);
+            let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
+            if condition_swap_sides {
+                condition.flip_sides();
             }
+
+            conditions.push(condition);
         }
 
         // Determine if we should swap sides. We always want left (build) side
         // to have the lower cardinality (not necessarily cost).
         //
         // Don't swap sides yet, still need to apply filters.
-        let plan_swap_sides = right_gen.cardinality < left_gen.cardinality;
+        let plan_swap_sides =
+            right_gen.subgraph.estimated_cardinality() < left_gen.subgraph.estimated_cardinality();
 
         let left = self.build_from_generated(&left_gen, plans)?;
         let right = self.build_from_generated(&right_gen, plans)?;
 
-        let left = self.apply_filters(left, left_filters)?;
-        let right = self.apply_filters(right, right_filters)?;
+        let left = self.apply_filters(left, &generated.left_filters)?;
+        let right = self.apply_filters(right, &generated.right_filters)?;
 
         let [left, right] = if plan_swap_sides {
             [right, left]
@@ -315,7 +311,9 @@ impl Graph {
                 node: LogicalComparisonJoin {
                     join_type: JoinType::Inner,
                     conditions,
-                    cardinality: StatisticsValue::Estimated(generated.cardinality as usize),
+                    cardinality: StatisticsValue::Estimated(
+                        generated.subgraph.estimated_cardinality() as usize,
+                    ),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
@@ -329,11 +327,22 @@ impl Graph {
     fn apply_filters(
         &mut self,
         input: LogicalOperator,
-        input_filters: Vec<Expression>,
+        filters: &HashSet<FilterId>,
     ) -> Result<LogicalOperator> {
-        if input_filters.is_empty() {
+        if filters.is_empty() {
             // Nothing to do.
             return Ok(input);
+        }
+
+        let mut input_filters = Vec::with_capacity(filters.len());
+
+        for filter_id in filters {
+            let filter = self
+                .filters
+                .remove(&filter_id)
+                .ok_or_else(|| RayexecError::new(format!("Filter previously used: {filter_id}")))?;
+
+            input_filters.push(filter.filter);
         }
 
         // Try to squash into underlying operator if able. Otherwise just wrap
@@ -392,16 +401,26 @@ impl Graph {
         // Plans for just the base relation.
         for (&rel_id, base_rel) in &self.base_relations {
             let key = PlanKey::new_from_ids([rel_id]);
+
+            // Initial subgraph, we're selecting everything from the base
+            // relation.
+            let subgraph = Subgraph {
+                numerator: base_rel.cardinality,
+                selectivity_denom: 1.0,
+            };
+
             best_plans.insert(
                 key.clone(),
                 GeneratedPlan {
                     key,
                     cost: 0.0,
-                    cardinality: base_rel.cardinality,
+                    subgraph,
                     output_refs: base_rel.output_refs.clone(),
                     edges: HashSet::new(),
                     left_input: None,
                     right_input: None,
+                    left_filters: HashSet::new(),
+                    right_filters: HashSet::new(),
                     used: UsedEdges::default(),
                 },
             );
@@ -432,29 +451,45 @@ impl Graph {
                     let p1 = best_plans.get(&s1).expect("plan to exist");
                     let p2 = best_plans.get(&s2).expect("plan to exist");
 
-                    let mut edges = self.hyper_edges.find_edges(p1, p2);
-                    // Sort descending by min_ndv to such that we consider more
-                    // selective edges first (since ndv makes up the denominator
-                    // when estimating cardinality).
-                    edges.sort_unstable_by(|a, b| a.min_ndv.total_cmp(&b.min_ndv).reverse());
+                    let left_filters = self.find_filters(p1);
+                    let right_filters = self.find_filters(p2);
 
-                    let mut estimator = CardinalityEstimator {
-                        p1,
-                        p2,
-                        edges: &edges,
-                        base_relations: &self.base_relations,
-                    };
+                    let edges = self.hyper_edges.find_edges2(p1, p2);
 
-                    let cardinality = estimator.estimated_cardinality()?;
+                    // Clone the left subgraph, and modify it to account for the
+                    // joins with the right based on edges.
+                    let mut subgraph = p1.subgraph;
+                    subgraph.update_numerator(&p2.subgraph);
 
-                    // let left_filters = self.find_filters(p1);
-                    // let right_filters = self.find_filters(p2);
+                    for _ in 0..left_filters.len() + right_filters.len() {
+                        subgraph.numerator *= DEFAULT_SELECTIVITY;
+                        // subgraph.selectivity_denom *= (1.0 - DEFAULT_SELECTIVITY);
+                    }
+
+                    // if let Some(edge) = edges.first() {
+                    //     subgraph.update_denom(&p2.subgraph, edge);
+                    // }
+
+                    // println!(
+                    //     "D: {:>40} N: {:>40}",
+                    //     subgraph.selectivity_denom, subgraph.numerator
+                    // );
+
+                    // for edge in &edges {
+                    //     subgraph.update_denom(&p2.subgraph, edge);
+                    // }
+
+                    // Get the estimated cardinality at this point in the
+                    // subgraph construction.
+                    let cardinality = subgraph.estimated_cardinality();
 
                     // Simple cost function.
                     //
                     // This is additive to ensure we fully include the cost of
                     // all other joins making up this plan.
                     let cost = cardinality + p1.cost + p2.cost;
+
+                    println!("COST: {cost},    CARD: {cardinality}");
 
                     if let Some(best) = &best_subset_plan {
                         if best.cost < cost {
@@ -463,17 +498,17 @@ impl Graph {
                         }
                     }
 
-                    // let left_filters: HashSet<_> = left_filters.iter().map(|(&id, _)| id).collect();
-                    // let right_filters: HashSet<_> =
-                    //     right_filters.iter().map(|(&id, _)| id).collect();
+                    let left_filters: HashSet<_> = left_filters.iter().map(|(&id, _)| id).collect();
+                    let right_filters: HashSet<_> =
+                        right_filters.iter().map(|(&id, _)| id).collect();
 
                     let conditions: HashSet<_> = edges.iter().map(|edge| edge.edge_id).collect();
 
                     let mut used = UsedEdges::unioned(&p1.used, &p2.used);
                     used.mark_edges_used(conditions.iter().copied());
 
-                    // used.mark_filters_used(left_filters.iter().copied());
-                    // used.mark_filters_used(right_filters.iter().copied());
+                    used.mark_filters_used(left_filters.iter().copied());
+                    used.mark_filters_used(right_filters.iter().copied());
 
                     let output_refs: HashSet<_> = p1
                         .output_refs
@@ -486,11 +521,13 @@ impl Graph {
                     best_subset_plan = Some(GeneratedPlan {
                         key: plan_key.clone(),
                         cost,
-                        cardinality,
+                        subgraph,
                         output_refs,
                         edges: conditions,
                         left_input: Some(s1),
                         right_input: Some(s2),
+                        left_filters,
+                        right_filters,
                         used,
                     });
                 }
@@ -507,34 +544,410 @@ impl Graph {
     }
 
     /// Find filters that apply fully to the given plan.
-    fn find_filters(&self, plan: &GeneratedPlan) -> Vec<(&FilterId, &UnconnectedFilter)> {
-        unimplemented!()
-        // self.filters
-        //     .iter()
-        //     .filter(|(filter_id, filter)| {
-        //         // Constant filter, this should be applied to the top of the
-        //         // plan. An optimizer rule should be written to prune out
-        //         // constant filters.
-        //         //
-        //         // We're currently assuming that a filter needs to be used
-        //         // extactly once in the tree. And this check enforces that.
-        //         if filter.filter.table_refs.is_empty() {
-        //             return false;
-        //         }
+    fn find_filters(&self, plan: &GeneratedPlan) -> Vec<(&FilterId, &ExtractedFilter)> {
+        self.filters
+            .iter()
+            .filter(|(filter_id, filter)| {
+                // Constant filter, this should be applied to the top of the
+                // plan. An optimizer rule should be written to prune out
+                // constant filters.
+                //
+                // We're currently assuming that a filter needs to be used
+                // extactly once in the tree. And this check enforces that.
+                if filter.table_refs.is_empty() {
+                    return false;
+                }
 
-        //         // Only consider filters not yet used.
-        //         if plan.used.filters.contains(filter_id) {
-        //             return false;
-        //         }
+                // Only consider filters not yet used.
+                if plan.used.filters.contains(filter_id) {
+                    return false;
+                }
 
-        //         // Only consider filters that apply to just the plan's table refs.
-        //         if !filter.filter.table_refs.is_subset(&plan.output_refs) {
-        //             return false;
-        //         }
+                // Only consider filters that apply to just the plan's table refs.
+                if !filter.table_refs.is_subset(&plan.output_refs) {
+                    return false;
+                }
 
-        //         // Usable filter.
-        //         true
-        //     })
-        //     .collect()
+                // Usable filter.
+                true
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct JoinNode {
+    pub set: RelationSet,
+    pub cost: f64,
+    pub left: RelationSet,
+    pub right: RelationSet,
+    pub subgraph: Subgraph,
+    /// Output table refs for this plan.
+    ///
+    /// Union of all child output refs.
+    pub output_refs: HashSet<TableRef>,
+    /// Edges containing the conditions that should be used when joining left
+    /// and right.
+    ///
+    /// Empty when just a base relation.
+    pub edges: HashSet<EdgeId>,
+    /// Filters that will be applied to the left input.
+    ///
+    /// Empty when just a base relation.
+    pub left_filters: HashSet<FilterId>,
+    /// Filters that will be applied to the right input.
+    ///
+    /// Empty when just a base relation.
+    pub right_filters: HashSet<FilterId>,
+    /// Complete set of used edges up to and including this plan.
+    ///
+    /// Union of all edges used in children.
+    ///
+    /// This lets us track which filters/conditions we have used so far when
+    /// considering this join order. We don't want to reuse filters/conditions
+    /// within a join order.
+    pub used: UsedEdges,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RelationSet {
+    pub relation_indices: Vec<usize>,
+}
+
+impl RelationSet {
+    fn new(indices: impl IntoIterator<Item = usize>) -> Self {
+        let mut indices: Vec<_> = indices.into_iter().collect();
+        indices.sort_unstable();
+
+        RelationSet {
+            relation_indices: indices,
+        }
+    }
+
+    fn base(idx: usize) -> Self {
+        RelationSet {
+            relation_indices: vec![idx],
+        }
+    }
+
+    fn union(left: &RelationSet, right: &RelationSet) -> Self {
+        let mut indices: Vec<_> = left
+            .relation_indices
+            .iter()
+            .chain(right.relation_indices.iter())
+            .copied()
+            .collect();
+        indices.sort_unstable();
+        indices.dedup();
+
+        RelationSet {
+            relation_indices: indices,
+        }
+    }
+
+    fn get_all_neighbor_sets(mut neighbors: Vec<usize>) -> Vec<RelationSet> {
+        fn add_supersets(current: &[HashSet<usize>], neighbors: &[usize]) -> Vec<HashSet<usize>> {
+            let mut added = Vec::new();
+
+            for neighbor_set in current {
+                // Find the maximum value in the current neighbor set
+                let max = neighbor_set.iter().max().unwrap();
+                for &neighbor in neighbors {
+                    if *max >= neighbor {
+                        continue;
+                    }
+                    if !neighbor_set.contains(&neighbor) {
+                        // Create a new set by adding the neighbor.
+                        let mut new_set = neighbor_set.clone();
+                        new_set.insert(neighbor);
+                        added.push(new_set);
+                    }
+                }
+            }
+
+            added
+        }
+
+        let mut sets = Vec::new();
+        neighbors.sort();
+        let mut added = Vec::new();
+
+        // Initialize with sets containing each neighbor individually
+        for &neighbor in &neighbors {
+            let mut set = HashSet::new();
+            set.insert(neighbor);
+            added.push(set.clone());
+            sets.push(set);
+        }
+
+        // Generate all supersets
+        while !added.is_empty() {
+            added = add_supersets(&added, &neighbors);
+            for d in &added {
+                sets.push(d.clone());
+            }
+        }
+
+        sets.into_iter()
+            .map(|indices| RelationSet::new(indices))
+            .collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct Graph2 {
+    hyper_edges: HyperEdges,
+    filters: HashMap<FilterId, ExtractedFilter>,
+    base_relations: Vec<RelationSet>,
+
+    /// Best join node plans we've found for the given set of relations.
+    best_plans: HashMap<RelationSet, JoinNode>,
+}
+
+impl Graph2 {
+    fn solve(&mut self) -> Result<()> {
+        // Iterate over base relations to produce possible pairs.
+        for base_idx in (0..self.base_relations.len()).rev() {
+            let base_rel = self.base_relations[base_idx].clone();
+
+            // Exclude all other base relations less than this relation's index.
+            let exclude: HashSet<_> = (0..base_idx).collect();
+
+            // Search for connected subgraphs starting from this relation.
+            self.enumerate_connected_subgraphs_rec(&base_rel, &exclude)?;
+        }
+
+        Ok(())
+    }
+
+    fn enumerate_connected_subgraphs_rec(
+        &mut self,
+        set: &RelationSet,
+        exclude: &HashSet<usize>,
+    ) -> Result<()> {
+        let neighbors = self.hyper_edges.find_neighbors(set, exclude);
+        if neighbors.is_empty() {
+            return Ok(());
+        }
+
+        let neighbor_sets = RelationSet::get_all_neighbor_sets(neighbors.clone());
+        let mut combined_sets = Vec::with_capacity(neighbor_sets.len());
+
+        for neigbor_set in neighbor_sets {
+            let combined = RelationSet::union(set, &neigbor_set);
+            if self.best_plans.contains_key(&combined) {
+                self.emit_connected_subgraphs(&combined)?;
+            }
+
+            combined_sets.push(combined);
+        }
+
+        let mut exclude = exclude.clone();
+        exclude.extend(neighbors);
+
+        for combined in combined_sets {
+            self.enumerate_connected_subgraphs_rec(&combined, &exclude)?;
+        }
+
+        Ok(())
+    }
+
+    fn emit_connected_subgraphs(&mut self, set: &RelationSet) -> Result<()> {
+        // Create an exclusion set for all relations "previous" to this set, as
+        // well as all relations within this set.
+        let mut exclude: HashSet<_> = (0..set.relation_indices[0]).collect();
+        for idx in &set.relation_indices {
+            exclude.insert(*idx);
+        }
+
+        let mut neighbors = self.hyper_edges.find_neighbors(set, &exclude);
+        neighbors.sort_unstable_by(|a, b| a.cmp(b).reverse());
+
+        // Add neighbors to exlusion set, as we're going to be working them in
+        // the recursive call.
+        exclude.extend(&neighbors);
+
+        for neighbor in neighbors {
+            // Find edges between this node and neighbor.
+            let neighbor_set = RelationSet::base(neighbor);
+            let edges = self.hyper_edges.find_edges(set, &neighbor_set);
+
+            if !edges.is_empty() {
+                // We have a connection.
+                self.emit_pair(set, &neighbor_set, edges)?;
+            }
+
+            // Kick off recursively visiting neighbors.
+            self.enumerate_connected_complement_rec(set, &neighbor_set, &exclude)?;
+
+            exclude.remove(&neighbor);
+        }
+
+        Ok(())
+    }
+
+    fn enumerate_connected_complement_rec(
+        &mut self,
+        left: &RelationSet,
+        right: &RelationSet,
+        exclude: &HashSet<usize>,
+    ) -> Result<()> {
+        let neighbors = self.hyper_edges.find_neighbors(right, &exclude);
+        if neighbors.is_empty() {
+            return Ok(());
+        }
+
+        let neighbor_sets = RelationSet::get_all_neighbor_sets(neighbors.clone());
+        let mut combined_sets = Vec::with_capacity(neighbor_sets.len());
+
+        for neigbor_set in neighbor_sets {
+            let combined = RelationSet::union(right, &neigbor_set);
+            if self.best_plans.contains_key(&combined) {
+                let edges = self.hyper_edges.find_edges(left, &combined);
+
+                if !edges.is_empty() {
+                    self.emit_pair(left, &combined, edges)?;
+                }
+            }
+
+            combined_sets.push(combined);
+        }
+
+        // Extend exclusion to include neighbors we just visited.
+        let mut exclude = exclude.clone();
+        exclude.extend(neighbors);
+
+        // Recurse into the combined neighborder sets.
+        for combined in combined_sets {
+            self.enumerate_connected_complement_rec(left, &combined, &exclude)?;
+        }
+
+        Ok(())
+    }
+
+    fn emit_pair(
+        &mut self,
+        left: &RelationSet,
+        right: &RelationSet,
+        edges: Vec<NeighborEdge>,
+    ) -> Result<()> {
+        let left = self
+            .best_plans
+            .get_key_value(left)
+            .ok_or_else(|| RayexecError::new("missing best plan for left"))?;
+        let right = self
+            .best_plans
+            .get_key_value(right)
+            .ok_or_else(|| RayexecError::new("missing best plan for right"))?;
+
+        let new_set = RelationSet::union(left.0, right.0);
+
+        let left_filters = self.find_filters(left.1);
+        let right_filters = self.find_filters(right.1);
+
+        // Clone the left subgraph, and modify it to account for the
+        // joins with the right based on edges.
+        let mut subgraph = left.1.subgraph;
+        subgraph.update_numerator(&right.1.subgraph);
+
+        for _ in 0..left_filters.len() + right_filters.len() {
+            subgraph.numerator *= DEFAULT_SELECTIVITY;
+            // subgraph.selectivity_denom *= (1.0 - DEFAULT_SELECTIVITY);
+        }
+
+        if let Some(edge) = edges.first() {
+            subgraph.update_denom(&right.1.subgraph, edge);
+        }
+
+        // Get the estimated cardinality at this point in the
+        // subgraph construction.
+        let cardinality = subgraph.estimated_cardinality();
+
+        // Simple cost function.
+        //
+        // This is additive to ensure we fully include the cost of
+        // all other joins making up this plan.
+        let cost = cardinality + left.1.cost + right.1.cost;
+
+        // Check to see if this cost is lower than existing cost. Returns early
+        // if not.
+        match self.best_plans.get(&new_set) {
+            Some(existing) => {
+                if existing.cost < cost {
+                    return Ok(());
+                }
+            }
+            _ => (),
+        }
+
+        // New node is better. Create it and insert into plans.
+
+        let left_filters: HashSet<_> = left_filters.iter().map(|(&id, _)| id).collect();
+        let right_filters: HashSet<_> = right_filters.iter().map(|(&id, _)| id).collect();
+
+        let edges: HashSet<_> = edges.iter().map(|edge| edge.edge_id).collect();
+
+        let mut used = UsedEdges::unioned(&left.1.used, &right.1.used);
+        used.mark_edges_used(edges.iter().copied());
+
+        used.mark_filters_used(left_filters.iter().copied());
+        used.mark_filters_used(right_filters.iter().copied());
+
+        let output_refs: HashSet<_> = left
+            .1
+            .output_refs
+            .iter()
+            .chain(&right.1.output_refs)
+            .copied()
+            .collect();
+
+        self.best_plans.insert(
+            new_set.clone(),
+            JoinNode {
+                set: new_set,
+                cost,
+                left: left.0.clone(),
+                right: right.0.clone(),
+                subgraph,
+                output_refs,
+                edges,
+                left_filters,
+                right_filters,
+                used,
+            },
+        );
+
+        Ok(())
+    }
+
+    /// Find filters that apply fully to the given plan.
+    fn find_filters(&self, node: &JoinNode) -> Vec<(&FilterId, &ExtractedFilter)> {
+        self.filters
+            .iter()
+            .filter(|(filter_id, filter)| {
+                // Constant filter, this should be applied to the top of the
+                // plan. An optimizer rule should be written to prune out
+                // constant filters.
+                //
+                // We're currently assuming that a filter needs to be used
+                // extactly once in the tree. And this check enforces that.
+                if filter.table_refs.is_empty() {
+                    return false;
+                }
+
+                // Only consider filters not yet used.
+                if node.used.filters.contains(filter_id) {
+                    return false;
+                }
+
+                // Only consider filters that apply to just the plan's table refs.
+                if !filter.table_refs.is_subset(&node.output_refs) {
+                    return false;
+                }
+
+                // Usable filter.
+                true
+            })
+            .collect()
     }
 }

@@ -3,9 +3,10 @@ use std::fmt;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::graph::{BaseRelation, GeneratedPlan, RelId};
+use super::graph::{BaseRelation, GeneratedPlan, RelId, RelationSet};
 use crate::explain::context_display::{debug_print_context, ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_join::ComparisonCondition;
@@ -41,11 +42,8 @@ pub struct HyperEdge {
 /// Edge connecting extactly two relations in the graph.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
-    /// The expression join 1 or 2 nodes.
-    ///
-    /// For join conditions, this will be joining 2 nodes. Simple filters will
-    /// just be on one node (and only left refs will be populated).
-    pub filter: Expression,
+    /// The expression joining two nodes in the graph.
+    pub filter: ComparisonCondition,
     /// Refs on the left side of the comparison.
     pub left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
@@ -56,17 +54,17 @@ pub struct Edge {
     pub right_rel: HashSet<RelId>,
 }
 
-impl Edge {
-    /// If this edge only references a single node in the graph.
-    pub fn is_single_node(&self) -> bool {
-        self.right_refs.is_empty()
-    }
-}
-
 #[derive(Debug)]
 pub struct FoundEdge<'a> {
     pub edge_id: EdgeId,
     pub edge: &'a Edge,
+    pub min_ndv: f64,
+}
+
+#[derive(Debug)]
+pub struct NeighborEdge {
+    pub edge_op: ComparisonOperator,
+    pub edge_id: EdgeId,
     pub min_ndv: f64,
 }
 
@@ -76,7 +74,6 @@ impl HyperEdges {
     /// Hyper edge NDV will be initialized from base relation cardinalities.
     pub fn new(
         conditions: impl IntoIterator<Item = ComparisonCondition>,
-        filters: impl IntoIterator<Item = ExtractedFilter>,
         base_relations: &HashMap<RelId, BaseRelation>,
     ) -> Result<Self> {
         let mut hyper_edges = HyperEdges(Vec::new());
@@ -85,17 +82,59 @@ impl HyperEdges {
             hyper_edges.insert_condition_as_edge(condition, base_relations)?;
         }
 
-        for filter in filters {
-            hyper_edges.insert_expression_as_edge(filter, base_relations)?;
-        }
-
         // TODO: Round of combining hyper edges.
 
         Ok(hyper_edges)
     }
 
+    pub fn find_neighbors(&self, set: &RelationSet, exclude: &HashSet<usize>) -> Vec<usize> {
+        unimplemented!()
+    }
+
+    pub fn find_edges(&self, p1: &RelationSet, p2: &RelationSet) -> Vec<NeighborEdge> {
+        let mut found = Vec::new();
+
+        for hyper_edge in &self.0 {
+            for (edge_id, edge) in &hyper_edge.edges {
+                // Only consider conditions not previously used.
+                if p1.used.edges.contains(edge_id) || p2.used.edges.contains(edge_id) {
+                    continue;
+                }
+
+                // Edge between p1 and p2.
+                if edge.left_refs.is_subset(&p1.output_refs)
+                    && edge.right_refs.is_subset(&p2.output_refs)
+                {
+                    found.push(NeighborEdge {
+                        edge_op: edge.filter.op,
+                        edge_id,
+                        min_ndv: hyper_edge.min_ndv,
+                    });
+                }
+
+                // Edge between p2 and p1 (reversed)
+                //
+                // Note we don't need to keep track if this is reversed, we'll
+                // worry about that when we build up the plan.
+                if edge.left_refs.is_subset(&p2.output_refs)
+                    && edge.right_refs.is_subset(&p1.output_refs)
+                {
+                    found.push(NeighborEdge {
+                        edge_op: edge.filter.op,
+                        edge_id,
+                        min_ndv: hyper_edge.min_ndv,
+                    });
+                }
+
+                // Not a valid edge, continue.
+            }
+        }
+
+        found
+    }
+
     /// Find edges between two generated plans.
-    pub fn find_edges(&self, p1: &GeneratedPlan, p2: &GeneratedPlan) -> Vec<FoundEdge> {
+    pub fn find_edges2(&self, p1: &GeneratedPlan, p2: &GeneratedPlan) -> Vec<FoundEdge> {
         let mut found = Vec::new();
 
         for hyper_edge in &self.0 {
@@ -153,83 +192,6 @@ impl HyperEdges {
         true
     }
 
-    pub fn drain_edges(&mut self) -> impl Iterator<Item = Edge> + '_ {
-        self.0
-            .iter_mut()
-            .flat_map(|hyp| hyp.edges.drain().map(|(_, edge)| edge))
-    }
-
-    fn insert_expression_as_edge(
-        &mut self,
-        filter: ExtractedFilter,
-        base_relations: &HashMap<RelId, BaseRelation>,
-    ) -> Result<()> {
-        let mut min_ndv = f64::MAX;
-
-        // For base filters, we're just going to track a single set of
-        // refs/relations and place them in left.
-        let mut left_rel = HashSet::new();
-
-        for (&rel_id, rel) in base_relations {
-            if filter.table_refs.is_subset(&rel.output_refs) {
-                left_rel.insert(rel_id);
-                // See comment in condition as edge for rationale.
-                min_ndv = f64::min(min_ndv, rel.cardinality);
-            }
-        }
-
-        let edge = Edge {
-            filter: filter.filter,
-            left_refs: filter.table_refs,
-            right_refs: HashSet::new(),
-            left_rel,
-            right_rel: HashSet::new(),
-        };
-
-        let cols: HashSet<_> = filter.columns.into_iter().collect();
-
-        for hyper_edge in &mut self.0 {
-            if !hyper_edge.columns.is_disjoint(&cols) {
-                // Hyper edge is connected. Add this edge to the hyper edge,
-                // and update min_ndv if needed.
-                let edge_id = EdgeId {
-                    hyper_edge_id: hyper_edge.id,
-                    edge_id: hyper_edge.edges.len(),
-                };
-                hyper_edge.edges.insert(edge_id, edge);
-
-                // Add new columns.
-                hyper_edge.columns.extend(cols);
-
-                hyper_edge.min_ndv = f64::min(hyper_edge.min_ndv, min_ndv);
-
-                // We're done, edge is now in the hyper graph.
-                return Ok(());
-            }
-        }
-
-        // No overlap with any existing edges. Initialize new one.
-        let hyper_edge_id = self.0.len();
-        let hyper_edge = HyperEdge {
-            id: hyper_edge_id,
-            edges: [(
-                EdgeId {
-                    hyper_edge_id,
-                    edge_id: 0,
-                },
-                edge,
-            )]
-            .into_iter()
-            .collect(),
-            min_ndv,
-            columns: cols,
-        };
-
-        self.0.push(hyper_edge);
-
-        Ok(())
-    }
-
     fn insert_condition_as_edge(
         &mut self,
         condition: ComparisonCondition,
@@ -273,7 +235,7 @@ impl HyperEdges {
             .collect();
 
         let edge = Edge {
-            filter: condition.into_expression(),
+            filter: condition,
             left_refs,
             right_refs,
             left_rel,

@@ -1,7 +1,7 @@
 mod edge;
-mod estimate;
 mod graph;
 mod set;
+mod subgraph;
 
 use std::collections::VecDeque;
 
@@ -91,13 +91,12 @@ impl InnerJoinReorder {
 
                 return Ok(LogicalOperator::MaterializationScan(new_scan));
             }
-            // LogicalOperator::Filter(_)=> {
-            //     self.extract_filters_and_join_children(root)?;
-            // }
+            LogicalOperator::Filter(_) => {
+                self.extract_filters_and_join_children(root)?;
+            }
             LogicalOperator::CrossJoin(_) => {
                 self.extract_filters_and_join_children(root)?;
             }
-
             LogicalOperator::ComparisonJoin(join) if join.node.join_type == JoinType::Inner => {
                 self.extract_filters_and_join_children(root)?;
             }
@@ -135,7 +134,9 @@ impl InnerJoinReorder {
             bind_context,
         )?;
 
-        graph.try_build(bind_context)
+        let plan = graph.try_build(bind_context)?;
+
+        Ok(plan)
     }
 
     fn extract_filters_and_join_children(&mut self, root: LogicalOperator) -> Result<()> {
@@ -147,16 +148,9 @@ impl InnerJoinReorder {
         while let Some(plan) = queue.pop_front() {
             match plan {
                 LogicalOperator::Filter(mut filter) => {
-                    if let LogicalOperator::Scan(_) = filter.get_one_child_exact()? {
-                        // If this filter is on top of a scan, we shouldn't try
-                        // to do anything with it, the filter is already as far
-                        // down as it'll go.
-                        self.child_plans.push(LogicalOperator::Filter(filter))
-                    } else {
-                        self.add_expression(filter.node.filter);
-                        for child in filter.children.drain(..) {
-                            queue.push_back(child);
-                        }
+                    self.add_expression(filter.node.filter);
+                    for child in filter.children.drain(..) {
+                        queue.push_back(child);
                     }
                 }
                 LogicalOperator::CrossJoin(mut join) => {

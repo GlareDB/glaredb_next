@@ -88,12 +88,12 @@ impl Optimizer {
             .push(("column_pruning", timer.stop()));
 
         // // Join reordering.
-        // let timer = Timer::<I>::start();
-        // let mut rule = JoinReorder::default();
-        // let plan = rule.optimize(bind_context, plan)?;
-        // self.profile_data
-        //     .timings
-        //     .push(("join_reorder", timer.stop()));
+        let timer = Timer::<I>::start();
+        let mut rule = JoinReorder::default();
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("join_reorder", timer.stop()));
 
         // DO THE OTHER RULES
 
