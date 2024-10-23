@@ -151,11 +151,9 @@ impl TryFrom<Expression> for ComparisonCondition {
                 right: *cmp.right,
                 op: cmp.op,
             }),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Cannot convert '{other}' into a comparison condition"
-                )))
-            }
+            other => Err(RayexecError::new(format!(
+                "Cannot convert '{other}' into a comparison condition"
+            ))),
         }
     }
 }

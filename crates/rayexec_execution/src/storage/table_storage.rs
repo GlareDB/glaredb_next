@@ -34,7 +34,7 @@ impl ProtoConv for Projections {
                 .column_indices
                 .as_ref()
                 .unwrap_or(&Vec::new())
-                .into_iter()
+                .iter()
                 .map(|&idx| idx as u32)
                 .collect(),
         })

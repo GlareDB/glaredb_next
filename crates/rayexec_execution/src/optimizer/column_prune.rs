@@ -410,8 +410,7 @@ fn projection_is_passthrough(proj: &Node<LogicalProject>) -> Result<bool> {
         None => return Ok(false),
     };
 
-    let mut check_idx = 0;
-    for expr in &proj.node.projections {
+    for (check_idx, expr) in proj.node.projections.iter().enumerate() {
         let col = match expr {
             Expression::Column(col) => col,
             _ => return Ok(false),
@@ -424,8 +423,6 @@ fn projection_is_passthrough(proj: &Node<LogicalProject>) -> Result<bool> {
         if col.column != check_idx {
             return Ok(false);
         }
-
-        check_idx += 1;
     }
 
     Ok(true)

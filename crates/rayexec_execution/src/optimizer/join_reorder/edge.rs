@@ -91,16 +91,12 @@ impl HyperEdges {
         let mut neighbors = HashSet::new();
 
         self.for_each_edge(&mut |_hyp, _edge_id, edge| {
-            if set.relation_indices.contains(&edge.left_rel) {
-                if !exclude.contains(&edge.right_rel) {
-                    neighbors.insert(edge.right_rel);
-                }
+            if set.relation_indices.contains(&edge.left_rel) && !exclude.contains(&edge.right_rel) {
+                neighbors.insert(edge.right_rel);
             }
 
-            if set.relation_indices.contains(&edge.right_rel) {
-                if !exclude.contains(&edge.left_rel) {
-                    neighbors.insert(edge.left_rel);
-                }
+            if set.relation_indices.contains(&edge.right_rel) && !exclude.contains(&edge.left_rel) {
+                neighbors.insert(edge.left_rel);
             }
 
             ControlFlow::Continue(())
@@ -113,26 +109,26 @@ impl HyperEdges {
         let mut found = Vec::new();
 
         self.for_each_edge(&mut |hyp, edge_id, edge| {
-            if p1.relation_indices.contains(&edge.left_rel) {
-                if p2.relation_indices.contains(&edge.right_rel) {
-                    found.push(NeighborEdge {
-                        edge_op: edge.filter.as_ref().map(|f| f.op),
-                        hyper_edge_id: hyp.id,
-                        edge_id,
-                        min_ndv: hyp.min_ndv,
-                    })
-                }
+            if p1.relation_indices.contains(&edge.left_rel)
+                && p2.relation_indices.contains(&edge.right_rel)
+            {
+                found.push(NeighborEdge {
+                    edge_op: edge.filter.as_ref().map(|f| f.op),
+                    hyper_edge_id: hyp.id,
+                    edge_id,
+                    min_ndv: hyp.min_ndv,
+                })
             }
 
-            if p1.relation_indices.contains(&edge.right_rel) {
-                if p2.relation_indices.contains(&edge.left_rel) {
-                    found.push(NeighborEdge {
-                        edge_op: edge.filter.as_ref().map(|f| f.op),
-                        hyper_edge_id: hyp.id,
-                        edge_id,
-                        min_ndv: hyp.min_ndv,
-                    })
-                }
+            if p1.relation_indices.contains(&edge.right_rel)
+                && p2.relation_indices.contains(&edge.left_rel)
+            {
+                found.push(NeighborEdge {
+                    edge_op: edge.filter.as_ref().map(|f| f.op),
+                    hyper_edge_id: hyp.id,
+                    edge_id,
+                    min_ndv: hyp.min_ndv,
+                })
             }
 
             ControlFlow::Continue(())
@@ -164,7 +160,7 @@ impl HyperEdges {
     /// the hyper graph.
     pub fn all_non_empty_edges_removed(&self) -> bool {
         for hyper_edge in &self.0 {
-            for (_, edge) in &hyper_edge.edges {
+            for edge in hyper_edge.edges.values() {
                 if edge.filter.is_some() {
                     return false;
                 }
@@ -240,7 +236,7 @@ impl HyperEdges {
             .left
             .get_column_references()
             .into_iter()
-            .chain(condition.right.get_column_references().into_iter())
+            .chain(condition.right.get_column_references())
             .collect();
 
         let left_rel = left_rel.ok_or_else(|| RayexecError::new("Missing left rel id"))?;
@@ -310,7 +306,7 @@ impl ContextDisplay for HyperEdges {
             for col in &hyp.columns {
                 write!(f, "    - ")?;
                 col.fmt_using_context(mode, f)?;
-                writeln!(f, "")?;
+                writeln!(f)?;
             }
         }
         Ok(())

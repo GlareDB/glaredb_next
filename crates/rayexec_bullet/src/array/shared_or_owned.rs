@@ -36,7 +36,7 @@ impl<T> AsRef<T> for SharedOrOwned<T> {
     fn as_ref(&self) -> &T {
         match &self.inner {
             SharedOrOwnedInner::Shared(v) => v.as_ref(),
-            SharedOrOwnedInner::Owned(v) => &v,
+            SharedOrOwnedInner::Owned(v) => v,
             SharedOrOwnedInner::Empty => panic!("invalid state"),
         }
     }

@@ -268,10 +268,9 @@ where
         expr: &Expression,
     ) -> Result<Option<ComparisonOperator>> {
         if let Expression::Comparison(ComparisonExpr { left, right, op }) = expr {
-            let left_side =
-                ExprJoinSide::try_from_expr(&left, self.left_tables, self.right_tables)?;
+            let left_side = ExprJoinSide::try_from_expr(left, self.left_tables, self.right_tables)?;
             let right_side =
-                ExprJoinSide::try_from_expr(&right, self.left_tables, self.right_tables)?;
+                ExprJoinSide::try_from_expr(right, self.left_tables, self.right_tables)?;
 
             if left_side != ExprJoinSide::Both
                 && right_side != ExprJoinSide::Both

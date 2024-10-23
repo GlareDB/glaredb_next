@@ -212,9 +212,7 @@ impl RelationSet {
             }
         }
 
-        sets.into_iter()
-            .map(|indices| RelationSet::new(indices))
-            .collect()
+        sets.into_iter().map(RelationSet::new).collect()
     }
 }
 
@@ -462,7 +460,7 @@ impl Graph {
         right: &RelationSet,
         exclude: &HashSet<usize>,
     ) -> Result<()> {
-        let neighbors = self.hyper_edges.find_neighbors(right, &exclude);
+        let neighbors = self.hyper_edges.find_neighbors(right, exclude);
         if neighbors.is_empty() {
             return Ok(());
         }
@@ -563,13 +561,10 @@ impl Graph {
 
         // Check to see if this cost is lower than existing cost. Returns early
         // if not.
-        match self.best_plans.get(&new_set) {
-            Some(existing) => {
-                if existing.cost < cost {
-                    return Ok(());
-                }
+        if let Some(existing) = self.best_plans.get(&new_set) {
+            if existing.cost < cost {
+                return Ok(());
             }
-            _ => (),
         }
 
         // New node is better. Create it and insert into plans.
@@ -659,7 +654,7 @@ impl Graph {
         for filter_id in filters {
             let filter = self
                 .filters
-                .remove(&filter_id)
+                .remove(filter_id)
                 .ok_or_else(|| RayexecError::new(format!("Filter previously used: {filter_id}")))?;
 
             input_filters.push(filter.filter);
