@@ -461,6 +461,8 @@ impl Graph {
         // all other joins making up this plan.
         let cost = cardinality + left.1.cost + right.1.cost;
 
+        println!("COST: {cost},       CARD: {cardinality}");
+
         // Check to see if this cost is lower than existing cost. Returns early
         // if not.
         match self.best_plans.get(&new_set) {

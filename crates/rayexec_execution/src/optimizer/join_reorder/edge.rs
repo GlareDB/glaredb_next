@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::graph::{BaseRelation, GeneratedPlan, RelId, RelationSet};
+use super::graph::{BaseRelation, RelId, RelationSet};
 use crate::explain::context_display::{debug_print_context, ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonOperator;
@@ -152,49 +152,6 @@ impl HyperEdges {
                 }
             }
         }
-    }
-
-    /// Find edges between two generated plans.
-    pub fn find_edges2(&self, p1: &GeneratedPlan, p2: &GeneratedPlan) -> Vec<FoundEdge> {
-        let mut found = Vec::new();
-
-        for hyper_edge in &self.0 {
-            for (edge_id, edge) in &hyper_edge.edges {
-                // Only consider conditions not previously used.
-                if p1.used.edges.contains(edge_id) || p2.used.edges.contains(edge_id) {
-                    continue;
-                }
-
-                // Edge between p1 and p2.
-                if edge.left_refs.is_subset(&p1.output_refs)
-                    && edge.right_refs.is_subset(&p2.output_refs)
-                {
-                    found.push(FoundEdge {
-                        edge_id: *edge_id,
-                        edge,
-                        min_ndv: hyper_edge.min_ndv,
-                    });
-                }
-
-                // Edge between p2 and p1 (reversed)
-                //
-                // Note we don't need to keep track if this is reversed, we'll
-                // worry about that when we build up the plan.
-                if edge.left_refs.is_subset(&p2.output_refs)
-                    && edge.right_refs.is_subset(&p1.output_refs)
-                {
-                    found.push(FoundEdge {
-                        edge_id: *edge_id,
-                        edge,
-                        min_ndv: hyper_edge.min_ndv,
-                    });
-                }
-
-                // Not a valid edge, continue.
-            }
-        }
-
-        found
     }
 
     pub fn remove_edge(&mut self, id: EdgeId) -> Option<Edge> {
