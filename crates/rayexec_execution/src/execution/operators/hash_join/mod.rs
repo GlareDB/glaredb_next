@@ -48,6 +48,8 @@ pub struct HashJoinBuildPartitionState {
 
 #[derive(Debug)]
 pub struct HashJoinProbePartitionState {
+    /// Holds pending inputs on the probe side.
+    resizer: BatchResizer,
     /// Index of this partition.
     partition_idx: usize,
     /// The final output table. If None, the global state should be checked to
@@ -201,6 +203,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         let probe_states: Vec<_> = (0..probe_partitions)
             .map(|idx| {
                 PartitionState::HashJoinProbe(HashJoinProbePartitionState {
+                    resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                     partition_idx: idx,
                     global: None,
                     hash_buf: Vec::new(),
@@ -236,6 +239,8 @@ impl ExecutableOperator for PhysicalHashJoin {
                 Ok(PollPush::NeedsMore)
             }
             PartitionState::HashJoinProbe(state) => {
+                // println!("PROBE SIZE: {}", batch.num_rows());
+
                 // If we have pending output, we need to wait for that to get
                 // pulled before trying to compute additional batches.
                 if !state.buffered_output.is_empty() {
@@ -321,15 +326,15 @@ impl ExecutableOperator for PhysicalHashJoin {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        let mut shared = match operator_state {
-            OperatorState::HashJoin(state) => state.inner.lock(),
-            other => panic!("invalid operator state: {other:?}"),
-        };
-
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
                 // Flush any remaining buffered batches.
                 self.flush_build_side_batches(state)?;
+
+                let mut shared = match operator_state {
+                    OperatorState::HashJoin(state) => state.inner.lock(),
+                    other => panic!("invalid operator state: {other:?}"),
+                };
 
                 // Move local table into global state.
                 match state.local_hashtable.take() {
@@ -387,6 +392,11 @@ impl ExecutableOperator for PhysicalHashJoin {
                 Ok(PollFinalize::Finalized)
             }
             PartitionState::HashJoinProbe(state) => {
+                let mut shared = match operator_state {
+                    OperatorState::HashJoin(state) => state.inner.lock(),
+                    other => panic!("invalid operator state: {other:?}"),
+                };
+
                 // Ensure we've finished building the left side before
                 // continuing with the finalize.
                 //

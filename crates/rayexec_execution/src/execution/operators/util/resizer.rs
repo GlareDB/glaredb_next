@@ -37,6 +37,10 @@ impl BatchResizer {
     /// there is a case where this can return multiple batches if 'len(input) +
     /// pending_row_count > target * 2' (aka very large input batch).
     pub fn try_push(&mut self, batch: Batch) -> Result<ComputedBatches> {
+        if batch.num_rows() == 0 {
+            return Ok(ComputedBatches::None);
+        }
+
         if self.pending_row_count + batch.num_rows() == self.target {
             self.pending.push(batch);
 
