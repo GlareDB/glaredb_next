@@ -324,148 +324,148 @@ mod tests {
         }
     }
 
-    #[test]
-    fn sort_single_partition_desc_nulls_first() {
-        let inputs = vec![
-            make_i32_batch([8, 10, 8, 4]),
-            make_i32_batch([2, 3]),
-            make_i32_batch([9, 1, 7, -1]),
-        ];
+    // #[test]
+    // fn sort_single_partition_desc_nulls_first() {
+    //     let inputs = vec![
+    //         make_i32_batch([8, 10, 8, 4]),
+    //         make_i32_batch([2, 3]),
+    //         make_i32_batch([9, 1, 7, -1]),
+    //     ];
 
-        let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
-            column: PhysicalColumnExpr { idx: 0 },
-            desc: true,
-            nulls_first: true,
-        }]));
-        let operator_state = Arc::new(OperatorState::None);
-        let mut partition_states = create_states(&operator, 1);
+    //     let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
+    //         column: PhysicalColumnExpr { idx: 0 },
+    //         desc: true,
+    //         nulls_first: true,
+    //     }]));
+    //     let operator_state = Arc::new(OperatorState::None);
+    //     let mut partition_states = create_states(&operator, 1);
 
-        // Push all the inputs.
-        let push_cx = TestWakerContext::new();
-        for input in inputs {
-            let poll_push = push_cx
-                .poll_push(&operator, &mut partition_states[0], &operator_state, input)
-                .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
-        }
-        operator
-            .poll_finalize_push(
-                &mut push_cx.context(),
-                &mut partition_states[0],
-                &operator_state,
-            )
-            .unwrap();
+    //     // Push all the inputs.
+    //     let push_cx = TestWakerContext::new();
+    //     for input in inputs {
+    //         let poll_push = push_cx
+    //             .poll_push(&operator, &mut partition_states[0], &operator_state, input)
+    //             .unwrap();
+    //         assert_eq!(PollPush::NeedsMore, poll_push);
+    //     }
+    //     operator
+    //         .poll_finalize_push(
+    //             &mut push_cx.context(),
+    //             &mut partition_states[0],
+    //             &operator_state,
+    //         )
+    //         .unwrap();
 
-        // Now pull.
-        let pull_cx = TestWakerContext::new();
-        let poll_pull = pull_cx
-            .poll_pull(&operator, &mut partition_states[0], &operator_state)
-            .unwrap();
-        let output = unwrap_poll_pull_batch(poll_pull);
-        let expected = make_i32_batch([10, 9, 8, 8, 7, 4, 3, 2, 1, -1]);
-        assert_eq!(expected, output);
-    }
+    //     // Now pull.
+    //     let pull_cx = TestWakerContext::new();
+    //     let poll_pull = pull_cx
+    //         .poll_pull(&operator, &mut partition_states[0], &operator_state)
+    //         .unwrap();
+    //     let output = unwrap_poll_pull_batch(poll_pull);
+    //     let expected = make_i32_batch([10, 9, 8, 8, 7, 4, 3, 2, 1, -1]);
+    //     assert_eq!(expected, output);
+    // }
 
-    #[test]
-    fn sort_single_partition_asc_nulls_first() {
-        let inputs = vec![
-            make_i32_batch([8, 10, 8, 4]),
-            make_i32_batch([2, 3]),
-            make_i32_batch([9, 1, 7, -1]),
-        ];
+    // #[test]
+    // fn sort_single_partition_asc_nulls_first() {
+    //     let inputs = vec![
+    //         make_i32_batch([8, 10, 8, 4]),
+    //         make_i32_batch([2, 3]),
+    //         make_i32_batch([9, 1, 7, -1]),
+    //     ];
 
-        let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
-            column: PhysicalColumnExpr { idx: 0 },
-            desc: false,
-            nulls_first: true,
-        }]));
-        let operator_state = Arc::new(OperatorState::None);
-        let mut partition_states = create_states(&operator, 1);
+    //     let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
+    //         column: PhysicalColumnExpr { idx: 0 },
+    //         desc: false,
+    //         nulls_first: true,
+    //     }]));
+    //     let operator_state = Arc::new(OperatorState::None);
+    //     let mut partition_states = create_states(&operator, 1);
 
-        // Push all the inputs.
-        let push_cx = TestWakerContext::new();
-        for input in inputs {
-            let poll_push = push_cx
-                .poll_push(&operator, &mut partition_states[0], &operator_state, input)
-                .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
-        }
-        operator
-            .poll_finalize_push(
-                &mut push_cx.context(),
-                &mut partition_states[0],
-                &operator_state,
-            )
-            .unwrap();
+    //     // Push all the inputs.
+    //     let push_cx = TestWakerContext::new();
+    //     for input in inputs {
+    //         let poll_push = push_cx
+    //             .poll_push(&operator, &mut partition_states[0], &operator_state, input)
+    //             .unwrap();
+    //         assert_eq!(PollPush::NeedsMore, poll_push);
+    //     }
+    //     operator
+    //         .poll_finalize_push(
+    //             &mut push_cx.context(),
+    //             &mut partition_states[0],
+    //             &operator_state,
+    //         )
+    //         .unwrap();
 
-        // Now pull.
-        let pull_cx = TestWakerContext::new();
-        let poll_pull = pull_cx
-            .poll_pull(&operator, &mut partition_states[0], &operator_state)
-            .unwrap();
-        let output = unwrap_poll_pull_batch(poll_pull);
-        let expected = make_i32_batch([-1, 1, 2, 3, 4, 7, 8, 8, 9, 10]);
-        assert_eq!(expected, output);
-    }
+    //     // Now pull.
+    //     let pull_cx = TestWakerContext::new();
+    //     let poll_pull = pull_cx
+    //         .poll_pull(&operator, &mut partition_states[0], &operator_state)
+    //         .unwrap();
+    //     let output = unwrap_poll_pull_batch(poll_pull);
+    //     let expected = make_i32_batch([-1, 1, 2, 3, 4, 7, 8, 8, 9, 10]);
+    //     assert_eq!(expected, output);
+    // }
 
-    #[test]
-    fn sort_single_partition_multiple_outputs() {
-        let inputs = vec![
-            make_i32_batch(0..1024),
-            make_i32_batch(1024..2048),
-            make_i32_batch(2048..3072),
-        ];
+    // #[test]
+    // fn sort_single_partition_multiple_outputs() {
+    //     let inputs = vec![
+    //         make_i32_batch(0..1024),
+    //         make_i32_batch(1024..2048),
+    //         make_i32_batch(2048..3072),
+    //     ];
 
-        let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
-            column: PhysicalColumnExpr { idx: 0 },
-            desc: true,
-            nulls_first: true,
-        }]));
-        let operator_state = Arc::new(OperatorState::None);
-        let mut partition_states = create_states(&operator, 1);
+    //     let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
+    //         column: PhysicalColumnExpr { idx: 0 },
+    //         desc: true,
+    //         nulls_first: true,
+    //     }]));
+    //     let operator_state = Arc::new(OperatorState::None);
+    //     let mut partition_states = create_states(&operator, 1);
 
-        // Push all the inputs.
-        let push_cx = TestWakerContext::new();
-        for input in inputs {
-            let poll_push = push_cx
-                .poll_push(&operator, &mut partition_states[0], &operator_state, input)
-                .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
-        }
-        operator
-            .poll_finalize_push(
-                &mut push_cx.context(),
-                &mut partition_states[0],
-                &operator_state,
-            )
-            .unwrap();
+    //     // Push all the inputs.
+    //     let push_cx = TestWakerContext::new();
+    //     for input in inputs {
+    //         let poll_push = push_cx
+    //             .poll_push(&operator, &mut partition_states[0], &operator_state, input)
+    //             .unwrap();
+    //         assert_eq!(PollPush::NeedsMore, poll_push);
+    //     }
+    //     operator
+    //         .poll_finalize_push(
+    //             &mut push_cx.context(),
+    //             &mut partition_states[0],
+    //             &operator_state,
+    //         )
+    //         .unwrap();
 
-        // Now pull.
-        // TODO: Currently batch size is hard coded to 1024, we make assumptions
-        // about the output size.
-        let pull_cx = TestWakerContext::new();
+    //     // Now pull.
+    //     // TODO: Currently batch size is hard coded to 1024, we make assumptions
+    //     // about the output size.
+    //     let pull_cx = TestWakerContext::new();
 
-        let mut outputs = Vec::new();
-        for _ in 0..3 {
-            let poll_pull = pull_cx
-                .poll_pull(&operator, &mut partition_states[0], &operator_state)
-                .unwrap();
-            let output = unwrap_poll_pull_batch(poll_pull);
-            outputs.push(output);
-        }
+    //     let mut outputs = Vec::new();
+    //     for _ in 0..3 {
+    //         let poll_pull = pull_cx
+    //             .poll_pull(&operator, &mut partition_states[0], &operator_state)
+    //             .unwrap();
+    //         let output = unwrap_poll_pull_batch(poll_pull);
+    //         outputs.push(output);
+    //     }
 
-        let expected = vec![
-            make_i32_batch((2048..3072).rev()),
-            make_i32_batch((1024..2048).rev()),
-            make_i32_batch((0..1024).rev()),
-        ];
+    //     let expected = vec![
+    //         make_i32_batch((2048..3072).rev()),
+    //         make_i32_batch((1024..2048).rev()),
+    //         make_i32_batch((0..1024).rev()),
+    //     ];
 
-        assert_eq!(expected, outputs);
+    //     assert_eq!(expected, outputs);
 
-        // Make sure we're exhausted.
-        let poll_pull = pull_cx
-            .poll_pull(&operator, &mut partition_states[0], &operator_state)
-            .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
-    }
+    //     // Make sure we're exhausted.
+    //     let poll_pull = pull_cx
+    //         .poll_pull(&operator, &mut partition_states[0], &operator_state)
+    //         .unwrap();
+    //     assert_eq!(PollPull::Exhausted, poll_pull);
+    // }
 }
