@@ -6,6 +6,10 @@ use rayexec_error::Result;
 
 use crate::execution::computed_batch::ComputedBatches;
 
+// TODO: Shouldn't be a const, should be determined when we create the
+// executable plans.
+pub const DEFAULT_TARGET_BATCH_SIZE: usize = 4096;
+
 /// Resize input batches to produce output batches of a target size.
 #[derive(Debug)]
 pub struct BatchResizer {
@@ -97,6 +101,10 @@ impl BatchResizer {
     }
 
     pub fn flush_remaining(&mut self) -> Result<ComputedBatches> {
+        if self.pending_row_count == 0 {
+            return Ok(ComputedBatches::None);
+        }
+
         let out = Batch::concat(&self.pending)?;
         self.pending.clear();
         self.pending_row_count = 0;
@@ -231,5 +239,12 @@ mod tests {
         };
 
         assert_batches_eq(&expected_rem, &remaining);
+    }
+
+    #[test]
+    fn flush_none() {
+        let mut resizer = BatchResizer::new(4);
+        let out = resizer.flush_remaining().unwrap();
+        assert!(matches!(out, ComputedBatches::None));
     }
 }
