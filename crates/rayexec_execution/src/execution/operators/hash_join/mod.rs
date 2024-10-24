@@ -227,6 +227,8 @@ impl ExecutableOperator for PhysicalHashJoin {
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
+                println!("PUSH SIZE: {}", batch.num_rows());
+
                 // Compute left hashes on equality condition.
                 let result = self.equality.left.eval(&batch)?;
                 state.hash_buf.clear();
