@@ -757,18 +757,18 @@ impl Graph {
             conditions.push(condition);
         }
 
+        let left = self.build_from_generated(&left_gen)?;
+        let right = self.build_from_generated(&right_gen)?;
+
+        let left = self.apply_filters(left, &node.left_filters)?;
+        let right = self.apply_filters(right, &node.right_filters)?;
+
         // Determine if we should swap sides. We always want left (build) side
         // to have the lower cardinality (not necessarily cost).
         //
         // Don't swap sides yet, still need to apply filters.
         let plan_swap_sides =
             right_gen.subgraph.estimated_cardinality() < left_gen.subgraph.estimated_cardinality();
-
-        let left = self.build_from_generated(&left_gen)?;
-        let right = self.build_from_generated(&right_gen)?;
-
-        let left = self.apply_filters(left, &node.left_filters)?;
-        let right = self.apply_filters(right, &node.right_filters)?;
 
         let [left, right] = if plan_swap_sides {
             [right, left]
