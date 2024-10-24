@@ -48,8 +48,6 @@ pub struct HashJoinBuildPartitionState {
 
 #[derive(Debug)]
 pub struct HashJoinProbePartitionState {
-    /// Holds pending inputs on the probe side.
-    resizer: BatchResizer,
     /// Index of this partition.
     partition_idx: usize,
     /// The final output table. If None, the global state should be checked to
@@ -203,7 +201,6 @@ impl ExecutableOperator for PhysicalHashJoin {
         let probe_states: Vec<_> = (0..probe_partitions)
             .map(|idx| {
                 PartitionState::HashJoinProbe(HashJoinProbePartitionState {
-                    resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                     partition_idx: idx,
                     global: None,
                     hash_buf: Vec::new(),
@@ -239,8 +236,6 @@ impl ExecutableOperator for PhysicalHashJoin {
                 Ok(PollPush::NeedsMore)
             }
             PartitionState::HashJoinProbe(state) => {
-                // println!("PROBE SIZE: {}", batch.num_rows());
-
                 // If we have pending output, we need to wait for that to get
                 // pulled before trying to compute additional batches.
                 if !state.buffered_output.is_empty() {
