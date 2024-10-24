@@ -54,8 +54,6 @@ impl BatchResizer {
         if self.pending_row_count + batch.num_rows() > self.target {
             let diff = self.target - self.pending_row_count;
 
-            // TODO: May need to continually split batch b.
-
             // Generate selection vectors that logically slice this batch.
             //
             // Batch 'a' will be included in the current set of batches that
