@@ -9,27 +9,20 @@ use crate::expr::Expression;
 pub struct LogicalMaterializationScan {
     /// Reference to the materialization in the bind context.
     pub mat: MaterializationRef,
-    /// Table references of the output of the materialization.
-    ///
-    /// These should match the references that are stored on the materialization
-    /// in the bind context. They are duplicated here for convenience.
-    pub table_refs: Vec<TableRef>,
 }
 
 impl Explainable for LogicalMaterializationScan {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent =
-            ExplainEntry::new("MaterializationScan").with_value("materialization_ref", self.mat);
-        if conf.verbose {
-            ent = ent.with_values("table_refs", &self.table_refs)
-        }
-        ent
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("MaterializationScan").with_value("materialization_ref", self.mat)
     }
 }
 
 impl LogicalNode for Node<LogicalMaterializationScan> {
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
-        self.node.table_refs.clone()
+        bind_context
+            .get_materialization(self.node.mat)
+            .map(|m| m.table_refs.clone())
+            .unwrap_or(Vec::new()) // TODO: Error?
     }
 
     fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>

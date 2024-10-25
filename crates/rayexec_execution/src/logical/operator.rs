@@ -99,6 +99,12 @@ pub trait LogicalNode {
     /// If a logical operator references a table ref that isn't the output of
     /// any of its immediate children, then we messed up planning (e.g. didn't
     /// fully decorrelate).
+    ///
+    /// This accepts a bind context for materializations as the materialized
+    /// plan (and associated output table refs) exist just in the bind context.
+    /// Since table refs may be updated through various stages of
+    /// planning/optimizing, we want to avoid caching them directly on the
+    /// operator.
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef>;
 
     /// Try to get the output cardinality of this operator.

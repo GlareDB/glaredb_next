@@ -82,10 +82,9 @@ impl InnerJoinReorder {
 
                 let mat = bind_context.get_materialization_mut(scan.node.mat)?;
                 mat.plan = plan;
-                mat.table_refs = table_refs.clone();
+                mat.table_refs = table_refs;
 
-                let mut new_scan = scan.clone();
-                new_scan.node.table_refs = table_refs;
+                let new_scan = scan.clone();
 
                 return Ok(LogicalOperator::MaterializationScan(new_scan));
             }

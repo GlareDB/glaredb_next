@@ -161,10 +161,7 @@ impl FromPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![LogicalOperator::MaterializationScan(Node {
-                        node: LogicalMaterializationScan {
-                            mat: mat.mat_ref,
-                            table_refs: mat.table_refs.clone(),
-                        },
+                        node: LogicalMaterializationScan { mat: mat.mat_ref },
                         location: LocationRequirement::Any,
                         children: Vec::new(),
                     })],

@@ -223,10 +223,7 @@ impl SubqueryPlanner {
         let mat_ref = bind_context.new_materialization(plan)?;
 
         let left = LogicalOperator::MaterializationScan(Node {
-            node: LogicalMaterializationScan {
-                mat: mat_ref,
-                table_refs: plan_tables,
-            },
+            node: LogicalMaterializationScan { mat: mat_ref },
             location: LocationRequirement::Any,
             children: Vec::new(),
         });
