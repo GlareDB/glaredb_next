@@ -129,7 +129,7 @@ impl PruneState {
                     .collect();
 
                 // Special case for if this projection is just a pass through.
-                if !self.implicit_reference && projection_is_passthrough(project)? {
+                if !self.implicit_reference && projection_is_passthrough(project, bind_context)? {
                     // New reference set we'll pass to child.
                     let mut child_references = HashSet::new();
                     let mut old_references = HashMap::new();
@@ -404,8 +404,15 @@ impl PruneState {
 /// A project is passthrough if it contains only column expressions with the
 /// first expression starting at column 0 and every subsequent expression being
 /// incremented by 1 up to num_cols
-fn projection_is_passthrough(proj: &Node<LogicalProject>) -> Result<bool> {
-    let child_ref = match proj.get_one_child_exact()?.get_output_table_refs().first() {
+fn projection_is_passthrough(
+    proj: &Node<LogicalProject>,
+    bind_context: &BindContext,
+) -> Result<bool> {
+    let child_ref = match proj
+        .get_one_child_exact()?
+        .get_output_table_refs(bind_context)
+        .first()
+    {
         Some(table_ref) => *table_ref,
         None => return Ok(false),
     };

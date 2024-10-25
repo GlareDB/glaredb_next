@@ -94,7 +94,7 @@ impl SubqueryPlanner {
                 // Result expression for the subquery, output of the right side
                 // of the join.
                 let right_out = Expression::Column(ColumnExpr {
-                    table_scope: right.get_output_table_refs()[0],
+                    table_scope: right.get_output_table_refs(bind_context)[0],
                     column: 0,
                 });
 
@@ -150,7 +150,7 @@ impl SubqueryPlanner {
                 // representing the ANY condition.
 
                 let right_out = Expression::Column(ColumnExpr {
-                    table_scope: right.get_output_table_refs()[0],
+                    table_scope: right.get_output_table_refs(bind_context)[0],
                     column: 0,
                 });
 
@@ -204,7 +204,7 @@ impl SubqueryPlanner {
             QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
         // Get only correlated columns that are pointing to this plan.
-        let plan_tables = plan.get_output_table_refs();
+        let plan_tables = plan.get_output_table_refs(bind_context);
 
         let correlated_columns: Vec<_> = bind_context
             .correlated_columns(subquery.bind_idx)?
@@ -287,7 +287,7 @@ impl SubqueryPlanner {
 
                 // Generate column expr that references the scalar being joined
                 // to the plan.
-                let subquery_table = subquery_plan.get_output_table_refs()[0];
+                let subquery_table = subquery_plan.get_output_table_refs(bind_context)[0];
                 let column = ColumnExpr {
                     table_scope: subquery_table,
                     column: 0,
@@ -322,7 +322,7 @@ impl SubqueryPlanner {
                 // Cross join with existing input. Replace original subquery expression
                 // with reference to new column.
 
-                let subquery_table = subquery_plan.get_output_table_refs()[0];
+                let subquery_table = subquery_plan.get_output_table_refs(bind_context)[0];
                 let subquery_column = ColumnExpr {
                     table_scope: subquery_table,
                     column: 0,
@@ -415,7 +415,7 @@ impl SubqueryPlanner {
                     DataType::Boolean,
                 )?;
 
-                let subquery_table = subquery_plan.get_output_table_refs()[0];
+                let subquery_table = subquery_plan.get_output_table_refs(bind_context)[0];
                 let column = ColumnExpr {
                     table_scope: subquery_table,
                     column: 0,

@@ -330,7 +330,7 @@ impl BindContext {
     /// Scan count for the materialization is initially set to 0.
     pub fn new_materialization(&mut self, plan: LogicalOperator) -> Result<MaterializationRef> {
         // TODO: Dedup with subquery decorrelation.
-        let plan_tables = plan.get_output_table_refs();
+        let plan_tables = plan.get_output_table_refs(self);
         let idx = self.materializations.len();
         let mat_ref = MaterializationRef {
             materialization_idx: idx,

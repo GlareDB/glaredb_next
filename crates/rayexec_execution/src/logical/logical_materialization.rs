@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use super::binder::bind_context::{MaterializationRef, TableRef};
+use super::binder::bind_context::{BindContext, MaterializationRef, TableRef};
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -28,7 +28,7 @@ impl Explainable for LogicalMaterializationScan {
 }
 
 impl LogicalNode for Node<LogicalMaterializationScan> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.node.table_refs.clone()
     }
 
@@ -90,7 +90,7 @@ impl Explainable for LogicalMagicMaterializationScan {
 }
 
 impl LogicalNode for Node<LogicalMagicMaterializationScan> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
     }
 
