@@ -115,6 +115,28 @@ impl PruneState {
         // through, and which can't. The default case assumes we can't push down
         // projections.
         match plan {
+            LogicalOperator::MaterializationScan(scan) => {
+                let mut mat_plan = bind_context
+                    .get_materialization_mut(scan.node.mat)?
+                    .plan
+                    .take();
+
+                // TODO: Collect referenced columns from the outer plan. Use
+                // that instead of marking everything implicitly referenced.
+                let mut prune_state = PruneState::new_from_parent_node(&mat_plan, true);
+
+                for child in mat_plan.children_mut() {
+                    prune_state.walk_plan(bind_context, child)?;
+                }
+                prune_state.apply_updated_expressions(&mut mat_plan)?;
+
+                // Put updated plan back on materialization, with possibly
+                // updated table refs.
+                let table_refs = mat_plan.get_output_table_refs(bind_context);
+                let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                mat.table_refs = table_refs;
+                mat.plan = mat_plan;
+            }
             LogicalOperator::Project(project) => {
                 // First try to flatten with child projection.
                 try_flatten_projection(project)?;

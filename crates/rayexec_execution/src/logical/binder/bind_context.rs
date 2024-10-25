@@ -210,6 +210,7 @@ pub struct PlanMaterialization {
     /// Number of scans against this plan.
     pub scan_count: usize,
     /// Table references for the output of this plan.
+    // TODO: Why do we need this?
     pub table_refs: Vec<TableRef>,
 }
 
