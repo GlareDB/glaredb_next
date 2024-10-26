@@ -5,11 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use super::OptimizeRule;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, MaterializationRef, TableRef};
-use crate::logical::logical_materialization::{
-    LogicalMagicMaterializationScan,
-    LogicalMaterializationScan,
-};
+use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 

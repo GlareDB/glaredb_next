@@ -12,12 +12,7 @@ use crate::expr::negate_expr::{NegateExpr, NegateOperator};
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::Expression;
 use crate::functions::aggregate::count::CountNonNullImpl;
-use crate::logical::binder::bind_context::{
-    BindContext,
-    CorrelatedColumn,
-    MaterializationRef,
-    TableRef,
-};
+use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{
     ComparisonCondition,
@@ -91,7 +86,7 @@ impl SubqueryPlanner {
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
         let orig = std::mem::replace(plan, LogicalOperator::Invalid);
-        let ([left, right], mut conditions, mat_ref, scan_refs) =
+        let ([left, right], mut conditions, mat_ref) =
             self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
 
         match &subquery.subquery_type {
@@ -109,7 +104,6 @@ impl SubqueryPlanner {
                         mat_ref,
                         join_type: JoinType::Left,
                         conditions,
-                        magic_scan_refs: scan_refs,
                     },
                     location: LocationRequirement::Any,
                     children: vec![left, right],
@@ -132,7 +126,6 @@ impl SubqueryPlanner {
                             table_ref: mark_table,
                         },
                         conditions,
-                        magic_scan_refs: scan_refs,
                     },
                     location: LocationRequirement::Any,
                     children: vec![left, right],
@@ -181,7 +174,6 @@ impl SubqueryPlanner {
                             table_ref: mark_table,
                         },
                         conditions,
-                        magic_scan_refs: scan_refs,
                     },
                     location: LocationRequirement::Any,
                     children: vec![left, right],
@@ -208,7 +200,6 @@ impl SubqueryPlanner {
         [LogicalOperator; 2],
         Vec<ComparisonCondition>,
         MaterializationRef,
-        Vec<TableRef>,
     )> {
         let mut subquery_plan =
             QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
@@ -246,8 +237,7 @@ impl SubqueryPlanner {
         let mut planner = DependentJoinPushdown::new(mat_ref, correlated_columns);
 
         planner.find_correlations(&subquery_plan)?;
-        let mut scan_refs = Vec::new();
-        planner.pushdown(bind_context, &mut subquery_plan, &mut scan_refs)?;
+        planner.pushdown(bind_context, &mut subquery_plan)?;
 
         // Make comparison join between left & right using the updated
         // column map from the push down.
@@ -273,7 +263,7 @@ impl SubqueryPlanner {
             });
         }
 
-        Ok(([left, subquery_plan], conditions, mat_ref, scan_refs))
+        Ok(([left, subquery_plan], conditions, mat_ref))
     }
 
     fn plan_uncorrelated(
@@ -609,7 +599,6 @@ impl DependentJoinPushdown {
         &mut self,
         bind_context: &mut BindContext,
         plan: &mut LogicalOperator,
-        scan_refs: &mut Vec<TableRef>,
     ) -> Result<()> {
         let has_correlation = *self
             .correlated_operators
@@ -687,7 +676,7 @@ impl DependentJoinPushdown {
 
         match plan {
             LogicalOperator::Project(project) => {
-                self.pushdown_children(bind_context, &mut project.children, scan_refs)?;
+                self.pushdown_children(bind_context, &mut project.children)?;
                 self.rewrite_expressions(&mut project.node.projections)?;
 
                 // Append column exprs referencing the materialization.
@@ -720,7 +709,7 @@ impl DependentJoinPushdown {
                 Ok(())
             }
             LogicalOperator::Filter(filter) => {
-                self.pushdown_children(bind_context, &mut filter.children, scan_refs)?;
+                self.pushdown_children(bind_context, &mut filter.children)?;
                 self.rewrite_expression(&mut filter.node.filter)?;
 
                 // Filter does not change columns that can be referenced by
@@ -729,7 +718,7 @@ impl DependentJoinPushdown {
                 Ok(())
             }
             LogicalOperator::Aggregate(agg) => {
-                self.pushdown_children(bind_context, &mut agg.children, scan_refs)?;
+                self.pushdown_children(bind_context, &mut agg.children)?;
                 self.rewrite_expressions(&mut agg.node.aggregates)?;
                 self.rewrite_expressions(&mut agg.node.group_exprs)?;
 
@@ -812,10 +801,9 @@ impl DependentJoinPushdown {
         &mut self,
         bind_context: &mut BindContext,
         children: &mut [LogicalOperator],
-        scan_refs: &mut Vec<TableRef>,
     ) -> Result<()> {
         for child in children {
-            self.pushdown(bind_context, child, scan_refs)?;
+            self.pushdown(bind_context, child)?;
         }
         Ok(())
     }

@@ -22,7 +22,7 @@ impl LogicalNode for Node<LogicalMaterializationScan> {
         bind_context
             .get_materialization(self.node.mat)
             .map(|m| m.table_refs.clone())
-            .unwrap_or(Vec::new()) // TODO: Error?
+            .unwrap_or_default() // TODO: Error?
     }
 
     fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>

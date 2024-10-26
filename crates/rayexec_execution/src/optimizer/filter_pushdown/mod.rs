@@ -424,7 +424,6 @@ impl FilterPushdown {
                             mat_ref: plan.node.mat_ref,
                             join_type: plan.node.join_type,
                             conditions: plan.node.conditions,
-                            magic_scan_refs: plan.node.magic_scan_refs,
                         },
                         location: plan.location,
                         children: vec![left, new_right], // Left doesn't change, just a reference to a materialization.
