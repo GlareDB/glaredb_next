@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use super::OptimizeRule;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
+use crate::logical::binder::bind_context::{BindContext, MaterializationRef, TableRef};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 
@@ -25,64 +25,37 @@ impl OptimizeRule for ColumnPrune {
         bind_context: &mut BindContext,
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
-        let mut mat_refs = MaterializationReferences::default();
-        let mut prune_state = PruneState {
-            implicit_reference: true,
-            current_references: HashSet::new(),
-            updated_expressions: HashMap::new(),
-        };
-        prune_state.walk_plan(bind_context, &mut plan, &mut mat_refs)?;
+        unimplemented!()
+        // let mut mat_refs = MaterializationReferences::default();
+        // let mut prune_state = PruneState {
+        //     implicit_reference: true,
+        //     current_references: HashSet::new(),
+        //     updated_expressions: HashMap::new(),
+        // };
+        // prune_state.walk_plan(bind_context, &mut plan, &mut mat_refs)?;
 
-        // Now prune columns inside materializations.
-        for (mat_ref, col_refs) in mat_refs.references {
-            if col_refs.all_implicitly_referenced {
-                // Nothing we can do.
-                continue;
-            }
+        // // Now prune columns inside materializations.
+        // for (mat_ref, col_refs) in mat_refs.references {
+        //     if col_refs.all_implicitly_referenced {
+        //         // Nothing we can do.
+        //         continue;
+        //     }
 
-            let mat_plan = bind_context.get_materialization_mut(mat_ref)?.plan.take();
-            // Initialize prune state with the collected referenced columns.
-            let mut prune_state = PruneState {
-                implicit_reference: col_refs.all_implicitly_referenced,
-                current_references: col_refs.columns,
-                updated_expressions: HashMap::new(),
-            };
-        }
+        //     let mat_plan = bind_context.get_materialization_mut(mat_ref)?.plan.take();
+        //     // Initialize prune state with the collected referenced columns.
+        //     let mut prune_state = PruneState {
+        //         implicit_reference: col_refs.all_implicitly_referenced,
+        //         current_references: col_refs.columns,
+        //         updated_expressions: HashMap::new(),
+        //     };
+        // }
 
-        Ok(plan)
+        // Ok(plan)
     }
 }
 
-/// Tracks references to materialized plan.
-///
-/// This is "global" to the plan as materializations can happen at any level.
-#[derive(Debug, Default)]
-struct MaterializationReferences {
-    /// Maps a materialization ref to a set of columns for that materialization.
-    references: HashMap<MaterializationRef, MaterializedColumnReferences>,
-}
-
-/// Tracks referenced columns within a single materialization.
-#[derive(Debug, Default)]
-struct MaterializedColumnReferences {
-    /// If all columns are implicitly referenced.
-    ///
-    /// If true, we cannot do any column pruning.
-    all_implicitly_referenced: bool,
-    /// All columns encountered.
-    columns: HashSet<ColumnExpr>,
-}
-
-impl MaterializationReferences {
-    fn get_or_create(&mut self, mat: MaterializationRef) -> &mut MaterializedColumnReferences {
-        if !self.references.contains_key(&mat) {
-            self.references
-                .insert(mat, MaterializedColumnReferences::default());
-        }
-
-        self.references.get_mut(&mat).unwrap()
-    }
-}
+#[derive(Debug)]
+struct MaterializationReferenceWalkState {}
 
 #[derive(Debug)]
 struct PruneState {
@@ -152,7 +125,6 @@ impl PruneState {
         &mut self,
         bind_context: &mut BindContext,
         plan: &mut LogicalOperator,
-        mat_refs: &mut MaterializationReferences,
     ) -> Result<()> {
         // Extract columns reference in this plan.
         //
@@ -174,85 +146,11 @@ impl PruneState {
         // through, and which can't. The default case assumes we can't push down
         // projections.
         match plan {
-            LogicalOperator::MaterializationScan(scan) => {
-                let mat_cols = mat_refs.get_or_create(scan.node.mat);
-
-                if self.implicit_reference {
-                    // If outer has all columns implicitly referenced, then all
-                    // columns in the materialization are also implicitly
-                    // referenced.
-                    mat_cols.all_implicitly_referenced = true;
-                } else {
-                    // Find all columns for the current set of referenced
-                    // columns that are from the materialization, and add those.
-                    let mat_table_refs: HashSet<_> = scan
-                        .get_output_table_refs(bind_context)
-                        .into_iter()
-                        .collect();
-
-                    for curr_col_ref in &self.current_references {
-                        if mat_table_refs.contains(&curr_col_ref.table_scope) {
-                            // Column is from materialization.
-                            mat_cols.columns.insert(*curr_col_ref);
-                        }
-                    }
-                }
-
-                // Now we'll walk the materialized plan since itself may contain
-                // references to other materialized plans.
-                let mut mat_plan = bind_context
-                    .get_materialization_mut(scan.node.mat)?
-                    .plan
-                    .take();
-                // We create a new prune state with all top-level column
-                // implicitly referenced. The prune state may prune some
-                // columns, but we want to ensure we keep all top-level columns
-                // as we don't yet have the complete set of references.
-                // let new_prune_state = PruneState {
-                //     implicit_reference: true,
-                //     current_references: HashSet::new(),
-                //     updated_expressions: HashMap::new(),
-                // };
-                // // new_prune_state.walk_plan(bind_context, &mut mat_plan, mat_refs)?;
-
-                // // We don't need to update table refs or expressions since all
-                // // output columns from the materialization remain unchanged.
-                // let mat = bind_context.get_materialization_mut(scan.node.mat)?;
-                // mat.plan = mat_plan;
-            }
-            LogicalOperator::MagicMaterializationScan(scan) => {
-                // Similar to the normal materialization scan, just that we have
-                // a projection out of it, so need to compare all column refs to
-                // that projection, and not the table refs from the
-                // materialization.
-                //
-                // Once we have all referenced projections, we then just get the
-                // referenced materialized columns from those.
-                let mat_cols = mat_refs.get_or_create(scan.node.mat);
-
-                if self.implicit_reference {
-                    mat_cols.all_implicitly_referenced = true;
-                } else {
-                    // Get only projections that are currently being referenced.
-                    let mut referenced_projections = Vec::new();
-
-                    for (col_idx, proj) in scan.node.projections.iter().enumerate() {
-                        let check = ColumnExpr {
-                            table_scope: scan.node.table_ref,
-                            column: col_idx,
-                        };
-
-                        if self.current_references.contains(&check) {
-                            referenced_projections.push(proj)
-                        }
-                    }
-
-                    // Now extract the materialized columns from the referenced
-                    // projections.
-                    for referenced in referenced_projections {
-                        extract_column_exprs(referenced, &mut mat_cols.columns);
-                    }
-                }
+            LogicalOperator::MagicJoin(join) => {
+                // Immediate left child is a materialization, so we should
+                // already have most column references for the materialization.
+                // To get the rest, we walk the right child all the way down to
+                // the magic scan.
             }
             LogicalOperator::Project(project) => {
                 // First try to flatten with child projection.
@@ -308,7 +206,7 @@ impl PruneState {
                         current_references: child_references,
                         updated_expressions: HashMap::new(),
                     };
-                    child_prune.walk_plan(bind_context, &mut child, mat_refs)?;
+                    child_prune.walk_plan(bind_context, &mut child)?;
 
                     // Since we're removing the projection, no need to apply any
                     // changes here, but we'll need to propogate them up.
@@ -392,7 +290,7 @@ impl PruneState {
                 // Now walk children using new prune state.
                 let mut child_prune = PruneState::new_from_parent_node(project, false);
                 for child in &mut project.children {
-                    child_prune.walk_plan(bind_context, child, mat_refs)?;
+                    child_prune.walk_plan(bind_context, child)?;
                 }
                 child_prune.apply_updated_expressions(project)?;
             }
@@ -473,28 +371,28 @@ impl PruneState {
                 // assume everything is implicitly referenced for the children.
                 let mut child_prune = PruneState::new_from_parent_node(agg, false);
                 for child in &mut agg.children {
-                    child_prune.walk_plan(bind_context, child, mat_refs)?;
+                    child_prune.walk_plan(bind_context, child)?;
                 }
                 child_prune.apply_updated_expressions(agg)?;
             }
             LogicalOperator::Filter(_) => {
                 // Can push through filter.
                 for child in plan.children_mut() {
-                    self.walk_plan(bind_context, child, mat_refs)?;
+                    self.walk_plan(bind_context, child)?;
                 }
                 self.apply_updated_expressions(plan)?;
             }
             LogicalOperator::Order(_) => {
                 // Can push through order by.
                 for child in plan.children_mut() {
-                    self.walk_plan(bind_context, child, mat_refs)?;
+                    self.walk_plan(bind_context, child)?;
                 }
                 self.apply_updated_expressions(plan)?;
             }
             LogicalOperator::Limit(_) => {
                 // Can push through limit.
                 for child in plan.children_mut() {
-                    self.walk_plan(bind_context, child, mat_refs)?;
+                    self.walk_plan(bind_context, child)?;
                 }
                 self.apply_updated_expressions(plan)?;
             }
@@ -504,7 +402,7 @@ impl PruneState {
             | LogicalOperator::ArbitraryJoin(_) => {
                 // All joins good to push through.
                 for child in plan.children_mut() {
-                    self.walk_plan(bind_context, child, mat_refs)?;
+                    self.walk_plan(bind_context, child)?;
                 }
                 self.apply_updated_expressions(plan)?;
             }
@@ -523,7 +421,7 @@ impl PruneState {
                 })?;
 
                 for child in other.children_mut() {
-                    child_prune.walk_plan(bind_context, child, mat_refs)?;
+                    child_prune.walk_plan(bind_context, child)?;
                 }
 
                 // Note we apply from the child prune state since that's what's
