@@ -181,7 +181,7 @@ impl AvgDecimal64Impl {
             let ((sum, count), valid) = state.finalize()?;
 
             if !valid {
-                validities.set_unchecked(idx, false);
+                validities.set(idx, false);
                 continue;
             }
 
@@ -226,7 +226,7 @@ impl AvgDecimal128Impl {
             let ((sum, count), valid) = state.finalize()?;
 
             if !valid {
-                validities.set_unchecked(idx, false);
+                validities.set(idx, false);
                 continue;
             }
 

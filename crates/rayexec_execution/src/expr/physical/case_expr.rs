@@ -79,7 +79,7 @@ impl PhysicalCaseExpr {
                 indices[output_row_idx] = (array_idx, array_row_idx);
 
                 // Update bitmap, this row was handled.
-                remaining.set_unchecked(output_row_idx, false);
+                remaining.set(output_row_idx, false);
             }
         }
 

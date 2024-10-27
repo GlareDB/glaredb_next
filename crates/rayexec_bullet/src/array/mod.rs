@@ -41,7 +41,6 @@ use crate::storage::{
     ContiguousVarlenStorage,
     GermanVarlenStorage,
     PrimitiveStorage,
-    SharedHeapStorage,
     UntypedNullStorage,
 };
 
@@ -185,13 +184,13 @@ impl Array {
         match &mut self.validity {
             Some(validity) => {
                 let validity = validity.get_mut();
-                validity.set_unchecked(idx, valid);
+                validity.set(idx, valid);
             }
             None => {
                 // Initialize validity.
                 let len = self.data.len();
                 let mut validity = Bitmap::new_with_all_true(len);
-                validity.set_unchecked(idx, valid);
+                validity.set(idx, valid);
 
                 self.validity = Some(validity.into())
             }
@@ -564,10 +563,6 @@ impl Array {
                     ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
-                        .get(idx)
-                        .map(|b| b.as_ref())
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
@@ -583,10 +578,6 @@ impl Array {
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
-                        .get(idx)
-                        .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
@@ -782,7 +773,7 @@ where
                 Some(val) => new_vals.push(val),
                 None => {
                     new_vals.push(F::default());
-                    validity.set_unchecked(idx, false);
+                    validity.set(idx, false);
                 }
             }
         }
@@ -897,7 +888,6 @@ pub enum ArrayData {
 pub enum BinaryData {
     Binary(Arc<ContiguousVarlenStorage<i32>>),
     LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
-    SharedHeap(Arc<SharedHeapStorage>),
     German(Arc<GermanVarlenStorage>),
 }
 
@@ -943,7 +933,6 @@ impl ArrayData {
             Self::Binary(bin) => match bin {
                 BinaryData::Binary(s) => s.len(),
                 BinaryData::LargeBinary(s) => s.len(),
-                BinaryData::SharedHeap(s) => s.len(),
                 BinaryData::German(s) => s.len(),
             },
         }
@@ -1041,12 +1030,6 @@ impl From<PrimitiveStorage<u128>> for ArrayData {
 impl From<PrimitiveStorage<Interval>> for ArrayData {
     fn from(value: PrimitiveStorage<Interval>) -> Self {
         ArrayData::Interval(value.into())
-    }
-}
-
-impl From<SharedHeapStorage> for ArrayData {
-    fn from(value: SharedHeapStorage) -> Self {
-        ArrayData::Binary(BinaryData::SharedHeap(Arc::new(value)))
     }
 }
 

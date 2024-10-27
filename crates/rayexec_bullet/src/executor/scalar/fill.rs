@@ -91,7 +91,7 @@ where
                         let val = unsafe { values.get_unchecked(sel) };
                         self.builder.buffer.put(mapping.to, val.borrow());
                     } else {
-                        self.validity.set_unchecked(mapping.to, false)
+                        self.validity.set(mapping.to, false)
                     }
                 }
             }

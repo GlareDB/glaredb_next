@@ -489,7 +489,7 @@ where
     for (idx, row) in rows.iter().enumerate() {
         let val = &row.columns[col];
         if val == &ScalarValue::Null {
-            validity.set_unchecked(idx, false);
+            validity.set(idx, false);
             continue;
         }
 
