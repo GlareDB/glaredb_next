@@ -302,8 +302,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                     return Ok(PollPush::NeedsMore);
                 }
 
-                // TODO: Would be cool not having to do this.
-                state.buffered_output = ComputedBatches::new_multi(batches);
+                state.buffered_output = ComputedBatches::new(batches);
 
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();

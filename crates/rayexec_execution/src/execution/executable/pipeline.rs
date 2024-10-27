@@ -178,7 +178,7 @@ impl ExecutablePartitionPipeline {
 }
 
 /// Where to begin pulling from after pushing a batch through the pipeline.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct PullStart {
     /// The true start of the next iteration.
     pull_start: usize,
@@ -199,7 +199,7 @@ impl PullStart {
         loop {
             match self.pull_stack.pop() {
                 Some(mut buffered) => {
-                    let batch = match buffered.buffered.try_next()? {
+                    let batch = match buffered.buffered.try_pop_front()? {
                         Some(batch) => batch,
                         None => {
                             // Move to next in stack.
@@ -226,7 +226,7 @@ impl PullStart {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct BufferedBatches {
     /// Operator these batches are from.
     operator_idx: usize,
@@ -356,7 +356,7 @@ impl ExecutablePartitionPipeline {
 
                     match poll_pull {
                         Ok(PollPull::Computed(mut computed)) => {
-                            let batch = match computed.try_next()? {
+                            let batch = match computed.try_pop_front()? {
                                 Some(batch) => batch,
                                 None => {
                                     // TODO: Not sure when this would be None

@@ -320,7 +320,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                     return Ok(PollPush::NeedsMore);
                 }
 
-                state.buffered = ComputedBatches::new_multi(batches);
+                state.buffered = ComputedBatches::new(batches);
 
                 // We have stuff in the buffer, wake up the puller.
                 if let Some(waker) = state.pull_waker.take() {
