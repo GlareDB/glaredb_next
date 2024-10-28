@@ -455,6 +455,38 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
+    /// Pushes a batch resizer onto the current pipline.
+    ///
+    /// The the latest operator is already a batch resizer operator, we skip
+    /// pushing a new one.
+    fn push_batch_resizer(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {
+        let current = self
+            .in_progress
+            .as_mut()
+            .required("in-progress pipeline for batch resizer")?;
+
+        let last = current
+            .operators
+            .last()
+            .required("last operator for batch resizer")?;
+
+        if matches!(last.operator.as_ref(), PhysicalOperator::BatchResizer(_)) {
+            // Nothing to do.
+            return Ok(());
+        }
+
+        let loc = current.location;
+
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+                partitioning_requirement: None,
+            },
+            loc,
+            id_gen,
+        )
+    }
+
     fn finish(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {
         let mut in_progress = self.take_in_progress_pipeline()?;
         if in_progress.location == LocationRequirement::Any {
@@ -1205,14 +1237,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         //
         // The local sort is going to be converting things into a row
         // represenations so better to do that on large batches.
-        self.push_intermediate_operator(
-            IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
-                partitioning_requirement: None,
-            },
-            location,
-            id_gen,
-        )?;
+        self.push_batch_resizer(id_gen)?;
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
@@ -1502,14 +1527,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             left_state.walk(materializations, id_gen, left)?;
 
             // Add batch resizer to left (build) side.
-            left_state.push_intermediate_operator(
-                IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
-                    partitioning_requirement: None,
-                },
-                location,
-                id_gen,
-            )?;
+            left_state.push_batch_resizer(id_gen)?;
 
             // Take any completed pipelines from the left side and put them in our
             // list.
@@ -1527,14 +1545,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             //
             // TODO: There's some experimentation to be done on if this is
             // beneficial to do on the output of a join too.
-            self.push_intermediate_operator(
-                IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
-                    partitioning_requirement: None,
-                },
-                location,
-                id_gen,
-            )?;
+            self.push_batch_resizer(id_gen)?;
 
             let conditions = join
                 .node
@@ -1566,6 +1577,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             // Left pipeline will be child this this pipeline at the current
             // operator.
             self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+
+            // Resize output of join too.
+            self.push_batch_resizer(id_gen)?;
 
             Ok(())
         } else {
