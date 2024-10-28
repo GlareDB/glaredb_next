@@ -7,7 +7,7 @@ CREATE TEMP VIEW orders AS SELECT * FROM './crates/rayexec_python/benchmarks/dat
 CREATE TEMP VIEW partsupp AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/partsupp.parquet';
 CREATE TEMP VIEW part AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/part.parquet';
 
-SELECT
+explain verbose SELECT
     nation,
     o_year,
     sum(amount) AS sum_profit

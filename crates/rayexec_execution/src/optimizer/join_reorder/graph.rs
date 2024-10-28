@@ -30,6 +30,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::edge::{EdgeId, HyperEdges, NeighborEdge};
 use super::subgraph::Subgraph;
+use crate::explain::context_display::{debug_print_context, ContextDisplayMode};
 use crate::expr;
 use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_filter::LogicalFilter;
@@ -268,6 +269,8 @@ impl Graph {
             .collect();
 
         let hyper_edges = HyperEdges::new(conditions, &base_relations)?;
+        debug_print_context(ContextDisplayMode::Enriched(bind_context), &hyper_edges);
+
         let filters = filters.into_iter().enumerate().collect();
 
         let mut best_plans = HashMap::with_capacity(base_relations.len());
@@ -540,15 +543,24 @@ impl Graph {
         //
         // Only one edge per hyper edge is considered as edges within a hyper
         // edge are very likely to be correlated.
-        let mut used_hyperedges = Vec::new();
-        for edge in &edges {
-            if used_hyperedges.contains(&edge.hyper_edge_id) {
-                continue;
-            }
+        let edge = edges
+            .iter()
+            .max_by(|a, b| f64::total_cmp(&a.min_ndv, &b.min_ndv));
 
+        if let Some(edge) = edge {
             subgraph.update_denom(&right.1.subgraph, edge);
-            used_hyperedges.push(edge.hyper_edge_id);
+            // used_hyperedges.push(edge.hyper_edge_id);
         }
+
+        // let mut used_hyperedges = Vec::new();
+        // for edge in &edges {
+        //     if used_hyperedges.contains(&edge.hyper_edge_id) {
+        //         continue;
+        //     }
+
+        //     subgraph.update_denom(&right.1.subgraph, edge);
+        //     used_hyperedges.push(edge.hyper_edge_id);
+        // }
 
         // Get the estimated cardinality at this point in the
         // subgraph construction.
