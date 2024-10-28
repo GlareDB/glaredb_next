@@ -20,6 +20,7 @@ use super::{
 use crate::config::IntermediatePlanConfig;
 use crate::database::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
 use crate::execution::intermediate::PipelineSink;
+use crate::execution::operators::batch_resizer::PhysicalBatchResizer;
 use crate::execution::operators::copy_to::CopyToOperation;
 use crate::execution::operators::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::create_table::CreateTableSinkOperation;
@@ -1200,6 +1201,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             .expr_planner
             .plan_sorts(&input_refs, &order.node.exprs)?;
 
+        // Resize input batches.
+        //
+        // The local sort is going to be converting things into a row
+        // represenations so better to do that on large batches.
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+                partitioning_requirement: None,
+            },
+            location,
+            id_gen,
+        )?;
+
         // Partition-local sorting.
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
@@ -1486,6 +1500,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             let mut left_state =
                 IntermediatePipelineBuildState::new(self.config, self.bind_context);
             left_state.walk(materializations, id_gen, left)?;
+
+            // Add batch resizer to left (build) side.
+            left_state.push_intermediate_operator(
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+                    partitioning_requirement: None,
+                },
+                LocationRequirement::Any,
+                id_gen,
+            )?;
 
             // Take any completed pipelines from the left side and put them in our
             // list.
