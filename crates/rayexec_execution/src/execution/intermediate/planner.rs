@@ -1523,6 +1523,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 RayexecError::new("expected in-progress pipeline from left side of join")
             })?;
 
+            // Resize probe inputs too.
+            //
+            // TODO: There's some experimentation to be done on if this is
+            // beneficial to do on the output of a join too.
+            self.push_intermediate_operator(
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+                    partitioning_requirement: None,
+                },
+                location,
+                id_gen,
+            )?;
+
             let conditions = join
                 .node
                 .conditions
@@ -1553,16 +1566,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             // Left pipeline will be child this this pipeline at the current
             // operator.
             self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
-
-            // Now add a new resize op to the output of the join.
-            self.push_intermediate_operator(
-                IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
-                    partitioning_requirement: None,
-                },
-                location,
-                id_gen,
-            )?;
 
             Ok(())
         } else {
