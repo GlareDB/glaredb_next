@@ -457,7 +457,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
     /// Pushes a batch resizer onto the current pipline.
     ///
-    /// The the latest operator is already a batch resizer operator, we skip
+    /// If the latest operator is already a batch resizer operator, we skip
     /// pushing a new one.
     fn push_batch_resizer(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {
         let current = self
@@ -465,18 +465,17 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             .as_mut()
             .required("in-progress pipeline for batch resizer")?;
 
-        let last = current
-            .operators
-            .last()
-            .required("last operator for batch resizer")?;
-
-        if matches!(last.operator.as_ref(), PhysicalOperator::BatchResizer(_)) {
-            // Nothing to do.
-            return Ok(());
+        // It's valid to push a batch resizer even if there's no previous
+        // operators, as another pipeline may be feeding batches into this one.
+        // And it's those batches that we want to resize.
+        if let Some(last) = current.operators.last() {
+            if matches!(last.operator.as_ref(), PhysicalOperator::BatchResizer(_)) {
+                // Nothing to do.
+                return Ok(());
+            }
         }
 
         let loc = current.location;
-
         self.push_intermediate_operator(
             IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
