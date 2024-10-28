@@ -142,7 +142,7 @@ impl PhysicalHashJoin {
         left_types: Vec<DataType>,
         right_types: Vec<DataType>,
     ) -> Self {
-        assert!(equality_inidices.len() >= 1);
+        assert!(!equality_inidices.is_empty());
 
         let equalities = equality_inidices
             .iter()
