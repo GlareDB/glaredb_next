@@ -1,8 +1,11 @@
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
+use std::thread;
+use std::time::Duration;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
+use parking_lot::deadlock;
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
@@ -42,6 +45,23 @@ fn main() {
         .tokio_handle()
         .handle()
         .expect("tokio to be configured");
+
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(10));
+        let deadlocks = deadlock::check_deadlock();
+        if deadlocks.is_empty() {
+            continue;
+        }
+
+        println!("{} deadlocks detected", deadlocks.len());
+        for (i, threads) in deadlocks.iter().enumerate() {
+            println!("Deadlock #{}", i);
+            for t in threads {
+                println!("Thread Id {:#?}", t.thread_id());
+                println!("{:#?}", t.backtrace());
+            }
+        }
+    });
 
     // Note we do an explicit clone here to avoid dropping the tokio runtime
     // owned by the execution runtime inside the async context.

@@ -21,3 +21,4 @@ tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-fi
 futures = { workspace = true }
 crossterm = "0.27.0"
 clap = { version = "4.5.9", features = ["derive"] }
+parking_lot = { workspace = true, features = ["deadlock_detection"] }

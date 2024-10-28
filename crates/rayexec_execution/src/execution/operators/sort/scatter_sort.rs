@@ -109,7 +109,7 @@ impl ExecutableOperator for PhysicalScatterSort {
 
         match state {
             ScatterSortPartitionState::Consuming(state) => {
-                self.push_batch_for_consuming(state, batch)?;
+                self.insert_batch_for_comparison(state, batch)?;
 
                 Ok(PollPush::NeedsMore)
             }
@@ -133,7 +133,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         match state {
             ScatterSortPartitionState::Consuming(consuming_state) => {
                 // Flush buffered batches first.
-                self.flush_pending_batches_for_consuming(consuming_state)?;
+                // self.flush_pending_batches_for_consuming(consuming_state)?;
 
                 let pull_waker = consuming_state.pull_waker.take(); // Taken here to satisfy lifetime.
 

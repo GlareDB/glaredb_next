@@ -232,7 +232,7 @@ impl ExecutableOperator for PhysicalHashJoin {
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
-                self.push_build_side_batch(state, batch)?;
+                self.insert_into_local_table(state, batch)?;
                 Ok(PollPush::NeedsMore)
             }
             PartitionState::HashJoinProbe(state) => {
@@ -297,12 +297,11 @@ impl ExecutableOperator for PhysicalHashJoin {
                 let batches =
                     hashtable.probe(&batch, hashes, state.partition_outer_join_tracker.as_mut())?;
 
-                if batches.is_empty() {
+                state.buffered_output = ComputedBatches::new(batches);
+                if state.buffered_output.is_empty() {
                     // No batches joined, keep pushing to this operator.
                     return Ok(PollPush::NeedsMore);
                 }
-
-                state.buffered_output = ComputedBatches::new(batches);
 
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
@@ -323,7 +322,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
                 // Flush any remaining buffered batches.
-                self.flush_build_side_batches(state)?;
+                // self.flush_build_side_batches(state)?;
 
                 let mut shared = match operator_state {
                     OperatorState::HashJoin(state) => state.inner.lock(),
@@ -337,6 +336,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 shared.build_inputs_remaining -= 1;
+                let remaining = shared.build_inputs_remaining;
 
                 // If we're the last remaining, this thread will be responsible
                 // for building the global hash table and putting it in the
@@ -344,13 +344,13 @@ impl ExecutableOperator for PhysicalHashJoin {
                 //
                 // Probers will then clone the global hash table (behind an Arc)
                 // into their local states to avoid needing to synchronize.
-                if shared.build_inputs_remaining == 0 {
+                if remaining == 0 {
                     let completed = std::mem::take(&mut shared.completed_hash_tables);
 
                     // Release the lock. Building the table can be
                     // computationally expensive. Other threads still need
                     // access to the global state to register wakers.
-                    std::mem::drop(shared);
+                    // std::mem::drop(shared);
 
                     let global = GlobalHashTable::new(
                         self.left_types.clone(),
@@ -360,11 +360,11 @@ impl ExecutableOperator for PhysicalHashJoin {
                         &self.conditions,
                     );
 
-                    // Reacquire, and place in global state.
-                    let mut shared = match operator_state {
-                        OperatorState::HashJoin(state) => state.inner.lock(),
-                        other => panic!("invalid operator state: {other:?}"),
-                    };
+                    // // Reacquire, and place in global state.
+                    // let mut shared = match operator_state {
+                    //     OperatorState::HashJoin(state) => state.inner.lock(),
+                    //     other => panic!("invalid operator state: {other:?}"),
+                    // };
 
                     // Init global left tracker too if needed.
                     if self.is_left_join() {

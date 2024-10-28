@@ -46,6 +46,14 @@ impl ComputedBatches {
         }
     }
 
+    pub fn total_num_rows(&self) -> usize {
+        match self {
+            Self::Single(batch) => batch.num_rows(),
+            Self::Multi(batches) => batches.iter().map(|b| b.num_rows()).sum(),
+            Self::None => 0,
+        }
+    }
+
     /// Checks if this collection of batches is empty.
     // TODO: Think about the behavior for this when batches is length zero.
     // There was a bug where loop join produce no batches, called this

@@ -20,6 +20,7 @@ use super::{
 use crate::config::IntermediatePlanConfig;
 use crate::database::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
 use crate::execution::intermediate::PipelineSink;
+use crate::execution::operators::batch_resizer::PhysicalBatchResizer;
 use crate::execution::operators::copy_to::CopyToOperation;
 use crate::execution::operators::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::create_table::CreateTableSinkOperation;
@@ -61,7 +62,7 @@ use crate::logical::logical_describe::LogicalDescribe;
 use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::logical_empty::LogicalEmpty;
-use crate::logical::logical_explain::LogicalExplain;
+use crate::logical::logical_explain::{ExplainFormat, LogicalExplain};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_insert::LogicalInsert;
 use crate::logical::logical_join::{
@@ -123,6 +124,18 @@ impl IntermediatePipelinePlanner {
         state.finish(&mut id_gen)?;
 
         debug_assert!(state.in_progress.is_none());
+
+        // let s = ExplainFormatter::new(
+        //     &bind_context,
+        //     ExplainConfig {
+        //         context_mode: ContextDisplayMode::Enriched(&bind_context),
+        //         verbose: true,
+        //     },
+        //     ExplainFormat::Text,
+        // )
+        // .format_intermediate_groups(&[("pipelines", &state.local_group)])
+        // .unwrap();
+        // println!("{s}");
 
         Ok(PlannedPipelineGroups {
             local: state.local_group,
@@ -1200,6 +1213,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             .expr_planner
             .plan_sorts(&input_refs, &order.node.exprs)?;
 
+        let input_resize_op = IntermediateOperator {
+            operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+            partitioning_requirement: None,
+        };
+        self.push_intermediate_operator(input_resize_op, location, id_gen)?;
+
         // Partition-local sorting.
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
@@ -1479,6 +1498,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 IntermediatePipelineBuildState::new(self.config, self.bind_context);
             left_state.walk(materializations, id_gen, left)?;
 
+            let left_resize_op = IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+                partitioning_requirement: None,
+            };
+            left_state.push_intermediate_operator(
+                left_resize_op,
+                LocationRequirement::Any,
+                id_gen,
+            )?;
+
             // Take any completed pipelines from the left side and put them in our
             // list.
             self.local_group
@@ -1521,6 +1550,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             // Left pipeline will be child this this pipeline at the current
             // operator.
             self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+
+            let right_resize_op = IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+                partitioning_requirement: None,
+            };
+            self.push_intermediate_operator(right_resize_op, location, id_gen)?;
 
             Ok(())
         } else {

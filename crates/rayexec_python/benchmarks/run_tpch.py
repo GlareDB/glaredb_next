@@ -319,10 +319,15 @@ def setup_datafusion(ctx):
         ctx.register_parquet(tbl, f"./benchmarks/data/tpch-{sf}/{tbl}.parquet")
 
 
-def execute_rayexec(conn, dump_profile=False):
+def execute_rayexec(conn, dump_profile=False, explain=False):
     df = pd.DataFrame(columns=["dur", "query"])
     for query_id, query in sorted(queries.items()):
         print("Query " + str(query_id))
+
+        if explain:
+            explain = conn.query(f"EXPLAIN VERBOSE {query}")
+            explain.show()
+
         start = time.time()
         try:
             collect_profile_data = dump_profile
@@ -406,7 +411,7 @@ setup_datafusion(datafusion_ctx)
 duckdb_conn = duckdb.connect()
 setup_duckdb(duckdb_conn)
 
-rayexec_times = execute_rayexec(rayexec_conn, False)
+rayexec_times = execute_rayexec(rayexec_conn, False, False)
 rayexec_conn.close()
 
 datafusion_times = execute_datafusion(datafusion_ctx)

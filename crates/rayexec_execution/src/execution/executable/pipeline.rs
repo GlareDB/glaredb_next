@@ -356,6 +356,8 @@ impl ExecutablePartitionPipeline {
 
                     match poll_pull {
                         Ok(PollPull::Computed(mut computed)) => {
+                            operator.profile_data.rows_emitted += computed.total_num_rows(); // TODO: We should have something to indicate materialized vs not.
+
                             let batch = match computed.try_pop_front()? {
                                 Some(batch) => batch,
                                 None => {
@@ -377,7 +379,6 @@ impl ExecutablePartitionPipeline {
 
                             // We got results, increment operator index to push
                             // it into the next operator.
-                            operator.profile_data.rows_emitted += batch.num_rows(); // TODO: We should have something to indicate materialized vs not.
                             *state = PipelinePartitionState::PushTo {
                                 batch,
                                 operator_idx: *operator_idx + 1,

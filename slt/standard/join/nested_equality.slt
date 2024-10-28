@@ -1,0 +1,13 @@
+# Ensure "deeply" nested equality joins work.
+
+query III
+select count(*), min(a), max(a)
+  from
+    generate_series(1, 8192) g1(a),
+    generate_series(1, 8192) g2(b),
+    generate_series(1, 8192) g3(c),
+    generate_series(1, 8192) g4(d)
+where
+  a = b AND b = c AND c = d;
+----
+8192  1  8192
