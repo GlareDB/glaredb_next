@@ -1507,7 +1507,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                     operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
                     partitioning_requirement: None,
                 },
-                LocationRequirement::Any,
+                location,
                 id_gen,
             )?;
 
@@ -1553,6 +1553,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             // Left pipeline will be child this this pipeline at the current
             // operator.
             self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+
+            // Now add a new resize op to the output of the join.
+            self.push_intermediate_operator(
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
+                    partitioning_requirement: None,
+                },
+                location,
+                id_gen,
+            )?;
 
             Ok(())
         } else {
