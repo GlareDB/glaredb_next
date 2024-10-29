@@ -171,7 +171,8 @@ impl Batch {
     }
 
     pub fn try_from_rows(rows: &[ScalarRow], datatypes: &[DataType]) -> Result<Batch> {
-        let mut arrays = Vec::with_capacity(rows.len());
+        let num_cols = rows.first().map(|r| r.columns.len()).unwrap_or_default();
+        let mut arrays = Vec::with_capacity(num_cols);
 
         for (col_idx, datatype) in datatypes.iter().enumerate() {
             let arr = array_from_rows(datatype, rows, col_idx)?;
@@ -202,10 +203,16 @@ impl Batch {
     }
 }
 
-fn array_from_rows(datatype: &DataType, rows: &[ScalarRow], col: usize) -> Result<Array> {
+pub fn array_from_rows<'a, I>(datatype: &DataType, rows: I, col: usize) -> Result<Array>
+where
+    I: IntoIterator<Item = &'a ScalarRow<'a>>,
+    I::IntoIter: ExactSizeIterator,
+{
     fn fmt_err(other: &ScalarValue, expected: &DataType) -> RayexecError {
         RayexecError::new(format!("Unexpected value: {other}, expected: {expected}"))
     }
+
+    let rows = rows.into_iter();
 
     match datatype.physical_type()? {
         PhysicalType::UntypedNull => {
@@ -474,19 +481,20 @@ fn array_from_rows(datatype: &DataType, rows: &[ScalarRow], col: usize) -> Resul
     }
 }
 
-fn array_from_row_and_builder<B, F>(
+fn array_from_row_and_builder<'a, B, F, I>(
     mut builder: ArrayBuilder<B>,
     get_value: F,
-    rows: &[ScalarRow],
+    rows: I,
     col: usize,
 ) -> Result<Array>
 where
-    F: for<'a> Fn(&'a ScalarValue) -> Result<&'a B::Type>,
+    I: Iterator<Item = &'a ScalarRow<'a>>,
+    F: for<'b> Fn(&'b ScalarValue) -> Result<&'b B::Type>,
     B: ArrayDataBuffer,
 {
-    let mut validity = Bitmap::new_with_all_true(rows.len());
+    let mut validity = Bitmap::new_with_all_true(builder.buffer.len());
 
-    for (idx, row) in rows.iter().enumerate() {
+    for (idx, row) in rows.enumerate() {
         let val = &row.columns[col];
         if val == &ScalarValue::Null {
             validity.set_unchecked(idx, false);

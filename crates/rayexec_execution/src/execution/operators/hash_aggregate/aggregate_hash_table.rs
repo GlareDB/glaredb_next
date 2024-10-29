@@ -2,7 +2,7 @@ use std::fmt;
 
 use hashbrown::raw::RawTable;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::{array_from_rows, Batch};
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::RowToStateMapping;
@@ -314,7 +314,7 @@ impl PartitionAggregateHashTable {
             group_types,
             batch_size,
             table: self,
-            group_values_drain_buf: Vec::new(),
+            drain_idx: 0,
         }
     }
 }
@@ -333,16 +333,12 @@ pub struct AggregateHashTableDrain {
     /// Datatypes of the grouping columns. Used to construct the arrays
     /// representing the group by values.
     group_types: Vec<DataType>,
-
     /// Max size of batch to return.
     batch_size: usize,
-
     /// Inner table.
     table: PartitionAggregateHashTable,
-
-    /// Reused buffer for draining rows representing the group values from the
-    /// table.
-    group_values_drain_buf: Vec<OwnedScalarRow>,
+    /// Index to start draining group values from.
+    drain_idx: usize,
 }
 
 impl AggregateHashTableDrain {
@@ -359,6 +355,8 @@ impl AggregateHashTableDrain {
             None => return Ok(None),
         };
 
+        let remaining_group_values = self.table.group_values.len() - self.drain_idx;
+
         // Convert group values into arrays.
         //
         // If we have nothing for results, we still want to try to pull from
@@ -366,24 +364,28 @@ impl AggregateHashTableDrain {
         let num_rows = result_cols
             .first()
             .map(|col| col.logical_len())
-            .unwrap_or(usize::min(self.table.group_values.len(), self.batch_size));
+            .unwrap_or(usize::min(remaining_group_values, self.batch_size));
 
         // No results, and nothing left in groups.
         if num_rows == 0 {
             return Ok(None);
         }
 
-        // Drain out collected group rows into our local buffer equal to the
-        // number of rows we're returning.
-        self.group_values_drain_buf.clear();
-        self.group_values_drain_buf
-            .extend(self.table.group_values.drain(0..num_rows).map(|v| v.row));
+        let group_vals = &self.table.group_values[self.drain_idx..self.drain_idx + num_rows];
+        let num_cols = group_vals.first().unwrap().row.columns.len();
 
-        let group_cols =
-            Batch::try_from_rows(&self.group_values_drain_buf, &self.group_types)?.into_arrays();
+        let mut group_arrs = Vec::with_capacity(num_cols);
+
+        for (col_idx, datatype) in self.group_types.iter().enumerate() {
+            let arr = array_from_rows(datatype, group_vals.iter().map(|v| &v.row), col_idx)?;
+            group_arrs.push(arr);
+        }
 
         // Create batch with result cols first, then group cols after.
-        let batch = Batch::try_new(result_cols.into_iter().chain(group_cols))?;
+        let batch = Batch::try_new(result_cols.into_iter().chain(group_arrs))?;
+
+        // Update for next iterator.
+        self.drain_idx += num_rows;
 
         Ok(Some(batch))
     }
