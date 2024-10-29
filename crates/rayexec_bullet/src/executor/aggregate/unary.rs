@@ -78,7 +78,7 @@ mod tests {
             Ok(())
         }
 
-        fn finalize(self) -> Result<(i32, bool)> {
+        fn finalize(&mut self) -> Result<(i32, bool)> {
             Ok((self.val, true))
         }
     }
@@ -176,8 +176,8 @@ mod tests {
             Ok(())
         }
 
-        fn finalize(self) -> Result<(String, bool)> {
-            Ok((self.buf, true))
+        fn finalize(&mut self) -> Result<(String, bool)> {
+            Ok((std::mem::take(&mut self.buf), true))
         }
     }
 
