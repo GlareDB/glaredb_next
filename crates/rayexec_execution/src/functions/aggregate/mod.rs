@@ -195,6 +195,9 @@ pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, Finalize
     /// How we should finalize the states once we're done updating states.
     finalize_fn: FinalizeFn,
 
+    /// Index for next set of states to drain.
+    drain_idx: usize,
+
     _t: PhantomData<InputType>,
     _o: PhantomData<OutputType>,
 }
@@ -204,13 +207,14 @@ impl<State, InputType, OutputType, UpdateFn, FinalizeFn>
 where
     State: AggregateState<InputType, OutputType>,
     UpdateFn: Fn(&[&Array], &[RowToStateMapping], &mut [State]) -> Result<()>,
-    FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array>,
+    FinalizeFn: Fn(&mut [State]) -> Result<Array>,
 {
     fn new(update_fn: UpdateFn, finalize_fn: FinalizeFn) -> Self {
         DefaultGroupedStates {
             states: Vec::new(),
             update_fn,
             finalize_fn,
+            drain_idx: 0,
             _t: PhantomData,
             _o: PhantomData,
         }
@@ -224,7 +228,7 @@ where
     InputType: Send + 'static,
     OutputType: Send + 'static,
     UpdateFn: Fn(&[&Array], &[RowToStateMapping], &mut [State]) -> Result<()> + Send + 'static,
-    FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array> + Send + 'static,
+    FinalizeFn: Fn(&mut [State]) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -265,13 +269,15 @@ where
     fn drain_next(&mut self, n: usize) -> Result<Option<Array>> {
         assert_ne!(0, n);
 
-        let n = usize::min(n, self.states.len());
-        if n == 0 {
+        let count = usize::min(n, self.states.len() - self.drain_idx);
+        if count == 0 {
             return Ok(None);
         }
 
-        let drain = self.states.drain(0..n);
-        let arr = (self.finalize_fn)(drain)?;
+        let states = &mut self.states[self.drain_idx..self.drain_idx + count];
+        self.drain_idx += count;
+
+        let arr = (self.finalize_fn)(states)?;
         Ok(Some(arr))
     }
 }
@@ -303,14 +309,11 @@ where
     UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping.iter().copied(), states)
 }
 
-pub fn untyped_null_finalize<State>(states: vec::Drain<State>) -> Result<Array> {
+pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array> {
     Ok(Array::new_untyped_null_array(states.len()))
 }
 
-pub fn boolean_finalize<State, Input>(
-    datatype: DataType,
-    states: vec::Drain<State>,
-) -> Result<Array>
+pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<Array>
 where
     State: AggregateState<Input, bool>,
 {
@@ -323,7 +326,7 @@ where
 
 pub fn primitive_finalize<State, Input, Output>(
     datatype: DataType,
-    states: vec::Drain<State>,
+    states: &mut [State],
 ) -> Result<Array>
 where
     State: AggregateState<Input, Output>,

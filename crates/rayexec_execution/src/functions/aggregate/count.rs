@@ -65,7 +65,7 @@ impl CountNonNullImpl {
         )
     }
 
-    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array> {
+    fn finalize(states: &mut [CountNonNullState]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Int64,
             buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
@@ -108,7 +108,7 @@ impl AggregateState<(), i64> for CountNonNullState {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(i64, bool)> {
+    fn finalize(&mut self) -> Result<(i64, bool)> {
         // Always valid, even when count is 0
         Ok((self.count, true))
     }

@@ -181,7 +181,7 @@ impl SumInt64Impl {
         )
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
+    fn finalize(states: &mut [SumStateCheckedAdd<i64>]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Int64,
             buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
@@ -244,7 +244,7 @@ pub struct SumStateCheckedAdd<T> {
     set: bool,
 }
 
-impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAdd<T> {
+impl<T: CheckedAdd + Default + Debug + Copy> AggregateState<T, T> for SumStateCheckedAdd<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
         self.set = self.set || other.set;
@@ -257,7 +257,7 @@ impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAd
         Ok(())
     }
 
-    fn finalize(self) -> Result<(T, bool)> {
+    fn finalize(&mut self) -> Result<(T, bool)> {
         if self.set {
             Ok((self.sum, true))
         } else {
@@ -272,7 +272,7 @@ pub struct SumStateAdd<T> {
     valid: bool,
 }
 
-impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
+impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum += other.sum;
         self.valid = self.valid || other.valid;
@@ -285,7 +285,7 @@ impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(T, bool)> {
+    fn finalize(&mut self) -> Result<(T, bool)> {
         if self.valid {
             Ok((self.sum, true))
         } else {

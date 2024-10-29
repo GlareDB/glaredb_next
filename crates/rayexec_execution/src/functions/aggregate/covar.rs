@@ -52,7 +52,7 @@ impl AggregateState<(f64, f64), f64> for CovarSampFloat64 {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(f64, bool)> {
+    fn finalize(&mut self) -> Result<(f64, bool)> {
         Ok((self.co_moment / (self.count - 1) as f64, true))
     }
 }

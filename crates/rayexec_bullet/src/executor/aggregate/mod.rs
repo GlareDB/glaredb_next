@@ -24,7 +24,7 @@ pub trait AggregateState<Input, Output>: Default + Debug {
 
     /// Produce a single value from the state, along with a bool indicating if
     /// the value is valid.
-    fn finalize(self) -> Result<(Output, bool)>;
+    fn finalize(&mut self) -> Result<(Output, bool)>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,16 +65,18 @@ impl StateCombiner {
 pub struct StateFinalizer;
 
 impl StateFinalizer {
-    pub fn finalize<State, I, B, Input, Output>(
+    pub fn finalize<'a, State, I, B, Input, Output>(
         states: I,
         mut builder: ArrayBuilder<B>,
     ) -> Result<Array>
     where
         B: ArrayDataBuffer,
-        I: Iterator<Item = State> + ExactSizeIterator,
-        State: AggregateState<Input, Output>,
+        I: IntoIterator<Item = &'a mut State>,
+        I::IntoIter: ExactSizeIterator,
+        State: AggregateState<Input, Output> + 'a,
         Output: Borrow<<B as ArrayDataBuffer>::Type>,
     {
+        let states = states.into_iter();
         let mut validities = Bitmap::new_with_all_true(states.len());
 
         for (idx, state) in states.enumerate() {
