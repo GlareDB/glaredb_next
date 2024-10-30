@@ -1,10 +1,15 @@
 pub mod aggregate_hash_table;
+pub mod aggregate_hash_table2;
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
+use aggregate_hash_table2::{
+    AggregateHashTableDrain,
+    AggregateStates,
+    PartitionAggregateHashTable,
+};
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
