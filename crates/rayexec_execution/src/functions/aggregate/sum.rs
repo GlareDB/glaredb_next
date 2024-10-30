@@ -21,6 +21,7 @@ use super::{
     primitive_finalize,
     unary_update,
     AggregateFunction,
+    ChunkGroupAddressIter,
     DefaultGroupedStates,
     GroupedStates,
     PlannedAggregateFunction,
@@ -171,14 +172,10 @@ pub struct SumInt64Impl;
 impl SumInt64Impl {
     fn update(
         arrays: &[&Array],
-        mapping: &[RowToStateMapping],
+        mapping: ChunkGroupAddressIter,
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
-            arrays[0],
-            mapping.iter().copied(),
-            states,
-        )
+        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(arrays[0], mapping, states)
     }
 
     fn finalize(states: &mut [SumStateCheckedAdd<i64>]) -> Result<Array> {
@@ -300,6 +297,7 @@ mod tests {
     use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
+    use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 
     #[test]
     fn sum_i64_single_group_two_partitions() {
@@ -320,24 +318,24 @@ mod tests {
         assert_eq!(0, idx_2);
 
         // All inputs map to the same group (no GROUP BY clause)
-        let mapping_1: Vec<_> = (0..partition_1_vals.logical_len())
-            .map(|row| RowToStateMapping {
-                from_row: row,
-                to_state: 0,
+        let addrs_1: Vec<_> = (0..partition_1_vals.logical_len())
+            .map(|_| GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             })
             .collect();
-        let mapping_2: Vec<_> = (0..partition_2_vals.logical_len())
-            .map(|row| RowToStateMapping {
-                from_row: row,
-                to_state: 0,
+        let addrs_2: Vec<_> = (0..partition_2_vals.logical_len())
+            .map(|_| GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             })
             .collect();
 
         states_1
-            .update_states(&[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -387,40 +385,40 @@ mod tests {
 
         // Mapping corresponding to the above table. Group 'a' == 0 and group
         // 'b' == 1.
-        let mapping_1 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
+        let addrs_1 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 0,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
         ];
-        let mapping_2 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 1,
+        let addrs_2 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 0,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
         ];
 
         states_1
-            .update_states(&[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -485,49 +483,49 @@ mod tests {
         states_2.new_group();
 
         // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
-        let mapping_1 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
+        let addrs_1 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 0,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 3,
-                to_state: 2,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 2,
             },
         ];
         // For partition 2: 'x' == 0, 'z' == 1
-        let mapping_2 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
+        let addrs_2 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 3,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
         ];
 
         states_1
-            .update_states(&[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -560,34 +558,36 @@ mod tests {
         states.new_group();
         states.new_group();
 
-        let mapping = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
+        let addrs = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 0,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 3,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 4,
-                to_state: 2,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 2,
             },
-            RowToStateMapping {
-                from_row: 5,
-                to_state: 2,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 2,
             },
         ];
 
-        states.update_states(&[vals], &mapping).unwrap();
+        states
+            .update_states(&[vals], ChunkGroupAddressIter::new(0, &addrs))
+            .unwrap();
 
         let out_1 = states.drain_next(2).unwrap().unwrap();
         assert_eq!(2, out_1.logical_len());

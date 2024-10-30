@@ -122,9 +122,10 @@ impl PartitionAggregateHashTable {
                 .filter_map(|(selected, arr)| if selected { Some(*arr) } else { None })
                 .collect();
 
-            agg_states
-                .states
-                .update_states(&input_cols, &self.mappings_buffer)?;
+            unimplemented!()
+            // agg_states
+            //     .states
+            //     .update_states(&input_cols, &self.mappings_buffer)?;
         }
 
         Ok(())

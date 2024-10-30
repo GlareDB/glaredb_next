@@ -7,6 +7,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_bullet::executor::aggregate::RowToStateMapping;
 use rayexec_error::{RayexecError, Result};
 
+use super::hash_aggregate::hash_table::GroupAddress;
 use super::{
     ExecutableOperator,
     ExecutionStates,
@@ -20,7 +21,7 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-use crate::functions::aggregate::{multi_array_drain, GroupedStates};
+use crate::functions::aggregate::{multi_array_drain, ChunkGroupAddressIter, GroupedStates};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
@@ -139,10 +140,10 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         match state {
             UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
                 // All rows map to the same group (group 0)
-                let mapping: Vec<_> = (0..batch.num_rows())
-                    .map(|row| RowToStateMapping {
-                        from_row: row,
-                        to_state: 0,
+                let addrs: Vec<_> = (0..batch.num_rows())
+                    .map(|_| GroupAddress {
+                        chunk_idx: 0,
+                        row_idx: 0,
                     })
                     .collect();
 
@@ -153,7 +154,8 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|expr| batch.column(expr.idx).expect("column to exist"))
                         .collect();
 
-                    agg_states[agg_idx].update_states(&cols, &mapping)?;
+                    agg_states[agg_idx]
+                        .update_states(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
                 }
 
                 // Keep pushing.

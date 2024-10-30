@@ -13,7 +13,13 @@ use rayexec_bullet::executor::physical_type::PhysicalAny;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
+use super::{
+    AggregateFunction,
+    ChunkGroupAddressIter,
+    DefaultGroupedStates,
+    GroupedStates,
+    PlannedAggregateFunction,
+};
 use crate::functions::{FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,14 +61,10 @@ pub struct CountNonNullImpl;
 impl CountNonNullImpl {
     fn update(
         arrays: &[&Array],
-        mapping: &[RowToStateMapping],
+        mapping: ChunkGroupAddressIter,
         states: &mut [CountNonNullState],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalAny, _, _, _>(
-            arrays[0],
-            mapping.iter().copied(),
-            states,
-        )
+        UnaryNonNullUpdater::update::<PhysicalAny, _, _, _>(arrays[0], mapping, states)
     }
 
     fn finalize(states: &mut [CountNonNullState]) -> Result<Array> {

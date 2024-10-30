@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::AddAssign;
-use std::vec;
 
 use num_traits::AsPrimitive;
 use rayexec_bullet::array::Array;

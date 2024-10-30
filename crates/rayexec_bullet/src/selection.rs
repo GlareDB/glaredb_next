@@ -43,6 +43,14 @@ impl SelectionVector {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.indices.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Try to get the location of an index, returning None if the index is out
     /// of bounds.
     pub fn get(&self, idx: usize) -> Option<usize> {
@@ -86,8 +94,16 @@ impl SelectionVector {
     }
 
     /// Clear the selection vector.
+    #[inline]
     pub fn clear(&mut self) {
         self.indices.clear()
+    }
+
+    /// Appends locations to the existing selection.
+    ///
+    /// This will keep any existing indices.
+    pub fn append_locations(&mut self, locations: impl IntoIterator<Item = usize>) {
+        self.indices.extend(locations.into_iter())
     }
 
     /// Returns an iterator of locations being pointed to.
@@ -97,7 +113,7 @@ impl SelectionVector {
     ///
     /// For example, a constant vector of length '3' pointing to physical
     /// location '1' will return '1' 3 times.
-    pub fn iter_locations(&self) -> impl Iterator<Item = usize> + '_ {
+    pub fn iter_locations(&self) -> impl ExactSizeIterator<Item = usize> + '_ {
         self.indices.iter().copied()
     }
 
@@ -106,10 +122,7 @@ impl SelectionVector {
     }
 
     /// Pushes a location to the next logical index.
-    ///
-    /// Crate visibility since this is specific to generating selection vectors
-    /// using the select executor.
-    pub(crate) fn push_location(&mut self, location: usize) {
+    pub fn push_location(&mut self, location: usize) {
         self.indices.push(location)
     }
 }

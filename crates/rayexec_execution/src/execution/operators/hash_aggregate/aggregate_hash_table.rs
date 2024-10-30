@@ -18,7 +18,7 @@ pub struct Aggregate {
 }
 
 impl Aggregate {
-    fn new_states(&self) -> AggregateStates {
+    pub fn new_states(&self) -> AggregateStates {
         AggregateStates {
             states: self.function.new_grouped_state(),
             col_selection: self.col_selection.clone(),
@@ -98,91 +98,99 @@ impl AggregateHashTable {
         self.append_buffers.new_group_hashes.clear();
         self.append_buffers.new_group_hashes.resize(hashes.len(), 0);
 
-        for (row_idx, hash) in hashes.iter().enumerate() {
-            if self.table.get(*hash, |(h, _)| h == hash).is_some() {
-                // Hash is in the table. Mark this row as needing to be
-                // compared.
-                self.append_buffers.needs_compare_rows.push(row_idx);
-            } else {
-                // Hash not in table, we're for sure going to be inserting this
-                // row as a group.
-                self.table.insert(
-                    *hash,
-                    (
+        let mut remaining = hashes.len();
+
+        while remaining > 0 {
+            for (row_idx, hash) in hashes.iter().enumerate() {
+                if self.table.get(*hash, |(h, _)| h == hash).is_some() {
+                    // Hash is in the table. Mark this row as needing to be
+                    // compared.
+                    self.append_buffers.needs_compare_rows.push(row_idx);
+                } else {
+                    // Hash not in table, we're for sure going to be inserting this
+                    // row as a group.
+                    self.table.insert(
                         *hash,
-                        RowAddress {
-                            chunk: NOT_YET_INSERTED_CHUNK,
-                            row: row_idx as u32,
-                        },
-                    ),
-                    |(hash, _)| *hash,
-                );
+                        (
+                            *hash,
+                            RowAddress {
+                                chunk: NOT_YET_INSERTED_CHUNK,
+                                row: row_idx as u32,
+                            },
+                        ),
+                        |(hash, _)| *hash,
+                    );
 
-                self.append_buffers.new_group_rows.push(row_idx);
-            }
-        }
-
-        // If we've inserted new group hashes, go ahead and create the actual
-        // groups.
-        if !self.append_buffers.new_group_rows.is_empty() {
-            // TODO: Try not to clone?
-            let selection = Arc::new(SelectionVector::from(
-                self.append_buffers.new_group_rows.clone(),
-            ));
-
-            let group_vals: Vec<_> = groups
-                .iter()
-                .map(|a| {
-                    let mut arr = a.clone();
-                    arr.select_mut(selection.clone());
-                    arr
-                })
-                .collect();
-
-            let num_groups = self.append_buffers.new_group_rows.len();
-
-            // TODO: Try to append to previous chunk if < desired batch size.
-            let chunk_idx = self.chunks.len();
-            let mut states: Vec<_> = self.aggregates.iter().map(|agg| agg.new_states()).collect();
-
-            // Initialize the states.
-            for _ in 0..num_groups {
-                states.iter_mut().for_each(|state| {
-                    let _ = state.states.new_group();
-                });
-            }
-
-            let chunk = TableChunk {
-                num_groups,
-                columns: group_vals,
-                states,
-            };
-            self.chunks.push(chunk);
-
-            // Update addresses in hash table to new address referencing the
-            // create chunk and row within that chunk.
-            for (new_row_idx, (&old_row_idx, &hash)) in self
-                .append_buffers
-                .new_group_rows
-                .iter()
-                .zip(&self.append_buffers.new_group_hashes)
-                .enumerate()
-            {
-                let addr = self
-                    .table
-                    .get_mut(hash, |(_, addr)| {
-                        addr == &RowAddress {
-                            chunk: NOT_YET_INSERTED_CHUNK,
-                            row: old_row_idx as u32,
-                        }
-                    })
-                    .ok_or_else(|| RayexecError::new("Missing old address"))?;
-
-                addr.1 = RowAddress {
-                    chunk: chunk_idx as u32,
-                    row: new_row_idx as u32,
+                    self.append_buffers.new_group_rows.push(row_idx);
                 }
             }
+
+            // If we've inserted new group hashes, go ahead and create the actual
+            // groups.
+            if !self.append_buffers.new_group_rows.is_empty() {
+                // TODO: Try not to clone?
+                let selection = Arc::new(SelectionVector::from(
+                    self.append_buffers.new_group_rows.clone(),
+                ));
+
+                let group_vals: Vec<_> = groups
+                    .iter()
+                    .map(|a| {
+                        let mut arr = a.clone();
+                        arr.select_mut(selection.clone());
+                        arr
+                    })
+                    .collect();
+
+                let num_groups = self.append_buffers.new_group_rows.len();
+
+                // TODO: Try to append to previous chunk if < desired batch size.
+                let chunk_idx = self.chunks.len();
+                let mut states: Vec<_> =
+                    self.aggregates.iter().map(|agg| agg.new_states()).collect();
+
+                // Initialize the states.
+                for _ in 0..num_groups {
+                    states.iter_mut().for_each(|state| {
+                        let _ = state.states.new_group();
+                    });
+                }
+
+                let chunk = TableChunk {
+                    num_groups,
+                    columns: group_vals,
+                    states,
+                };
+                self.chunks.push(chunk);
+
+                // Update addresses in hash table to new address referencing the
+                // create chunk and row within that chunk.
+                for (new_row_idx, (&old_row_idx, &hash)) in self
+                    .append_buffers
+                    .new_group_rows
+                    .iter()
+                    .zip(&self.append_buffers.new_group_hashes)
+                    .enumerate()
+                {
+                    let addr = self
+                        .table
+                        .get_mut(hash, |(_, addr)| {
+                            addr == &RowAddress {
+                                chunk: NOT_YET_INSERTED_CHUNK,
+                                row: old_row_idx as u32,
+                            }
+                        })
+                        .ok_or_else(|| RayexecError::new("Missing old address"))?;
+
+                    addr.1 = RowAddress {
+                        chunk: chunk_idx as u32,
+                        row: new_row_idx as u32,
+                    }
+                }
+            }
+
+            // If we have rows to compare, go ahead and compare them.
+            if !self.append_buffers.needs_compare_rows.is_empty() {}
         }
 
         unimplemented!()

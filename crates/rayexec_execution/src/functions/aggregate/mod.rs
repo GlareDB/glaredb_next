@@ -28,6 +28,7 @@ use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
 use super::FunctionInfo;
+use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 
@@ -155,7 +156,7 @@ pub trait GroupedStates: Debug + Send {
     ///
     /// `mapping` provides a mapping from the selected input row to the state
     /// that should be updated.
-    fn update_states(&mut self, inputs: &[&Array], mapping: &[RowToStateMapping]) -> Result<()>;
+    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()>;
 
     /// Try to combine two sets of grouped states into a single set of states.
     ///
@@ -206,7 +207,7 @@ impl<State, InputType, OutputType, UpdateFn, FinalizeFn>
     DefaultGroupedStates<State, InputType, OutputType, UpdateFn, FinalizeFn>
 where
     State: AggregateState<InputType, OutputType>,
-    UpdateFn: Fn(&[&Array], &[RowToStateMapping], &mut [State]) -> Result<()>,
+    UpdateFn: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()>,
     FinalizeFn: Fn(&mut [State]) -> Result<Array>,
 {
     fn new(update_fn: UpdateFn, finalize_fn: FinalizeFn) -> Self {
@@ -227,7 +228,7 @@ where
     State: AggregateState<InputType, OutputType> + Send + 'static,
     InputType: Send + 'static,
     OutputType: Send + 'static,
-    UpdateFn: Fn(&[&Array], &[RowToStateMapping], &mut [State]) -> Result<()> + Send + 'static,
+    UpdateFn: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()> + Send + 'static,
     FinalizeFn: Fn(&mut [State]) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -244,7 +245,7 @@ where
         self.states.len()
     }
 
-    fn update_states(&mut self, inputs: &[&Array], mapping: &[RowToStateMapping]) -> Result<()> {
+    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()> {
         (self.update_fn)(inputs, mapping, &mut self.states)
     }
 
@@ -293,10 +294,47 @@ where
     }
 }
 
+/// Iterator that internally filters an iterator of group addresses to to just
+/// row mappings that correspond to a single chunk.
+#[derive(Debug)]
+pub struct ChunkGroupAddressIter<'a> {
+    pub row_idx: usize,
+    pub chunk_idx: u32,
+    pub addresses: std::slice::Iter<'a, GroupAddress>,
+}
+
+impl<'a> ChunkGroupAddressIter<'a> {
+    pub fn new(chunk_idx: u32, addrs: &'a [GroupAddress]) -> Self {
+        ChunkGroupAddressIter {
+            row_idx: 0,
+            chunk_idx,
+            addresses: addrs.iter(),
+        }
+    }
+}
+
+impl<'a> Iterator for ChunkGroupAddressIter<'a> {
+    type Item = RowToStateMapping;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let addr = self.addresses.next()?;
+            let row = self.row_idx;
+            self.row_idx += 1;
+            if addr.chunk_idx == self.chunk_idx {
+                return Some(RowToStateMapping {
+                    from_row: row,
+                    to_state: addr.row_idx as usize,
+                });
+            }
+        }
+    }
+}
+
 /// Helper function for using with `DefaultGroupedStates`.
 pub fn unary_update<State, Storage, Output>(
     arrays: &[&Array],
-    mapping: &[RowToStateMapping],
+    mapping: ChunkGroupAddressIter,
     states: &mut [State],
 ) -> Result<()>
 where
@@ -306,7 +344,7 @@ where
         Output,
     >,
 {
-    UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping.iter().copied(), states)
+    UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
 }
 
 pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array> {

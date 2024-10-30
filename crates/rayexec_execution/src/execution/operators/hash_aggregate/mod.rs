@@ -1,5 +1,9 @@
 pub mod aggregate_hash_table;
 pub mod aggregate_hash_table2;
+pub mod chunk;
+pub mod compare;
+pub mod entry;
+pub mod hash_table;
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
