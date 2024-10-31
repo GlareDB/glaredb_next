@@ -1,8 +1,9 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
 use rayexec_bullet::selection::SelectionVector;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use super::aggregate_hash_table::Aggregate;
 use super::chunk::GroupChunk;
@@ -17,7 +18,6 @@ pub struct HashTable {
     /// All chunks in the table.
     chunks: Vec<GroupChunk>,
     entries: Vec<EntryKey<GroupAddress>>,
-    addresses: Vec<GroupAddress>,
     num_occupied: usize,
     insert_buffers: InsertBuffers,
     aggregates: Vec<Aggregate>,
@@ -53,6 +53,9 @@ struct InsertBuffers {
     needs_compare: SelectionVector,
     /// Group addresses for each row in the input.
     group_addresses: Vec<GroupAddress>,
+    /// Chunks we'll be inserting into.
+    // TODO: Try to remove this.
+    chunk_indices: BTreeSet<u32>,
 }
 
 impl HashTable {
@@ -62,12 +65,26 @@ impl HashTable {
 
     pub fn insert(&mut self, groups: &[Array], hashes: &[u64], inputs: &[Array]) -> Result<()> {
         // Find and create groups as needed.
-        let num_rows = hashes.len();
         self.find_or_create_groups(groups, hashes)?;
 
         // Now update aggregate states.
+        //
+        // We iterate the addresses to figure out which chunks actually need
+        // upating.
+        self.insert_buffers.chunk_indices.clear();
+        self.insert_buffers.chunk_indices.extend(
+            self.insert_buffers
+                .group_addresses
+                .iter()
+                .map(|addr| addr.chunk_idx),
+        );
 
-        unimplemented!()
+        for &chunk_idx in &self.insert_buffers.chunk_indices {
+            let chunk = &mut self.chunks[chunk_idx as usize];
+            chunk.update_states(inputs, &self.insert_buffers.group_addresses)?;
+        }
+
+        Ok(())
     }
 
     fn find_or_create_groups(&mut self, groups: &[Array], hashes: &[u64]) -> Result<()> {
@@ -134,7 +151,7 @@ impl HashTable {
 
                     // Check if hash prefix matches. If it does, we need to mark
                     // for comparison. If it doesn't we have linear probe.
-                    if ent.prefix_matches_hash(hashes[row_idx]) {
+                    if ent.hash == hashes[row_idx] {
                         self.insert_buffers.needs_compare.push_location(row_idx);
                         break;
                     }
@@ -255,7 +272,27 @@ impl HashTable {
     }
 
     fn resize(&mut self, new_capacity: usize) -> Result<()> {
-        unimplemented!()
+        if new_capacity < self.entries.len() {
+            return Err(RayexecError::new("Cannot reduce capacity"));
+        }
+
+        let mut new_entries = vec![EntryKey::default(); new_capacity];
+
+        for ent in self.entries.drain(..) {
+            let mut offset = ent.hash as usize % new_capacity;
+
+            // Keep looping until we find an empty entry.
+            while !new_entries[offset].is_empty() {
+                offset += 1;
+                if offset >= new_capacity {
+                    offset = 0;
+                }
+            }
+
+            new_entries[offset] = ent;
+        }
+
+        Ok(())
     }
 
     fn should_resize(&self, num_inputs: usize) -> bool {
