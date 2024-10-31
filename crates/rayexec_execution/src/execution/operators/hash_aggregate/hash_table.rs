@@ -87,6 +87,31 @@ impl HashTable {
         Ok(())
     }
 
+    pub fn merge(&mut self, other: &mut Self) -> Result<()> {
+        for mut other_chunk in other.chunks.drain(..) {
+            // Find or create groups in self from other.
+            self.find_or_create_groups(&other_chunk.arrays, &other_chunk.hashes)?;
+
+            // Now figure out which chunks we need to update in self. Find or
+            // create groups would have already created new chunks with empty
+            // states for us for groups we haven't seen in self.
+            self.insert_buffers.chunk_indices.clear();
+            self.insert_buffers.chunk_indices.extend(
+                self.insert_buffers
+                    .group_addresses
+                    .iter()
+                    .map(|addr| addr.chunk_idx),
+            );
+
+            for &chunk_idx in &self.insert_buffers.chunk_indices {
+                let chunk = &mut self.chunks[chunk_idx as usize];
+                chunk.combine_states(&mut other_chunk, &self.insert_buffers.group_addresses)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn find_or_create_groups(&mut self, groups: &[Array], hashes: &[u64]) -> Result<()> {
         let num_inputs = hashes.len();
 
@@ -191,6 +216,7 @@ impl HashTable {
                 }
 
                 let chunk = GroupChunk {
+                    chunk_idx: chunk_idx as u32,
                     num_groups: num_new_groups,
                     hashes: self
                         .insert_buffers

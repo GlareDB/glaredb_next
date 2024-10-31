@@ -46,14 +46,14 @@ impl StateCombiner {
     /// in mapping being the index of the target state.
     pub fn combine<State, Input, Output>(
         consume: Vec<State>,
-        mapping: &[usize],
+        mapping: impl IntoIterator<Item = usize>,
         targets: &mut [State],
     ) -> Result<()>
     where
         State: AggregateState<Input, Output>,
     {
-        for (target_idx, consume_state) in mapping.iter().zip(consume.into_iter()) {
-            let target = &mut targets[*target_idx];
+        for (target_idx, consume_state) in mapping.into_iter().zip(consume.into_iter()) {
+            let target = &mut targets[target_idx];
             target.merge(consume_state)?;
         }
 

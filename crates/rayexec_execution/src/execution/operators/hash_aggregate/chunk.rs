@@ -43,4 +43,8 @@ impl GroupChunk {
 
         Ok(())
     }
+
+    pub fn combine_states(&mut self, other: &mut GroupChunk, addrs: &[GroupAddress]) -> Result<()> {
+        unimplemented!()
+    }
 }

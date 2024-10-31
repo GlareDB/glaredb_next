@@ -300,7 +300,7 @@ impl PartitionAggregateHashTable {
         for (own_state, other_state) in self.agg_states.iter_mut().zip(other_states.into_iter()) {
             own_state
                 .states
-                .try_combine(other_state.states, &state_mappings)?;
+                .combine(other_state.states, &state_mappings)?;
         }
 
         Ok(())

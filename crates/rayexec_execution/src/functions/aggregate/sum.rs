@@ -343,7 +343,7 @@ mod tests {
         // Both partitions hold a single state (representing a single group),
         // and those states map to each other.
         let combine_mapping = vec![0];
-        states_1.try_combine(states_2, &combine_mapping).unwrap();
+        states_1.combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
         let out = states_1.drain_next(100).unwrap().unwrap();
@@ -431,7 +431,7 @@ mod tests {
         // should be combined, and the 1st state for both partitions should be
         // combined.
         let combine_mapping = vec![0, 1];
-        states_1.try_combine(states_2, &combine_mapping).unwrap();
+        states_1.combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
         let out = states_1.drain_next(100).unwrap().unwrap();
@@ -534,7 +534,7 @@ mod tests {
         //
         // States for 'y' at different positions, partition_2_state[1] => partition_1_state[2]
         let combine_mapping = vec![0, 2];
-        states_1.try_combine(states_2, &combine_mapping).unwrap();
+        states_1.combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
         let out = states_1.drain_next(100).unwrap().unwrap();

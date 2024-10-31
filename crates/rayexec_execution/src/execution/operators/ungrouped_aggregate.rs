@@ -196,7 +196,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 for (local_agg_state, global_agg_state) in
                     agg_states.into_iter().zip(shared.agg_states.iter_mut())
                 {
-                    global_agg_state.try_combine(local_agg_state, &mapping)?;
+                    global_agg_state.combine(local_agg_state, &mapping)?;
                 }
 
                 shared.remaining -= 1;
