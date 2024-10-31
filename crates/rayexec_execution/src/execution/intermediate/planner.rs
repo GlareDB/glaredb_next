@@ -617,7 +617,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             let operator =
                 IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(output_types, Vec::new(), grouping_sets),
+                        PhysicalHashAggregate::new(Vec::new(), grouping_sets, false),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1203,9 +1203,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.push_intermediate_operator(
             IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
-                    group_types,
                     Vec::new(),
                     grouping_sets,
+                    false,
                 ))),
                 partitioning_requirement: None,
             },
@@ -1392,10 +1392,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         match agg.node.grouping_sets {
             Some(grouping_sets) => {
+                // TODO: Probably should have for ungrouped too, need to see
+                // what postgres does.
+                let include_group_id = agg.node.grouping_set_table.is_some();
+
                 // If we're working with groups, push a hash aggregate operator.
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(group_types, phys_aggs, grouping_sets),
+                        PhysicalHashAggregate::new(phys_aggs, grouping_sets, include_group_id),
                     )),
                     partitioning_requirement: None,
                 };

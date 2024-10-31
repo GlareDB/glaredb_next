@@ -5,7 +5,7 @@ use super::hash_table::HashTable;
 
 /// Drains a hash table.
 ///
-/// The output will be ordered by [RESULT, GROUPS, GROUP_ID].
+/// The output will be ordered by [RESULT, GROUPS].
 #[derive(Debug)]
 pub struct HashTableDrain {
     /// The table we're draining from.

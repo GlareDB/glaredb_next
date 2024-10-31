@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
@@ -53,6 +52,8 @@ pub(crate) struct InsertBuffers {
     new_group_rows: SelectionVector,
     /// Selection vector pointing to rows that need to be compared.
     needs_compare: SelectionVector,
+    /// Rows that don't pass the equality check.
+    not_eq_rows: SelectionVector,
     /// Group addresses for each row in the input.
     group_addresses: Vec<GroupAddress>,
     /// Chunks we'll be inserting into.
@@ -149,9 +150,7 @@ impl HashTable {
 
         // Check to see if we should resize. Typically not all groups will
         // create a new entry, but it's possible so we need to account for that.
-        if self.should_resize(num_inputs) {
-            self.resize(self.entries.len() * 2)?;
-        }
+        self.resize_if_needed(num_inputs)?;
 
         // Precompute offsets into the table.
         self.insert_buffers.offsets.clear();
@@ -177,6 +176,8 @@ impl HashTable {
             self.insert_buffers.new_group_rows.clear();
             // Pushed to as we find rows that need to be compared.
             self.insert_buffers.needs_compare.clear();
+            // Pushed to during the equality check when hashes match.
+            self.insert_buffers.not_eq_rows.clear();
 
             // Figure out where we're putting remaining rows.
             for idx in 0..remaining {
@@ -184,6 +185,7 @@ impl HashTable {
                 let offset = &mut self.insert_buffers.offsets[row_idx];
 
                 // Probe
+                let mut iter_count = 0;
                 loop {
                     let ent = &mut self.entries[*offset];
 
@@ -210,6 +212,16 @@ impl HashTable {
 
                     // Otherwise need to increment.
                     *offset = ((*offset + 1) as u64 % cap) as usize;
+
+                    if iter_count > cap {
+                        // We wrapped. This shouldn't happen during normal
+                        // execution as the hash table should've been resized to
+                        // fit everything.
+                        //
+                        // But Sean writes bugs, so just in case...
+                        return Err(RayexecError::new("Hash table completely full"));
+                    }
+                    iter_count += 1;
                 }
             }
 
@@ -217,7 +229,7 @@ impl HashTable {
             // groups.
             if !self.insert_buffers.new_group_rows.is_empty() {
                 // TODO: Try not to clone?
-                let selection = Arc::new(self.insert_buffers.needs_insert.clone());
+                let selection = Arc::new(self.insert_buffers.new_group_rows.clone());
 
                 let group_vals: Vec<_> = groups
                     .iter()
@@ -296,10 +308,6 @@ impl HashTable {
                 }
 
                 // Compare our input groups to the existing groups.
-                //
-                // Use existing `needs_insert` selection vector for the
-                // `not_eq_sel` argument. This will be updated to contain
-                // indices that we should try for the next iteration.
                 self.insert_buffers.needs_insert.clear();
                 group_values_eq(
                     groups,
@@ -307,16 +315,23 @@ impl HashTable {
                     &self.insert_buffers.needs_compare,
                     &self.chunks,
                     &self.insert_buffers.group_addresses,
-                    &mut self.insert_buffers.needs_insert,
+                    &mut self.insert_buffers.not_eq_rows,
                 )?;
             }
 
-            // Now for every row that we still need to insert, increment offset
-            // to try to the next entry slot.
-            for row_idx in self.insert_buffers.needs_insert.iter_locations() {
+            // Now for every row that failed the equality check, increment its
+            // offset to try the next entry in the table.
+            for row_idx in self.insert_buffers.not_eq_rows.iter_locations() {
                 let offset = &mut self.insert_buffers.offsets[row_idx];
                 *offset = ((*offset + 1) as u64 % cap) as usize;
             }
+
+            // No try next iteration just with rows that failed the equality
+            // check.
+            std::mem::swap(
+                &mut self.insert_buffers.needs_insert,
+                &mut self.insert_buffers.not_eq_rows,
+            );
 
             remaining = self.insert_buffers.needs_insert.len();
         }
@@ -352,9 +367,98 @@ impl HashTable {
         Ok(())
     }
 
-    fn should_resize(&self, num_inputs: usize) -> bool {
+    /// Resize the hash table if needed, keeping the load factor less than
+    /// LOAD_FACTOR.
+    fn resize_if_needed(&mut self, num_inputs: usize) -> Result<()> {
         let possible_occupied = num_inputs + self.num_occupied;
-        let ratio = possible_occupied as f64 / self.capacity() as f64;
-        ratio >= LOAD_FACTOR
+
+        // Calculate the minimum required capacity.
+        let mut new_capacity = self.capacity();
+        while (possible_occupied as f64) / (new_capacity as f64) >= LOAD_FACTOR {
+            new_capacity *= 2;
+        }
+
+        // Now resize if needed.
+        if new_capacity != self.capacity() {
+            self.resize(new_capacity)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::bitmap::Bitmap;
+    use rayexec_bullet::datatype::DataType;
+
+    use super::*;
+    use crate::functions::aggregate::sum::Sum;
+    use crate::functions::aggregate::AggregateFunction;
+
+    fn make_hash_table() -> HashTable {
+        let aggregate = Aggregate {
+            function: Sum.plan_from_datatypes(&[DataType::Int64]).unwrap(),
+            col_selection: Bitmap::from_iter([true]),
+        };
+
+        HashTable::new(16, vec![aggregate])
+    }
+
+    #[test]
+    fn insert_simple() {
+        let groups = [Array::from_iter(["g1", "g2", "g1"])];
+        let inputs = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+
+        let hashes = [4, 5, 4]; // Hashes for group values.
+
+        let mut table = make_hash_table();
+        table.insert(&groups, &hashes, &inputs).unwrap();
+
+        assert_eq!(2, table.num_occupied);
+    }
+
+    #[test]
+    fn insert_hash_collision() {
+        let groups = [Array::from_iter(["g1", "g2", "g1"])];
+        let inputs = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+
+        let hashes = [4, 4, 4];
+
+        let mut table = make_hash_table();
+        table.insert(&groups, &hashes, &inputs).unwrap();
+
+        assert_eq!(2, table.num_occupied);
+    }
+
+    #[test]
+    fn insert_require_resize() {
+        // 17 unique groups (> initial 16 capacity)
+
+        let groups = [Array::from_iter(0..17)];
+        let inputs = [Array::from_iter(0 as i64..17 as i64)];
+
+        let hashes = vec![44; 17]; // All hashes collide.
+
+        let mut table = make_hash_table();
+        table.insert(&groups, &hashes, &inputs).unwrap();
+
+        assert_eq!(17, table.num_occupied);
+    }
+
+    #[test]
+    fn insert_require_resize_more_than_double() {
+        // 33 unique groups, more than twice initial capacity. Caught bug where
+        // resize by doubling didn't increase capacity enough.
+
+        let groups = [Array::from_iter(0..33)];
+        let inputs = [Array::from_iter(0 as i64..33 as i64)];
+
+        let hashes = vec![44; 33]; // All hashes collide.
+
+        let mut table = make_hash_table();
+        table.insert(&groups, &hashes, &inputs).unwrap();
+
+        assert_eq!(33, table.num_occupied);
     }
 }

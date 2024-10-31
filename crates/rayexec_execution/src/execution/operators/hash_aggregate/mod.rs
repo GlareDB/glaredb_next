@@ -118,18 +118,18 @@ pub struct PhysicalHashAggregate {
     null_masks: Vec<Bitmap>,
     /// Distinct columns that are used in the grouping sets.
     group_columns: Vec<usize>,
-    /// Datatypes of the columns in the grouping sets.
-    group_types: Vec<DataType>,
     /// Union of all column indices that are inputs to the aggregate functions.
     aggregate_columns: Vec<usize>,
     exprs: Vec<PhysicalAggregateExpression>,
+    /// If we should include the group id in the output.
+    include_group_id: bool,
 }
 
 impl PhysicalHashAggregate {
     pub fn new(
-        group_types: Vec<DataType>,
         exprs: Vec<PhysicalAggregateExpression>,
         grouping_sets: Vec<BTreeSet<usize>>,
+        include_group_id: bool,
     ) -> Self {
         // Collect all unique column indices that are part of computing the
         // aggregate.
@@ -165,9 +165,9 @@ impl PhysicalHashAggregate {
         PhysicalHashAggregate {
             null_masks,
             group_columns,
-            group_types,
             aggregate_columns: agg_input_cols.into_iter().collect(),
             exprs,
+            include_group_id,
         }
     }
 }
@@ -369,11 +369,20 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 }
 
                 // Drain should be Some by here.
-                match state.hashtable_drain.as_mut().unwrap().next() {
-                    Some(Ok(batch)) => Ok(PollPull::Computed(batch.into())),
-                    Some(Err(e)) => Err(e),
-                    None => Ok(PollPull::Exhausted),
+                let mut batch = match state.hashtable_drain.as_mut().unwrap().next() {
+                    Some(Ok(batch)) => batch,
+                    Some(Err(e)) => return Err(e),
+                    None => return Ok(PollPull::Exhausted),
+                };
+
+                // Prune off GROUP ID column if needed.
+                if !self.include_group_id {
+                    let mut arrays = batch.into_arrays();
+                    let _ = arrays.pop(); // Group id is last column.
+                    batch = Batch::try_new(arrays)?;
                 }
+
+                Ok(PollPull::Computed(ComputedBatches::Single(batch)))
             }
             HashAggregatePartitionState::Aggregating(state) => {
                 let mut shared = operator_state.output_states[state.partition_idx].lock();
