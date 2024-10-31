@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::ops::AddAssign;
-use std::vec;
 
 use num_traits::CheckedAdd;
 use rayexec_bullet::array::Array;
@@ -311,11 +310,8 @@ mod tests {
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
 
-        let idx_1 = states_1.new_group();
-        assert_eq!(0, idx_1);
-
-        let idx_2 = states_2.new_group();
-        assert_eq!(0, idx_2);
+        states_1.new_groups(1);
+        states_2.new_groups(1);
 
         // All inputs map to the same group (no GROUP BY clause)
         let addrs_1: Vec<_> = (0..partition_1_vals.logical_len())
@@ -385,11 +381,11 @@ mod tests {
         let mut states_2 = specialized.new_grouped_state();
 
         // Both partitions are operating on two groups ('a' and 'b').
-        states_1.new_group();
-        states_1.new_group();
+        states_1.new_groups(1);
+        states_1.new_groups(1);
 
-        states_2.new_group();
-        states_2.new_group();
+        states_2.new_groups(1);
+        states_2.new_groups(1);
 
         // Mapping corresponding to the above table. Group 'a' == 0 and group
         // 'b' == 1.
@@ -496,13 +492,13 @@ mod tests {
         let mut states_2 = specialized.new_grouped_state();
 
         // Partition 1 sees groups 'x', 'y', and 'z'.
-        states_1.new_group();
-        states_1.new_group();
-        states_1.new_group();
+        states_1.new_groups(1);
+        states_1.new_groups(1);
+        states_1.new_groups(1);
 
         // Partition 2 see groups 'x' and 'z' (no 'y').
-        states_2.new_group();
-        states_2.new_group();
+        states_2.new_groups(1);
+        states_2.new_groups(1);
 
         // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
         let addrs_1 = vec![

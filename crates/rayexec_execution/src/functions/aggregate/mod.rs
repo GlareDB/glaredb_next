@@ -140,11 +140,11 @@ pub trait GroupedStates: Debug + Send {
     /// states that were computed in parallel.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    /// Generate a new state for a never before seen group in an aggregate.
+    /// Generate new states for never before seen groups in an aggregate.
     ///
     /// Returns the index of the newly initialized state that can be used to
     /// reference the state.
-    fn new_group(&mut self) -> usize;
+    fn new_groups(&mut self, count: usize);
 
     /// Get the number of group states we're tracking.
     fn num_groups(&self) -> usize;
@@ -234,10 +234,8 @@ where
         self
     }
 
-    fn new_group(&mut self) -> usize {
-        let idx = self.states.len();
-        self.states.push(State::default());
-        idx
+    fn new_groups(&mut self, count: usize) {
+        self.states.extend((0..count).map(|_| State::default()))
     }
 
     fn num_groups(&self) -> usize {
@@ -262,11 +260,7 @@ where
             }
         };
 
-        StateCombiner::combine(
-            &mut other.states,
-            mapping.map(|row_to_state| row_to_state.to_state),
-            &mut self.states,
-        )
+        StateCombiner::combine(&mut other.states, mapping, &mut self.states)
     }
 
     fn drain(&mut self) -> Result<Array> {

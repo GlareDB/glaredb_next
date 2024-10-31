@@ -150,11 +150,11 @@ impl AggregateHashTable {
                     self.aggregates.iter().map(|agg| agg.new_states()).collect();
 
                 // Initialize the states.
-                for _ in 0..num_groups {
-                    states.iter_mut().for_each(|state| {
-                        let _ = state.states.new_group();
-                    });
-                }
+                // for _ in 0..num_groups {
+                //     states.iter_mut().for_each(|state| {
+                //         let _ = state.states.new_group();
+                //     });
+                // }
 
                 let chunk = TableChunk {
                     num_groups,

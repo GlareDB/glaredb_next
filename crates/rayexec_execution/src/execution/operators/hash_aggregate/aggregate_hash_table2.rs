@@ -160,12 +160,12 @@ impl PartitionAggregateHashTable {
                     let group_idx = self.group_values.len();
 
                     // Need to create new states and insert them into the hash table.
-                    for agg_state in self.agg_states.iter_mut() {
-                        let idx = agg_state.states.new_group();
-                        // Very critical, if we're not generating the same
-                        // index, all bets are off.
-                        assert_eq!(group_idx, idx);
-                    }
+                    // for agg_state in self.agg_states.iter_mut() {
+                    //     let idx = agg_state.states.new_group();
+                    //     // Very critical, if we're not generating the same
+                    //     // index, all bets are off.
+                    //     assert_eq!(group_idx, idx);
+                    // }
 
                     self.hash_table
                         .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
@@ -274,12 +274,12 @@ impl PartitionAggregateHashTable {
                     let new_group_idx = self.group_values.len();
 
                     // Need to create new states and insert them into the hash table.
-                    for agg_state in self.agg_states.iter_mut() {
-                        let idx = agg_state.states.new_group();
-                        // Very critical, if we're not generating the same
-                        // index, all bets are off.
-                        assert_eq!(new_group_idx, idx);
-                    }
+                    // for agg_state in self.agg_states.iter_mut() {
+                    //     let idx = agg_state.states.new_group();
+                    //     // Very critical, if we're not generating the same
+                    //     // index, all bets are off.
+                    //     assert_eq!(new_group_idx, idx);
+                    // }
 
                     self.hash_table
                         .insert(hash, (hash, new_group_idx), |(hash, _group_idx)| *hash);

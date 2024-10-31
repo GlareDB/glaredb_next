@@ -86,7 +86,7 @@ impl PhysicalUngroupedAggregate {
         let mut states = Vec::with_capacity(self.aggregates.len());
         for agg in &self.aggregates {
             let mut state = agg.function.new_grouped_state();
-            state.new_group();
+            state.new_groups(1);
             states.push(state);
         }
         states

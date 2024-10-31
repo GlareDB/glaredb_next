@@ -1334,7 +1334,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let mut phys_aggs = Vec::new();
 
-        // Extract arg expressions, place in their own pre-projection.
+        // Extract agg expressions, place in their own pre-projection.
         let mut preproject_exprs = Vec::new();
         for agg_expr in agg.node.aggregates {
             let agg = match agg_expr {
@@ -1368,9 +1368,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         // Place group by expressions in pre-projection as well.
-        let mut group_types = Vec::with_capacity(agg.node.group_exprs.len());
         for group_expr in agg.node.group_exprs {
-            group_types.push(group_expr.datatype(self.bind_context)?);
             let scalar = self
                 .expr_planner
                 .plan_scalar(&input_refs, &group_expr)
@@ -1378,6 +1376,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             preproject_exprs.push(scalar);
         }
+
+        // Resize batches prior to pre-projection.
+        self.push_batch_resizer(id_gen)?;
 
         self.push_intermediate_operator(
             IntermediateOperator {

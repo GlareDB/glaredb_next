@@ -11,7 +11,7 @@ use super::drain::HashTableDrain;
 use super::entry::EntryKey;
 use crate::execution::operators::hash_aggregate::compare::group_values_eq;
 
-const LOAD_FACTOR: f64 = 0.75;
+const LOAD_FACTOR: f64 = 0.6;
 
 /// Aggregate hash table.
 #[derive(Debug)]
@@ -62,7 +62,12 @@ pub(crate) struct InsertBuffers {
 }
 
 impl HashTable {
+    /// Create a new hash table.
+    ///
+    /// `capacity` must be a power of 2.
     pub fn new(capacity: usize, aggregates: Vec<Aggregate>) -> Self {
+        assert!(is_power_of_2(capacity));
+
         HashTable {
             chunks: Vec::new(),
             entries: vec![EntryKey::default(); capacity],
@@ -135,10 +140,6 @@ impl HashTable {
     fn find_or_create_groups(&mut self, groups: &[Array], hashes: &[u64]) -> Result<()> {
         let num_inputs = hashes.len();
 
-        if num_inputs == 0 {
-            return Ok(());
-        }
-
         // Resize addresses, this will be where we store all the group
         // addresses that will be used during the state update.
         //
@@ -147,6 +148,12 @@ impl HashTable {
         self.insert_buffers
             .group_addresses
             .resize(num_inputs, GroupAddress::default());
+
+        // Note this check needs to be after the group address resize so that we
+        // properly truncate it if we really have nothing.
+        if num_inputs == 0 {
+            return Ok(());
+        }
 
         // Check to see if we should resize. Typically not all groups will
         // create a new entry, but it's possible so we need to account for that.
@@ -183,6 +190,7 @@ impl HashTable {
             for idx in 0..remaining {
                 let row_idx = self.insert_buffers.needs_insert.get_unchecked(idx);
                 let offset = &mut self.insert_buffers.offsets[row_idx];
+                let row_hash = hashes[row_idx];
 
                 // Probe
                 let mut iter_count = 0;
@@ -203,15 +211,15 @@ impl HashTable {
 
                     // Entry not empty...
 
-                    // Check if hash prefix matches. If it does, we need to mark
-                    // for comparison. If it doesn't we have linear probe.
-                    if ent.hash == hashes[row_idx] {
+                    // Check if hash matches. If it does, we need to mark for
+                    // comparison. If it doesn't we have linear probe.
+                    if ent.hash == row_hash {
                         self.insert_buffers.needs_compare.push_location(row_idx);
                         break;
                     }
 
                     // Otherwise need to increment.
-                    *offset = ((*offset + 1) as u64 % cap) as usize;
+                    *offset = inc_and_wrap_offset(*offset, cap as usize);
 
                     if iter_count > cap {
                         // We wrapped. This shouldn't happen during normal
@@ -248,10 +256,8 @@ impl HashTable {
                     self.aggregates.iter().map(|agg| agg.new_states()).collect();
 
                 // Initialize the states.
-                for _ in 0..num_new_groups {
-                    states.iter_mut().for_each(|state| {
-                        let _ = state.states.new_group();
-                    });
+                for state in &mut states {
+                    state.states.new_groups(num_new_groups);
                 }
 
                 let chunk = GroupChunk {
@@ -323,7 +329,7 @@ impl HashTable {
             // offset to try the next entry in the table.
             for row_idx in self.insert_buffers.not_eq_rows.iter_locations() {
                 let offset = &mut self.insert_buffers.offsets[row_idx];
-                *offset = ((*offset + 1) as u64 % cap) as usize;
+                *offset = inc_and_wrap_offset(*offset, cap as usize);
             }
 
             // No try next iteration just with rows that failed the equality
@@ -342,6 +348,8 @@ impl HashTable {
     }
 
     fn resize(&mut self, new_capacity: usize) -> Result<()> {
+        assert!(is_power_of_2(new_capacity));
+
         if new_capacity < self.entries.len() {
             return Err(RayexecError::new("Cannot reduce capacity"));
         }
@@ -385,6 +393,17 @@ impl HashTable {
 
         Ok(())
     }
+}
+
+/// Increment offset, wrapping if necessary.
+///
+/// Requires that `cap` be a power of 2.
+const fn inc_and_wrap_offset(offset: usize, cap: usize) -> usize {
+    (offset + 1) & (cap - 1)
+}
+
+const fn is_power_of_2(v: usize) -> bool {
+    (v & (v - 1)) == 0
 }
 
 #[cfg(test)]
@@ -460,5 +479,27 @@ mod tests {
         table.insert(&groups, &hashes, &inputs).unwrap();
 
         assert_eq!(33, table.num_occupied);
+    }
+
+    #[test]
+    fn merge_simple() {
+        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
+        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+
+        let hashes = vec![4, 5, 4];
+        let mut t1 = make_hash_table();
+        t1.insert(&groups1, &hashes, &inputs1).unwrap();
+
+        let groups2 = [Array::from_iter(["g3", "g2", "g1"])];
+        let inputs2 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+
+        let hashes = vec![6, 5, 4];
+
+        let mut t2 = make_hash_table();
+        t2.insert(&groups2, &hashes, &inputs2).unwrap();
+
+        t1.merge(&mut t2).unwrap();
+
+        assert_eq!(3, t1.num_occupied);
     }
 }

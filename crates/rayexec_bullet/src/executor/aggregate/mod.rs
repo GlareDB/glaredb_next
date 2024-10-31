@@ -46,15 +46,16 @@ impl StateCombiner {
     /// in mapping being the index of the target state.
     pub fn combine<State, Input, Output>(
         consume: &mut [State],
-        mapping: impl IntoIterator<Item = usize>,
+        mapping: impl IntoIterator<Item = RowToStateMapping>,
         targets: &mut [State],
     ) -> Result<()>
     where
         State: AggregateState<Input, Output>,
     {
-        for (target_idx, consume_state) in mapping.into_iter().zip(consume) {
-            let target = &mut targets[target_idx];
-            target.merge(consume_state)?;
+        for mapping in mapping {
+            let target = &mut targets[mapping.to_state];
+            let consume = &mut consume[mapping.from_row];
+            target.merge(consume)?;
         }
 
         Ok(())
