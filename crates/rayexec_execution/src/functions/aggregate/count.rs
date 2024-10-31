@@ -100,7 +100,7 @@ pub struct CountNonNullState {
 }
 
 impl AggregateState<(), i64> for CountNonNullState {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.count += other.count;
         Ok(())
     }

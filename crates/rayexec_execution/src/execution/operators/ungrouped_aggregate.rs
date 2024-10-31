@@ -191,12 +191,18 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 };
 
                 // Everything maps to the same group (group 0)
-                let mapping = vec![0];
+                let mapping = [GroupAddress {
+                    chunk_idx: 0,
+                    row_idx: 0,
+                }];
 
-                for (local_agg_state, global_agg_state) in
+                for (mut local_agg_state, global_agg_state) in
                     agg_states.into_iter().zip(shared.agg_states.iter_mut())
                 {
-                    global_agg_state.combine(local_agg_state, &mapping)?;
+                    global_agg_state.combine(
+                        &mut local_agg_state,
+                        ChunkGroupAddressIter::new(0, &mapping),
+                    )?;
                 }
 
                 shared.remaining -= 1;

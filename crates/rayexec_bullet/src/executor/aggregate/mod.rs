@@ -17,7 +17,7 @@ use crate::bitmap::Bitmap;
 /// values provided in `update`.
 pub trait AggregateState<Input, Output>: Default + Debug {
     /// Merge other state into this state.
-    fn merge(&mut self, other: Self) -> Result<()>;
+    fn merge(&mut self, other: &mut Self) -> Result<()>;
 
     /// Update this state with some input.
     fn update(&mut self, input: Input) -> Result<()>;
@@ -45,14 +45,14 @@ impl StateCombiner {
     /// 'n'th state in `consume` corresponds to the 'n'th value `mapping`. With the value
     /// in mapping being the index of the target state.
     pub fn combine<State, Input, Output>(
-        consume: Vec<State>,
+        consume: &mut [State],
         mapping: impl IntoIterator<Item = usize>,
         targets: &mut [State],
     ) -> Result<()>
     where
         State: AggregateState<Input, Output>,
     {
-        for (target_idx, consume_state) in mapping.into_iter().zip(consume.into_iter()) {
+        for (target_idx, consume_state) in mapping.into_iter().zip(consume) {
             let target = &mut targets[target_idx];
             target.merge(consume_state)?;
         }

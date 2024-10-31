@@ -187,7 +187,7 @@ pub struct FirstState<T> {
 }
 
 impl<T: Default + Debug + Copy> AggregateState<T, T> for FirstState<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
             self.value = other.value;
             return Ok(());
@@ -216,9 +216,9 @@ pub struct FirstStateBinary {
 }
 
 impl AggregateState<&[u8], Vec<u8>> for FirstStateBinary {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
-            self.value = other.value;
+            std::mem::swap(&mut self.value, &mut other.value);
             return Ok(());
         }
         Ok(())
@@ -245,9 +245,9 @@ pub struct FirstStateUtf8 {
 }
 
 impl AggregateState<&str, String> for FirstStateUtf8 {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
-            self.value = other.value;
+            std::mem::swap(&mut self.value, &mut other.value);
             return Ok(());
         }
         Ok(())

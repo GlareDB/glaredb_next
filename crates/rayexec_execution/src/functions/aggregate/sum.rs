@@ -242,7 +242,7 @@ pub struct SumStateCheckedAdd<T> {
 }
 
 impl<T: CheckedAdd + Default + Debug + Copy> AggregateState<T, T> for SumStateCheckedAdd<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
         self.set = self.set || other.set;
         Ok(())
@@ -270,7 +270,7 @@ pub struct SumStateAdd<T> {
 }
 
 impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.valid = self.valid || other.valid;
         Ok(())
@@ -342,8 +342,16 @@ mod tests {
         //
         // Both partitions hold a single state (representing a single group),
         // and those states map to each other.
-        let combine_mapping = vec![0];
-        states_1.combine(states_2, &combine_mapping).unwrap();
+        let combine_mapping = vec![GroupAddress {
+            chunk_idx: 0,
+            row_idx: 0,
+        }];
+        states_1
+            .combine(
+                &mut states_2,
+                ChunkGroupAddressIter::new(0, &combine_mapping),
+            )
+            .unwrap();
 
         // Get final output.
         let out = states_1.drain_next(100).unwrap().unwrap();
@@ -430,8 +438,22 @@ mod tests {
         // The mapping here indicates the the 0th state for both partitions
         // should be combined, and the 1st state for both partitions should be
         // combined.
-        let combine_mapping = vec![0, 1];
-        states_1.combine(states_2, &combine_mapping).unwrap();
+        let combine_mapping = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
+            },
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
+            },
+        ];
+        states_1
+            .combine(
+                &mut states_2,
+                ChunkGroupAddressIter::new(0, &combine_mapping),
+            )
+            .unwrap();
 
         // Get final output.
         let out = states_1.drain_next(100).unwrap().unwrap();
@@ -533,8 +555,22 @@ mod tests {
         // States for 'x' both at the same position.
         //
         // States for 'y' at different positions, partition_2_state[1] => partition_1_state[2]
-        let combine_mapping = vec![0, 2];
-        states_1.combine(states_2, &combine_mapping).unwrap();
+        let combine_mapping = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
+            },
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 2,
+            },
+        ];
+        states_1
+            .combine(
+                &mut states_2,
+                ChunkGroupAddressIter::new(0, &combine_mapping),
+            )
+            .unwrap();
 
         // Get final output.
         let out = states_1.drain_next(100).unwrap().unwrap();

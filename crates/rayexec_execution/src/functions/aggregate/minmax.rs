@@ -297,7 +297,7 @@ pub struct MinState<T> {
 }
 
 impl<T: PartialOrd + Debug + Default + Copy> AggregateState<T, T> for MinState<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
             self.min = other.min;
@@ -334,7 +334,7 @@ pub struct MaxState<T> {
 }
 
 impl<T: PartialOrd + Debug + Default + Copy> AggregateState<T, T> for MaxState<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
             self.max = other.max;

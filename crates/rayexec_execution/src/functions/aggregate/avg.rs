@@ -281,7 +281,7 @@ struct AvgStateDecimal<I> {
 }
 
 impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStateDecimal<I> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
@@ -308,7 +308,7 @@ struct AvgStateF64<T> {
 }
 
 impl<T: AsPrimitive<f64> + AddAssign + Debug + Default> AggregateState<T, f64> for AvgStateF64<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())

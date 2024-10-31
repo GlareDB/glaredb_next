@@ -298,9 +298,10 @@ impl PartitionAggregateHashTable {
         // the the mapping we just built up.
         let other_states = std::mem::take(&mut other.agg_states);
         for (own_state, other_state) in self.agg_states.iter_mut().zip(other_states.into_iter()) {
-            own_state
-                .states
-                .combine(other_state.states, &state_mappings)?;
+            unimplemented!()
+            // own_state
+            //     .states
+            //     .combine(other_state.states, &state_mappings)?;
         }
 
         Ok(())

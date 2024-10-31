@@ -166,7 +166,11 @@ pub trait GroupedStates: Debug + Send {
     /// Errors if the concrete types do not match. Essentially this prevents
     /// trying to combine state between different aggregates (SumI32 and AvgF32)
     /// _and_ type (SumI32 and SumI64).
-    fn combine(&mut self, consume: Box<dyn GroupedStates>, mapping: &[usize]) -> Result<()>;
+    fn combine(
+        &mut self,
+        consume: &mut Box<dyn GroupedStates>,
+        mapping: ChunkGroupAddressIter,
+    ) -> Result<()>;
 
     /// Drains some number of internal states, finalizing them and producing an
     /// array of the results.
@@ -249,7 +253,11 @@ where
         (self.update_fn)(inputs, mapping, &mut self.states)
     }
 
-    fn combine(&mut self, mut consume: Box<dyn GroupedStates>, mapping: &[usize]) -> Result<()> {
+    fn combine(
+        &mut self,
+        consume: &mut Box<dyn GroupedStates>,
+        mapping: ChunkGroupAddressIter,
+    ) -> Result<()> {
         let other = match consume.as_any_mut().downcast_mut::<Self>() {
             Some(other) => other,
             None => {
@@ -259,8 +267,11 @@ where
             }
         };
 
-        let consume = std::mem::take(&mut other.states);
-        StateCombiner::combine(consume, mapping.iter().copied(), &mut self.states)
+        StateCombiner::combine(
+            &mut other.states,
+            mapping.map(|row_to_state| row_to_state.to_state),
+            &mut self.states,
+        )
     }
 
     fn drain_next(&mut self, n: usize) -> Result<Option<Array>> {
