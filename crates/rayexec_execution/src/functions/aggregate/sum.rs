@@ -354,7 +354,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.drain_next(100).unwrap().unwrap();
+        let out = states_1.drain().unwrap();
 
         assert_eq!(1, out.logical_len());
         assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
@@ -456,7 +456,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.drain_next(100).unwrap().unwrap();
+        let out = states_1.drain().unwrap();
 
         assert_eq!(2, out.logical_len());
         assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
@@ -573,7 +573,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.drain_next(100).unwrap().unwrap();
+        let out = states_1.drain().unwrap();
 
         assert_eq!(3, out.logical_len());
         assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());
@@ -581,60 +581,60 @@ mod tests {
         assert_eq!(ScalarValue::Int64(25), out.logical_value(2).unwrap());
     }
 
-    #[test]
-    fn sum_i64_drain_multiple() {
-        // Three groups, single partition, test that drain can be called
-        // multiple times until states are exhausted.
-        let vals = &Array::from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]);
+    // #[test]
+    // fn sum_i64_drain_multiple() {
+    //     // Three groups, single partition, test that drain can be called
+    //     // multiple times until states are exhausted.
+    //     let vals = &Array::from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]);
 
-        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
-        let mut states = specialized.new_grouped_state();
+    //     let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+    //     let mut states = specialized.new_grouped_state();
 
-        states.new_group();
-        states.new_group();
-        states.new_group();
+    //     states.new_group();
+    //     states.new_group();
+    //     states.new_group();
 
-        let addrs = vec![
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 2,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 2,
-            },
-        ];
+    //     let addrs = vec![
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 0,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 0,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 1,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 1,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 2,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 2,
+    //         },
+    //     ];
 
-        states
-            .update_states(&[vals], ChunkGroupAddressIter::new(0, &addrs))
-            .unwrap();
+    //     states
+    //         .update_states(&[vals], ChunkGroupAddressIter::new(0, &addrs))
+    //         .unwrap();
 
-        let out_1 = states.drain_next(2).unwrap().unwrap();
-        assert_eq!(2, out_1.logical_len());
-        assert_eq!(ScalarValue::Int64(3), out_1.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Int64(7), out_1.logical_value(1).unwrap());
+    //     let out_1 = states.drain_next(2).unwrap().unwrap();
+    //     assert_eq!(2, out_1.logical_len());
+    //     assert_eq!(ScalarValue::Int64(3), out_1.logical_value(0).unwrap());
+    //     assert_eq!(ScalarValue::Int64(7), out_1.logical_value(1).unwrap());
 
-        let out_2 = states.drain_next(2).unwrap().unwrap();
-        assert_eq!(1, out_2.logical_len());
-        assert_eq!(ScalarValue::Int64(11), out_2.logical_value(0).unwrap());
+    //     let out_2 = states.drain_next(2).unwrap().unwrap();
+    //     assert_eq!(1, out_2.logical_len());
+    //     assert_eq!(ScalarValue::Int64(11), out_2.logical_value(0).unwrap());
 
-        let out_3 = states.drain_next(2).unwrap();
-        assert_eq!(None, out_3);
-    }
+    //     let out_3 = states.drain_next(2).unwrap();
+    //     assert_eq!(None, out_3);
+    // }
 }

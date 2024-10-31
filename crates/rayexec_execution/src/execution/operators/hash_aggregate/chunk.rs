@@ -44,7 +44,22 @@ impl GroupChunk {
         Ok(())
     }
 
+    /// Merges other into self according to `addrs`.
+    ///
+    /// Only addresses with this chunk's idx will be used, and the `row_idx` in
+    /// the address corresponds to the aggregate row state in self to update
+    /// from that addressess' position.
     pub fn combine_states(&mut self, other: &mut GroupChunk, addrs: &[GroupAddress]) -> Result<()> {
-        unimplemented!()
+        for agg_idx in 0..self.aggregate_states.len() {
+            let own_state = &mut self.aggregate_states[agg_idx];
+            let other_state = &mut other.aggregate_states[agg_idx];
+
+            own_state.states.combine(
+                &mut other_state.states,
+                ChunkGroupAddressIter::new(self.chunk_idx, addrs),
+            )?;
+        }
+
+        Ok(())
     }
 }

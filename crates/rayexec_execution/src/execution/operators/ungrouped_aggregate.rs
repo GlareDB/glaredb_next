@@ -21,7 +21,7 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-use crate::functions::aggregate::{multi_array_drain, ChunkGroupAddressIter, GroupedStates};
+use crate::functions::aggregate::{ChunkGroupAddressIter, GroupedStates};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
@@ -222,19 +222,16 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     // Lock no longer needed.
                     std::mem::drop(shared);
 
-                    let mut batches = Vec::new();
-                    while let Some(arrays) = multi_array_drain(final_states.iter_mut(), 1000)? {
-                        let batch = Batch::try_new(arrays)?;
-                        batches.push(batch);
-                    }
+                    let arrays = final_states
+                        .iter_mut()
+                        .map(|s| s.drain())
+                        .collect::<Result<Vec<_>>>()?;
 
-                    // At least right now. Windows might end up doing something
-                    // different.
-                    assert_eq!(1, batches.len());
+                    let batch = Batch::try_new(arrays)?;
 
                     *state = UngroupedAggregatePartitionState::Producing {
                         partition_idx: *partition_idx,
-                        batches,
+                        batches: vec![batch],
                     }
                 }
 

@@ -2,11 +2,13 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use super::aggregate_hash_table::Aggregate;
 use super::chunk::GroupChunk;
+use super::drain::HashTableDrain;
 use super::entry::EntryKey;
 use crate::execution::operators::hash_aggregate::compare::group_values_eq;
 
@@ -16,11 +18,11 @@ const LOAD_FACTOR: f64 = 0.75;
 #[derive(Debug)]
 pub struct HashTable {
     /// All chunks in the table.
-    chunks: Vec<GroupChunk>,
-    entries: Vec<EntryKey<GroupAddress>>,
-    num_occupied: usize,
-    insert_buffers: InsertBuffers,
-    aggregates: Vec<Aggregate>,
+    pub(crate) chunks: Vec<GroupChunk>,
+    pub(crate) entries: Vec<EntryKey<GroupAddress>>,
+    pub(crate) num_occupied: usize,
+    pub(crate) insert_buffers: InsertBuffers,
+    pub(crate) aggregates: Vec<Aggregate>,
 }
 
 /// Address to a single group in the hash table.
@@ -40,8 +42,8 @@ impl GroupAddress {
 }
 
 /// Reusable buffers during hash table inserts.
-#[derive(Debug)]
-struct InsertBuffers {
+#[derive(Debug, Default)]
+pub(crate) struct InsertBuffers {
     /// Computed offsets into entries.
     offsets: Vec<usize>,
     /// Selection vector containing indices for inputs rows that still need to
@@ -59,6 +61,16 @@ struct InsertBuffers {
 }
 
 impl HashTable {
+    pub fn new(capacity: usize, aggregates: Vec<Aggregate>) -> Self {
+        HashTable {
+            chunks: Vec::new(),
+            entries: vec![EntryKey::default(); capacity],
+            num_occupied: 0,
+            insert_buffers: InsertBuffers::default(),
+            aggregates,
+        }
+    }
+
     pub fn capacity(&self) -> usize {
         self.entries.len()
     }
@@ -87,7 +99,7 @@ impl HashTable {
         Ok(())
     }
 
-    pub fn merge(&mut self, other: &mut Self) -> Result<()> {
+    pub fn merge(&mut self, other: &mut HashTable) -> Result<()> {
         for mut other_chunk in other.chunks.drain(..) {
             // Find or create groups in self from other.
             self.find_or_create_groups(&other_chunk.arrays, &other_chunk.hashes)?;
@@ -112,8 +124,19 @@ impl HashTable {
         Ok(())
     }
 
+    pub fn into_drain(self) -> HashTableDrain {
+        HashTableDrain {
+            table: self,
+            drain_idx: 0,
+        }
+    }
+
     fn find_or_create_groups(&mut self, groups: &[Array], hashes: &[u64]) -> Result<()> {
         let num_inputs = hashes.len();
+
+        if num_inputs == 0 {
+            return Ok(());
+        }
 
         // Resize addresses, this will be where we store all the group
         // addresses that will be used during the state update.
@@ -146,6 +169,9 @@ impl HashTable {
 
         let mut remaining = num_inputs;
 
+        // Number of new groups we've created.
+        let mut new_groups = 0;
+
         while remaining > 0 {
             // Pushed to as we occupy new entries.
             self.insert_buffers.new_group_rows.clear();
@@ -169,6 +195,7 @@ impl HashTable {
                         // state initalization.
                         *ent = EntryKey::new(hashes[row_idx], GroupAddress::empty());
                         self.insert_buffers.new_group_rows.push_location(row_idx);
+                        new_groups += 1;
                         break;
                     }
 
@@ -181,7 +208,7 @@ impl HashTable {
                         break;
                     }
 
-                    // Otherwise need to incrment.
+                    // Otherwise need to increment.
                     *offset = ((*offset + 1) as u64 % cap) as usize;
                 }
             }
@@ -294,6 +321,8 @@ impl HashTable {
             remaining = self.insert_buffers.needs_insert.len();
         }
 
+        self.num_occupied += new_groups;
+
         Ok(())
     }
 
@@ -317,6 +346,8 @@ impl HashTable {
 
             new_entries[offset] = ent;
         }
+
+        self.entries = new_entries;
 
         Ok(())
     }

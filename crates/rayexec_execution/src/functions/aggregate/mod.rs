@@ -172,13 +172,8 @@ pub trait GroupedStates: Debug + Send {
         mapping: ChunkGroupAddressIter,
     ) -> Result<()>;
 
-    /// Drains some number of internal states, finalizing them and producing an
-    /// array of the results.
-    ///
-    /// May produce an array with length less than n
-    ///
-    /// Returns None when all internal states have been drained and finalized.
-    fn drain_next(&mut self, n: usize) -> Result<Option<Array>>;
+    /// Drains the internal results producing a single output array.
+    fn drain(&mut self) -> Result<Array>;
 }
 
 /// Provides a default implementation of `GroupedStates`.
@@ -274,19 +269,9 @@ where
         )
     }
 
-    fn drain_next(&mut self, n: usize) -> Result<Option<Array>> {
-        assert_ne!(0, n);
-
-        let count = usize::min(n, self.states.len() - self.drain_idx);
-        if count == 0 {
-            return Ok(None);
-        }
-
-        let states = &mut self.states[self.drain_idx..self.drain_idx + count];
-        self.drain_idx += count;
-
-        let arr = (self.finalize_fn)(states)?;
-        Ok(Some(arr))
+    fn drain(&mut self) -> Result<Array> {
+        let arr = (self.finalize_fn)(&mut self.states)?;
+        Ok(arr)
     }
 }
 
@@ -383,54 +368,4 @@ where
         buffer: PrimitiveBuffer::with_len(states.len()),
     };
     StateFinalizer::finalize(states, builder)
-}
-
-/// Helper to drain from multiple states at a time.
-///
-/// Errors if all states do not produce arrays of the same length.
-///
-/// Returns None if there's nothing left to drain.
-pub fn multi_array_drain<'a>(
-    mut states: impl Iterator<Item = &'a mut Box<dyn GroupedStates>>,
-    n: usize,
-) -> Result<Option<Vec<Array>>> {
-    let first = match states.next() {
-        Some(state) => state.drain_next(n)?,
-        None => return Err(RayexecError::new("No states to drain from")),
-    };
-
-    let first = match first {
-        Some(array) => array,
-        None => {
-            // Check to make sure all other states produce none.
-            //
-            // If they don't, that means we're working with different numbers of
-            // groups.
-            for state in states {
-                if state.drain_next(n)?.is_some() {
-                    return Err(RayexecError::new("Not all states completed"));
-                }
-            }
-
-            return Ok(None);
-        }
-    };
-
-    let len = first.logical_len();
-    let mut arrays = Vec::new();
-    arrays.push(first);
-
-    for state in states {
-        match state.drain_next(n)? {
-            Some(arr) => {
-                if arr.logical_len() != len {
-                    return Err(RayexecError::new("Drained arrays differ in length"));
-                }
-                arrays.push(arr);
-            }
-            None => return Err(RayexecError::new("Draining completed early for state")),
-        }
-    }
-
-    Ok(Some(arrays))
 }

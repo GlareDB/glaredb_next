@@ -68,7 +68,7 @@ mod tests {
     }
 
     impl AggregateState<i32, i32> for TestSumState {
-        fn merge(&mut self, other: Self) -> Result<()> {
+        fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.val += other.val;
             Ok(())
         }
@@ -166,7 +166,7 @@ mod tests {
     }
 
     impl AggregateState<&str, String> for TestStringAgg {
-        fn merge(&mut self, other: Self) -> Result<()> {
+        fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.buf.push_str(&other.buf);
             Ok(())
         }

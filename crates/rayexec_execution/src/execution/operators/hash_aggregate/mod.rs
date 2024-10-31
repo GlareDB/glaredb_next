@@ -2,6 +2,7 @@ pub mod aggregate_hash_table;
 pub mod aggregate_hash_table2;
 pub mod chunk;
 pub mod compare;
+pub mod drain;
 pub mod entry;
 pub mod hash_table;
 
@@ -9,17 +10,21 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
+use aggregate_hash_table::Aggregate;
 use aggregate_hash_table2::{
     AggregateHashTableDrain,
     AggregateStates,
     PartitionAggregateHashTable,
 };
+use drain::HashTableDrain;
+use hash_table::HashTable;
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::HashExecutor;
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
@@ -48,14 +53,12 @@ pub enum HashAggregatePartitionState {
 
 #[derive(Debug)]
 pub struct AggregatingPartitionState {
-    /// Resizer for buffering input batches during aggregation.
-    resizer: BatchResizer,
     /// Index of this partition.
     partition_idx: usize,
     /// Output hash tables for storing aggregate states.
     ///
     /// There exists one hash table per output partition.
-    output_hashtables: Vec<PartitionAggregateHashTable>,
+    output_hashtables: Vec<HashTable>,
     /// Reusable hashes buffer.
     hash_buf: Vec<u64>,
     /// Resusable partitions buffer.
@@ -70,7 +73,7 @@ pub struct ProducingPartitionState {
     ///
     /// May be None if the final hash table hasn't been built yet. If it
     /// hasn't been built, then the shared state will be need to be checked.
-    hashtable_drain: Option<AggregateHashTableDrain>,
+    hashtable_drain: Option<HashTableDrain>,
 }
 
 impl HashAggregatePartitionState {
@@ -92,7 +95,7 @@ pub struct HashAggregateOperatorState {
 struct SharedOutputPartitionState {
     /// Completed hash tables from input partitions that should be combined into
     /// one final output table.
-    completed: Vec<PartitionAggregateHashTable>,
+    completed: Vec<HashTable>,
 
     /// Number of remaining inputs. Initially set to number of input partitions.
     ///
@@ -205,22 +208,21 @@ impl ExecutableOperator for PhysicalHashAggregate {
         for idx in 0..num_partitions {
             let partition_local_tables = (0..num_partitions)
                 .map(|_| {
-                    let agg_states: Vec<_> = self
+                    let aggregates: Vec<_> = self
                         .exprs
                         .iter()
                         .zip(col_selections.iter())
-                        .map(|(expr, col_selection)| AggregateStates {
-                            states: expr.function.new_grouped_state(),
+                        .map(|(expr, col_selection)| Aggregate {
+                            function: expr.function.clone(),
                             col_selection: col_selection.clone(),
                         })
                         .collect();
-                    PartitionAggregateHashTable::try_new(agg_states)
+                    HashTable::new(16, aggregates)
                 })
-                .collect::<Result<Vec<_>>>()?;
+                .collect();
 
             let partition_state = PartitionState::HashAggregate(
                 HashAggregatePartitionState::Aggregating(AggregatingPartitionState {
-                    resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                     partition_idx: idx,
                     output_hashtables: partition_local_tables,
                     hash_buf: Vec::new(),
@@ -251,7 +253,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
 
         match state {
             HashAggregatePartitionState::Aggregating(state) => {
-                self.push_batch_for_aggregating(state, batch)?;
+                self.insert_batch_agg_hash_table(state, batch)?;
 
                 // Aggregates don't produce anything until it's been finalized.
                 Ok(PollPush::NeedsMore)
@@ -279,10 +281,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
         };
 
         match state {
-            HashAggregatePartitionState::Aggregating(agg_state) => {
-                // Flush any pending batches.
-                self.flush_pending_aggregate_batches(agg_state)?;
-
+            HashAggregatePartitionState::Aggregating(_) => {
                 // Set this partition's state to producing with an empty hash
                 // table.
                 //
@@ -361,11 +360,11 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         .next()
                         .expect("there to be at least one partition");
 
-                    for consume in completed_iter {
-                        first.merge(consume)?;
+                    for mut consume in completed_iter {
+                        first.merge(&mut consume)?;
                     }
 
-                    let drain = first.into_drain(1024, self.group_types.clone()); // TODO: Make batch size configurable.
+                    let drain = first.into_drain();
                     state.hashtable_drain = Some(drain);
                 }
 
@@ -386,50 +385,6 @@ impl ExecutableOperator for PhysicalHashAggregate {
 }
 
 impl PhysicalHashAggregate {
-    /// Pushes a batch for aggregating.
-    ///
-    /// This may buffer the batch until additional batches come to produce a
-    /// batch of the desired target size.
-    fn push_batch_for_aggregating(
-        &self,
-        state: &mut AggregatingPartitionState,
-        batch: Batch,
-    ) -> Result<()> {
-        // TODO: Resizer has a negative impact on perf here. This makes sense,
-        // but could be something we look at closer. Currently we just insert
-        // directly into the hash table.
-        self.insert_batch_agg_hash_table(state, batch)?;
-
-        // match state.resizer.try_push(batch)? {
-        //     ComputedBatches::Single(batch) => self.insert_batch_agg_hash_table(state, batch)?,
-        //     ComputedBatches::Multi(batches) => {
-        //         for batch in batches {
-        //             self.insert_batch_agg_hash_table(state, batch)?;
-        //         }
-        //     }
-        //     ComputedBatches::None => (), // Not enough rows buffered yet.
-        // }
-
-        Ok(())
-    }
-
-    /// Flush any pending batches from the resizer into the partition-local
-    /// aggregate hash table.
-    fn flush_pending_aggregate_batches(&self, state: &mut AggregatingPartitionState) -> Result<()> {
-        match state.resizer.flush_remaining()? {
-            ComputedBatches::Single(batch) => self.insert_batch_agg_hash_table(state, batch)?,
-            ComputedBatches::Multi(batches) => {
-                // Technically shouldn't happen.
-                for batch in batches {
-                    self.insert_batch_agg_hash_table(state, batch)?;
-                }
-            }
-            ComputedBatches::None => (), // We're good, no batches in the resizer.
-        }
-
-        Ok(())
-    }
-
     /// Inserts a single batch into the partition-local aggregate hash table.
     fn insert_batch_agg_hash_table(
         &self,
@@ -444,7 +399,12 @@ impl PhysicalHashAggregate {
         let aggregate_columns: Vec<_> = self
             .aggregate_columns
             .iter()
-            .map(|idx| batch.column(*idx).expect("aggregate input column to exist"))
+            .map(|idx| {
+                batch
+                    .column(*idx)
+                    .expect("aggregate input column to exist")
+                    .clone()
+            }) // TODO
             .collect();
 
         // Get the columns containg the "group" values (the columns in a
@@ -461,7 +421,10 @@ impl PhysicalHashAggregate {
 
         let null_col = Array::new_untyped_null_array(num_rows);
 
-        let mut masked_grouping_columns: Vec<&Array> = Vec::with_capacity(grouping_columns.len());
+        let mut masked_grouping_columns: Vec<Array> = Vec::with_capacity(grouping_columns.len());
+
+        // Reused to select hashes per partition.
+        let mut partition_hashes = Vec::new();
 
         // For null mask, create a new set of grouping values, hash
         // them, and put into the hash maps.
@@ -470,13 +433,19 @@ impl PhysicalHashAggregate {
 
             for (col_idx, col_is_null) in null_mask.iter().enumerate() {
                 if col_is_null {
-                    masked_grouping_columns.push(&null_col);
+                    masked_grouping_columns.push(null_col.clone());
                 } else {
-                    masked_grouping_columns.push(grouping_columns[col_idx]);
+                    masked_grouping_columns.push(grouping_columns[col_idx].clone());
                 }
             }
 
+            // Group id for disambiguating NULL values in user columns vs NULLs
+            // we're applying for the mask.
             let group_id = null_mask.try_as_u64()?;
+
+            // Append group id to group val columns. Can be retrieved via the
+            // GROUPING function call.
+            masked_grouping_columns.push(ScalarValue::UInt64(group_id).as_array(num_rows)?);
 
             // Compute hashes on the group by values.
             let hashes = HashExecutor::hash_many(&masked_grouping_columns, &mut state.hash_buf)?;
@@ -495,26 +464,51 @@ impl PhysicalHashAggregate {
             {
                 // Only select rows that this partition is concerned
                 // about.
-                let selection: SelectionVector = state
-                    .partitions_idx_buf
+                let selection: Arc<SelectionVector> = Arc::new(
+                    state
+                        .partitions_idx_buf
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(row, selected_partition)| {
+                            if selected_partition == &partition_idx {
+                                Some(row)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                );
+
+                if selection.is_empty() {
+                    // No group values from input is going into this partition.
+                    continue;
+                }
+
+                // TODO: Try not to do this.
+                partition_hashes.clear();
+                partition_hashes.extend(selection.iter_locations().map(|loc| hashes[loc]));
+
+                // Select agg inputs.
+                let inputs: Vec<_> = aggregate_columns
                     .iter()
-                    .enumerate()
-                    .filter_map(|(row, selected_partition)| {
-                        if selected_partition == &partition_idx {
-                            Some(row)
-                        } else {
-                            None
-                        }
+                    .map(|arr| {
+                        let mut arr = arr.clone();
+                        arr.select_mut(selection.clone());
+                        arr
                     })
                     .collect();
 
-                partition_hashtable.insert_groups(
-                    &masked_grouping_columns,
-                    hashes,
-                    &aggregate_columns,
-                    &selection,
-                    group_id,
-                )?;
+                // Select group values.
+                let groups: Vec<_> = masked_grouping_columns
+                    .iter()
+                    .map(|arr| {
+                        let mut arr = arr.clone();
+                        arr.select_mut(selection.clone());
+                        arr
+                    })
+                    .collect();
+
+                partition_hashtable.insert(&groups, &partition_hashes, &inputs)?;
             }
         }
 

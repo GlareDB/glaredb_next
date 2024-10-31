@@ -345,51 +345,52 @@ pub struct AggregateHashTableDrain {
 
 impl AggregateHashTableDrain {
     fn next_inner(&mut self) -> Result<Option<Batch>> {
-        let result_cols = self
-            .table
-            .agg_states
-            .iter_mut()
-            .map(|agg_state| agg_state.states.drain_next(self.batch_size))
-            .collect::<Result<Option<Vec<_>>>>()?;
+        unimplemented!()
+        // let result_cols = self
+        //     .table
+        //     .agg_states
+        //     .iter_mut()
+        //     .map(|agg_state| agg_state.states.drain_next(self.batch_size))
+        //     .collect::<Result<Option<Vec<_>>>>()?;
 
-        let result_cols = match result_cols {
-            Some(cols) => cols,
-            None => return Ok(None),
-        };
+        // let result_cols = match result_cols {
+        //     Some(cols) => cols,
+        //     None => return Ok(None),
+        // };
 
-        let remaining_group_values = self.table.group_values.len() - self.drain_idx;
+        // let remaining_group_values = self.table.group_values.len() - self.drain_idx;
 
-        // Convert group values into arrays.
-        //
-        // If we have nothing for results, we still want to try to pull from
-        // groups, so set to non-zero value.
-        let num_rows = result_cols
-            .first()
-            .map(|col| col.logical_len())
-            .unwrap_or(usize::min(remaining_group_values, self.batch_size));
+        // // Convert group values into arrays.
+        // //
+        // // If we have nothing for results, we still want to try to pull from
+        // // groups, so set to non-zero value.
+        // let num_rows = result_cols
+        //     .first()
+        //     .map(|col| col.logical_len())
+        //     .unwrap_or(usize::min(remaining_group_values, self.batch_size));
 
-        // No results, and nothing left in groups.
-        if num_rows == 0 {
-            return Ok(None);
-        }
+        // // No results, and nothing left in groups.
+        // if num_rows == 0 {
+        //     return Ok(None);
+        // }
 
-        let group_vals = &self.table.group_values[self.drain_idx..self.drain_idx + num_rows];
-        let num_cols = group_vals.first().unwrap().row.columns.len();
+        // let group_vals = &self.table.group_values[self.drain_idx..self.drain_idx + num_rows];
+        // let num_cols = group_vals.first().unwrap().row.columns.len();
 
-        let mut group_arrs = Vec::with_capacity(num_cols);
+        // let mut group_arrs = Vec::with_capacity(num_cols);
 
-        for (col_idx, datatype) in self.group_types.iter().enumerate() {
-            let arr = array_from_rows(datatype, group_vals.iter().map(|v| &v.row), col_idx)?;
-            group_arrs.push(arr);
-        }
+        // for (col_idx, datatype) in self.group_types.iter().enumerate() {
+        //     let arr = array_from_rows(datatype, group_vals.iter().map(|v| &v.row), col_idx)?;
+        //     group_arrs.push(arr);
+        // }
 
-        // Create batch with result cols first, then group cols after.
-        let batch = Batch::try_new(result_cols.into_iter().chain(group_arrs))?;
+        // // Create batch with result cols first, then group cols after.
+        // let batch = Batch::try_new(result_cols.into_iter().chain(group_arrs))?;
 
-        // Update for next iterator.
-        self.drain_idx += num_rows;
+        // // Update for next iterator.
+        // self.drain_idx += num_rows;
 
-        Ok(Some(batch))
+        // Ok(Some(batch))
     }
 }
 

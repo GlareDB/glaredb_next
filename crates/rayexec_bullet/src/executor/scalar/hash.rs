@@ -89,7 +89,7 @@ impl HashExecutor {
         Ok(())
     }
 
-    pub fn hash_many<'b>(arrays: &[&Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
+    pub fn hash_many<'b>(arrays: &[Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
         for (idx, array) in arrays.iter().enumerate() {
             let combine_hash = idx > 0;
 
