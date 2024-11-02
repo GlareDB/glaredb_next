@@ -239,14 +239,13 @@ impl HashTable {
                 // TODO: Try not to clone?
                 let selection = Arc::new(self.insert_buffers.new_group_rows.clone());
 
-                let group_vals: Vec<_> = groups
-                    .iter()
-                    .map(|a| {
-                        let mut arr = a.clone();
-                        arr.select_mut(selection.clone());
-                        arr
-                    })
-                    .collect();
+                let group_vals = groups.iter().map(|a| {
+                    let mut arr = a.clone();
+                    arr.select_mut(selection.clone());
+                    arr
+                });
+
+                let phys_types = groups.iter().map(|a| a.physical_type());
 
                 let num_new_groups = self.insert_buffers.new_group_rows.len();
 
@@ -255,7 +254,7 @@ impl HashTable {
                 // table entry with the true row idx within the chunk in the
                 // case of chunk reuse.
                 let (chunk_idx, chunk_offset) = match self.chunks.last_mut() {
-                    Some(chunk) if chunk.can_append(num_new_groups, &group_vals) => {
+                    Some(chunk) if chunk.can_append(num_new_groups, phys_types) => {
                         let chunk_offset = chunk.num_groups as usize;
 
                         // Append to previous chunk.
@@ -291,7 +290,7 @@ impl HashTable {
                                 .iter_locations()
                                 .map(|loc| hashes[loc])
                                 .collect(),
-                            arrays: group_vals,
+                            arrays: group_vals.collect(),
                             aggregate_states: states,
                         };
                         self.chunks.push(chunk);

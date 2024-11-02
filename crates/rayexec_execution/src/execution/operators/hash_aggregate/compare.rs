@@ -22,7 +22,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::check_validity;
+use rayexec_bullet::executor::scalar::{can_skip_validity_check, check_validity};
 use rayexec_bullet::selection::{self, SelectionVector};
 use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::Result;
@@ -182,30 +182,44 @@ where
     let values1 = S::get_storage(array1.array_data())?;
     let values2 = S::get_storage(array2.array_data())?;
 
-    for (row1, row2) in rows1.zip(rows2) {
-        let sel1 = selection::get_unchecked(selection1, row1);
-        let sel2 = selection::get_unchecked(selection2, row2);
+    if can_skip_validity_check([validity1, validity2]) {
+        for (row1, row2) in rows1.zip(rows2) {
+            let sel1 = selection::get_unchecked(selection1, row1);
+            let sel2 = selection::get_unchecked(selection2, row2);
 
-        match (
-            check_validity(sel1, validity1),
-            check_validity(sel2, validity2),
-        ) {
-            (true, true) => {
-                // Rows both valid, check value equality.
-                let val1 = unsafe { values1.get_unchecked(sel1) };
-                let val2 = unsafe { values2.get_unchecked(sel2) };
+            let val1 = unsafe { values1.get_unchecked(sel1) };
+            let val2 = unsafe { values2.get_unchecked(sel2) };
 
-                if val1 != val2 {
+            if val1 != val2 {
+                not_eq_rows.insert(row1);
+            }
+        }
+    } else {
+        for (row1, row2) in rows1.zip(rows2) {
+            let sel1 = selection::get_unchecked(selection1, row1);
+            let sel2 = selection::get_unchecked(selection2, row2);
+
+            match (
+                check_validity(sel1, validity1),
+                check_validity(sel2, validity2),
+            ) {
+                (true, true) => {
+                    // Rows both valid, check value equality.
+                    let val1 = unsafe { values1.get_unchecked(sel1) };
+                    let val2 = unsafe { values2.get_unchecked(sel2) };
+
+                    if val1 != val2 {
+                        not_eq_rows.insert(row1);
+                    }
+                }
+                (false, false) => {
+                    // Both rows "equal" in this case. When comparing GROUP BY
+                    // values, we consider NULLs to be equal.
+                }
+                _ => {
+                    // Not equal.
                     not_eq_rows.insert(row1);
                 }
-            }
-            (false, false) => {
-                // Both rows "equal" in this case. When comparing GROUP BY
-                // values, we consider NULLs to be equal.
-            }
-            _ => {
-                // Not equal.
-                not_eq_rows.insert(row1);
             }
         }
     }

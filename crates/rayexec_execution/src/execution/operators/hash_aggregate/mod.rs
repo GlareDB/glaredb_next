@@ -452,12 +452,15 @@ impl PhysicalHashAggregate {
             // we're applying for the mask.
             let grouping_set_id = null_mask.try_as_u64()?;
 
+            // Compute hashes on the group by values.
+            //
+            // Note we do this before appending the grouping set column since
+            // hashing that column doesn't really matter.
+            let hashes = HashExecutor::hash_many(&masked_grouping_columns, &mut state.hash_buf)?;
+
             // Append group id to group val columns. Can be retrieved via the
             // GROUPING function call.
             masked_grouping_columns.push(ScalarValue::UInt64(grouping_set_id).as_array(num_rows)?);
-
-            // Compute hashes on the group by values.
-            let hashes = HashExecutor::hash_many(&masked_grouping_columns, &mut state.hash_buf)?;
 
             // Compute _output_ partitions based on the hash values.
             let num_partitions = state.output_hashtables.len();

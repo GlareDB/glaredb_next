@@ -43,6 +43,22 @@ pub fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
     }
 }
 
+pub fn can_skip_validity_check<'a, I>(validities: I) -> bool
+where
+    I: IntoIterator<Item = Option<&'a Bitmap>>,
+    I::IntoIter: ExactSizeIterator,
+{
+    for validity in validities {
+        if let Some(validity) = validity {
+            if !validity.is_all_true() {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
 /// Validates that the length of a buffer that we're using for building a new
 /// array matches the logical length of some other array.
 ///

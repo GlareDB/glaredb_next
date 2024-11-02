@@ -1,4 +1,5 @@
 use rayexec_bullet::array::Array;
+use rayexec_bullet::executor::physical_type::PhysicalType;
 use rayexec_bullet::executor::scalar::concat;
 use rayexec_error::Result;
 
@@ -23,15 +24,21 @@ pub struct GroupChunk {
 }
 
 impl GroupChunk {
-    pub fn can_append(&self, new_groups: usize, group_vals: &[Array]) -> bool {
+    pub fn can_append(
+        &self,
+        new_groups: usize,
+        group_vals: impl ExactSizeIterator<Item = PhysicalType>,
+    ) -> bool {
         if self.num_groups + new_groups > DEFAULT_TARGET_BATCH_SIZE {
             return false;
         }
 
+        debug_assert_eq!(self.arrays.len(), group_vals.len());
+
         // Make sure we can actually concat. This is important when we have null
         // masks in the case of grouping sets.
-        for arr_idx in 0..self.arrays.len() {
-            if self.arrays[arr_idx].physical_type() != group_vals[arr_idx].physical_type() {
+        for (arr_idx, input_phys_type) in group_vals.enumerate() {
+            if self.arrays[arr_idx].physical_type() != input_phys_type {
                 return false;
             }
         }
@@ -43,17 +50,18 @@ impl GroupChunk {
     /// states.
     pub fn append_group_values(
         &mut self,
-        group_vals: Vec<Array>,
+        group_vals: impl ExactSizeIterator<Item = Array>,
         hashes: impl ExactSizeIterator<Item = u64>,
     ) -> Result<()> {
+        debug_assert_eq!(self.arrays.len(), group_vals.len());
+
         let new_groups = hashes.len();
 
-        for arr_idx in 0..self.arrays.len() {
-            let arr1 = &self.arrays[arr_idx];
-            let arr2 = &group_vals[arr_idx];
-            debug_assert_eq!(arr2.logical_len(), new_groups);
+        for (arr_idx, new_vals) in group_vals.into_iter().enumerate() {
+            let orig = &self.arrays[arr_idx];
+            debug_assert_eq!(new_vals.logical_len(), new_groups);
 
-            let new_arr = concat(&[arr1, arr2])?;
+            let new_arr = concat(&[orig, &new_vals])?;
 
             self.arrays[arr_idx] = new_arr;
         }
