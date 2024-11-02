@@ -36,7 +36,7 @@ use crate::array::Array;
 use crate::bitmap::Bitmap;
 
 #[inline]
-pub(crate) fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
+pub fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
     match validity {
         Some(v) => v.value_unchecked(idx),
         None => true,

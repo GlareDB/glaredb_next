@@ -450,11 +450,11 @@ impl PhysicalHashAggregate {
 
             // Group id for disambiguating NULL values in user columns vs NULLs
             // we're applying for the mask.
-            let group_id = null_mask.try_as_u64()?;
+            let grouping_set_id = null_mask.try_as_u64()?;
 
             // Append group id to group val columns. Can be retrieved via the
             // GROUPING function call.
-            masked_grouping_columns.push(ScalarValue::UInt64(group_id).as_array(num_rows)?);
+            masked_grouping_columns.push(ScalarValue::UInt64(grouping_set_id).as_array(num_rows)?);
 
             // Compute hashes on the group by values.
             let hashes = HashExecutor::hash_many(&masked_grouping_columns, &mut state.hash_buf)?;

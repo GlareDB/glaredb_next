@@ -113,7 +113,7 @@ impl SelectionVector {
     ///
     /// For example, a constant vector of length '3' pointing to physical
     /// location '1' will return '1' 3 times.
-    pub fn iter_locations(&self) -> impl ExactSizeIterator<Item = usize> + '_ {
+    pub fn iter_locations(&self) -> impl ExactSizeIterator<Item = usize> + Clone + '_ {
         self.indices.iter().copied()
     }
 

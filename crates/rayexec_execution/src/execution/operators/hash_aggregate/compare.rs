@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use rayexec_bullet::array::Array;
 use rayexec_bullet::executor::physical_type::{
     PhysicalBinary,
@@ -20,8 +22,8 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::selection::SelectionVector;
+use rayexec_bullet::executor::scalar::check_validity;
+use rayexec_bullet::selection::{self, SelectionVector};
 use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::Result;
 
@@ -30,119 +32,183 @@ use super::hash_table::GroupAddress;
 
 pub fn group_values_eq(
     inputs: &[Array],
-    input_hashes: &[u64],
     input_sel: &SelectionVector,
     chunks: &[GroupChunk],
     addresses: &[GroupAddress],
-    not_eq_sel: &mut SelectionVector,
+    chunk_indices: &BTreeSet<u32>,
+    not_eq_rows: &mut BTreeSet<usize>,
 ) -> Result<()> {
-    for row_idx in input_sel.iter_locations() {
-        let addr = &addresses[row_idx];
-        let chunk = &chunks[addr.chunk_idx as usize];
+    for &chunk_idx in chunk_indices {
+        // Get only input rows that have its compare partner row in this chunk.
+        let rows1 = input_sel.iter_locations().filter_map(|loc| {
+            let addr = &addresses[loc];
+            if addr.chunk_idx == chunk_idx {
+                Some(loc)
+            } else {
+                None
+            }
+        });
 
-        if !group_rows_eq(row_idx, inputs, input_hashes, chunk, addr)? {
-            not_eq_sel.push_location(row_idx);
+        // Get only the locations from addresses that point to this chunk.
+        let rows2 = input_sel.iter_locations().filter_map(|loc| {
+            let addr = &addresses[loc];
+            if addr.chunk_idx == chunk_idx {
+                Some(addr.row_idx as usize)
+            } else {
+                None
+            }
+        });
+
+        compare_group_rows_eq(
+            inputs,
+            &chunks[chunk_idx as usize].arrays,
+            rows1,
+            rows2,
+            not_eq_rows,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn compare_group_rows_eq<I1, I2>(
+    arrays1: &[Array],
+    arrays2: &[Array],
+    rows1: I1,
+    rows2: I2,
+    not_eq_rows: &mut BTreeSet<usize>,
+) -> Result<()>
+where
+    I1: Iterator<Item = usize> + Clone,
+    I2: Iterator<Item = usize> + Clone,
+{
+    for col_idx in 0..arrays1.len() {
+        let rows1 = rows1.clone();
+        let rows2 = rows2.clone();
+
+        let array1 = &arrays1[col_idx];
+        let array2 = &arrays2[col_idx];
+
+        match array1.physical_type() {
+            PhysicalType::UntypedNull => compare_rows_eq::<PhysicalUntypedNull, _, _>(
+                array1,
+                array2,
+                rows1,
+                rows2,
+                not_eq_rows,
+            )?,
+            PhysicalType::Boolean => {
+                compare_rows_eq::<PhysicalBool, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Int8 => {
+                compare_rows_eq::<PhysicalI8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Int16 => {
+                compare_rows_eq::<PhysicalI16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Int32 => {
+                compare_rows_eq::<PhysicalI32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Int64 => {
+                compare_rows_eq::<PhysicalI64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Int128 => {
+                compare_rows_eq::<PhysicalI128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::UInt8 => {
+                compare_rows_eq::<PhysicalU8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::UInt16 => {
+                compare_rows_eq::<PhysicalU16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::UInt32 => {
+                compare_rows_eq::<PhysicalU32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::UInt64 => {
+                compare_rows_eq::<PhysicalU64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::UInt128 => {
+                compare_rows_eq::<PhysicalU128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Float32 => {
+                compare_rows_eq::<PhysicalF32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Float64 => {
+                compare_rows_eq::<PhysicalF64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Interval => compare_rows_eq::<PhysicalInterval, _, _>(
+                array1,
+                array2,
+                rows1,
+                rows2,
+                not_eq_rows,
+            )?,
+            PhysicalType::Binary => {
+                compare_rows_eq::<PhysicalBinary, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Utf8 => {
+                compare_rows_eq::<PhysicalUtf8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
         }
     }
 
     Ok(())
 }
 
-fn group_rows_eq(
-    row_idx: usize,
-    inputs: &[Array],
-    input_hashes: &[u64],
-    chunk: &GroupChunk,
-    addr: &GroupAddress,
-) -> Result<bool> {
-    if input_hashes[row_idx] != chunk.hashes[addr.row_idx as usize] {
-        return Ok(false);
-    }
-
-    for col_idx in 0..inputs.len() {
-        let left = &inputs[col_idx];
-        let right = &chunk.arrays[col_idx];
-
-        let eq = match left.physical_type() {
-            PhysicalType::UntypedNull => group_rows_eq_inner::<PhysicalUntypedNull>(
-                left,
-                row_idx,
-                right,
-                addr.row_idx as usize,
-            )?,
-            PhysicalType::Boolean => {
-                group_rows_eq_inner::<PhysicalBool>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Int8 => {
-                group_rows_eq_inner::<PhysicalI8>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Int16 => {
-                group_rows_eq_inner::<PhysicalI16>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Int32 => {
-                group_rows_eq_inner::<PhysicalI32>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Int64 => {
-                group_rows_eq_inner::<PhysicalI64>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Int128 => {
-                group_rows_eq_inner::<PhysicalI128>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::UInt8 => {
-                group_rows_eq_inner::<PhysicalU8>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::UInt16 => {
-                group_rows_eq_inner::<PhysicalU16>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::UInt32 => {
-                group_rows_eq_inner::<PhysicalU32>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::UInt64 => {
-                group_rows_eq_inner::<PhysicalU64>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::UInt128 => {
-                group_rows_eq_inner::<PhysicalU128>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Float32 => {
-                group_rows_eq_inner::<PhysicalF32>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Float64 => {
-                group_rows_eq_inner::<PhysicalF64>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Interval => group_rows_eq_inner::<PhysicalInterval>(
-                left,
-                row_idx,
-                right,
-                addr.row_idx as usize,
-            )?,
-            PhysicalType::Binary => {
-                group_rows_eq_inner::<PhysicalBinary>(left, row_idx, right, addr.row_idx as usize)?
-            }
-            PhysicalType::Utf8 => {
-                group_rows_eq_inner::<PhysicalUtf8>(left, row_idx, right, addr.row_idx as usize)?
-            }
-        };
-
-        if !eq {
-            return Ok(false);
-        }
-    }
-
-    Ok(true)
-}
-
-fn group_rows_eq_inner<'a, S>(
-    left: &'a Array,
-    left_idx: usize,
-    right: &'a Array,
-    right_idx: usize,
-) -> Result<bool>
+/// Compares rows from two arrays, iterating each array using independent row
+/// iters.
+///
+/// When a row is not equal, the row from the `rows1` iter will be inserted into
+/// `not_eq_rows`.
+fn compare_rows_eq<'a, S, I1, I2>(
+    array1: &'a Array,
+    array2: &'a Array,
+    rows1: I1,
+    rows2: I2,
+    not_eq_rows: &mut BTreeSet<usize>,
+) -> Result<()>
 where
     S: PhysicalStorage<'a>,
     <S::Storage as AddressableStorage>::T: PartialEq,
+    I1: Iterator<Item = usize>,
+    I2: Iterator<Item = usize>,
 {
-    let left = UnaryExecutor::value_at_unchecked::<S>(left, left_idx)?;
-    let right = UnaryExecutor::value_at_unchecked::<S>(right, right_idx)?;
+    let selection1 = array1.selection_vector();
+    let selection2 = array2.selection_vector();
 
-    Ok(left == right)
+    let validity1 = array1.validity();
+    let validity2 = array2.validity();
+
+    let values1 = S::get_storage(array1.array_data())?;
+    let values2 = S::get_storage(array2.array_data())?;
+
+    for (row1, row2) in rows1.zip(rows2) {
+        let sel1 = selection::get_unchecked(selection1, row1);
+        let sel2 = selection::get_unchecked(selection2, row2);
+
+        match (
+            check_validity(sel1, validity1),
+            check_validity(sel2, validity2),
+        ) {
+            (true, true) => {
+                // Rows both valid, check value equality.
+                let val1 = unsafe { values1.get_unchecked(sel1) };
+                let val2 = unsafe { values2.get_unchecked(sel2) };
+
+                if val1 != val2 {
+                    not_eq_rows.insert(row1);
+                }
+            }
+            (false, false) => {
+                // Both rows "equal" in this case. When comparing GROUP BY
+                // values, we consider NULLs to be equal.
+            }
+            _ => {
+                // Not equal.
+                not_eq_rows.insert(row1);
+            }
+        }
+    }
+
+    Ok(())
 }

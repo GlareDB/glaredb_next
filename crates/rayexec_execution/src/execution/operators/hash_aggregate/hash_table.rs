@@ -7,9 +7,9 @@ use rayexec_error::{RayexecError, Result};
 
 use super::aggregate_hash_table::Aggregate;
 use super::chunk::GroupChunk;
+use super::compare::group_values_eq;
 use super::drain::HashTableDrain;
 use super::entry::EntryKey;
-use crate::execution::operators::hash_aggregate::compare::group_values_eq;
 
 const LOAD_FACTOR: f64 = 0.6;
 
@@ -53,7 +53,7 @@ pub(crate) struct InsertBuffers {
     /// Selection vector pointing to rows that need to be compared.
     needs_compare: SelectionVector,
     /// Rows that don't pass the equality check.
-    not_eq_rows: SelectionVector,
+    not_eq_rows: BTreeSet<usize>,
     /// Group addresses for each row in the input.
     group_addresses: Vec<GroupAddress>,
     /// Chunks we'll be inserting into.
@@ -250,29 +250,55 @@ impl HashTable {
 
                 let num_new_groups = self.insert_buffers.new_group_rows.len();
 
-                // TODO: Try to append to previous chunk if < desired batch size.
-                let chunk_idx = self.chunks.len();
-                let mut states: Vec<_> =
-                    self.aggregates.iter().map(|agg| agg.new_states()).collect();
+                // Get the chunk to insert into and the relative offset within
+                // that chunk. The offset is used to ensure we update the hash
+                // table entry with the true row idx within the chunk in the
+                // case of chunk reuse.
+                let (chunk_idx, chunk_offset) = match self.chunks.last_mut() {
+                    Some(chunk) if chunk.can_append(num_new_groups, &group_vals) => {
+                        let chunk_offset = chunk.num_groups as usize;
 
-                // Initialize the states.
-                for state in &mut states {
-                    state.states.new_groups(num_new_groups);
-                }
+                        // Append to previous chunk.
+                        let hashes = self
+                            .insert_buffers
+                            .new_group_rows
+                            .iter_locations()
+                            .map(|loc| hashes[loc]);
 
-                let chunk = GroupChunk {
-                    chunk_idx: chunk_idx as u32,
-                    num_groups: num_new_groups,
-                    hashes: self
-                        .insert_buffers
-                        .new_group_rows
-                        .iter_locations()
-                        .map(|loc| hashes[loc])
-                        .collect(),
-                    arrays: group_vals,
-                    aggregate_states: states,
+                        chunk.append_group_values(group_vals, hashes)?;
+
+                        let chunk_idx = self.chunks.len() - 1;
+                        (chunk_idx, chunk_offset)
+                    }
+                    _ => {
+                        // Either we have no chunk, or we do but it's already at
+                        // a good capacity. Create a new one.
+                        let chunk_idx = self.chunks.len();
+                        let mut states: Vec<_> =
+                            self.aggregates.iter().map(|agg| agg.new_states()).collect();
+
+                        // Initialize the states.
+                        for state in &mut states {
+                            state.states.new_groups(num_new_groups);
+                        }
+
+                        let chunk = GroupChunk {
+                            chunk_idx: chunk_idx as u32,
+                            num_groups: num_new_groups,
+                            hashes: self
+                                .insert_buffers
+                                .new_group_rows
+                                .iter_locations()
+                                .map(|loc| hashes[loc])
+                                .collect(),
+                            arrays: group_vals,
+                            aggregate_states: states,
+                        };
+                        self.chunks.push(chunk);
+
+                        (chunk_idx, 0)
+                    }
                 };
-                self.chunks.push(chunk);
 
                 // Update hash table entries to point to the new chunk.
                 //
@@ -289,7 +315,7 @@ impl HashTable {
 
                     let addr = GroupAddress {
                         chunk_idx: chunk_idx as u32,
-                        row_idx: updated_idx as u32,
+                        row_idx: (updated_idx + chunk_offset) as u32,
                     };
 
                     *ent = EntryKey::new(hashes[row_idx], addr);
@@ -314,30 +340,40 @@ impl HashTable {
                 }
 
                 // Compare our input groups to the existing groups.
-                self.insert_buffers.needs_insert.clear();
+
+                // Figure out which chunks we're comparing against.
+                self.insert_buffers.chunk_indices.clear();
+                self.insert_buffers.chunk_indices.extend(
+                    self.insert_buffers
+                        .group_addresses
+                        .iter()
+                        .map(|addr| addr.chunk_idx),
+                );
+
+                // Do the actual compare.
                 group_values_eq(
                     groups,
-                    hashes,
                     &self.insert_buffers.needs_compare,
                     &self.chunks,
                     &self.insert_buffers.group_addresses,
+                    &self.insert_buffers.chunk_indices,
                     &mut self.insert_buffers.not_eq_rows,
                 )?;
             }
 
             // Now for every row that failed the equality check, increment its
             // offset to try the next entry in the table.
-            for row_idx in self.insert_buffers.not_eq_rows.iter_locations() {
+            for &row_idx in &self.insert_buffers.not_eq_rows {
                 let offset = &mut self.insert_buffers.offsets[row_idx];
                 *offset = inc_and_wrap_offset(*offset, cap as usize);
             }
 
-            // No try next iteration just with rows that failed the equality
+            // Now try next iteration just with rows that failed the equality
             // check.
-            std::mem::swap(
-                &mut self.insert_buffers.needs_insert,
-                &mut self.insert_buffers.not_eq_rows,
-            );
+            self.insert_buffers.needs_insert.clear();
+            self.insert_buffers
+                .needs_insert
+                .extend(self.insert_buffers.not_eq_rows.iter().copied());
 
             remaining = self.insert_buffers.needs_insert.len();
         }
@@ -435,6 +471,26 @@ mod tests {
         table.insert(&groups, &hashes, &inputs).unwrap();
 
         assert_eq!(2, table.num_occupied);
+    }
+
+    #[test]
+    fn insert_chunk_append() {
+        // Assumes knowledge of internals.
+
+        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
+        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let hashes1 = [4, 5, 4];
+
+        let groups2 = [Array::from_iter(["g1", "g2", "g3"])];
+        let inputs2 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let hashes2 = [4, 5, 6];
+
+        let mut table = make_hash_table();
+        table.insert(&groups1, &hashes1, &inputs1).unwrap();
+        table.insert(&groups2, &hashes2, &inputs2).unwrap();
+
+        assert_eq!(3, table.num_occupied);
+        assert_eq!(1, table.chunks.len());
     }
 
     #[test]

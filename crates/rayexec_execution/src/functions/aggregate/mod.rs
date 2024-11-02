@@ -195,9 +195,6 @@ pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, Finalize
     /// How we should finalize the states once we're done updating states.
     finalize_fn: FinalizeFn,
 
-    /// Index for next set of states to drain.
-    drain_idx: usize,
-
     _t: PhantomData<InputType>,
     _o: PhantomData<OutputType>,
 }
@@ -214,7 +211,6 @@ where
             states: Vec::new(),
             update_fn,
             finalize_fn,
-            drain_idx: 0,
             _t: PhantomData,
             _o: PhantomData,
         }
