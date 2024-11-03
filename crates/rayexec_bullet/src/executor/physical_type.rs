@@ -453,7 +453,7 @@ impl<'a> AddressableStorage for StrDataStorage<'a> {
     #[inline]
     unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
         let b = self.inner.get_unchecked(idx);
-        unsafe { std::str::from_utf8_unchecked(b) } // See above
+        std::str::from_utf8_unchecked(b) // See above
     }
 }
 

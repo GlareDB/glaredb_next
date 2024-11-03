@@ -38,7 +38,7 @@ use crate::bitmap::Bitmap;
 #[inline]
 pub fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
     match validity {
-        Some(v) => v.value_unchecked(idx),
+        Some(v) => v.value(idx),
         None => true,
     }
 }

@@ -28,8 +28,8 @@ impl UnaryNonNullUpdater {
                 let values = S::get_storage(&array.data)?;
 
                 for mapping in mapping {
-                    let sel = selection::get_unchecked(selection, mapping.from_row);
-                    if !validity.value_unchecked(sel) {
+                    let sel = unsafe { selection::get_unchecked(selection, mapping.from_row) };
+                    if !validity.value(sel) {
                         // Null, continue.
                         continue;
                     }
@@ -44,7 +44,7 @@ impl UnaryNonNullUpdater {
                 let values = S::get_storage(&array.data)?;
 
                 for mapping in mapping {
-                    let sel = selection::get_unchecked(selection, mapping.from_row);
+                    let sel = unsafe { selection::get_unchecked(selection, mapping.from_row) };
                     let val = unsafe { values.get_unchecked(sel) };
                     let state = &mut states[mapping.to_state];
 

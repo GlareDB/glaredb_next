@@ -13,7 +13,12 @@ use super::Aggregate;
 
 const LOAD_FACTOR: f64 = 0.7;
 
-/// Aggregate hash table.
+/// A linear probing hash table.
+///
+/// # Use of unsafe
+///
+/// Unsafe is used for the inner loops during probing to reduce bounds checking
+/// when retrieving entry keys.
 #[derive(Debug)]
 pub struct HashTable {
     /// All chunks in the table.
@@ -169,7 +174,7 @@ impl HashTable {
         self.insert_buffers.offsets.resize(num_inputs, 0);
         let cap = self.capacity() as u64;
         for (idx, &hash) in hashes.iter().enumerate() {
-            self.insert_buffers.offsets[idx] = (hash % cap) as usize;
+            self.insert_buffers.offsets[idx] = compute_offset_from_hash(hash, cap) as usize;
         }
 
         // Init selection to all rows in input.
@@ -195,13 +200,15 @@ impl HashTable {
 
             // Figure out where we're putting remaining rows.
             for idx in 0..remaining {
-                let row_idx = self.insert_buffers.needs_insert.get_unchecked(idx);
+                let row_idx = self.insert_buffers.needs_insert.get(idx);
                 let offset = &mut self.insert_buffers.offsets[row_idx];
                 let row_hash = hashes[row_idx];
 
                 // Probe
                 for iter_count in 0..cap {
-                    let ent = &mut self.entries[*offset];
+                    // SAFETY: Updates to `offset` wraps it around according to
+                    // entries len.
+                    let ent = unsafe { self.entries.get_unchecked_mut(*offset) };
 
                     if ent.is_empty() {
                         // Empty entry, claim it.
@@ -401,7 +408,10 @@ impl HashTable {
 
             // Keep looping until we find an empty entry.
             for _iter_count in 0..new_capacity {
-                if new_entries[offset].is_empty() {
+                // SAFETY: `offset` is wrapped according to new capacity which
+                // corresponds to new entries length.
+                let ent = unsafe { new_entries.get_unchecked(offset) };
+                if ent.is_empty() {
                     break;
                 }
 
@@ -441,6 +451,13 @@ impl HashTable {
 /// Requires that `cap` be a power of 2.
 const fn inc_and_wrap_offset(offset: usize, cap: usize) -> usize {
     (offset + 1) & (cap - 1)
+}
+
+/// Compute the initial offset using a hash.
+///
+/// Requires that `cap` be a power of 2.
+const fn compute_offset_from_hash(hash: u64, cap: u64) -> u64 {
+    hash & (cap - 1)
 }
 
 const fn is_power_of_2(v: usize) -> bool {

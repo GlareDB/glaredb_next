@@ -268,6 +268,15 @@ impl<'a> AddressableStorage for GermanVarlenStorageSlice<'a> {
 
     #[inline]
     unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        self.get(idx).unwrap()
+        let metadata = self.metadata.get_unchecked(idx);
+
+        match metadata.as_metadata() {
+            GermanMetadata::Small(GermanSmallMetadata { len, inline }) => {
+                &inline[..(*len as usize)]
+            }
+            GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => self
+                .data
+                .get_unchecked((*offset as usize)..((offset + len) as usize)),
+        }
     }
 }

@@ -193,8 +193,8 @@ where
 
     if can_skip_validity_check([validity1, validity2]) {
         for (row1, row2) in rows1.zip(rows2) {
-            let sel1 = selection::get_unchecked(selection1, row1);
-            let sel2 = selection::get_unchecked(selection2, row2);
+            let sel1 = unsafe { selection::get_unchecked(selection1, row1) };
+            let sel2 = unsafe { selection::get_unchecked(selection2, row2) };
 
             let val1 = unsafe { values1.get_unchecked(sel1) };
             let val2 = unsafe { values2.get_unchecked(sel2) };
@@ -205,8 +205,8 @@ where
         }
     } else {
         for (row1, row2) in rows1.zip(rows2) {
-            let sel1 = selection::get_unchecked(selection1, row1);
-            let sel2 = selection::get_unchecked(selection2, row2);
+            let sel1 = unsafe { selection::get_unchecked(selection1, row1) };
+            let sel2 = unsafe { selection::get_unchecked(selection2, row2) };
 
             match (
                 check_validity(sel1, validity1),

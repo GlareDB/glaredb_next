@@ -110,9 +110,9 @@ impl Bitmap {
     ///
     /// Panics if index is out of bounds.
     #[inline]
-    pub fn value_unchecked(&self, idx: usize) -> bool {
-        let byte = self.data[idx / 8];
-        (byte >> (idx % 8)) & 1 != 0
+    pub fn value(&self, idx: usize) -> bool {
+        let byte = self.data[idx >> 3]; // Equivalent to idx / 8
+        (byte >> (idx & 7)) & 1 != 0 // `idx & 7` equivalent to `idx % 8`
     }
 
     /// Set a bit at index.
@@ -386,7 +386,7 @@ impl<'a> Iterator for BitmapIndexIter<'a> {
                 return None;
             }
 
-            if self.bitmap.value_unchecked(self.front) {
+            if self.bitmap.value(self.front) {
                 let idx = self.front;
                 self.front += 1;
                 return Some(idx);
@@ -405,7 +405,7 @@ impl<'a> DoubleEndedIterator for BitmapIndexIter<'a> {
                 return None;
             }
 
-            if self.bitmap.value_unchecked(self.back - 1) {
+            if self.bitmap.value(self.back - 1) {
                 let idx = self.back;
                 self.back -= 1;
                 return Some(idx - 1);
@@ -467,10 +467,10 @@ mod tests {
         let mut bm = Bitmap::from_iter(bits);
 
         bm.set_unchecked(0, false);
-        assert!(!bm.value_unchecked(0));
+        assert!(!bm.value(0));
 
         bm.set_unchecked(1, true);
-        assert!(bm.value_unchecked(1));
+        assert!(bm.value(1));
     }
 
     #[test]

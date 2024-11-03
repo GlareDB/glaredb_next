@@ -220,12 +220,12 @@ impl Array {
         }
 
         let idx = match self.selection_vector() {
-            Some(v) => v.get(idx)?,
+            Some(v) => v.get_opt(idx)?,
             None => idx,
         };
 
         if let Some(validity) = &self.validity {
-            return Some(validity.as_ref().value_unchecked(idx));
+            return Some(validity.as_ref().value(idx));
         }
 
         Some(true)
@@ -255,13 +255,13 @@ impl Array {
     pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
         let idx = match self.selection_vector() {
             Some(v) => v
-                .get(idx)
+                .get_opt(idx)
                 .ok_or_else(|| RayexecError::new(format!("Logical index {idx} out of bounds")))?,
             None => idx,
         };
 
         if let Some(validity) = &self.validity {
-            if !validity.as_ref().value_unchecked(idx) {
+            if !validity.as_ref().value(idx) {
                 return Ok(ScalarValue::Null);
             }
         }
@@ -443,7 +443,7 @@ impl Array {
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
             DataType::Boolean => match &self.data {
-                ArrayData::Boolean(arr) => arr.as_ref().as_ref().value_unchecked(idx).into(),
+                ArrayData::Boolean(arr) => arr.as_ref().as_ref().value(idx).into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
             DataType::Float32 => match &self.data {

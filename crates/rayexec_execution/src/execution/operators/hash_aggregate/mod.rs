@@ -429,15 +429,11 @@ impl PhysicalHashAggregate {
     fn insert_batch_agg_hash_table(
         &self,
         state: &mut AggregatingPartitionState,
-        mut batch: Batch,
+        batch: Batch,
     ) -> Result<()> {
         if batch.num_rows() == 0 {
             return Ok(());
         }
-
-        // for col in batch.columns_mut() {
-        //     *col = col.unselect()?;
-        // }
 
         // Columns that we're computing the aggregate over.
         let aggregate_columns: Vec<_> = self
