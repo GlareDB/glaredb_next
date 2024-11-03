@@ -48,11 +48,9 @@ where
     I: IntoIterator<Item = Option<&'a Bitmap>>,
     I::IntoIter: ExactSizeIterator,
 {
-    for validity in validities {
-        if let Some(validity) = validity {
-            if !validity.is_all_true() {
-                return false;
-            }
+    for validity in validities.into_iter().flatten() {
+        if !validity.is_all_true() {
+            return false;
         }
     }
 

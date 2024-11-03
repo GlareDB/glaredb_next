@@ -300,7 +300,7 @@ impl<'a> Iterator for ChunkGroupAddressIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(addr) = self.addresses.next() {
+        for addr in self.addresses.by_ref() {
             if addr.chunk_idx == self.chunk_idx {
                 let row = self.row_idx;
                 self.row_idx += 1;

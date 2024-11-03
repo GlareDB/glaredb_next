@@ -1,13 +1,6 @@
-use std::vec;
-
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{
-    AggregateState,
-    RowToStateMapping,
-    StateFinalizer,
-    UnaryNonNullUpdater,
-};
+use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalAny;
 use rayexec_error::{RayexecError, Result};

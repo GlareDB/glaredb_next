@@ -14,13 +14,11 @@ use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
-use super::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::database::DatabaseContext;
 use crate::execution::computed_batch::ComputedBatches;

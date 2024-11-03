@@ -1,22 +1,10 @@
 use std::sync::Arc;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 use crate::array::Array;
-use crate::bitmap::Bitmap;
-use crate::datatype::DataType;
-use crate::executor::builder::{
-    ArrayBuilder,
-    ArrayDataBuffer,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
-use crate::executor::physical_type::PhysicalType;
 use crate::executor::scalar::concat_with_exact_total_len;
 use crate::row::ScalarRow;
-use crate::scalar::interval::Interval;
-use crate::scalar::ScalarValue;
 use crate::selection::SelectionVector;
 
 /// A batch of same-length arrays.

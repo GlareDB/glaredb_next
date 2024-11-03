@@ -40,13 +40,9 @@ pub fn group_values_eq(
 ) -> Result<()> {
     for &chunk_idx in chunk_indices {
         // Get only input rows that have its compare partner row in this chunk.
-        let rows1 = input_sel.iter_locations().filter_map(|loc| {
+        let rows1 = input_sel.iter_locations().filter(|&loc| {
             let addr = &addresses[loc];
-            if addr.chunk_idx == chunk_idx {
-                Some(loc)
-            } else {
-                None
-            }
+            addr.chunk_idx == chunk_idx
         });
 
         // Get only the locations from addresses that point to this chunk.

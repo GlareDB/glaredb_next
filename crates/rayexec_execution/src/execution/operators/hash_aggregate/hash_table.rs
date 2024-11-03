@@ -267,7 +267,7 @@ impl HashTable {
                 // case of chunk reuse.
                 let (chunk_idx, chunk_offset) = match self.chunks.last_mut() {
                     Some(chunk) if chunk.can_append(num_new_groups, phys_types) => {
-                        let chunk_offset = chunk.num_groups as usize;
+                        let chunk_offset = chunk.num_groups;
 
                         // Append to previous chunk.
                         let hashes = self
@@ -376,7 +376,7 @@ impl HashTable {
             // offset to try the next entry in the table.
             for &row_idx in &self.insert_buffers.not_eq_rows {
                 let offset = &mut self.insert_buffers.offsets[row_idx];
-                *offset = inc_and_wrap_offset(*offset, cap as usize);
+                *offset = inc_and_wrap_offset(*offset, cap);
             }
 
             // Now try next iteration just with rows that failed the equality

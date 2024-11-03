@@ -4,7 +4,6 @@ use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::executor::aggregate::RowToStateMapping;
 use rayexec_error::{RayexecError, Result};
 
 use super::hash_aggregate::hash_table::GroupAddress;

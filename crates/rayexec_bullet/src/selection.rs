@@ -65,6 +65,11 @@ impl SelectionVector {
         self.indices[idx]
     }
 
+    /// Unsafe variant of `get`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be in bounds.
     #[inline]
     pub unsafe fn get_unchecked(&self, idx: usize) -> usize {
         *self.indices.get_unchecked(idx)
@@ -116,7 +121,7 @@ impl SelectionVector {
     ///
     /// This will keep any existing indices.
     pub fn append_locations(&mut self, locations: impl IntoIterator<Item = usize>) {
-        self.indices.extend(locations.into_iter())
+        self.indices.extend(locations)
     }
 
     /// Returns an iterator of locations being pointed to.
@@ -171,6 +176,11 @@ pub fn get(selection: Option<&SelectionVector>, idx: usize) -> usize {
     }
 }
 
+/// Unsafe variant of `get`.
+///
+/// # Safety
+///
+/// If a selection is provided, `idx` must be in bounds for that selection.
 #[inline]
 pub unsafe fn get_unchecked(selection: Option<&SelectionVector>, idx: usize) -> usize {
     match selection {
