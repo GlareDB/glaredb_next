@@ -105,25 +105,30 @@ impl HashTable {
         Ok(())
     }
 
-    pub fn merge(&mut self, other: &mut HashTable) -> Result<()> {
-        for mut other_chunk in other.chunks.drain(..) {
-            // Find or create groups in self from other.
-            self.find_or_create_groups(&other_chunk.arrays, &other_chunk.hashes)?;
+    pub fn merge(&mut self, others: &mut [HashTable]) -> Result<()> {
+        let other_inputs: usize = others.iter().map(|table| table.num_occupied).sum();
+        self.resize_if_needed(other_inputs)?;
 
-            // Now figure out which chunks we need to update in self. Find or
-            // create groups would have already created new chunks with empty
-            // states for us for groups we haven't seen in self.
-            self.insert_buffers.chunk_indices.clear();
-            self.insert_buffers.chunk_indices.extend(
-                self.insert_buffers
-                    .group_addresses
-                    .iter()
-                    .map(|addr| addr.chunk_idx),
-            );
+        for other in others {
+            for mut other_chunk in other.chunks.drain(..) {
+                // Find or create groups in self from other.
+                self.find_or_create_groups(&other_chunk.arrays, &other_chunk.hashes)?;
 
-            for &chunk_idx in &self.insert_buffers.chunk_indices {
-                let chunk = &mut self.chunks[chunk_idx as usize];
-                chunk.combine_states(&mut other_chunk, &self.insert_buffers.group_addresses)?;
+                // Now figure out which chunks we need to update in self. Find or
+                // create groups would have already created new chunks with empty
+                // states for us for groups we haven't seen in self.
+                self.insert_buffers.chunk_indices.clear();
+                self.insert_buffers.chunk_indices.extend(
+                    self.insert_buffers
+                        .group_addresses
+                        .iter()
+                        .map(|addr| addr.chunk_idx),
+                );
+
+                for &chunk_idx in &self.insert_buffers.chunk_indices {
+                    let chunk = &mut self.chunks[chunk_idx as usize];
+                    chunk.combine_states(&mut other_chunk, &self.insert_buffers.group_addresses)?;
+                }
             }
         }
 
@@ -178,6 +183,8 @@ impl HashTable {
         // Number of new groups we've created.
         let mut new_groups = 0;
 
+        let cap = self.capacity(); // So we don't need to do the cast in the inner loop.
+
         while remaining > 0 {
             // Pushed to as we occupy new entries.
             self.insert_buffers.new_group_rows.clear();
@@ -193,8 +200,7 @@ impl HashTable {
                 let row_hash = hashes[row_idx];
 
                 // Probe
-                let mut iter_count = 0;
-                loop {
+                for iter_count in 0..cap {
                     let ent = &mut self.entries[*offset];
 
                     if ent.is_empty() {
@@ -219,9 +225,9 @@ impl HashTable {
                     }
 
                     // Otherwise need to increment.
-                    *offset = inc_and_wrap_offset(*offset, cap as usize);
+                    *offset = inc_and_wrap_offset(*offset, cap);
 
-                    if iter_count > cap {
+                    if iter_count == cap {
                         // We wrapped. This shouldn't happen during normal
                         // execution as the hash table should've been resized to
                         // fit everything.
@@ -229,7 +235,6 @@ impl HashTable {
                         // But Sean writes bugs, so just in case...
                         return Err(RayexecError::new("Hash table completely full"));
                     }
-                    iter_count += 1;
                 }
             }
 
@@ -395,11 +400,12 @@ impl HashTable {
             let mut offset = ent.hash as usize % new_capacity;
 
             // Keep looping until we find an empty entry.
-            while !new_entries[offset].is_empty() {
-                offset += 1;
-                if offset >= new_capacity {
-                    offset = 0;
+            for _iter_count in 0..new_capacity {
+                if new_entries[offset].is_empty() {
+                    break;
                 }
+
+                offset = inc_and_wrap_offset(offset, new_capacity)
             }
 
             new_entries[offset] = ent;
@@ -553,7 +559,7 @@ mod tests {
         let mut t2 = make_hash_table();
         t2.insert(&groups2, &hashes, &inputs2).unwrap();
 
-        t1.merge(&mut t2).unwrap();
+        t1.merge(&mut [t2]).unwrap();
 
         assert_eq!(3, t1.num_occupied);
     }

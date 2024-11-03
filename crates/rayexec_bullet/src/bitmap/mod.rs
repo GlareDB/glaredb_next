@@ -34,15 +34,27 @@ impl Bitmap {
     /// Create a new bitmap of a given length with all values initialized to the
     /// given value.
     pub fn new_with_val(val: bool, len: usize) -> Self {
-        Self::from_iter(std::iter::repeat(val).take(len))
+        if val {
+            Self::new_with_all_true(len)
+        } else {
+            Self::new_with_all_false(len)
+        }
     }
 
     pub fn new_with_all_true(len: usize) -> Self {
-        Self::new_with_val(true, len)
+        let cap = (len + 7) / 8;
+        Bitmap {
+            len,
+            data: vec![u8::MAX; cap],
+        }
     }
 
     pub fn new_with_all_false(len: usize) -> Self {
-        Self::new_with_val(false, len)
+        let cap = (len + 7) / 8;
+        Bitmap {
+            len,
+            data: vec![0; cap],
+        }
     }
 
     /// Get the number of bits being tracked by this bitmap.
@@ -244,6 +256,39 @@ impl FromIterator<bool> for Bitmap {
             // Push byte, continue loop to get next 8 values.
             data.push(byte);
             len += bit_len;
+        }
+
+        Bitmap { len, data }
+    }
+}
+
+impl<I> From<I> for Bitmap
+where
+    I: ExactSizeIterator<Item = bool>,
+{
+    #[rustfmt::skip]
+    fn from(mut iter: I) -> Self {
+        let cap = (iter.len() + 7) / 8;
+
+        let mut data = vec![0; cap];
+        let mut len = 0;
+
+        // Process each group of 8 bits
+        let mut idx = 0;
+        while iter.len() > 0 {
+            let mut byte = 0;
+
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 0; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 1; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 2; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 3; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 4; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 5; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 6; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 7; } len += 1; }
+
+            data[idx] = byte;
+            idx += 1;
         }
 
         Bitmap { len, data }

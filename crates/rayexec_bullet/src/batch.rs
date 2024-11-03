@@ -190,6 +190,10 @@ impl Batch {
         &self.cols
     }
 
+    pub fn columns_mut(&mut self) -> &mut [Array] {
+        &mut self.cols
+    }
+
     pub fn num_columns(&self) -> usize {
         self.cols.len()
     }

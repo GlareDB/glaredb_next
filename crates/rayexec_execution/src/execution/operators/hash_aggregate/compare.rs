@@ -89,6 +89,15 @@ where
         let array1 = &arrays1[col_idx];
         let array2 = &arrays2[col_idx];
 
+        // We need to handle trying to compare against untyped nulls in case
+        // there's a hash collision with groups from different grouping sets
+        // (e.g. group may have no masked columns but we're comparing against a
+        // group with masked columns).
+        if array1.physical_type() != array2.physical_type() {
+            not_eq_rows.extend(rows1);
+            return Ok(());
+        }
+
         match array1.physical_type() {
             PhysicalType::UntypedNull => compare_rows_eq::<PhysicalUntypedNull, _, _>(
                 array1,

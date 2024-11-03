@@ -354,17 +354,13 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     // Othewise let's build the final table. Note that
                     // continuing to hold the lock here is fine since all inputs
                     // have completed and so won't try to acquire it.
-                    let completed = std::mem::take(&mut shared_state.completed);
-                    let mut completed_iter = completed.into_iter();
-                    let mut first = completed_iter
-                        .next()
-                        .expect("there to be at least one partition");
+                    let mut completed = std::mem::take(&mut shared_state.completed);
+                    let mut final_table =
+                        completed.pop().expect("there to be at least one partition");
 
-                    for mut consume in completed_iter {
-                        first.merge(&mut consume)?;
-                    }
+                    final_table.merge(&mut completed)?;
 
-                    let drain = first.into_drain();
+                    let drain = final_table.into_drain();
                     state.hashtable_drain = Some(drain);
                 }
 
@@ -398,10 +394,14 @@ impl PhysicalHashAggregate {
     fn insert_batch_agg_hash_table(
         &self,
         state: &mut AggregatingPartitionState,
-        batch: Batch,
+        mut batch: Batch,
     ) -> Result<()> {
         if batch.num_rows() == 0 {
             return Ok(());
+        }
+
+        for col in batch.columns_mut() {
+            col.make_shared();
         }
 
         // Columns that we're computing the aggregate over.
@@ -452,20 +452,31 @@ impl PhysicalHashAggregate {
             // we're applying for the mask.
             let grouping_set_id = null_mask.try_as_u64()?;
 
-            // Compute hashes on the group by values.
-            //
-            // Note we do this before appending the grouping set column since
-            // hashing that column doesn't really matter.
-            let hashes = HashExecutor::hash_many(&masked_grouping_columns, &mut state.hash_buf)?;
-
             // Append group id to group val columns. Can be retrieved via the
             // GROUPING function call.
             masked_grouping_columns.push(ScalarValue::UInt64(grouping_set_id).as_array(num_rows)?);
 
+            // Compute hashes on the group by values.
+            //
+            // Note we hash the masked columns and the grouping set id columns
+            // since the grouping set is essentially part of what we're
+            // comparing. We can reduce collisions by including that column in
+            // the hash.
+            let hashes = HashExecutor::hash_many(&masked_grouping_columns, &mut state.hash_buf)?;
+
             // Compute _output_ partitions based on the hash values.
             let num_partitions = state.output_hashtables.len();
+
             for (partition, hash) in state.partitions_idx_buf.iter_mut().zip(hashes.iter()) {
                 *partition = partition_for_hash(*hash, num_partitions);
+            }
+
+            // Track counts per partition to let is create the selection vector
+            // with a known capacity.
+            let mut partition_counts = vec![0; num_partitions];
+
+            for &partition in &state.partitions_idx_buf {
+                partition_counts[partition] += 1;
             }
 
             // For each partition, produce a selection vector, and
@@ -476,20 +487,17 @@ impl PhysicalHashAggregate {
             {
                 // Only select rows that this partition is concerned
                 // about.
-                let selection: Arc<SelectionVector> = Arc::new(
-                    state
-                        .partitions_idx_buf
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(row, selected_partition)| {
-                            if selected_partition == &partition_idx {
-                                Some(row)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect(),
-                );
+                let mut selection = SelectionVector::with_capacity(partition_counts[partition_idx]);
+                selection.extend(state.partitions_idx_buf.iter().enumerate().filter_map(
+                    |(row, selected_partition)| {
+                        if selected_partition == &partition_idx {
+                            Some(row)
+                        } else {
+                            None
+                        }
+                    },
+                ));
+                let selection = Arc::new(selection);
 
                 if selection.is_empty() {
                     // No group values from input is going into this partition.

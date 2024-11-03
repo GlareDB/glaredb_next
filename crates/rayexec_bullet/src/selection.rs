@@ -81,6 +81,7 @@ impl SelectionVector {
     /// vector.
     ///
     /// OUT[IDX] = SELF[SELECTION[IDX]]
+    #[inline]
     pub fn select(&self, selection: &SelectionVector) -> Self {
         let mut new_indices = Vec::with_capacity(selection.num_rows());
         for loc in selection.iter_locations() {

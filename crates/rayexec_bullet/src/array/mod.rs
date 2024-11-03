@@ -51,34 +51,6 @@ pub type PhysicalValidity = SharedOrOwned<Bitmap>;
 /// Logical row selection.
 pub type LogicalSelection = SharedOrOwned<SelectionVector>;
 
-/// Wrapper around a selection vector allowing for owned or shared vectors.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Selection {
-    Owned(SelectionVector),
-    Shared(Arc<SelectionVector>),
-}
-
-impl AsRef<SelectionVector> for Selection {
-    fn as_ref(&self) -> &SelectionVector {
-        match self {
-            Selection::Owned(v) => v,
-            Self::Shared(v) => v.as_ref(),
-        }
-    }
-}
-
-impl From<SelectionVector> for Selection {
-    fn from(value: SelectionVector) -> Self {
-        Selection::Owned(value)
-    }
-}
-
-impl From<Arc<SelectionVector>> for Selection {
-    fn from(value: Arc<SelectionVector>) -> Self {
-        Selection::Shared(value)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Array {
     /// Data type of the array.
@@ -203,6 +175,15 @@ impl Array {
         self.selection = Some(selection.into())
     }
 
+    pub fn make_shared(&mut self) {
+        if let Some(validity) = &mut self.validity {
+            validity.make_shared();
+        }
+        if let Some(selection) = &mut self.selection {
+            selection.make_shared()
+        }
+    }
+
     /// Updates this array's selection vector.
     ///
     /// Takes into account any existing selection. This allows for repeated
@@ -212,16 +193,8 @@ impl Array {
         let selection = selection.into();
         match self.selection_vector() {
             Some(existing) => {
-                // Existing selection, need to create a new vector that selects
-                // from the existing vector.
-                let input_sel = selection.as_ref();
-                let mut new_sel = SelectionVector::with_capacity(input_sel.num_rows());
-
-                for input_loc in input_sel.iter_locations() {
-                    new_sel.push_location(existing.get_unchecked(input_loc));
-                }
-
-                self.selection = Some(new_sel.into())
+                let selection = existing.select(selection.as_ref());
+                self.selection = Some(selection.into())
             }
             None => {
                 // No existing selection, we can just use the provided vector
