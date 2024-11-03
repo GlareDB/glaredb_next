@@ -281,12 +281,12 @@ where
 #[derive(Debug)]
 pub struct ChunkGroupAddressIter<'a> {
     pub row_idx: usize,
-    pub chunk_idx: u32,
+    pub chunk_idx: u16,
     pub addresses: std::slice::Iter<'a, GroupAddress>,
 }
 
 impl<'a> ChunkGroupAddressIter<'a> {
-    pub fn new(chunk_idx: u32, addrs: &'a [GroupAddress]) -> Self {
+    pub fn new(chunk_idx: u16, addrs: &'a [GroupAddress]) -> Self {
         ChunkGroupAddressIter {
             row_idx: 0,
             chunk_idx,

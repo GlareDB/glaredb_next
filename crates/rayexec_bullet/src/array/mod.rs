@@ -41,7 +41,6 @@ use crate::storage::{
     ContiguousVarlenStorage,
     GermanVarlenStorage,
     PrimitiveStorage,
-    SharedHeapStorage,
     UntypedNullStorage,
 };
 
@@ -538,10 +537,6 @@ impl Array {
                     ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
-                        .get(idx)
-                        .map(|b| b.as_ref())
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
@@ -557,10 +552,6 @@ impl Array {
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
-                        .get(idx)
-                        .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
@@ -871,7 +862,6 @@ pub enum ArrayData {
 pub enum BinaryData {
     Binary(Arc<ContiguousVarlenStorage<i32>>),
     LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
-    SharedHeap(Arc<SharedHeapStorage>),
     German(Arc<GermanVarlenStorage>),
 }
 
@@ -917,7 +907,6 @@ impl ArrayData {
             Self::Binary(bin) => match bin {
                 BinaryData::Binary(s) => s.len(),
                 BinaryData::LargeBinary(s) => s.len(),
-                BinaryData::SharedHeap(s) => s.len(),
                 BinaryData::German(s) => s.len(),
             },
         }
@@ -1015,12 +1004,6 @@ impl From<PrimitiveStorage<u128>> for ArrayData {
 impl From<PrimitiveStorage<Interval>> for ArrayData {
     fn from(value: PrimitiveStorage<Interval>) -> Self {
         ArrayData::Interval(value.into())
-    }
-}
-
-impl From<SharedHeapStorage> for ArrayData {
-    fn from(value: SharedHeapStorage) -> Self {
-        ArrayData::Binary(BinaryData::SharedHeap(Arc::new(value)))
     }
 }
 

@@ -35,7 +35,7 @@ pub fn group_values_eq(
     input_sel: &SelectionVector,
     chunks: &[GroupChunk],
     addresses: &[GroupAddress],
-    chunk_indices: &BTreeSet<u32>,
+    chunk_indices: &BTreeSet<u16>,
     not_eq_rows: &mut BTreeSet<usize>,
 ) -> Result<()> {
     for &chunk_idx in chunk_indices {

@@ -15,9 +15,6 @@ where
     }
 
     pub const fn is_empty(&self) -> bool {
-        match self.hash {
-            0 => true,
-            _ => false,
-        }
+        self.hash == 0
     }
 }

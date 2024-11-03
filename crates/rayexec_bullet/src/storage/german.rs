@@ -47,6 +47,7 @@ impl Default for UnionedGermanMetadata {
 }
 
 impl UnionedGermanMetadata {
+    #[inline]
     pub fn as_metadata(&self) -> GermanMetadata {
         unsafe {
             // i32 len is first field in both, safe to access from either
@@ -251,6 +252,7 @@ impl<'a> AddressableStorage for GermanVarlenStorageSlice<'a> {
         self.metadata.len()
     }
 
+    #[inline]
     fn get(&self, idx: usize) -> Option<Self::T> {
         let metadata = self.metadata.get(idx)?;
 
@@ -264,6 +266,7 @@ impl<'a> AddressableStorage for GermanVarlenStorageSlice<'a> {
         }
     }
 
+    #[inline]
     unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
         self.get(idx).unwrap()
     }

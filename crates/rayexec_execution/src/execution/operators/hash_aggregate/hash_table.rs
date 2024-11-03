@@ -5,13 +5,13 @@ use rayexec_bullet::array::Array;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
-use super::aggregate_hash_table::Aggregate;
 use super::chunk::GroupChunk;
 use super::compare::group_values_eq;
 use super::drain::HashTableDrain;
 use super::entry::EntryKey;
+use super::Aggregate;
 
-const LOAD_FACTOR: f64 = 0.6;
+const LOAD_FACTOR: f64 = 0.7;
 
 /// Aggregate hash table.
 #[derive(Debug)]
@@ -27,8 +27,8 @@ pub struct HashTable {
 /// Address to a single group in the hash table.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct GroupAddress {
-    pub chunk_idx: u32,
-    pub row_idx: u32,
+    pub chunk_idx: u16,
+    pub row_idx: u16,
 }
 
 impl GroupAddress {
@@ -58,7 +58,7 @@ pub(crate) struct InsertBuffers {
     group_addresses: Vec<GroupAddress>,
     /// Chunks we'll be inserting into.
     // TODO: Try to remove this.
-    chunk_indices: BTreeSet<u32>,
+    chunk_indices: BTreeSet<u16>,
 }
 
 impl HashTable {
@@ -287,7 +287,7 @@ impl HashTable {
                         }
 
                         let chunk = GroupChunk {
-                            chunk_idx: chunk_idx as u32,
+                            chunk_idx: chunk_idx as u16,
                             num_groups: num_new_groups,
                             hashes: self
                                 .insert_buffers
@@ -318,8 +318,8 @@ impl HashTable {
                     let ent = &mut self.entries[offset];
 
                     let addr = GroupAddress {
-                        chunk_idx: chunk_idx as u32,
-                        row_idx: (updated_idx + chunk_offset) as u32,
+                        chunk_idx: chunk_idx as u16,
+                        row_idx: (updated_idx + chunk_offset) as u16,
                     };
 
                     *ent = EntryKey::new(hashes[row_idx], addr);

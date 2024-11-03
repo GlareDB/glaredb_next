@@ -1377,8 +1377,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             preproject_exprs.push(scalar);
         }
 
-        // Resize batches prior to pre-projection.
-        self.push_batch_resizer(id_gen)?;
+        // // Resize batches prior to pre-projection.
+        // self.push_batch_resizer(id_gen)?;
 
         self.push_intermediate_operator(
             IntermediateOperator {

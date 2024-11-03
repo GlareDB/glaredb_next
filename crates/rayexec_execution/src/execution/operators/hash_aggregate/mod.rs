@@ -1,5 +1,3 @@
-pub mod aggregate_hash_table;
-pub mod aggregate_hash_table2;
 pub mod chunk;
 pub mod compare;
 pub mod drain;
@@ -10,12 +8,6 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use aggregate_hash_table::Aggregate;
-use aggregate_hash_table2::{
-    AggregateHashTableDrain,
-    AggregateStates,
-    PartitionAggregateHashTable,
-};
 use drain::HashTableDrain;
 use hash_table::HashTable;
 use parking_lot::Mutex;
@@ -42,6 +34,45 @@ use crate::execution::operators::{
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
+use crate::functions::aggregate::{GroupedStates, PlannedAggregateFunction};
+
+#[derive(Debug)]
+pub struct Aggregate {
+    pub function: Box<dyn PlannedAggregateFunction>,
+    pub col_selection: Bitmap,
+}
+
+impl Aggregate {
+    pub fn new_states(&self) -> AggregateStates {
+        AggregateStates {
+            states: self.function.new_grouped_state(),
+            col_selection: self.col_selection.clone(),
+        }
+    }
+}
+
+/// States for a single aggregation.
+#[derive(Debug)]
+pub struct AggregateStates {
+    /// The states we're tracking for a single aggregate.
+    ///
+    /// Internally the state are stored in a vector, with the index of the
+    /// vector corresponding to the index of the group in the table's
+    /// `group_values` vector.
+    pub states: Box<dyn GroupedStates>,
+
+    /// Bitmap for selecting columns from the input to the hash map.
+    ///
+    /// This is used to allow the hash map to handle states for different
+    /// aggregates working on different columns. For example:
+    ///
+    /// SELECT SUM(a), MIN(b) FROM ...
+    ///
+    /// This query computes aggregates on columns 'a' and 'b', but to minimize
+    /// work, we pass both 'a' and 'b' to the hash table in one pass. Then this
+    /// bitmap is used to further refine the inputs specific to the aggregate.
+    pub col_selection: Bitmap,
+}
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {

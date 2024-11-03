@@ -3,8 +3,8 @@ use rayexec_bullet::executor::physical_type::PhysicalType;
 use rayexec_bullet::executor::scalar::concat;
 use rayexec_error::Result;
 
-use super::aggregate_hash_table::AggregateStates;
 use super::hash_table::GroupAddress;
+use super::AggregateStates;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::functions::aggregate::ChunkGroupAddressIter;
 
@@ -12,7 +12,7 @@ use crate::functions::aggregate::ChunkGroupAddressIter;
 #[derive(Debug)]
 pub struct GroupChunk {
     /// Index of this chunk.
-    pub chunk_idx: u32,
+    pub chunk_idx: u16,
     /// Number of groups in this chunk.
     pub num_groups: usize,
     /// All row hashes.
