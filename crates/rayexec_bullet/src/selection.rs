@@ -83,10 +83,17 @@ impl SelectionVector {
     /// OUT[IDX] = SELF[SELECTION[IDX]]
     #[inline]
     pub fn select(&self, selection: &SelectionVector) -> Self {
-        let mut new_indices = Vec::with_capacity(selection.num_rows());
-        for loc in selection.iter_locations() {
+        let mut new_indices = vec![0; selection.num_rows()];
+
+        for (idx, loc) in selection.iter_locations().enumerate() {
             let orig_loc = self.get_unchecked(loc);
-            new_indices.push(orig_loc);
+
+            // SAFETY: `idx` is derived from length of `selection` ane we
+            // initialized new indices to that length.
+            unsafe {
+                let el = new_indices.get_unchecked_mut(idx);
+                *el = orig_loc;
+            }
         }
 
         SelectionVector {

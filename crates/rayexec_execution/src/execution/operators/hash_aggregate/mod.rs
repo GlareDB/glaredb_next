@@ -94,6 +94,7 @@ pub struct AggregatingPartitionState {
     hash_buf: Vec<u64>,
     /// Resusable partitions buffer.
     partitions_idx_buf: Vec<usize>,
+    partition_row_sel: Vec<SelectionVector>,
 }
 
 #[derive(Debug)]
@@ -258,6 +259,9 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     output_hashtables: partition_local_tables,
                     hash_buf: Vec::new(),
                     partitions_idx_buf: Vec::new(),
+                    partition_row_sel: (0..num_partitions)
+                        .map(|_| SelectionVector::empty())
+                        .collect(),
                 }),
             );
 
@@ -431,9 +435,9 @@ impl PhysicalHashAggregate {
             return Ok(());
         }
 
-        for col in batch.columns_mut() {
-            col.make_shared();
-        }
+        // for col in batch.columns_mut() {
+        //     *col = col.unselect()?;
+        // }
 
         // Columns that we're computing the aggregate over.
         let aggregate_columns: Vec<_> = self
@@ -498,16 +502,14 @@ impl PhysicalHashAggregate {
             // Compute _output_ partitions based on the hash values.
             let num_partitions = state.output_hashtables.len();
 
-            for (partition, hash) in state.partitions_idx_buf.iter_mut().zip(hashes.iter()) {
-                *partition = partition_for_hash(*hash, num_partitions);
-            }
+            state
+                .partition_row_sel
+                .iter_mut()
+                .for_each(|sel| sel.clear());
 
-            // Track counts per partition to let is create the selection vector
-            // with a known capacity.
-            let mut partition_counts = vec![0; num_partitions];
-
-            for &partition in &state.partitions_idx_buf {
-                partition_counts[partition] += 1;
+            for (row_idx, hash) in hashes.iter().enumerate() {
+                let partition_idx = partition_for_hash(*hash, num_partitions);
+                state.partition_row_sel[partition_idx].push_location(row_idx);
             }
 
             // For each partition, produce a selection vector, and
@@ -518,17 +520,7 @@ impl PhysicalHashAggregate {
             {
                 // Only select rows that this partition is concerned
                 // about.
-                let mut selection = SelectionVector::with_capacity(partition_counts[partition_idx]);
-                selection.extend(state.partitions_idx_buf.iter().enumerate().filter_map(
-                    |(row, selected_partition)| {
-                        if selected_partition == &partition_idx {
-                            Some(row)
-                        } else {
-                            None
-                        }
-                    },
-                ));
-                let selection = Arc::new(selection);
+                let selection = Arc::new(state.partition_row_sel[partition_idx].clone());
 
                 if selection.is_empty() {
                     // No group values from input is going into this partition.
