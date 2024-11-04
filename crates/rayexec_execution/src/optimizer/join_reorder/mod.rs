@@ -1,5 +1,6 @@
 mod edge;
 mod graph;
+mod statistics;
 mod subgraph;
 
 use std::collections::VecDeque;

@@ -29,6 +29,7 @@ use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 
 use super::edge::{EdgeId, HyperEdges, NeighborEdge};
+use super::statistics::propagate_estimated_cardinality;
 use super::subgraph::Subgraph;
 use crate::expr;
 use crate::logical::binder::bind_context::{BindContext, TableRef};
@@ -248,6 +249,14 @@ impl Graph {
         filters: impl IntoIterator<Item = ExtractedFilter>,
         bind_context: &BindContext,
     ) -> Result<Self> {
+        let base_ops = base_ops
+            .into_iter()
+            .map(|mut op| {
+                propagate_estimated_cardinality(&mut op)?;
+                Ok(op)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
         let base_relations: HashMap<RelId, BaseRelation> = base_ops
             .into_iter()
             .enumerate()
