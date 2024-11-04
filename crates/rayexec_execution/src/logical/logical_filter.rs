@@ -23,18 +23,6 @@ impl LogicalNode for Node<LogicalFilter> {
         self.get_children_table_refs(bind_context)
     }
 
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        let child_card = self
-            .iter_child_cardinalities()
-            .next()
-            .expect("filter has child");
-
-        match child_card.value() {
-            Some(v) => StatisticsValue::Estimated(((*v as f64) * DEFAULT_SELECTIVITY) as usize),
-            None => StatisticsValue::Unknown,
-        }
-    }
-
     fn get_statistics(&self) -> Statistics {
         let child_stats = self
             .iter_child_statistics()

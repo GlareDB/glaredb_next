@@ -253,7 +253,11 @@ impl Graph {
             .enumerate()
             .map(|(rel_id, op)| {
                 let output_refs = op.get_output_table_refs(bind_context).into_iter().collect();
-                let cardinality = op.cardinality().value().copied().unwrap_or(20_000) as f64;
+                let cardinality = op
+                    .estimated_cardinality()
+                    .value()
+                    .copied()
+                    .unwrap_or(20_000) as f64;
 
                 (
                     rel_id,
@@ -805,9 +809,6 @@ impl Graph {
                 node: LogicalComparisonJoin {
                     join_type: JoinType::Inner,
                     conditions,
-                    cardinality: StatisticsValue::Estimated(
-                        node.subgraph.estimated_cardinality() as usize
-                    ),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],

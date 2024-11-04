@@ -1471,7 +1471,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 node: LogicalComparisonJoin {
                     join_type: join.node.join_type,
                     conditions: join.node.conditions,
-                    cardinality: StatisticsValue::Unknown,
                 },
                 location: join.location,
                 children: join.children,

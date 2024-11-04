@@ -442,7 +442,6 @@ impl SubqueryPlanner {
                             table_ref: mark_table,
                         },
                         conditions: vec![condition],
-                        cardinality: StatisticsValue::Unknown,
                     },
                     location: LocationRequirement::Any,
                     children: vec![orig, subquery_plan],
