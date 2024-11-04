@@ -1475,6 +1475,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 },
                 location: join.location,
                 children: join.children,
+                estimated_cardinality: join.estimated_cardinality,
             },
         )
     }

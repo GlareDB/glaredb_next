@@ -142,6 +142,11 @@ pub struct Node<N> {
     pub location: LocationRequirement,
     /// Inputs to this node.
     pub children: Vec<LogicalOperator>,
+    /// Estimated output cardinality of this node.
+    ///
+    /// Should be intialized to 'unknown'. Various optimizer rules will fill
+    /// this in as needed.
+    pub estimated_cardinality: StatisticsValue<usize>,
 }
 
 impl<N> Node<N> {
@@ -309,6 +314,7 @@ impl LogicalOperator {
         node: LogicalEmpty,
         location: LocationRequirement::Any,
         children: Vec::new(),
+        estimated_cardinality: StatisticsValue::Unknown,
     });
 
     pub fn location(&self) -> &LocationRequirement {

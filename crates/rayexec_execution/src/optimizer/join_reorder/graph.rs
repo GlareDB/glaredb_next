@@ -677,6 +677,7 @@ impl Graph {
                     },
                     location: filter.location,
                     children: filter.children,
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             LogicalOperator::ArbitraryJoin(join) if join.node.join_type == JoinType::Inner => {
@@ -690,6 +691,7 @@ impl Graph {
                     },
                     location: join.location,
                     children: join.children,
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             LogicalOperator::CrossJoin(join) => Ok(LogicalOperator::ArbitraryJoin(Node {
@@ -699,6 +701,7 @@ impl Graph {
                 },
                 location: join.location,
                 children: join.children,
+                estimated_cardinality: StatisticsValue::Unknown,
             })),
             other => Ok(LogicalOperator::Filter(Node {
                 node: LogicalFilter {
@@ -706,6 +709,7 @@ impl Graph {
                 },
                 location: LocationRequirement::Any,
                 children: vec![other],
+                estimated_cardinality: StatisticsValue::Unknown,
             })),
         }
     }
@@ -793,6 +797,7 @@ impl Graph {
                 node: LogicalCrossJoin,
                 location: LocationRequirement::Any,
                 children: vec![left, right],
+                estimated_cardinality: StatisticsValue::Unknown,
             }))
         } else {
             // We have conditions, create comparison join.
@@ -806,6 +811,9 @@ impl Graph {
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
+                estimated_cardinality: StatisticsValue::Estimated(
+                    node.subgraph.estimated_cardinality() as usize,
+                ),
             }))
         }
     }
