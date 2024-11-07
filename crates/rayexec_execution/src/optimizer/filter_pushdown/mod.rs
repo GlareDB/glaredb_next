@@ -484,6 +484,7 @@ impl FilterPushdown {
                 };
 
                 let mut remaining_filters = Vec::new();
+
                 for filter in self.drain_filters() {
                     let side = ExprJoinSide::try_from_table_refs(
                         &filter.table_refs,
@@ -494,6 +495,17 @@ impl FilterPushdown {
                     // Can only push filters to left side.
                     if side == ExprJoinSide::Left {
                         left_pushdown.add_filters([filter.filter]);
+                        continue;
+                    }
+
+                    // If the filter expression is referencing the right
+                    // side, and the filter only has a single column ref, we
+                    // can convert this to a semi join and omit the filter.
+                    if side == ExprJoinSide::Right
+                        && matches!(plan.node.join_type, JoinType::LeftMark { .. })
+                        && matches!(filter.filter, Expression::Column(_))
+                    {
+                        plan.node.join_type = JoinType::Semi;
                         continue;
                     }
 

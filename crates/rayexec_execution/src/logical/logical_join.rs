@@ -8,8 +8,6 @@ use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, Contex
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
-use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
-use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
