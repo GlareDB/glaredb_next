@@ -28,7 +28,7 @@ use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use super::logical_setop::LogicalSetop;
-use super::statistics::{Statistics, StatisticsValue};
+use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -106,14 +106,6 @@ pub trait LogicalNode {
     /// planning/optimizing, we want to avoid caching them directly on the
     /// operator.
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef>;
-
-    /// Get the statistics for the output of this operator.
-    fn get_statistics(&self) -> Statistics {
-        Statistics {
-            cardinality: StatisticsValue::Unknown,
-            column_stats: None,
-        }
-    }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
     where
@@ -213,10 +205,6 @@ impl<N> Node<N> {
             refs.append(&mut child.get_output_table_refs(bind_context));
             refs
         })
-    }
-
-    pub fn iter_child_statistics(&self) -> impl Iterator<Item = Statistics> + '_ {
-        self.children.iter().map(|c| c.get_statistics())
     }
 
     // TODO: Duplicated with LogicalOperator.
@@ -501,40 +489,6 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::MagicJoin(n) => n.get_output_table_refs(bind_context),
-        }
-    }
-
-    fn get_statistics(&self) -> Statistics {
-        match self {
-            Self::Invalid => panic!("attempted to get statistics for invalid operator"),
-            LogicalOperator::Project(n) => n.get_statistics(),
-            LogicalOperator::Filter(n) => n.get_statistics(),
-            LogicalOperator::Distinct(n) => n.get_statistics(),
-            LogicalOperator::Scan(n) => n.get_statistics(),
-            LogicalOperator::MaterializationScan(n) => n.get_statistics(),
-            LogicalOperator::MagicMaterializationScan(n) => n.get_statistics(),
-            LogicalOperator::Aggregate(n) => n.get_statistics(),
-            LogicalOperator::SetOp(n) => n.get_statistics(),
-            LogicalOperator::Empty(n) => n.get_statistics(),
-            LogicalOperator::Limit(n) => n.get_statistics(),
-            LogicalOperator::Order(n) => n.get_statistics(),
-            LogicalOperator::SetVar(n) => n.get_statistics(),
-            LogicalOperator::ResetVar(n) => n.get_statistics(),
-            LogicalOperator::ShowVar(n) => n.get_statistics(),
-            LogicalOperator::AttachDatabase(n) => n.get_statistics(),
-            LogicalOperator::DetachDatabase(n) => n.get_statistics(),
-            LogicalOperator::Drop(n) => n.get_statistics(),
-            LogicalOperator::Insert(n) => n.get_statistics(),
-            LogicalOperator::CreateSchema(n) => n.get_statistics(),
-            LogicalOperator::CreateTable(n) => n.get_statistics(),
-            LogicalOperator::CreateView(n) => n.get_statistics(),
-            LogicalOperator::Describe(n) => n.get_statistics(),
-            LogicalOperator::Explain(n) => n.get_statistics(),
-            LogicalOperator::CopyTo(n) => n.get_statistics(),
-            LogicalOperator::CrossJoin(n) => n.get_statistics(),
-            LogicalOperator::ArbitraryJoin(n) => n.get_statistics(),
-            LogicalOperator::ComparisonJoin(n) => n.get_statistics(),
-            LogicalOperator::MagicJoin(n) => n.get_statistics(),
         }
     }
 
