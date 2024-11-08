@@ -77,6 +77,9 @@ where
     F: Fn() -> Fut + Clone + Send + 'static,
     Fut: Future<Output = Result<RunConfig>>,
 {
+    // Uses sync once internally.
+    unsafe { backtrace_on_stack_overflow::enable() };
+
     let args = Arguments::from_args();
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::ERROR.into())
