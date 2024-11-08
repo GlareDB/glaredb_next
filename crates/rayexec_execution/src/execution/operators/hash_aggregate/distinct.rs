@@ -127,9 +127,9 @@ impl GroupedStates for DistinctGroupedStates {
         for (group_idx, hash_table) in self.distinct_inputs.iter_mut().enumerate() {
             // Drain the hash table and inserting them into the newly created
             // states.
-            let mut drain = hash_table.take().unwrap().into_drain();
+            let drain = hash_table.take().unwrap().into_drain();
 
-            while let Some(result) = drain.next() {
+            for result in drain {
                 let batch = result?;
                 let len = batch.num_rows();
                 // TODO: Prune group id column?
