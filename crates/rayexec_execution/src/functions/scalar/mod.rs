@@ -72,6 +72,10 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         // Is
         Box::new(is::IsNull),
         Box::new(is::IsNotNull),
+        Box::new(is::IsTrue),
+        Box::new(is::IsNotTrue),
+        Box::new(is::IsFalse),
+        Box::new(is::IsNotFalse),
     ]
 });
 

@@ -457,6 +457,14 @@ impl<'a> ExpressionResolver<'a> {
                     negated,
                 })
             }
+            ast::Expr::IsBool { expr, val, negated } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                Ok(ast::Expr::IsBool {
+                    expr: Box::new(expr),
+                    val,
+                    negated,
+                })
+            }
             ast::Expr::Between {
                 negated,
                 expr,

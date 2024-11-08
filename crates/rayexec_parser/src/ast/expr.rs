@@ -1,7 +1,7 @@
 use std::ops::Neg;
 use std::str::FromStr;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
@@ -250,6 +250,13 @@ pub enum Expr<T: AstMeta> {
     },
     /// IS NULL/IS NOT NULL
     IsNull { expr: Box<Expr<T>>, negated: bool },
+    /// IS TRUE/IS NOT TRUE
+    /// IS FALSE/IS NOT FALSE
+    IsBool {
+        expr: Box<Expr<T>>,
+        val: bool,
+        negated: bool,
+    },
     /// Interval
     ///
     /// `INTERVAL '1 year 2 months'`
@@ -607,9 +614,29 @@ impl Expr<Raw> {
                         expr: Box::new(prefix),
                         negated: false,
                     }),
+                    Keyword::TRUE => Ok(Expr::IsBool {
+                        expr: Box::new(prefix),
+                        val: true,
+                        negated: false,
+                    }),
+                    Keyword::FALSE => Ok(Expr::IsBool {
+                        expr: Box::new(prefix),
+                        val: false,
+                        negated: false,
+                    }),
                     Keyword::NOT => match parser.next_keyword()? {
                         Keyword::NULL => Ok(Expr::IsNull {
                             expr: Box::new(prefix),
+                            negated: true,
+                        }),
+                        Keyword::TRUE => Ok(Expr::IsBool {
+                            expr: Box::new(prefix),
+                            val: true,
+                            negated: true,
+                        }),
+                        Keyword::FALSE => Ok(Expr::IsBool {
+                            expr: Box::new(prefix),
+                            val: false,
                             negated: true,
                         }),
                         other => Err(RayexecError::new(format!(

@@ -748,6 +748,31 @@ impl<'a> BaseExpressionBinder<'a> {
                     inputs: vec![expr],
                 }))
             }
+            ast::Expr::IsBool { expr, val, negated } => {
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let scalar = match (val, negated) {
+                    (true, false) => is::IsTrue.plan_from_expressions(bind_context, &[&expr])?,
+                    (true, true) => is::IsNotTrue.plan_from_expressions(bind_context, &[&expr])?,
+                    (false, false) => is::IsFalse.plan_from_expressions(bind_context, &[&expr])?,
+                    (false, true) => {
+                        is::IsNotFalse.plan_from_expressions(bind_context, &[&expr])?
+                    }
+                };
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: scalar,
+                    inputs: vec![expr],
+                }))
+            }
             ast::Expr::Interval(ast::Interval {
                 value,
                 leading,
