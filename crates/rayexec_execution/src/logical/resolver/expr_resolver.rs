@@ -450,6 +450,13 @@ impl<'a> ExpressionResolver<'a> {
                     pattern: Box::new(pattern),
                 })
             }
+            ast::Expr::IsNull { expr, negated } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                Ok(ast::Expr::IsNull {
+                    expr: Box::new(expr),
+                    negated,
+                })
+            }
             ast::Expr::Between {
                 negated,
                 expr,

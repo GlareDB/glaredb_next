@@ -248,6 +248,8 @@ pub enum Expr<T: AstMeta> {
         negated: bool,
         case_insensitive: bool,
     },
+    /// IS NULL/IS NOT NULL
+    IsNull { expr: Box<Expr<T>>, negated: bool },
     /// Interval
     ///
     /// `INTERVAL '1 year 2 months'`
@@ -600,9 +602,24 @@ impl Expr<Raw> {
             };
 
             match kw {
-                Keyword::IS => {
-                    not_implemented!("IS parse")
-                }
+                Keyword::IS => match parser.next_keyword()? {
+                    Keyword::NULL => Ok(Expr::IsNull {
+                        expr: Box::new(prefix),
+                        negated: false,
+                    }),
+                    Keyword::NOT => match parser.next_keyword()? {
+                        Keyword::NULL => Ok(Expr::IsNull {
+                            expr: Box::new(prefix),
+                            negated: true,
+                        }),
+                        other => Err(RayexecError::new(format!(
+                            "Unexpected keyword in IS NOT expression: {other}"
+                        ))),
+                    },
+                    other => Err(RayexecError::new(format!(
+                        "Unexpected keyword in IS expression: {other}"
+                    ))),
+                },
                 // TODO: Loop on the NOT so we don't need to repeat.
                 Keyword::NOT => match parser.next_keyword()? {
                     Keyword::LIKE => Ok(Expr::Like {
