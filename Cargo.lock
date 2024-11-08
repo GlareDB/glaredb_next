@@ -2293,7 +2293,6 @@ name = "rayexec_slt"
 version = "0.0.67"
 dependencies = [
  "async-trait",
- "backtrace-on-stack-overflow",
  "crossterm",
  "env_logger",
  "futures",
@@ -2902,6 +2901,7 @@ dependencies = [
 name = "test_bin"
 version = "0.0.67"
 dependencies = [
+ "backtrace-on-stack-overflow",
  "rayexec_bullet",
  "rayexec_csv",
  "rayexec_debug",

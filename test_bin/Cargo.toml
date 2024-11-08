@@ -19,6 +19,7 @@ rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
 rayexec_debug = { path = '../crates/rayexec_debug' }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
+backtrace-on-stack-overflow = "0.3.0"
 
 [[test]]
 harness = false
