@@ -30,7 +30,7 @@ impl Subgraph {
         // join more selective (and thus higher cost).
 
         match edge.edge_op {
-            EdgeType::Cross => return,
+            EdgeType::Cross => (),
             EdgeType::Inner { op } => {
                 let mut denom = self.selectivity_denom * other.selectivity_denom;
 
@@ -56,7 +56,10 @@ impl Subgraph {
             }
             EdgeType::Semi => {
                 // TODO: Need to flip if edge is flipped.
-                self.selectivity_denom = self.selectivity_denom
+                #[allow(clippy::self_assignment)]
+                {
+                    self.selectivity_denom = self.selectivity_denom
+                }
             }
         }
     }
