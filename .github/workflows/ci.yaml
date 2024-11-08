@@ -80,6 +80,7 @@ jobs:
         env:
           DEBUG_PRINT_EXPLAIN: 1
           DEBUG_PRINT_PROFILE_DATA: 1
+          RUST_BACKTRACE: 1
         run: |
           cargo test slt/tpch/q01
           cargo test slt/tpch/q02
