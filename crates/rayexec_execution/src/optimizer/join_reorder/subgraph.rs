@@ -1,6 +1,5 @@
 use super::edge::{EdgeType, NeighborEdge};
 use crate::expr::comparison_expr::ComparisonOperator;
-use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Subgraph {

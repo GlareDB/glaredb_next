@@ -4,7 +4,6 @@ use rayexec_error::Result;
 
 use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
-use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
