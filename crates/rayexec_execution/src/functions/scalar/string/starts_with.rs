@@ -86,7 +86,7 @@ impl ScalarFunction for StartsWith {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StartsWithImpl {
-    constant: Option<String>,
+    pub constant: Option<String>,
 }
 
 impl PlannedScalarFunction for StartsWithImpl {

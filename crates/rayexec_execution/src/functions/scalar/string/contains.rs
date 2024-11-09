@@ -41,7 +41,7 @@ impl FunctionInfo for Contains {
 impl ScalarFunction for Contains {
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
         let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
-        Ok(Box::new(ContainsImpl {
+        Ok(Box::new(StringContainsImpl {
             constant: constant.value,
         }))
     }
@@ -76,16 +76,16 @@ impl ScalarFunction for Contains {
             None
         };
 
-        Ok(Box::new(ContainsImpl { constant }))
+        Ok(Box::new(StringContainsImpl { constant }))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContainsImpl {
-    constant: Option<String>,
+pub struct StringContainsImpl {
+    pub constant: Option<String>,
 }
 
-impl PlannedScalarFunction for ContainsImpl {
+impl PlannedScalarFunction for StringContainsImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Contains
     }
@@ -119,5 +119,23 @@ impl PlannedScalarFunction for ContainsImpl {
                 |s, c, buf| buf.put(&s.contains(c)),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_decode_contains() {
+        let contains = StringContainsImpl {
+            constant: Some("const".to_string()),
+        };
+
+        let mut buf = Vec::new();
+        contains.encode_state(&mut buf).unwrap();
+
+        let got = Contains.decode_state(&buf).unwrap();
+        assert_eq!("contains", got.scalar_function().name());
     }
 }

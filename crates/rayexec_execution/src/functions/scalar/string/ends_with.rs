@@ -86,7 +86,7 @@ impl ScalarFunction for EndsWith {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndsWithImpl {
-    constant: Option<String>,
+    pub constant: Option<String>,
 }
 
 impl PlannedScalarFunction for EndsWithImpl {
