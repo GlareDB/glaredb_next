@@ -3,9 +3,10 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::util_types;
+use regex::{escape, Regex};
 use serde::{Deserialize, Serialize};
 
 use super::comparison::EqImpl;
@@ -47,7 +48,15 @@ impl ScalarFunction for Like {
     }
 
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
-        unimplemented!()
+        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
+        let constant = constant
+            .value
+            .as_ref()
+            .map(|s| Regex::new(s))
+            .transpose()
+            .context("Failed to rebuild regex")?;
+
+        Ok(Box::new(LikeImpl { constant }))
     }
 
     fn plan_from_expressions(
@@ -71,6 +80,8 @@ impl ScalarFunction for Like {
                 .try_into_scalar()?
                 .try_into_string()?;
 
+            let pattern = like_pattern_to_regex(&mut String::new(), &pattern, Some('\\'))?;
+
             Some(pattern)
         } else {
             None
@@ -80,9 +91,9 @@ impl ScalarFunction for Like {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct LikeImpl {
-    pub constant: Option<String>,
+    pub constant: Option<Regex>,
 }
 
 impl PlannedScalarFunction for LikeImpl {
@@ -91,7 +102,8 @@ impl PlannedScalarFunction for LikeImpl {
     }
 
     fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
+        let constant = self.constant.as_ref().map(|c| c.to_string());
+        PackedEncoder::new(state).encode_next(&util_types::OptionalString { value: constant })
     }
 
     fn return_type(&self) -> DataType {
@@ -99,6 +111,77 @@ impl PlannedScalarFunction for LikeImpl {
     }
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        Err(RayexecError::new("what"))
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
+        };
+
+        match self.constant.as_ref() {
+            Some(constant) => {
+                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                    let b = constant.is_match(s);
+                    buf.put(&b);
+                })
+            }
+            None => {
+                let mut s_buf = String::new();
+
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    builder,
+                    |a, b, buf| {
+                        match like_pattern_to_regex(&mut s_buf, b, Some('\\')) {
+                            Ok(pat) => {
+                                let b = pat.is_match(a);
+                                buf.put(&b);
+                            }
+                            Err(_) => {
+                                // TODO: Do something
+                            }
+                        }
+                    },
+                )
+            }
+        }
     }
+}
+
+/// Converts a LIKE pattern into regex.
+fn like_pattern_to_regex(
+    buf: &mut String,
+    pattern: &str,
+    escape_char: Option<char>,
+) -> Result<Regex> {
+    buf.clear();
+    buf.push_str("^");
+
+    let mut chars = pattern.chars().peekable();
+    while let Some(c) = chars.next() {
+        if Some(c) == escape_char {
+            // Escape character found, treat the next character literally.
+            if let Some(next_char) = chars.next() {
+                buf.push_str(&escape(&next_char.to_string()));
+            } else {
+                // Escape character at the end, treat it literally.
+                buf.push_str(&escape(&c.to_string()));
+            }
+        } else {
+            match c {
+                '%' => {
+                    buf.push_str(".*"); // '%' matches any sequence of characters
+                }
+                '_' => {
+                    buf.push('.'); // '_' matches any single character
+                }
+                _ => {
+                    // Escape regex special characters.
+                    buf.push_str(&escape(&c.to_string()));
+                }
+            }
+        }
+    }
+    buf.push('$');
+
+    Regex::new(buf).context("Failed to build regex pattern")
 }
