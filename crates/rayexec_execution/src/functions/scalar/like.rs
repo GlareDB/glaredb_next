@@ -3,16 +3,14 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_error::{Result, ResultExt};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::util_types;
 use regex::{escape, Regex};
-use serde::{Deserialize, Serialize};
 
-use super::comparison::EqImpl;
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::expr::Expression;
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -154,7 +152,7 @@ fn like_pattern_to_regex(
     escape_char: Option<char>,
 ) -> Result<Regex> {
     buf.clear();
-    buf.push_str("^");
+    buf.push('^');
 
     let mut chars = pattern.chars().peekable();
     while let Some(c) = chars.next() {
