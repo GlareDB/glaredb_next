@@ -40,32 +40,32 @@ impl ExpressionRewriteRule for LikeRewrite {
 
                         Ok(())
                     } else if is_prefix_pattern(&pattern) {
-                        let pattern = pattern.trim_matches('%');
+                        let pattern = pattern.trim_matches('%').to_string();
                         *expr = Expression::ScalarFunction(ScalarFunctionExpr {
                             function: Box::new(StartsWithImpl {
-                                constant: Some(pattern.to_string()),
+                                constant: Some(pattern.clone()),
                             }),
-                            inputs: vec![scalar.inputs[0].clone()],
+                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
                         });
 
                         Ok(())
                     } else if is_suffix_pattern(&pattern) {
-                        let pattern = pattern.trim_matches('%');
+                        let pattern = pattern.trim_matches('%').to_string();
                         *expr = Expression::ScalarFunction(ScalarFunctionExpr {
                             function: Box::new(EndsWithImpl {
-                                constant: Some(pattern.to_string()),
+                                constant: Some(pattern.clone()),
                             }),
-                            inputs: vec![scalar.inputs[0].clone()],
+                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
                         });
 
                         Ok(())
                     } else if is_contains_pattern(&pattern) {
-                        let pattern = pattern.trim_matches('%');
+                        let pattern = pattern.trim_matches('%').to_string();
                         *expr = Expression::ScalarFunction(ScalarFunctionExpr {
                             function: Box::new(StringContainsImpl {
-                                constant: Some(pattern.to_string()),
+                                constant: Some(pattern.clone()),
                             }),
-                            inputs: vec![scalar.inputs[0].clone()],
+                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
                         });
 
                         Ok(())
