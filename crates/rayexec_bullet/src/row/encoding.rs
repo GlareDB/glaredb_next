@@ -1,5 +1,5 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
 use half::f16;
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::array::{Array, ArrayData, BinaryData};
 use crate::executor::physical_type::{
