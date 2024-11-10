@@ -193,6 +193,7 @@ impl<'a> ScalarValue<'a> {
         let data: ArrayData = match self {
             Self::Null => return Ok(Array::new_untyped_null_array(n)),
             Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
+            Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Int8(v) => PrimitiveStorage::from(vec![*v]).into(),
@@ -213,7 +214,7 @@ impl<'a> ScalarValue<'a> {
             Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
             Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            other => not_implemented!("{other} to array"), // Struct, List
+            other => not_implemented!("{other:?} to array"), // Struct, List
         };
 
         let mut array = Array::new_with_array_data(self.datatype(), data);

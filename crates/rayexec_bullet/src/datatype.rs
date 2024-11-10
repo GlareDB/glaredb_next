@@ -499,6 +499,7 @@ impl DataType {
                 | DataType::UInt32
                 | DataType::UInt64
                 | DataType::UInt128
+                | DataType::Float16
                 | DataType::Float32
                 | DataType::Float64
         )
@@ -521,6 +522,13 @@ impl DataType {
                 | DataType::Float64
                 | DataType::Decimal64(_)
                 | DataType::Decimal128(_)
+        )
+    }
+
+    pub const fn is_float(&self) -> bool {
+        matches!(
+            self,
+            DataType::Float16 | DataType::Float32 | DataType::Float64
         )
     }
 
