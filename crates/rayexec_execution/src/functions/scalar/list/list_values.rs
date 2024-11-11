@@ -2,17 +2,13 @@ use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
 use rayexec_bullet::executor::scalar::concat;
 use rayexec_bullet::storage::ListStorage;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::functions::{FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ListValues;

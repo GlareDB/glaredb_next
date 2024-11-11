@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use half::f16;
 use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{
     ArrayBuilder,
     ArrayDataBuffer,
@@ -32,8 +32,8 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::{concat, UnaryExecutor};
-use rayexec_bullet::storage::{AddressableStorage, ListStorage};
+use rayexec_bullet::executor::scalar::UnaryExecutor;
+use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;

@@ -1,7 +1,7 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::array::{Array, ArrayData};
-use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
+use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer};
 use crate::executor::physical_type::{PhysicalList, PhysicalStorage};
 use crate::executor::scalar::{can_skip_validity_check, validate_logical_len};
 use crate::selection::{self, SelectionVector};
@@ -99,13 +99,13 @@ where
 {
     match array.array_data() {
         ArrayData::List(d) => S::get_storage(d.array.array_data()),
-        _ => return Err(RayexecError::new("Expected list array data")),
+        _ => Err(RayexecError::new("Expected list array data")),
     }
 }
 
 fn get_inner_array_selection(array: &Array) -> Result<Option<&SelectionVector>> {
     match array.array_data() {
         ArrayData::List(d) => Ok(d.array.selection_vector()),
-        _ => return Err(RayexecError::new("Expected list array data")),
+        _ => Err(RayexecError::new("Expected list array data")),
     }
 }

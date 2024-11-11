@@ -234,7 +234,7 @@ impl<'a> ScalarValue<'a> {
                     .into()
                 } else {
                     let arrays = v
-                        .into_iter()
+                        .iter()
                         .map(|v| v.as_array(1))
                         .collect::<Result<Vec<_>>>()?;
                     let refs: Vec<_> = arrays.iter().collect();
