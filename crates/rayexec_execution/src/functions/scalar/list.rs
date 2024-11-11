@@ -2,6 +2,8 @@ use std::ops::Deref;
 
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
+use rayexec_bullet::executor::scalar::concat;
+use rayexec_bullet::storage::ListStorage;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
@@ -178,7 +180,14 @@ impl PlannedScalarFunction for ListValuesImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, _inputs: &[&Array]) -> Result<Array> {
-        not_implemented!("list values")
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        if inputs.is_empty() {
+            return Array::new_typed_null_array(self.datatype.clone(), 1);
+        }
+
+        let out = concat(inputs)?;
+        let data = ListStorage::single_list(out);
+
+        Ok(Array::new_with_array_data(self.datatype.clone(), data))
     }
 }

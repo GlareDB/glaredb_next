@@ -476,7 +476,7 @@ impl DataType {
             DataType::Binary => PhysicalType::Binary,
             DataType::LargeBinary => PhysicalType::Binary,
             DataType::Struct(_) => not_implemented!("struct data type to physical type"),
-            DataType::List(_) => not_implemented!("list data type to physical type"),
+            DataType::List(_) => PhysicalType::List,
         })
     }
 
