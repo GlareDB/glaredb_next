@@ -292,6 +292,14 @@ pub struct ListTypeMeta {
     pub datatype: Box<DataType>,
 }
 
+impl ListTypeMeta {
+    pub fn new(element_type: DataType) -> Self {
+        ListTypeMeta {
+            datatype: Box::new(element_type),
+        }
+    }
+}
+
 impl ProtoConv for ListTypeMeta {
     type ProtoType = rayexec_proto::generated::schema::ListTypeMeta;
 

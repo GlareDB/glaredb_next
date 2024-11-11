@@ -11,6 +11,7 @@ use crate::storage::{
     BooleanStorageRef,
     ContiguousVarlenStorageSlice,
     GermanVarlenStorageSlice,
+    ListItemMetadata,
     PrimitiveStorageSlice,
     UntypedNullStorage,
 };
@@ -476,5 +477,19 @@ impl<'a> AddressableStorage for StrDataStorage<'a> {
 impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
     fn from(value: BinaryDataStorage<'a>) -> Self {
         StrDataStorage { inner: value }
+    }
+}
+
+pub struct PhysicalList;
+
+impl<'a> PhysicalStorage<'a> for PhysicalList {
+    type Storage = PrimitiveStorageSlice<'a, ListItemMetadata>;
+
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
+        unimplemented!()
+        // match data {
+        //     ArrayData::UInt128(storage) => Ok(storage.as_primitive_storage_slice()),
+        //     _ => Err(RayexecError::new("invalid storage, expected u128")),
+        // }
     }
 }
