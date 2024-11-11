@@ -4,7 +4,7 @@ use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
-use crate::array::{ArrayData, BinaryData};
+use crate::array::{Array, ArrayData, BinaryData};
 use crate::scalar::interval::Interval;
 use crate::storage::{
     AddressableStorage,
@@ -12,6 +12,7 @@ use crate::storage::{
     ContiguousVarlenStorageSlice,
     GermanVarlenStorageSlice,
     ListItemMetadata,
+    ListStorage,
     PrimitiveStorageSlice,
     UntypedNullStorage,
 };
@@ -36,6 +37,7 @@ pub enum PhysicalType {
     Interval,
     Binary,
     Utf8,
+    List,
 }
 
 impl PhysicalType {
@@ -59,6 +61,11 @@ impl PhysicalType {
             Self::Interval => PrimitiveBuffer::<Interval>::with_len(len).into_data(),
             Self::Binary => GermanVarlenBuffer::<[u8]>::with_len(len).into_data(),
             Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
+            Self::List => ListStorage {
+                metadata: vec![ListItemMetadata::default(); len].into(),
+                array: Array::new_untyped_null_array(0),
+            }
+            .into(),
         }
     }
 }

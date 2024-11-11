@@ -42,6 +42,7 @@ use crate::storage::{
     BooleanStorage,
     ContiguousVarlenStorage,
     GermanVarlenStorage,
+    ListStorage,
     PrimitiveStorage,
     UntypedNullStorage,
 };
@@ -444,6 +445,7 @@ impl Array {
                     )
                 }
             }
+            ArrayData::List(_) => Err(RayexecError::new("Cannot yet unselect list arrays")),
         }
     }
 
@@ -876,6 +878,7 @@ pub enum ArrayData {
     UInt128(Arc<PrimitiveStorage<u128>>),
     Interval(Arc<PrimitiveStorage<Interval>>),
     Binary(BinaryData),
+    List(Arc<ListStorage>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -905,6 +908,7 @@ impl ArrayData {
             Self::UInt128(_) => PhysicalType::UInt128,
             Self::Interval(_) => PhysicalType::Interval,
             Self::Binary(_) => PhysicalType::Binary,
+            Self::List(_) => PhysicalType::List,
         }
     }
 
@@ -931,6 +935,7 @@ impl ArrayData {
                 BinaryData::LargeBinary(s) => s.len(),
                 BinaryData::German(s) => s.len(),
             },
+            ArrayData::List(s) => s.len(),
         }
     }
 
@@ -1038,6 +1043,12 @@ impl From<PrimitiveStorage<Interval>> for ArrayData {
 impl From<GermanVarlenStorage> for ArrayData {
     fn from(value: GermanVarlenStorage) -> Self {
         ArrayData::Binary(BinaryData::German(Arc::new(value)))
+    }
+}
+
+impl From<ListStorage> for ArrayData {
+    fn from(value: ListStorage) -> Self {
+        ArrayData::List(Arc::new(value))
     }
 }
 

@@ -242,6 +242,7 @@ impl ComparableRowEncoder {
                     ArrayData::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
+                    ArrayData::List(_) => not_implemented!("Row encode list"),
                 };
             }
 
@@ -278,6 +279,7 @@ impl ComparableRowEncoder {
                     BinaryData::LargeBinary(d) => d.data_size_bytes(),
                     BinaryData::German(d) => d.data_size_bytes(),
                 },
+                ArrayData::List(_) => not_implemented!("Row encode list"),
             };
 
             // Account for validities.
