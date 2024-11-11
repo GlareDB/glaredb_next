@@ -493,10 +493,9 @@ impl<'a> PhysicalStorage<'a> for PhysicalList {
     type Storage = PrimitiveStorageSlice<'a, ListItemMetadata>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
-        unimplemented!()
-        // match data {
-        //     ArrayData::UInt128(storage) => Ok(storage.as_primitive_storage_slice()),
-        //     _ => Err(RayexecError::new("invalid storage, expected u128")),
-        // }
+        match data {
+            ArrayData::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
+            _ => Err(RayexecError::new("invalid storage, expected list")),
+        }
     }
 }

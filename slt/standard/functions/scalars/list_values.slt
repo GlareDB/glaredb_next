@@ -81,8 +81,8 @@ select *, c1[1], c1[2], c1[3], c1[4]
 [d, e, f]  d  e     f     NULL
 
 
-query ?
+query ? rowsort
 select [a, b] from (values ('yoshi', 'mario'), ('luigi', 'peach')) as v(a,b);
 ----
-[yoshi, mario]
 [luigi, peach]
+[yoshi, mario]

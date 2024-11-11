@@ -34,6 +34,10 @@ impl ListStorage {
         }
     }
 
+    pub fn inner_array(&self) -> &Array {
+        &self.array
+    }
+
     pub fn len(&self) -> usize {
         self.metadata.len()
     }

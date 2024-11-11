@@ -312,7 +312,7 @@ impl ComparableRowEncoder {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at_unchecked::<S>(arr, row)? {
+        match UnaryExecutor::value_at::<S>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
                 let end = start + 1 + val.as_bytes().len();
@@ -347,7 +347,7 @@ impl ComparableRowEncoder {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at_unchecked::<S>(arr, row)? {
+        match UnaryExecutor::value_at::<S>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
                 let end = start + 1 + std::mem::size_of::<<S::Storage as AddressableStorage>::T>();
