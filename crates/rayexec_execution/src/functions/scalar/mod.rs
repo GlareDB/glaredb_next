@@ -9,6 +9,7 @@ pub mod list;
 pub mod negate;
 pub mod numeric;
 pub mod random;
+pub mod similarity;
 pub mod string;
 pub mod struct_funcs;
 
