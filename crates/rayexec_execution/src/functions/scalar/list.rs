@@ -141,7 +141,9 @@ impl ScalarFunction for ListValues {
             Some(dt) => dt,
             None => {
                 return Ok(Box::new(ListValuesImpl {
-                    datatype: DataType::Null,
+                    datatype: DataType::List(ListTypeMeta {
+                        datatype: Box::new(DataType::Null),
+                    }),
                 }))
             }
         };
@@ -182,7 +184,13 @@ impl PlannedScalarFunction for ListValuesImpl {
 
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         if inputs.is_empty() {
-            return Array::new_typed_null_array(self.datatype.clone(), 1);
+            let inner_type = match &self.datatype {
+                DataType::List(l) => l.datatype.as_ref(),
+                other => panic!("invalid data type: {other}"),
+            };
+
+            let data = ListStorage::empty_list(Array::new_typed_null_array(inner_type.clone(), 1)?);
+            return Ok(Array::new_with_array_data(self.datatype.clone(), data));
         }
 
         let out = concat(inputs)?;

@@ -581,7 +581,22 @@ impl Array {
                 v.into()
             }
             DataType::Struct(_) => not_implemented!("get value: struct"),
-            DataType::List(_) => not_implemented!("get value: list"),
+            DataType::List(_) => match &self.data {
+                ArrayData::List(list) => {
+                    let meta = list
+                        .metadata
+                        .as_slice()
+                        .get(idx)
+                        .ok_or_else(|| RayexecError::new("Out of bounds"))?;
+
+                    let vals = (meta.offset..meta.offset + meta.len)
+                        .map(|idx| list.array.physical_scalar(idx as usize))
+                        .collect::<Result<Vec<_>>>()?;
+
+                    ScalarValue::List(vals)
+                }
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
         })
     }
 

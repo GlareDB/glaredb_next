@@ -14,6 +14,13 @@ pub struct ListStorage {
 }
 
 impl ListStorage {
+    pub fn empty_list(array: Array) -> Self {
+        ListStorage {
+            metadata: vec![ListItemMetadata { offset: 0, len: 0 }].into(),
+            array,
+        }
+    }
+
     pub fn single_list(array: Array) -> Self {
         let len = array.logical_len();
 
