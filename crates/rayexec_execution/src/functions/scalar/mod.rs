@@ -77,6 +77,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(is::IsNotTrue),
         Box::new(is::IsFalse),
         Box::new(is::IsNotFalse),
+        // Distance
+        Box::new(similarity::L2Distance),
     ]
 });
 

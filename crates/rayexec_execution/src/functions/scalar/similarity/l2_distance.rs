@@ -1,7 +1,7 @@
 use std::ops::AddAssign;
 
 use num_traits::{AsPrimitive, Float};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -11,17 +11,22 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalType,
 };
 use rayexec_bullet::executor::scalar::{BinaryListReducer, ListExecutor};
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
+/// Euclidean distance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct L2Distance;
 
 impl FunctionInfo for L2Distance {
     fn name(&self) -> &'static str {
         "l2_distance"
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        &["array_distance"]
     }
 
     fn signatures(&self) -> &[Signature] {
@@ -76,12 +81,17 @@ impl PlannedScalarFunction for L2DistanceImpl {
         let a = inputs[0];
         let b = inputs[1];
 
+        let physical_type = match a.array_data() {
+            ArrayData::List(l) => l.inner_array().physical_type(),
+            _other => return Err(RayexecError::new("Unexpected storage type")),
+        };
+
         let builder = ArrayBuilder {
             datatype: DataType::Float64,
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        match a.physical_type() {
+        match physical_type {
             PhysicalType::Float16 => {
                 ListExecutor::execute_binary_reduce::<PhysicalF16, _, L2DistanceReducer<_>>(
                     a, b, builder,
@@ -117,6 +127,6 @@ where
     }
 
     fn finish(self) -> f64 {
-        self.distance.as_()
+        self.distance.as_().sqrt()
     }
 }

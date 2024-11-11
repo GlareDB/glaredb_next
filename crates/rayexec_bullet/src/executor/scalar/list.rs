@@ -38,7 +38,7 @@ impl ListExecutor {
 
         if can_skip_validity_check([validity1, validity2]) {
             let metadata1 = PhysicalList::get_storage(array1.array_data())?;
-            let metadata2 = PhysicalList::get_storage(array1.array_data())?;
+            let metadata2 = PhysicalList::get_storage(array2.array_data())?;
 
             let values1 = get_inner_array_storage::<S>(array1)?;
             let values2 = get_inner_array_storage::<S>(array2)?;
@@ -93,12 +93,20 @@ impl ListExecutor {
     }
 }
 
+/// Gets the inner array storage. Checks to ensure the inner array does not
+/// contain NULLs.
 fn get_inner_array_storage<'a, S>(array: &'a Array) -> Result<S::Storage>
 where
     S: PhysicalStorage<'a>,
 {
     match array.array_data() {
-        ArrayData::List(d) => S::get_storage(d.array.array_data()),
+        ArrayData::List(d) => {
+            if !can_skip_validity_check([d.array.validity()]) {
+                return Err(RayexecError::new("Cannot reduce list containing NULLs"));
+            }
+
+            S::get_storage(d.array.array_data())
+        }
         _ => Err(RayexecError::new("Expected list array data")),
     }
 }
