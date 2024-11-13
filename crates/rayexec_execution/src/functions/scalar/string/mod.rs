@@ -14,3 +14,6 @@ pub use ends_with::*;
 
 mod contains;
 pub use contains::*;
+
+mod length;
+pub use length::*;
