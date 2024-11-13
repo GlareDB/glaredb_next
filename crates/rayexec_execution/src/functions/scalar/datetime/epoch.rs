@@ -34,13 +34,13 @@ impl FunctionInfo for Epoch {
 
 impl ScalarFunction for Epoch {
     fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(EpochImpl::<1000_000>))
+        Ok(Box::new(EpochImpl::<1_000_000>))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(EpochImpl::<1000_000>)),
+            DataType::Int64 => Ok(Box::new(EpochImpl::<1_000_000>)),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
@@ -86,7 +86,7 @@ pub struct EpochImpl<const S: i64>;
 impl<const S: i64> PlannedScalarFunction for EpochImpl<S> {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         match S {
-            1000_000 => &Epoch,
+            1_000_000 => &Epoch,
             1000 => &EpochMs,
             other => unreachable!("scale: {other}"),
         }
