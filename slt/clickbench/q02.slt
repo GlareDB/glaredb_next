@@ -1,9 +1,11 @@
 query TT
-DESCRIBE SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "AdvEngineID" <> 0;
+DESCRIBE SELECT SUM("AdvEngineID"), COUNT(*), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
 ----
+sum    Int64
 count  Int64
+avg    Float64
 
-query ?
-SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "AdvEngineID" <> 0;
+query ???
+SELECT SUM("AdvEngineID"), COUNT(*), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
 ----
-362
+2286  10000  1592.238
