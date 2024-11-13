@@ -65,6 +65,7 @@ where
             (PhysicalType::BOOLEAN, DataType::Boolean) => (data.into_array_data(), self.datatype.clone()),
             (PhysicalType::INT32, DataType::Int16) => (data.into_array_data(), DataType::Int32),
             (PhysicalType::INT32, DataType::Int32) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT32, DataType::UInt16) => (data.into_array_data(), DataType::Int32),
             (PhysicalType::INT32, DataType::Date32) => (data.into_array_data(), self.datatype.clone()),
             (PhysicalType::INT64, DataType::Int64) => (data.into_array_data(), self.datatype.clone()),
             (PhysicalType::INT64, DataType::Decimal64(_)) => (data.into_array_data(), self.datatype.clone()),
