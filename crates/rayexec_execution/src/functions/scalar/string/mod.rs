@@ -17,3 +17,6 @@ pub use contains::*;
 
 mod length;
 pub use length::*;
+
+mod regexp_replace;
+pub use regexp_replace::*;
