@@ -80,6 +80,8 @@ impl AggregateFunction for Min {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
+            | DataType::Date32
+            | DataType::Date64
             | DataType::Utf8
             | DataType::Binary
             | DataType::Timestamp(_) => Ok(Box::new(MinImpl {
@@ -132,6 +134,8 @@ impl AggregateFunction for Max {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
+            | DataType::Date32
+            | DataType::Date64
             | DataType::Utf8
             | DataType::Binary
             | DataType::Timestamp(_) => Ok(Box::new(MaxImpl {
