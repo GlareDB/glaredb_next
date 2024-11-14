@@ -4,8 +4,9 @@ DESCRIBE SELECT "RegionID", COUNT(DISTINCT "UserID") AS u FROM '../submodules/te
 RegionID  Int32
 u         Int64
 
+# Extra ORDER BY
 query ??
-SELECT "RegionID", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY u DESC LIMIT 10;
+SELECT "RegionID", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY u DESC, "RegionID" LIMIT 10;
 ----
 229    294
 2      119
@@ -14,7 +15,7 @@ SELECT "RegionID", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/cl
 7      12
 9      9
 11     8
-226    8
 139    8
+226    8
 14593  7
 
