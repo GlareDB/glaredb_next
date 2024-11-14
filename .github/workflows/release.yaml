@@ -97,7 +97,7 @@ jobs:
       - name: Maturin build
         uses: PyO3/maturin-action@v1
         with:
-          before-script-linux: "../../scripts/install_protoc_linux.sh" # Relative to working dir
+          before-script-linux: "../../scripts/install_protoc_linux_arm.sh" # Relative to working dir
           args: --release --out dist
           working-directory: crates/rayexec_python
           manylinux: 'auto'
