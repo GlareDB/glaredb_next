@@ -63,7 +63,7 @@ jobs:
       - name: Upload python wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos
+          name: wheels-macos-arm
           path: crates/rayexec_python/dist
 
   python-manylinux-x86:
@@ -84,7 +84,7 @@ jobs:
       - name: Upload python wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux
+          name: wheels-linux-x86
           path: crates/rayexec_python/dist
 
   python-manylinux-arm:
@@ -109,7 +109,7 @@ jobs:
       - name: Upload python wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux
+          name: wheels-linux-arm
           path: crates/rayexec_python/dist
 
   python-pypi-upload:
