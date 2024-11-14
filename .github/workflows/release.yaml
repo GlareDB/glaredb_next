@@ -89,7 +89,7 @@ jobs:
 
   python-manylinux-arm:
     name: Build python (Linux Arm64)
-    runs-on: ubuntu-2404-arm-2-core
+    runs-on: ubuntu-2404-arm-4-core
     steps:
       - name: Checkout
         uses: actions/checkout@v4
