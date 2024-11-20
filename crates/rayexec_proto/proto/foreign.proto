@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package rayexec.foreign;
-
-message Uuid {
-    bytes value = 1;
-}

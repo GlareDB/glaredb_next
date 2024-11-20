@@ -1,4 +1,3 @@
 # GlareDB (NEXT)
 
-- https://next.glaredb.com
-- `pip install rayexec`
+Old repo, all code has been pushed to the `main` branch in <https://github.com/GlareDB/glaredb>.

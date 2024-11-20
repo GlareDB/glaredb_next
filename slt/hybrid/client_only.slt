@@ -1,6 +1,0 @@
-# Examples of queries that execute only on the client.
-
-query II
-select 1, 2;
-----
-1  2

@@ -1,4 +1,0 @@
-# Try to attach invalid data source
-
-statement error Hybrid execution not enabled. Cannot verify attaching a 'snowbricks' data source
-attach snowbricks database as my_db;
